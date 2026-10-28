@@ -366,6 +366,10 @@ svg.orders line.arrow{stroke:#e8644f;stroke-width:3;opacity:.8}svg.orders line.a
 .mov{margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(201,166,87,.15)}
 
 #vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 55%,rgba(5,10,14,.38) 100%)}
+
+#confdlg{position:fixed;inset:0;display:none;background:rgba(5,9,12,.6);z-index:60;align-items:center;justify-content:center;pointer-events:auto}
+#confdlg.open{display:flex}#confdlg .wd{width:min(980px,calc(100vw - 30px));max-height:calc(100vh - 40px);display:flex;flex-direction:column;background:linear-gradient(180deg,#27323b,#1b232a);border:1px solid var(--gold);border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.8)}
+.cfrow{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid rgba(201,166,87,.2);border-radius:6px;margin:4px 0;cursor:pointer;background:rgba(0,0,0,.15)}.cfrow.on{border-color:var(--gold2);background:rgba(201,166,87,.14)}.cfrow .cfl{flex:1}.cfrow .cfc{min-width:50px;text-align:right;color:var(--gold2)}.cfrow select{background:#232e37;color:var(--text,#e8e0c8);border:1px solid var(--goldd);border-radius:4px}
 </style>
 </head>
 <body>
@@ -378,7 +382,7 @@ svg.orders line.arrow{stroke:#e8644f;stroke-width:3;opacity:.8}svg.orders line.a
 <div id="toasts"></div>
 <div id="event"></div>
 <div id="tooltip"></div>
-<div id="wardlg"></div>
+<div id="wardlg"></div><div id="confdlg"></div>
 <div id="search"></div>
 <div id="start"></div>
 <div id="loading"><h1>VICTORIA</h1><div class="lb"><i></i></div><p id="loadtxt">Cargando…</p></div>
@@ -3242,51 +3246,6 @@ function makePeace(w) {
   else if (Math.random() < 0.55 + Math.abs(sc) / 200 || w.weeks > 40) endWar(w, null);
   else toast('🕊️', 'El enemigo rechaza la paz blanca. Insiste más adelante.');
 }
-function endWar(w, winner) {
-  const idx = G.wars.indexOf(w); if (idx >= 0) G.wars.splice(idx, 1);
-  clearOccupationKeep(w);
-  w.attAll.concat(w.defAll).forEach(t => { const c = G.C[t]; c.wars = c.wars.filter(x => x !== w.id); });
-  const A = G.C[w.att], D = G.C[w.def];
-  if (winner === null) {
-    notify('war', `${A.name} y ${D.name} firman una paz blanca.`);
-    addRel(w.att, w.def, 25); return;
-  }
-  const attWins = winner === w.att;
-  const cb = CBS[w.cb];
-  const occ = {};
-  if (attWins) {
-    const full = Math.abs(w.score) >= 85;
-    let gained = [];
-    if (cb.terr) {
-      w.targets.forEach(sid => { const s = G.S[sid]; if (s && s.owner === w.def && (full || (s.occ || 0) >= 0.5 || w.score >= 60)) { transferState(s, w.att); gained.push(s.name); } });
-      A.prestige += 6 + gained.length * 4; cnt(A, 'statesGained', gained.length);
-    } else if (w.cb === 'humiliate') {
-      const ind = Math.min(Math.max(0, D.treasury), D.stats.income * 8); D.treasury -= ind; A.treasury += ind;
-      A.prestige += 12; D.prestige = Math.max(0, D.prestige - 12);
-    } else if (w.cb === 'regime' && w.law) {
-      D.laws[w.law.cat] = w.law.opt; recalcMods(D); D.legitimacy -= 12; D.radicals = Math.min(0.9, D.radicals + 0.08); A.prestige += 8;
-    } else if (w.cb === 'trade') {
-      const ind = Math.min(Math.max(0, D.treasury), D.stats.income * 5); D.treasury -= ind; A.treasury += ind;
-      D.tradeLoss = Math.min(0.25, (D.tradeLoss || 0) + 0.06); makePact('trade', w.att, w.def, {forced: true}); A.prestige += 8;
-    } else if (w.cb === 'vassal') {
-      makeSubject(w.att, w.def); A.prestige += 15; cnt(A, 'vassalsMade');
-    }
-    D.prestige = Math.max(0, D.prestige - 8); D.legitimacy -= 4; cnt(A, 'warsWon'); if (w.cb === 'humiliate') cnt(A, 'humiliations');
-    notify('war', `${A.name} ha vencido a ${D.name}${gained.length ? ' y se anexiona ' + gained.join(', ') : ' (' + cb.name + ')'}.`, w.targets[0]);
-    // aliados del vencedor ganan prestigio
-    w.attAll.forEach(t => { if (t !== w.att) G.C[t].prestige += 3; });
-    addRel(w.att, w.def, 20);
-  } else {
-    const ind = Math.min(Math.max(0, A.treasury), A.stats.income * 4); A.treasury -= ind; D.treasury += ind;
-    D.prestige += 8; A.prestige = Math.max(0, A.prestige - 10); A.legitimacy -= 5;
-    const regained = [];
-    G.S.filter(s => s.owner === w.att && (s.occ || 0) >= 0.5 && w.defAll.includes(s.occBy)).sort((x, y) => y.popBase - x.popBase).slice(0, 3).forEach(s => { transferState(s, w.def); regained.push(s.name); });
-    notify('war', `${D.name} ha repelido la invasión de ${A.name}${regained.length ? ' y se anexiona ' + regained.join(', ') : ''}.`, w.cTargets[0] ?? w.targets[0]);
-    addRel(w.att, w.def, 10); cnt(D, 'defended'); cnt(D, 'warsWon'); cnt(D, 'statesGained', regained.length);
-  }
-  G.tags.forEach(t => { if (t !== NONE) G.C[t].legitimacy = clamp(G.C[t].legitimacy, 0, 100); });
-  recalcHostile(); evacuateForeignArmies();
-}
 function clearOccupationKeep(w) {
   const ch = new Set();
   G.P.forEach((p, pid) => { const sid = provState(pid), o = G.S[sid].owner; if ((p.by || p.prog > 0) && ((w.attAll.includes(p.by || p.pby) && w.defAll.includes(o)) || (w.defAll.includes(p.by || p.pby) && w.attAll.includes(o)))) { p.by = null; p.prog = 0; ch.add(sid); MAP.provs[pid].nb.forEach(q => ch.add(provState(q))); } });
@@ -4524,7 +4483,7 @@ function resolveCrisis(k, how) {
     else logMsg(`La crisis entre ${A.name} y ${D.name} se enfría: ${r.msg}`);
   } else if (how === 'def_back') {
     // el defensor cede sin combatir: se aplican las exigencias
-    const w = {id: -1, att: k.att, def: k.def, cb: k.cb, targets: k.targets, cTargets: [], score: 100, weeks: 0, attAll: k.sides.att.slice(), defAll: k.sides.def.slice(), law: k.law, bw: {att: 0, def: 0}};
+    const w = {id: -1, auto: true, att: k.att, def: k.def, cb: k.cb, targets: k.targets, cTargets: [], score: 100, weeks: 0, attAll: k.sides.att.slice(), defAll: k.sides.def.slice(), law: k.law, bw: {att: 0, def: 0}};
     notify('diplo', `${D.name} cede ante ${A.name} y acepta sus exigencias sin combatir.`, k.targets[0] ?? D.capital);
     endWar(w, k.att); D.prestige = Math.max(0, D.prestige - 4); cnt(A, 'crisesWon');
   } else if (how === 'att_back') {
@@ -5079,9 +5038,9 @@ function frame_(t) {
   const dt = Math.min(0.1, (t - _lastT) / 1000); _lastT = t;
   keyboardPan(dt);
   if (R.cityMesh === undefined && G.S && G.S.length && MAP.provs) { try { buildCities(); } catch (e) { console.warn(e); } R.cityMesh = R.cityMesh || null; R.dirty = true; }
-  if (R.anim && t - (R.lastAnim || 0) > 55) { R.lastAnim = t; if (animateMap(t)) R.dirty = true; if (G.armies && G.armies.length && (R.cam.dist < 62 || R.figsShown)) updateArmyMeshes(t); }
+  if ((R.anim || R.smokeOn || (G.battles && G.battles.length)) && t - (R.lastAnim || 0) > 55) { R.lastAnim = t; if (R.anim && animateMap(t)) R.dirty = true; R.smokeOn = updateSmoke(t); if (R.smokeOn) R.dirty = true; updateCityVisibility(); if (G.armies && G.armies.length && (R.cam.dist < 62 || R.figsShown)) updateArmyMeshes(t); }
   if (R.dirty || R.labelsDirty) {
-    updateCamera();
+    updateCamera(); if (typeof updateCityVisibility === 'function') updateCityVisibility();
     const t0 = performance.now(); R.renderer.render(R.scene, R.camera);
     R.renderMs = (R.renderMs || 10) * 0.9 + (performance.now() - t0) * 0.1;
     if (R.anim && R.renderMs > 45 && t > 8000) { R.anim = false; R.waterMesh.visible = false; R.cloudMesh.visible = false; if (typeof syncCamBtns === 'function') syncCamBtns(); }
@@ -5153,6 +5112,45 @@ function buildCities() {
   updateCityColors();
 }
 const px0 = pv => pv.px, py0 = pv => pv.py;
+function updateCityVisibility() {
+  const on = R.cam.dist < 34; if (R.cityBody && R.cityBody.visible !== on) { R.cityBody.visible = R.cityRoof.visible = R.cityTower.visible = on; R.dirty = true; }
+}
+/* ---------- humo de las batallas ---------- */
+function buildSmoke() {
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64; const g = cv.getContext('2d');
+  const gr = g.createRadialGradient(32, 32, 2, 32, 32, 31); gr.addColorStop(0, 'rgba(45,42,40,1)'); gr.addColorStop(0.55, 'rgba(70,66,62,.6)'); gr.addColorStop(1, 'rgba(110,105,100,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  const fc = document.createElement('canvas'); fc.width = fc.height = 64; const f = fc.getContext('2d');
+  const fg = f.createRadialGradient(32, 32, 1, 32, 32, 30); fg.addColorStop(0, 'rgba(255,240,170,1)'); fg.addColorStop(0.4, 'rgba(255,140,40,.7)'); fg.addColorStop(1, 'rgba(255,80,0,0)'); f.fillStyle = fg; f.fillRect(0, 0, 64, 64);
+  R.smokeTex = new THREE.CanvasTexture(cv); R.fireTex = new THREE.CanvasTexture(fc); R.puffs = [];
+  for (let i = 0; i < 150; i++) {
+    const fire = i % 5 === 0;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({map: fire ? R.fireTex : R.smokeTex, transparent: true, depthWrite: false, opacity: 0, blending: fire ? THREE.AdditiveBlending : THREE.NormalBlending, fog: false}));
+    sp.visible = false; sp.renderOrder = 5; R.scene.add(sp); R.puffs.push({sp, fire, age: 0, life: 0, alive: false});
+  }
+}
+function updateSmoke(t) {
+  if (!R.puffs) { try { buildSmoke(); } catch (e) { console.warn(e); R.puffs = []; return false; } }
+  const dtS = Math.min(0.12, (t - (R.lastSmoke || t)) / 1000); R.lastSmoke = t;
+  const zs = clamp(R.cam.dist / 38, 1, 3.2);
+  let alive = false;
+  (G.battles || []).forEach(b => {
+    const pv = MAP.provs[b.prov]; if (!pv) return;
+    for (let n = 0; n < 2; n++) {
+      if (Math.random() > 0.55) continue;
+      const fire = Math.random() < 0.22, pf = R.puffs.find(p => !p.alive && p.fire === fire); if (!pf) continue;
+      pf.alive = true; pf.age = 0; pf.life = fire ? 0.5 + Math.random() * 0.4 : 2.2 + Math.random() * 1.6; pf.x = pv.lon + (Math.random() - 0.5) * 0.9; pf.z = -pv.lat + (Math.random() - 0.5) * 0.7;
+      pf.y = MAP.height[pv.py * MAP_W + pv.px] * R.exag + 0.1; pf.sp.visible = true;
+    }
+  });
+  R.puffs.forEach(pf => {
+    if (!pf.alive) return; alive = true; pf.age += dtS; const k = pf.age / pf.life;
+    if (k >= 1) { pf.alive = false; pf.sp.visible = false; return; }
+    const sz = (pf.fire ? 0.8 + k * 0.7 : 1.2 + k * 2.8) * zs;
+    pf.sp.scale.set(sz, sz, 1); pf.sp.position.set(pf.x + k * 0.8 * zs * 0.4, pf.y + (pf.fire ? k * 0.3 : 0.3 + k * 2.4 * Math.min(2, zs)), pf.z);
+    pf.sp.material.opacity = pf.fire ? (1 - k) * 0.9 : Math.sin(Math.min(1, k * 3) * 1.57) * (1 - k) * 0.92;
+  });
+  return alive || (G.battles && G.battles.length > 0);
+}
 function updateCityColors() {
   if (!R.cityRoof) return; const c = new THREE.Color();
   R.cityItems.forEach((it, i) => { const s = G.S[it.sid]; let r = 0.6, g = 0.26, b = 0.2; if (s.owner !== NONE && G.C[s.owner]) { const rgb = R.occRGB(s.owner); r = 0.45 * 0.6 + rgb[0] / 255 * 0.55; g = 0.45 * 0.26 + rgb[1] / 255 * 0.55; b = 0.45 * 0.2 + rgb[2] / 255 * 0.55; r *= 0.85; g *= 0.85; b *= 0.85; } c.setRGB(r, g, b); R.cityRoof.setColorAt(i, c); });
@@ -6797,6 +6795,165 @@ Object.assign(ACT, {
   natcancel: () => { me().nat.cur = null; renderWindow(true); }
 });
 
+/* ===== CONFERENCIAS DE PAZ: el vencedor gasta su puntuación de guerra en exigencias ===== */
+const LAW_DEMANDS = {
+  army: {cat: 'army', opt: 'peasant_levies', name: 'Ejército de levas campesinas (sin ejército profesional)'},
+  economy: {cat: 'economy', opt: 'laissez', name: 'Apertura de mercados (laissez-faire)'},
+  press: {cat: 'press', opt: 'censorship', name: 'Régimen de censura'}
+};
+function buildConference(w, winner) {
+  const att = winner === w.att, winAll = (att ? w.attAll : w.defAll).slice(), loseAll = (att ? w.defAll : w.attAll).slice(), loseLead = att ? w.def : w.att;
+  const budget = clamp(Math.abs(w.score), 30, 100), opts = [];
+  G.S.forEach(s => {
+    if (!loseAll.includes(s.owner)) return;
+    const occ = s.occ && s.occBy && winAll.includes(s.occBy) ? s.occ : 0, target = att && w.targets.includes(s.id);
+    if (occ < 0.2 && !target) return;
+    const pop = popTotal(s);
+    let cost = 4 + Math.sqrt(pop / 1e5) * 2.4;
+    cost *= occ >= 0.5 ? 1 : occ > 0 ? 1.5 : 2.4;
+    if (target) cost *= 0.5;
+    if (G.C[s.owner].capital === s.id) cost *= 1.5;
+    opts.push({id: 's' + s.id, type: 'state', sid: s.id, cost: Math.round(clamp(cost, 4, 40)), occ, target, pop});
+  });
+  opts.sort((a, b) => b.pop - a.pop); opts.length = Math.min(opts.length, 22);
+  const L = G.C[loseLead], W = G.C[winner];
+  opts.push({id: 'reps8', type: 'reps', weeks: 8, cost: 10}, {id: 'reps16', type: 'reps', weeks: 16, cost: 20});
+  opts.push({id: 'humil', type: 'humil', cost: 12}, {id: 'trade', type: 'trade', cost: 12}, {id: 'demil', type: 'demil', cost: 15});
+  Object.keys(LAW_DEMANDS).forEach(k => { if (L.laws[LAW_DEMANDS[k].cat] !== LAW_DEMANDS[k].opt) opts.push({id: 'law_' + k, type: 'law', key: k, cost: 20}); });
+  if (!L.overlord && !W.overlord && L.stats.pop < W.stats.pop * 1.5) opts.push({id: 'vassal', type: 'vassal', cost: 45});
+  return {w, winner, winAll, loseAll, loseLead, budget, opts, pick: new Set(), recip: {}};
+}
+const confSpent = c => c.opts.reduce((n, o) => n + (c.pick.has(o.id) ? o.cost : 0), 0);
+function confLabel(c, o) {
+  const W = G.C[c.winner], L = G.C[c.loseLead];
+  if (o.type === 'state') return `Anexionar ${G.S[o.sid].name}`;
+  if (o.type === 'reps') return `Reparaciones de guerra (${o.weeks} semanas de ingresos de ${L.name})`;
+  if (o.type === 'humil') return `Humillar a ${L.name}: −12 prestigio para ellos, +12 para ti`;
+  if (o.type === 'trade') return `Concesiones comerciales: pacto de comercio forzoso y pérdida de ingresos aduaneros`;
+  if (o.type === 'demil') return `Desmilitarización: ${L.name} licencia el 60% de su ejército`;
+  if (o.type === 'law') return `Imponer ley: ${LAW_DEMANDS[o.key].name}`;
+  if (o.type === 'vassal') return `Convertir a ${L.name} en tu vasallo`;
+  void W; return o.id;
+}
+// elección automática de la IA: objetivos de guerra primero, luego territorios más valiosos, luego dinero y prestigio
+function aiPickDemands(c) {
+  let left = c.budget;
+  const val = o => o.type === 'state' ? (o.target ? 3 : 1.2) * (o.pop / 1e6 + 0.5) / o.cost * 10 : o.type === 'reps' ? 0.9 : o.type === 'humil' ? 0.7 : o.type === 'vassal' ? 0.5 : o.type === 'demil' ? 0.4 : o.type === 'trade' ? 0.3 : 0.1;
+  c.opts.slice().sort((a, b) => val(b) - val(a)).forEach(o => {
+    if (o.cost > left) return; if (o.type === 'reps' && c.pick.has('reps8') && o.id === 'reps16') return; if (o.type === 'law') return;
+    if (o.type === 'vassal' && c.pick.size) return;
+    c.pick.add(o.id); left -= o.cost;
+    if (o.type === 'state') { const L = c.winAll.filter(t => t !== c.winner && alive(t)); c.recip[o.sid] = L.length && Math.random() < 0.18 ? pick(L) : c.winner; }
+  });
+}
+function applyConference(c) {
+  const w = c.w, W = G.C[c.winner], L = G.C[c.loseLead], gained = [], notes = [];
+  c.opts.forEach(o => {
+    if (!c.pick.has(o.id)) return;
+    if (o.type === 'state') { const s = G.S[o.sid]; if (!loseAllHas(c, s.owner)) return; const r = c.recip[o.sid] || c.winner; transferState(s, r); gained.push(s.name + (r !== c.winner ? ` (para ${G.C[r].name})` : '')); }
+    else if (o.type === 'reps') { const ind = Math.min(Math.max(0, L.treasury), L.stats.income * o.weeks); L.treasury -= ind; W.treasury += ind; notes.push(`reparaciones de ${money(ind)}`); }
+    else if (o.type === 'humil') { W.prestige += 12; L.prestige = Math.max(0, L.prestige - 12); cnt(W, 'humiliations'); notes.push('humillación'); }
+    else if (o.type === 'trade') { L.tradeLoss = Math.min(0.25, (L.tradeLoss || 0) + 0.06); makePact('trade', c.winner, c.loseLead, {forced: true}); notes.push('concesiones comerciales'); }
+    else if (o.type === 'demil') { G.armies.forEach(a => { if (a.tag === c.loseLead) { a.divs = a.divs.slice(0, Math.ceil(a.divs.length * 0.4)); } }); G.armies = G.armies.filter(a => a.divs.length); L.mob = 0; notes.push('desmilitarización'); }
+    else if (o.type === 'law') { const d = LAW_DEMANDS[o.key]; L.laws[d.cat] = d.opt; recalcMods(L); L.legitimacy -= 10; L.radicals = Math.min(0.9, L.radicals + 0.06); notes.push('ley impuesta'); }
+    else if (o.type === 'vassal') { makeSubject(c.winner, c.loseLead); cnt(W, 'vassalsMade'); notes.push('vasallaje'); }
+  });
+  const att = c.winner === w.att;
+  W.prestige += 6 + gained.length * 4; cnt(W, 'statesGained', gained.length); cnt(W, 'warsWon'); if (!att) cnt(W, 'defended');
+  L.prestige = Math.max(0, L.prestige - 8); L.legitimacy -= 4; L.wear = Math.max(0, (L.wear || 0) - 20);
+  c.winAll.forEach(t => { if (t !== c.winner && alive(t)) G.C[t].prestige += 3; });
+  addRel(c.winner, c.loseLead, att ? 20 : 10);
+  const txt = att ? `${W.name} vence a ${L.name}` : `${W.name} repele la invasión de ${L.name}`;
+  notify('war', `Conferencia de paz: ${txt}${gained.length ? ' y se anexiona ' + gained.join(', ') : ''}${notes.length ? '. Además: ' + notes.join(', ') : ''}.`, c.pick.size && gained.length ? c.opts.find(o => o.type === 'state' && c.pick.has(o.id)).sid : undefined);
+  G.tags.forEach(t => { if (t !== NONE) G.C[t].legitimacy = clamp(G.C[t].legitimacy, 0, 100); });
+  recalcHostile(); evacuateForeignArmies(); if (typeof fullRepaint === 'function' && gained.length) fullRepaint();
+}
+const loseAllHas = (c, tag) => c.loseAll.includes(tag);
+function endWar(w, winner) {
+  const idx = G.wars.indexOf(w); if (idx >= 0) G.wars.splice(idx, 1);
+  const conf = winner !== null && !w.auto ? buildConference(w, winner) : null;      // antes de borrar las ocupaciones
+  clearOccupationKeep(w);
+  w.attAll.concat(w.defAll).forEach(t => { const c = G.C[t]; c.wars = c.wars.filter(x => x !== w.id); });
+  const A = G.C[w.att], D = G.C[w.def];
+  if (winner === null) { notify('war', `${A.name} y ${D.name} firman una paz blanca.`); addRel(w.att, w.def, 25); return; }
+  if (w.auto) { settleLegacy(w, winner); return; }
+  const humanLead = !G.C[winner].ai && typeof openConference === 'function' && !G.headless;
+  if (humanLead) { G.confQueue = G.confQueue || []; G.confQueue.push(conf); if (!G.conf) nextConference(); }
+  else { aiPickDemands(conf); applyConference(conf); }
+}
+function nextConference() {
+  G.conf = (G.confQueue || []).shift() || null;
+  if (G.conf) { G.paused = true; openConference(); } else closeConference();
+}
+function settleLegacy(w, winner) {
+  const A = G.C[w.att], D = G.C[w.def];
+  const attWins = winner === w.att;
+  const cb = CBS[w.cb];
+  const occ = {};
+  if (attWins) {
+    const full = Math.abs(w.score) >= 85;
+    let gained = [];
+    if (cb.terr) {
+      w.targets.forEach(sid => { const s = G.S[sid]; if (s && s.owner === w.def && (full || (s.occ || 0) >= 0.5 || w.score >= 60)) { transferState(s, w.att); gained.push(s.name); } });
+      A.prestige += 6 + gained.length * 4; cnt(A, 'statesGained', gained.length);
+    } else if (w.cb === 'humiliate') {
+      const ind = Math.min(Math.max(0, D.treasury), D.stats.income * 8); D.treasury -= ind; A.treasury += ind;
+      A.prestige += 12; D.prestige = Math.max(0, D.prestige - 12);
+    } else if (w.cb === 'regime' && w.law) {
+      D.laws[w.law.cat] = w.law.opt; recalcMods(D); D.legitimacy -= 12; D.radicals = Math.min(0.9, D.radicals + 0.08); A.prestige += 8;
+    } else if (w.cb === 'trade') {
+      const ind = Math.min(Math.max(0, D.treasury), D.stats.income * 5); D.treasury -= ind; A.treasury += ind;
+      D.tradeLoss = Math.min(0.25, (D.tradeLoss || 0) + 0.06); makePact('trade', w.att, w.def, {forced: true}); A.prestige += 8;
+    } else if (w.cb === 'vassal') {
+      makeSubject(w.att, w.def); A.prestige += 15; cnt(A, 'vassalsMade');
+    }
+    D.prestige = Math.max(0, D.prestige - 8); D.legitimacy -= 4; cnt(A, 'warsWon'); if (w.cb === 'humiliate') cnt(A, 'humiliations');
+    notify('war', `${A.name} ha vencido a ${D.name}${gained.length ? ' y se anexiona ' + gained.join(', ') : ' (' + cb.name + ')'}.`, w.targets[0]);
+    // aliados del vencedor ganan prestigio
+    w.attAll.forEach(t => { if (t !== w.att) G.C[t].prestige += 3; });
+    addRel(w.att, w.def, 20);
+  } else {
+    const ind = Math.min(Math.max(0, A.treasury), A.stats.income * 4); A.treasury -= ind; D.treasury += ind;
+    D.prestige += 8; A.prestige = Math.max(0, A.prestige - 10); A.legitimacy -= 5;
+    const regained = [];
+    G.S.filter(s => s.owner === w.att && (s.occ || 0) >= 0.5 && w.defAll.includes(s.occBy)).sort((x, y) => y.popBase - x.popBase).slice(0, 3).forEach(s => { transferState(s, w.def); regained.push(s.name); });
+    notify('war', `${D.name} ha repelido la invasión de ${A.name}${regained.length ? ' y se anexiona ' + regained.join(', ') : ''}.`, w.cTargets[0] ?? w.targets[0]);
+    addRel(w.att, w.def, 10); cnt(D, 'defended'); cnt(D, 'warsWon'); cnt(D, 'statesGained', regained.length);
+  }
+  G.tags.forEach(t => { if (t !== NONE) G.C[t].legitimacy = clamp(G.C[t].legitimacy, 0, 100); });
+  recalcHostile(); evacuateForeignArmies();
+}
+
+/* ---------- ventana de la conferencia ---------- */
+function openConference() { renderConference(); }
+function closeConference() { const r = $('#confdlg'); if (r) { r.classList.remove('open'); r.innerHTML = ''; } }
+function renderConference() {
+  const c = G.conf, root = $('#confdlg'); if (!root) return; if (!c) { closeConference(); return; }
+  const W = G.C[c.winner], L = G.C[c.loseLead], w = c.w, spent = confSpent(c), left = c.budget - spent;
+  const states = c.opts.filter(o => o.type === 'state'), others = c.opts.filter(o => o.type !== 'state');
+  const row = o => `<label class="cfrow ${c.pick.has(o.id) ? 'on' : ''}"><input type="checkbox" data-act="confpick" data-id="${o.id}" ${c.pick.has(o.id) ? 'checked' : ''} ${!c.pick.has(o.id) && o.cost > left ? 'disabled' : ''}>
+    <span class="cfl">${confLabel(c, o)}${o.type === 'state' ? `<small class="dim"> · ${fmtN(o.pop, 1)} hab. · ${o.target ? '🎯 objetivo de guerra · ' : ''}${o.occ >= 0.5 ? 'ocupado' : o.occ > 0 ? 'ocupado en parte' : 'sin ocupar (más caro)'}</small>` : ''}</span>
+    ${o.type === 'state' && c.pick.has(o.id) && c.winAll.filter(t => t !== c.winner && alive(t)).length ? `<select data-act="confrecip" data-id="${o.sid}"><option value="${c.winner}">Para mí</option>${c.winAll.filter(t => t !== c.winner && alive(t)).map(t => `<option value="${t}" ${c.recip[o.sid] === t ? 'selected' : ''}>Para ${G.C[t].name}</option>`).join('')}</select>` : ''}
+    <b class="cfc">${o.cost} pts</b></label>`;
+  root.classList.add('open');
+  root.innerHTML = `<div class="wd"><div class="whead"><span class="wicon">🕊️</span><h2>Conferencia de paz — ${w.name || CBS[w.cb].name}</h2></div>
+  <div class="wd-body"><div class="cols"><div class="col wide">
+    <div class="notice">${flag(c.winner, 'sm')} <b>${W.name}</b> ha vencido a ${flag(c.loseLead, 'sm')} <b>${L.name}</b>. Gasta tus <b>puntos de guerra</b> en las exigencias que quieras.</div>
+    <h4 class="sub">Territorios</h4>${states.length ? states.map(row).join('') : '<p class="hint">No hay territorios ocupados que reclamar.</p>'}
+    <h4 class="sub">Otras exigencias</h4>${others.map(row).join('')}
+  </div><div class="col">
+    <div class="card"><h3>Puntos de guerra</h3><div class="kv"><span>Disponibles</span><b>${c.budget}</b></div><div class="kv"><span>Gastados</span><b>${spent}</b></div><div class="kv"><span>Restantes</span><b class="${left < 0 ? 'bad' : 'good'}">${left}</b></div>${bar(spent, c.budget, left < 0 ? 'bad' : 'warn')}
+    <p class="hint">La puntuación de la guerra (${Math.round(Math.abs(w.score))}) fija el presupuesto. Los territorios ocupados y los objetivos de guerra son más baratos.</p>
+    <div class="btnrow"><button class="primary" data-act="confsign" ${left < 0 ? 'disabled' : ''}>✍️ Firmar la paz${c.pick.size ? '' : ' (sin exigencias)'}</button></div></div>
+    <div class="card"><h3>Aliados en el bando vencedor</h3>${c.winAll.filter(t => t !== c.winner).map(t => `<div class="kv sm"><span>${flag(t, 'sm')} ${G.C[t].name}</span></div>`).join('') || '<small class="dim">Ninguno.</small>'}<p class="hint">Puedes ceder territorios a tus aliados para ganar su favor.</p></div>
+  </div></div></div></div>`;
+}
+Object.assign(ACT, {
+  confpick: (d, el) => { const c = G.conf; if (!c) return; if (el.checked) c.pick.add(d.id); else c.pick.delete(d.id); renderConference(); },
+  confrecip: (d, el) => { if (G.conf) G.conf.recip[+d.id] = el.value; },
+  confsign: () => { const c = G.conf; if (!c || confSpent(c) > c.budget) return; applyConference(c); G.conf = null; nextConference(); if (!G.conf) { G.paused = false; updateHud(); } renderWindow && renderWindow(); }
+});
+
 /* ===== EVENTOS AMPLIADOS, RASGOS NACIONALES Y LOGROS ===== */
 const cnt = (c, k, n) => { c.cnt = c.cnt || {}; c.cnt[k] = (c.cnt[k] || 0) + (n === undefined ? 1 : n); return c.cnt[k]; };
 const cntOf = (c, k) => (c.cnt && c.cnt[k]) || 0;
@@ -7407,6 +7564,8 @@ const MANUAL = [
 <h4>Batallas</h4><p>Cuando dos ejércitos hostiles coinciden en un estado empieza una <b>batalla automática de varios días</b>. Cada día se compara fuerza, ataque o defensa, el <b>terreno</b> (bosque, montaña y pantano favorecen al defensor), el <b>general</b> y la suerte. Las divisiones pierden fuerza y organización; si se quedan sin organización <b>se retiran</b> al estado propio más cercano. Las bajas reducen la población campesina del país.</p>
 <h4>Ocupación y puntuación de guerra</h4><p>Un estado enemigo sin defensores y con tus tropas durante <b>10 días</b> queda <b>ocupado</b> (se dibuja con rayas y línea de frente, produce y recauda mucho menos). La <b>puntuación de guerra</b> (−100 a +100) se calcula con los estados ocupados por cada bando (más si son capitales u objetivos de la guerra) y las batallas ganadas. Ya no depende de una comparación abstracta de potencias: <b>hay que ganar la guerra sobre el terreno</b>.</p>
 <h4>IA militar</h4><p>Los países de la IA reclutan al entrar en guerra, defienden su capital y atacan el estado enemigo más débil de su frontera.</p>
+<h4>Conferencia de paz</h4><p>Cuando ganas una guerra (por rendición, por imponer la paz o por capitulación del enemigo) se abre una <b>conferencia de paz</b>. Dispones de <b>puntos de guerra</b> (según la puntuación) y los gastas en exigencias: <b>territorios</b> (más baratos si están ocupados o son objetivo de guerra; puedes cederlos a tus aliados), <b>reparaciones</b>, <b>humillación</b>, <b>concesiones comerciales</b>, <b>desmilitarización</b>, <b>imponer una ley</b> y <b>vasallaje</b>. La IA elige sola cuando vence. Las guerras que acaban por crisis diplomática se resuelven con las exigencias originales.</p>
+<h4>Humo de batalla</h4><p>Las provincias en combate echan columnas de humo y fogonazos visibles desde lejos.</p>
 <h4>Desgaste</h4><p>Las guerras cuestan un 5% de los ingresos por semana, suben los radicales y desgastan a los soldados.</p>
 <h4>Paz</h4>
 <p>En <b>Ejército y guerra</b> pulsa el botón de paz. Si la puntuación te favorece más de 30 puntos <b>impones la paz</b> (consigues los objetivos del casus belli: territorios ocupados al ≥50%, o todos si vences de forma aplastante); si la desfavorece más de 30 la <b>pides</b> y cedes; en un empate puedes proponer <b>paz blanca</b>, que el rival puede rechazar. La IA cierra las guerras entre ellas cuando hay un claro vencedor.</p>

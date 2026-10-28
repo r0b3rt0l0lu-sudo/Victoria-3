@@ -58,3 +58,7 @@
   elecciones y 7 movimientos políticos (`src/politics2.js`), árbol nacional para 8 países + genérico (`src/national.js`),
   gráficos: ríos, agua animada, nubes, ciudades 3D, niebla, viñeta, grano de terreno (botón ≈ para desactivar animaciones).
 - PENDIENTE Parte 2: producción de equipo, doctrinas, aviación, marina, conferencia de paz, niebla de guerra, guerra civil real.
+
+## Sesión: conferencias de paz, humo de batalla y casas solo de cerca
+- Conferencia de paz con presupuesto de puntos de guerra (`src/peace.js`); la IA elige exigencias automáticamente; las crisis diplomáticas usan el resultado legado.
+- Humo y fogonazos en las provincias en batalla; las casas y campanarios solo se ven con zoom cercano.

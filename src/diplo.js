@@ -230,51 +230,6 @@ function makePeace(w) {
   else if (Math.random() < 0.55 + Math.abs(sc) / 200 || w.weeks > 40) endWar(w, null);
   else toast('🕊️', 'El enemigo rechaza la paz blanca. Insiste más adelante.');
 }
-function endWar(w, winner) {
-  const idx = G.wars.indexOf(w); if (idx >= 0) G.wars.splice(idx, 1);
-  clearOccupationKeep(w);
-  w.attAll.concat(w.defAll).forEach(t => { const c = G.C[t]; c.wars = c.wars.filter(x => x !== w.id); });
-  const A = G.C[w.att], D = G.C[w.def];
-  if (winner === null) {
-    notify('war', `${A.name} y ${D.name} firman una paz blanca.`);
-    addRel(w.att, w.def, 25); return;
-  }
-  const attWins = winner === w.att;
-  const cb = CBS[w.cb];
-  const occ = {};
-  if (attWins) {
-    const full = Math.abs(w.score) >= 85;
-    let gained = [];
-    if (cb.terr) {
-      w.targets.forEach(sid => { const s = G.S[sid]; if (s && s.owner === w.def && (full || (s.occ || 0) >= 0.5 || w.score >= 60)) { transferState(s, w.att); gained.push(s.name); } });
-      A.prestige += 6 + gained.length * 4; cnt(A, 'statesGained', gained.length);
-    } else if (w.cb === 'humiliate') {
-      const ind = Math.min(Math.max(0, D.treasury), D.stats.income * 8); D.treasury -= ind; A.treasury += ind;
-      A.prestige += 12; D.prestige = Math.max(0, D.prestige - 12);
-    } else if (w.cb === 'regime' && w.law) {
-      D.laws[w.law.cat] = w.law.opt; recalcMods(D); D.legitimacy -= 12; D.radicals = Math.min(0.9, D.radicals + 0.08); A.prestige += 8;
-    } else if (w.cb === 'trade') {
-      const ind = Math.min(Math.max(0, D.treasury), D.stats.income * 5); D.treasury -= ind; A.treasury += ind;
-      D.tradeLoss = Math.min(0.25, (D.tradeLoss || 0) + 0.06); makePact('trade', w.att, w.def, {forced: true}); A.prestige += 8;
-    } else if (w.cb === 'vassal') {
-      makeSubject(w.att, w.def); A.prestige += 15; cnt(A, 'vassalsMade');
-    }
-    D.prestige = Math.max(0, D.prestige - 8); D.legitimacy -= 4; cnt(A, 'warsWon'); if (w.cb === 'humiliate') cnt(A, 'humiliations');
-    notify('war', `${A.name} ha vencido a ${D.name}${gained.length ? ' y se anexiona ' + gained.join(', ') : ' (' + cb.name + ')'}.`, w.targets[0]);
-    // aliados del vencedor ganan prestigio
-    w.attAll.forEach(t => { if (t !== w.att) G.C[t].prestige += 3; });
-    addRel(w.att, w.def, 20);
-  } else {
-    const ind = Math.min(Math.max(0, A.treasury), A.stats.income * 4); A.treasury -= ind; D.treasury += ind;
-    D.prestige += 8; A.prestige = Math.max(0, A.prestige - 10); A.legitimacy -= 5;
-    const regained = [];
-    G.S.filter(s => s.owner === w.att && (s.occ || 0) >= 0.5 && w.defAll.includes(s.occBy)).sort((x, y) => y.popBase - x.popBase).slice(0, 3).forEach(s => { transferState(s, w.def); regained.push(s.name); });
-    notify('war', `${D.name} ha repelido la invasión de ${A.name}${regained.length ? ' y se anexiona ' + regained.join(', ') : ''}.`, w.cTargets[0] ?? w.targets[0]);
-    addRel(w.att, w.def, 10); cnt(D, 'defended'); cnt(D, 'warsWon'); cnt(D, 'statesGained', regained.length);
-  }
-  G.tags.forEach(t => { if (t !== NONE) G.C[t].legitimacy = clamp(G.C[t].legitimacy, 0, 100); });
-  recalcHostile(); evacuateForeignArmies();
-}
 function clearOccupationKeep(w) {
   const ch = new Set();
   G.P.forEach((p, pid) => { const sid = provState(pid), o = G.S[sid].owner; if ((p.by || p.prog > 0) && ((w.attAll.includes(p.by || p.pby) && w.defAll.includes(o)) || (w.defAll.includes(p.by || p.pby) && w.attAll.includes(o)))) { p.by = null; p.prog = 0; ch.add(sid); MAP.provs[pid].nb.forEach(q => ch.add(provState(q))); } });

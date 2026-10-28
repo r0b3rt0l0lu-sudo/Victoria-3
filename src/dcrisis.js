@@ -61,7 +61,7 @@ function resolveCrisis(k, how) {
     else logMsg(`La crisis entre ${A.name} y ${D.name} se enfría: ${r.msg}`);
   } else if (how === 'def_back') {
     // el defensor cede sin combatir: se aplican las exigencias
-    const w = {id: -1, att: k.att, def: k.def, cb: k.cb, targets: k.targets, cTargets: [], score: 100, weeks: 0, attAll: k.sides.att.slice(), defAll: k.sides.def.slice(), law: k.law, bw: {att: 0, def: 0}};
+    const w = {id: -1, auto: true, att: k.att, def: k.def, cb: k.cb, targets: k.targets, cTargets: [], score: 100, weeks: 0, attAll: k.sides.att.slice(), defAll: k.sides.def.slice(), law: k.law, bw: {att: 0, def: 0}};
     notify('diplo', `${D.name} cede ante ${A.name} y acepta sus exigencias sin combatir.`, k.targets[0] ?? D.capital);
     endWar(w, k.att); D.prestige = Math.max(0, D.prestige - 4); cnt(A, 'crisesWon');
   } else if (how === 'att_back') {

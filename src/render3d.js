@@ -52,6 +52,45 @@ function buildCities() {
   updateCityColors();
 }
 const px0 = pv => pv.px, py0 = pv => pv.py;
+function updateCityVisibility() {
+  const on = R.cam.dist < 34; if (R.cityBody && R.cityBody.visible !== on) { R.cityBody.visible = R.cityRoof.visible = R.cityTower.visible = on; R.dirty = true; }
+}
+/* ---------- humo de las batallas ---------- */
+function buildSmoke() {
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64; const g = cv.getContext('2d');
+  const gr = g.createRadialGradient(32, 32, 2, 32, 32, 31); gr.addColorStop(0, 'rgba(45,42,40,1)'); gr.addColorStop(0.55, 'rgba(70,66,62,.6)'); gr.addColorStop(1, 'rgba(110,105,100,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  const fc = document.createElement('canvas'); fc.width = fc.height = 64; const f = fc.getContext('2d');
+  const fg = f.createRadialGradient(32, 32, 1, 32, 32, 30); fg.addColorStop(0, 'rgba(255,240,170,1)'); fg.addColorStop(0.4, 'rgba(255,140,40,.7)'); fg.addColorStop(1, 'rgba(255,80,0,0)'); f.fillStyle = fg; f.fillRect(0, 0, 64, 64);
+  R.smokeTex = new THREE.CanvasTexture(cv); R.fireTex = new THREE.CanvasTexture(fc); R.puffs = [];
+  for (let i = 0; i < 150; i++) {
+    const fire = i % 5 === 0;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({map: fire ? R.fireTex : R.smokeTex, transparent: true, depthWrite: false, opacity: 0, blending: fire ? THREE.AdditiveBlending : THREE.NormalBlending, fog: false}));
+    sp.visible = false; sp.renderOrder = 5; R.scene.add(sp); R.puffs.push({sp, fire, age: 0, life: 0, alive: false});
+  }
+}
+function updateSmoke(t) {
+  if (!R.puffs) { try { buildSmoke(); } catch (e) { console.warn(e); R.puffs = []; return false; } }
+  const dtS = Math.min(0.12, (t - (R.lastSmoke || t)) / 1000); R.lastSmoke = t;
+  const zs = clamp(R.cam.dist / 38, 1, 3.2);
+  let alive = false;
+  (G.battles || []).forEach(b => {
+    const pv = MAP.provs[b.prov]; if (!pv) return;
+    for (let n = 0; n < 2; n++) {
+      if (Math.random() > 0.55) continue;
+      const fire = Math.random() < 0.22, pf = R.puffs.find(p => !p.alive && p.fire === fire); if (!pf) continue;
+      pf.alive = true; pf.age = 0; pf.life = fire ? 0.5 + Math.random() * 0.4 : 2.2 + Math.random() * 1.6; pf.x = pv.lon + (Math.random() - 0.5) * 0.9; pf.z = -pv.lat + (Math.random() - 0.5) * 0.7;
+      pf.y = MAP.height[pv.py * MAP_W + pv.px] * R.exag + 0.1; pf.sp.visible = true;
+    }
+  });
+  R.puffs.forEach(pf => {
+    if (!pf.alive) return; alive = true; pf.age += dtS; const k = pf.age / pf.life;
+    if (k >= 1) { pf.alive = false; pf.sp.visible = false; return; }
+    const sz = (pf.fire ? 0.8 + k * 0.7 : 1.2 + k * 2.8) * zs;
+    pf.sp.scale.set(sz, sz, 1); pf.sp.position.set(pf.x + k * 0.8 * zs * 0.4, pf.y + (pf.fire ? k * 0.3 : 0.3 + k * 2.4 * Math.min(2, zs)), pf.z);
+    pf.sp.material.opacity = pf.fire ? (1 - k) * 0.9 : Math.sin(Math.min(1, k * 3) * 1.57) * (1 - k) * 0.92;
+  });
+  return alive || (G.battles && G.battles.length > 0);
+}
 function updateCityColors() {
   if (!R.cityRoof) return; const c = new THREE.Color();
   R.cityItems.forEach((it, i) => { const s = G.S[it.sid]; let r = 0.6, g = 0.26, b = 0.2; if (s.owner !== NONE && G.C[s.owner]) { const rgb = R.occRGB(s.owner); r = 0.45 * 0.6 + rgb[0] / 255 * 0.55; g = 0.45 * 0.26 + rgb[1] / 255 * 0.55; b = 0.45 * 0.2 + rgb[2] / 255 * 0.55; r *= 0.85; g *= 0.85; b *= 0.85; } c.setRGB(r, g, b); R.cityRoof.setColorAt(i, c); });

@@ -207,6 +207,7 @@ function warWeek() {
     const humans = [w.att, w.def].some(t => !G.C[t].ai);
     const dead = !alive(w.att) || !alive(w.def);
     if (dead) { endWar(w, alive(w.att) ? w.att : w.def); continue; }
+    if (capitulationCheck(w)) continue;
     if (Math.abs(w.score) >= 100 && !humans) endWar(w, w.score > 0 ? w.att : w.def);
     else if (!humans && w.weeks > 30 && Math.abs(w.score) > 45) endWar(w, w.score > 0 ? w.att : w.def);
     else if (!humans && w.weeks > 70 && Math.abs(w.score) < 25) endWar(w, null);
@@ -526,7 +527,7 @@ function aiFabricate(c) {
 function aiWarsNew() {
   if (G.wars.length >= 3) return;
   const cand = G.tags.filter(t => t !== NONE && alive(t) && G.C[t].rank <= 16 && !G.C[t].wars.length && !G.C[t].overlord);
-  if (!cand.length || Math.random() > 0.08 * (G.diff >= 3 ? 1.3 : 1)) return;
+  if (!cand.length || Math.random() > 0.13 * (G.diff >= 3 ? 1.3 : 1)) return;
   const a = pick(cand), A = G.C[a];
   const tg = G.tags.filter(t => t !== NONE && t !== a && alive(t) && !warBlockers(a, t) && armyPower(G.C[t]) * 1.5 < armyPower(A) && relOf(a, t) < 25 && !G.C[t].overlord);
   if (!tg.length) return;
@@ -541,7 +542,9 @@ function aiWarsNew() {
     else if (roll < 0.75) cb = 'trade';
   }
   if (cb === 'regime') return;
-  declareWar(a, d, cb, targets, {free: A.influence < warCost(a, targets, cb)});
+  const fr = A.influence < warCost(a, targets, cb);
+  if (Math.random() < 0.35 && !crisisOf(a) && !crisisOf(d)) { const r = openCrisis(a, d, cb, targets, {free: fr, ai: true}); if (r.ok) return; }
+  declareWar(a, d, cb, targets, {free: fr});
 }
 function respondProposal(id, accept) {
   const i = G.proposals.findIndex(p => p.id === id); if (i < 0) return;

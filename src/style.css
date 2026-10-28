@@ -346,3 +346,17 @@ svg.orders line.arrow{stroke:#e8644f;stroke-width:3;opacity:.8}svg.orders line.a
 #bmap{display:block;width:100%;height:auto;border-radius:6px;border:1px solid #6b5a2f;margin:8px 0;background:#222}
 .blog{margin-top:6px;max-height:120px;overflow:auto}.blog .ev{font-size:12.5px;padding:3px 6px;border-left:3px solid #6b5a2f;margin:3px 0;background:rgba(0,0,0,.2)}.blog .ev.charge{border-color:#e8644f}.blog .ev.barrage{border-color:#f0a03c}.blog .ev.cav{border-color:#e0d070}.blog .ev.flank{border-color:#9fd37a}
 #battlepanel{max-height:calc(100vh - 130px);overflow-y:auto}
+
+/* ===== árbol nacional, movimientos ===== */
+.pl-focus{font-size:11.5px;color:#9fd37a;margin-top:1px}
+.ntree{overflow:auto;max-height:calc(100vh - 340px);border:1px solid rgba(201,166,87,.25);border-radius:6px;background:radial-gradient(#26313a,#161d23)}
+.ncanvas{position:relative}.ncanvas svg{position:absolute;left:0;top:0;pointer-events:none}
+.nl{fill:none;stroke:#8a7a48;stroke-width:2.5}.nl.ex{stroke:#e8644f;stroke-dasharray:6 5}
+.nbr{position:absolute;top:8px;width:200px;text-align:center;color:var(--gold2);font-family:var(--head);letter-spacing:.05em;font-size:13px;border-bottom:1px solid var(--goldd);padding-bottom:3px}
+.nnode{position:absolute;width:200px;min-height:86px;padding:7px 9px;border-radius:8px;background:linear-gradient(180deg,#2c3944,#1d262d);border:1px solid #4d5964;display:flex;flex-direction:column;gap:3px;font-size:12px}
+.nnode .nh{display:flex;gap:6px;align-items:center}.nnode .ni{font-size:20px}.nnode .nfx{color:#9fd37a}
+.nnode.done{border-color:var(--gold);background:linear-gradient(180deg,#5a4a1e,#2f2810)}.nnode.cur{border-color:#79c35a;box-shadow:0 0 12px rgba(121,195,90,.5)}
+.nnode.avail{border-color:var(--gold2);cursor:pointer}.nnode.avail:hover{filter:brightness(1.25)}.nnode.locked{opacity:.55}.nnode.blocked{opacity:.5;border-color:#a8483a}
+.mov{margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(201,166,87,.15)}
+
+#vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 55%,rgba(5,10,14,.38) 100%)}

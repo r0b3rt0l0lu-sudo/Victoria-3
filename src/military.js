@@ -76,7 +76,7 @@ const MOB_LEVELS = [
   {name: 'Movilización total', pct: 0.10, desc: 'Un 10% de la población. Economía de guerra total: producción muy reducida y mucho malestar.'}
 ];
 function divLimit(c) { return Math.max(0, Math.floor((c.stats.soldiers + c.stats.pop * MOB_LEVELS[c.mob || 0].pct) / MEN_PER_DIV)); }
-const mobK = c => 1 - 0.04 * (c.mob || 0);
+const mobK = c => (1 - 0.04 * (c.mob || 0)) * (typeof wearK === 'function' ? wearK(c) : 1);
 function setMobilization(c, lvl) {
   lvl = clamp(lvl | 0, 0, 4); if (lvl === (c.mob || 0)) return {ok: false, msg: ''};
   if (lvl > (c.mob || 0)) { const cost = c.stats.income * 0.5 * (lvl - (c.mob || 0)); if (!c.ai && c.treasury < cost) return {ok: false, msg: 'No tienes fondos para movilizar.'}; if (!c.ai) c.treasury -= cost; c.legitimacy -= 1.5 * (lvl - (c.mob || 0)); }
@@ -300,7 +300,7 @@ function bleed(tag, men) {
   if (men <= 0) return;
   const c = G.C[tag]; if (!c || !c.states.length) return;
   c.cnt = c.cnt || {}; c.cnt.casualties = (c.cnt.casualties || 0) + men;
-  c.wearV = (c.wearV || 0) + men / Math.max(1e5, c.stats.pop) * 40;
+  c.wearV = (c.wearV || 0) + men / Math.max(1e5, c.stats.pop) * 240;
   let left = men;
   for (let k = 0; k < 4 && left > 0; k++) { const s = G.S[pick(c.states)]; const take = Math.min(left, (s.pops.peasants || 0) * 0.02); s.pops.peasants -= take; left -= take; }
 }
@@ -592,8 +592,8 @@ function cleanupArmies() {
 /* ---------- guardado de datos militares ---------- */
 function provSave() { const o = []; G.P.forEach((p, i) => { if (p.by || p.prog || p.fort) o.push([i, p.by, p.prog, p.pby || null, p.fort || 0]); }); return o; }
 function provLoad(list) { initProvinceState(); (list || []).forEach(([i, by, prog, pby, fort]) => { const p = G.P[i]; if (p) { p.by = by; p.prog = prog; p.pby = pby; p.fort = fort; } }); G.occList = (list || []).map(x => x[0]); G.S.forEach(s => refreshStateOcc(s.id)); }
-function saveExtra() { return {battleLog: G.battleLog || [], fronts: G.fronts || [], nextFront: G.nextFront || 1}; }
-function loadExtra(x) { G.battleLog = (x && x.battleLog) || []; G.fronts = (x && x.fronts) || []; G.nextFront = (x && x.nextFront) || 1; }
+function saveExtra() { return {battleLog: G.battleLog || [], fronts: G.fronts || [], nextFront: G.nextFront || 1, dcrises: G.dcrises || [], nextDC: G.nextDC || 1, mov: G.movStore || null}; }
+function loadExtra(x) { G.battleLog = (x && x.battleLog) || []; G.fronts = (x && x.fronts) || []; G.nextFront = (x && x.nextFront) || 1; G.dcrises = (x && x.dcrises) || []; G.nextDC = (x && x.nextDC) || 1; }
 
 /* ---------- órdenes de movilidad al estilo HoI4 ---------- */
 // juntar: el ejército va hacia otro propio y se fusiona al llegar

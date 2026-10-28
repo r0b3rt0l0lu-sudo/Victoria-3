@@ -44,6 +44,7 @@ function recalcMods(c) {
   c.lawMods = Object.assign({}, m);
   c.techs.forEach(id => { const t = TECH[id]; for (const k in t.fx) m[k] = (m[k] || 0) + t.fx[k]; });
   (c.traits || []).forEach(id => { const t = typeof TRAITS !== 'undefined' && TRAITS[id]; if (t) for (const k in t.fx) m[k] = (m[k] || 0) + t.fx[k]; });
+  if (c.natMods) for (const k in c.natMods) m[k] = (m[k] || 0) + c.natMods[k];
   c.mods = m;
   return m;
 }
@@ -64,6 +65,7 @@ function createWorld(playerTag) {
   G.player = playerTag; G.paused = true; G.speed = 2; G.week = 0; G.notifs = []; G.pendingEvent = null;
   G.log = []; G.wars = []; G.nextWarId = 1; G.eventCool = {};
   G.armies = []; G.battles = []; G.recruits = []; G.nextArmyId = 1; G.nextBattleId = 1; G.hostile = new Set(); G.occList = []; initProvinceState();
+  G.dcrises = []; G.nextDC = 1; G.sup = {}; G.fronts = []; G.nextFront = 1; G.battleLog = [];
   G.crises = []; G.diff = G.diff || 2; G.pacts = []; G.blocs = []; G.proposals = []; G.nextId = 1; G.pt = {}; G.fx = {}; G.cycle = 0;
   G.C = {};
   Object.keys(COUNTRY_DATA).forEach(t => G.C[t] = mkCountry(t));
@@ -225,7 +227,7 @@ function advanceDay() {
   let monthly = false;
   if (d.d > dim) { d.d = 1; d.m++; monthly = true; if (d.m > 11) { d.m = 0; d.y++; } }
   econDay();
-  militaryDay();
+  militaryDay(); natDay();
   if (d.t % 2 === 0) aiMilitary();
   if (monthly) monthlyTick();
   dailyEvents();
@@ -712,7 +714,7 @@ function monthlyTick(init) {
     if (c.ai) aiMonth(c);
     if (!init) { journal(c); traitMonth(c); if (!c.ai) achMonth(c); }
   });
-  if (!init) { randomEvents(); stepColonizeAll(); diploMonth(); crisisMonth(); }
+  if (!init) { randomEvents(); stepColonizeAll(); diploMonth(); crisisMonth(); dcrisisMonth(); }
   // crecimiento de población (mensual)
   G.S.forEach(s => {
     const c = G.C[s.owner];

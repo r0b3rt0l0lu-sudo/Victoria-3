@@ -64,7 +64,7 @@ function buildHud() {
     <div class="crest" id="crest"></div>
     <div class="pl-main">
       <div class="pl-name" id="pl-name"></div>
-      <div class="pl-sub" id="pl-sub"></div><div class="pl-traits" id="pl-traits"></div>
+      <div class="pl-sub" id="pl-sub"></div><div class="pl-focus" id="pl-focus"></div><div class="pl-traits" id="pl-traits"></div>
     </div>
     <div class="chips">
       <div class="chip" id="ch-treasury" data-tip="Tesoro del Estado"><b>💰</b><span></span></div>
@@ -93,7 +93,7 @@ function buildHud() {
     <button class="rbtn" data-act="win" data-w="manual" title="Manual del juego (F1)">📖</button>
   </div>
   <div id="menu">
-    ${[['budget', '💷', 'Presupuesto'], ['production', '🏭', 'Producción y mercado'], ['pops', '👥', 'Población'], ['politics', '🏛️', 'Política'], ['tech', '💡', 'Tecnología'], ['diplomacy', '🤝', 'Diplomacia'], ['military', '⚔️', 'Ejército y guerra'], ['construction', '🏗️', 'Construcción']]
+    ${[['budget', '💷', 'Presupuesto'], ['production', '🏭', 'Producción y mercado'], ['pops', '👥', 'Población'], ['politics', '🏛️', 'Política'], ['tech', '💡', 'Tecnología'], ['diplomacy', '🤝', 'Diplomacia'], ['military', '⚔️', 'Ejército y guerra'], ['construction', '🏗️', 'Construcción'], ['national', '🌳', 'Decisiones nacionales']]
       .map(([id, ic, t]) => `<button class="mbtn" data-act="win" data-w="${id}" data-tip="${t}" id="mb-${id}"><span>${ic}</span></button>`).join('')}
   </div>
   <div id="camctl">
@@ -102,6 +102,7 @@ function buildHud() {
     <button data-act="rotl" title="Girar a la izquierda (Q)">⟲</button><button data-act="rotr" title="Girar a la derecha (E)">⟳</button>
     <button data-act="tiltu" title="Inclinar más (R)">⤒</button><button data-act="tiltd" title="Inclinar menos (F)">⤓</button>
     <button data-act="wheelmode" id="btn-wheel" title="Rueda del ratón: zoom o desplazar">🖱️</button>
+    <button data-act="animtoggle" id="btn-anim" title="Animaciones del mapa: agua y nubes">≈</button>
     <button data-act="edgescroll" id="btn-edge" title="Desplazar al acercar el ratón al borde de la pantalla">⇱</button>
   </div>
   <div id="mapctl">
@@ -113,7 +114,7 @@ function buildHud() {
   $('#crest').innerHTML = '';
   syncCamBtns(); iconize($('#hud'));
 }
-function syncCamBtns() { const w = $('#btn-wheel'), e2 = $('#btn-edge'); if (w) { w.classList.toggle('on', R.wheelMode === 'pan'); w.innerHTML = icon(R.wheelMode === 'pan' ? 'hand' : 'mouse'); } if (e2) e2.classList.toggle('on', !!R.edgeScroll); }
+function syncCamBtns() { const an = $('#btn-anim'); if (an) an.classList.toggle('on', !!R.anim); const w = $('#btn-wheel'), e2 = $('#btn-edge'); if (w) { w.classList.toggle('on', R.wheelMode === 'pan'); w.innerHTML = icon(R.wheelMode === 'pan' ? 'hand' : 'mouse'); } if (e2) e2.classList.toggle('on', !!R.edgeScroll); }
 function minimapJump(e) {
   const r = e.currentTarget.getBoundingClientRect();
   const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
@@ -126,6 +127,7 @@ function updateHud(force) {
   $('#crest').innerHTML = flag(c.tag, 'big');
   $('#pl-name').textContent = c.name;
   $('#pl-sub').textContent = `${c.gov} · Rango ${c.rank}`;
+  { const pf = $('#pl-focus'); const cu = c.nat && c.nat.cur && natNode(c, c.nat.cur.id); pf.textContent = cu ? `🌳 ${cu.name} · ${Math.ceil(c.nat.cur.left / 7)} sem.` : ''; pf.style.display = cu ? 'block' : 'none'; }
   const tb = (c.traits || []).map(id => TRAITS[id]).filter(Boolean).map(t => `<span class="tchip ${t.good ? 'g' : 'b'}" data-tip="${traitTip(t)}">${t.icon}</span>`).join('');
   const tr = $('#pl-traits'); if (tr && tr.dataset.k !== tb) { tr.innerHTML = tb; tr.dataset.k = tb; }
   const set = (id, txt, tip) => { const e = $('#' + id); e.querySelector('span').textContent = txt; if (tip) e.dataset.tip = tip; };
@@ -295,6 +297,8 @@ WINDOWS.politics = {title: 'Política', icon: '🏛️', render() {
       <div class="ig ${g.gov ? 'gov' : ''}" data-tip="<b>${d.name}</b><br>${d.desc}"><div class="igh"><span class="igi" style="background:${d.color}">${d.icon}</span><div><b>${d.name}</b><small>${g.gov ? 'En el gobierno' : 'Oposición'}</small></div><span class="face">${faceFor(g.approval)}</span></div>
       <div class="kv"><span>Influencia</span><b>${pctS(g.share, 1)}</b></div>${bar(g.share, 0.5, '', '')}
       <div class="kv"><span>Aprobación</span><b class="${g.approval < -1 ? 'bad' : g.approval > 1 ? 'good' : ''}">${sgn(g.approval)}</b></div></div>`; }).join('')}</div></div></div></div>`;
+  } else if (t === 'mov') {
+    body = movTabHtml();
   } else if (t === 'ideo') {
     body = ideoTab();
   } else {
@@ -310,7 +314,7 @@ WINDOWS.politics = {title: 'Política', icon: '🏛️', render() {
         ${cur ? '<div class="notice">Esta ley está en vigor.</div>' : `<div class="kv"><span>Probabilidad de aprobación</span><b>${pctS(chance)}</b></div><button class="primary" data-act="enact" data-id="${sel.id}" ${c.lawChange || (sel.tech && !c.techs.has(sel.tech)) ? 'disabled' : ''}>Promulgar reforma (50 influencia)</button>${sel.tech && !c.techs.has(sel.tech) ? `<small class="bad">Requiere: ${TECH[sel.tech].name}</small>` : ''}`}`;
       })() : '<p class="hint">Selecciona una ley para ver sus efectos y las posturas de los grupos de interés.</p>'}</div>`;
   }
-  return tabs('pol', [['igs', 'Gobierno y grupos de interés'], ['ideo', 'Ideologías y cambio de régimen'], ['laws', 'Leyes']]) + body;
+  return tabs('pol', [['igs', 'Gobierno y grupos de interés'], ['ideo', 'Ideologías y cambio de régimen'], ['mov', 'Elecciones y movimientos'], ['laws', 'Leyes']]) + body;
 }};
 const MODNAME = {tax: 'Recaudación', bur: 'Burocracia', invest: 'Inversión privada', lit: 'Alfabetización', grow: 'Crecimiento', army: 'Ejército', rad: 'Radicalismo', out: 'Producción', lab: 'Cuota salarial', stab: 'Estabilidad'};
 const MODGOOD = {rad: -1};
@@ -417,6 +421,8 @@ WINDOWS.diplomacy = {title: 'Diplomacia', icon: '🤝', render() {
       ${c.fabricating ? `<div class="notice">📜 Fabricando reclamación sobre <b>${G.S[c.fabricating.state].name}</b>: ${c.fabricating.months} meses.</div>` : ''}</div>
       <div class="card"><h3>Fabricar reclamaciones</h3><p class="hint">Selecciona un país en Potencias (${sel ? G.C[sel].name : 'ninguno'}) y elige un estado alcanzable. Cuesta 30 de influencia y 6 meses.</p><table class="tbl"><tbody>${rs.map(x => `<tr><td>${G.S[x.id].name}</td><td class="r">${fmtN(popTotal(G.S[x.id]), 1)}</td><td class="r">${hasClaim(c, x.id) ? '<span class="tag good">Reclamado</span>' : `<button data-act="fabricate" data-id="${x.id}" ${c.fabricating || c.influence < 30 ? 'disabled' : ''}>Fabricar</button>`}</td></tr>`).join('') || '<tr><td class="dim">Elige un país primero.</td></tr>'}</tbody></table></div></div>
     <div class="col wide"><div class="card"><h3>Casus belli disponibles</h3>${Object.keys(CBS).filter(k => !CBS[k].hidden).map(k => `<div class="cbrow"><span class="cbi">${CBS[k].icon}</span><div><b>${CBS[k].name}</b> <small class="dim">${CBS[k].cost} infl. base${CBS[k].perState ? ' + ' + CBS[k].perState + ' por territorio' : ''}</small><p class="hint">${CBS[k].desc}</p></div></div>`).join('')}</div></div></div>`;
+  } else if (t === 'crisis') {
+    body = dcrisisTabHtml();
   } else if (t === 'vassals') {
     const sub = c.subjects || [];
     body = `${c.overlord ? `<div class="notice">👑 Eres vasallo de <b>${G.C[c.overlord].name}</b>: pagas el 12% de tus ingresos y no puedes declarar guerras.</div>` : ''}
@@ -426,7 +432,7 @@ WINDOWS.diplomacy = {title: 'Diplomacia', icon: '🤝', render() {
     body = `<div class="card"><h3>Colonización</h3>${c.colonizing ? `<div class="notice">⚓ Colonizando <b>${G.S[c.colonizing.state].name}</b> — ${c.colonizing.months} meses restantes.</div>` : '<p class="hint">Reclama tierras sin dueño al alcance de tus territorios. Cuesta 80 de influencia y tarda 6 meses.</p>'}
      <table class="tbl clickable"><thead><tr><th>Estado</th><th class="r">Población</th><th class="r">Distancia</th><th></th></tr></thead><tbody>${tg.map(x => { const s2 = G.S[x.id]; return `<tr data-act="focus" data-id="${s2.id}"><td>${s2.name}</td><td class="r">${fmtN(popTotal(s2), 1)}</td><td class="r">${Math.round(x.d)}°</td><td class="r"><button data-act="colonize" data-id="${s2.id}" ${c.colonizing || c.influence < 80 ? 'disabled' : ''}>Colonizar</button></td></tr>`; }).join('') || '<tr><td colspan="4" class="dim">No hay territorios sin reclamar a tu alcance.</td></tr>'}</tbody></table></div>`;
   }
-  return tabs('dip', [['world', 'Potencias'], ['pacts', 'Acuerdos' + (mail ? ` (${mail})` : '')], ['blocs', 'Bloques'], ['claims', 'Casus belli'], ['vassals', 'Vasallos'], ['colony', 'Colonización']]) + body;
+  return tabs('dip', [['world', 'Potencias'], ['pacts', 'Acuerdos' + (mail ? ` (${mail})` : '')], ['blocs', 'Bloques'], ['crisis', 'Crisis' + ((G.dcrises || []).length ? ` (${G.dcrises.length})` : '')], ['claims', 'Casus belli'], ['vassals', 'Vasallos'], ['colony', 'Colonización']]) + body;
 }};
 
 /* --- Ejército y guerra --- */
@@ -593,7 +599,7 @@ function renderWarDialog() {
    <div class="wbar"><b style="width:${clamp(A.p / Math.max(1, A.p + Dp.p), 0, 1) * 100}%"></b></div>
    <small class="dim">Aliados que te seguirán: ${ally.join(', ') || 'ninguno'}. Defensores probables: ${enemyAl.join(', ') || 'ninguno'}.</small>
    <div class="notice">Coste: <b>${cost}</b> de influencia (tienes ${Math.floor(c.influence)}). Infamia: +${Math.round(cb.infamy * (1 + tg.length * 0.3))}.</div>
-   <div class="btnrow"><button class="primary" data-act="wgo" ${okGo ? '' : 'disabled'}>⚔️ Declarar la guerra</button><button data-act="wclose">Cancelar</button></div></div></div></div></div>`;
+   <div class="btnrow"><button class="primary" data-act="wgo" ${okGo ? '' : 'disabled'}>⚔️ Declarar la guerra</button><button data-act="wcrisis" ${cbAvailable(G.player, W.def, W.cb).ok && (!cb.terr || tg.length) && c.influence >= Math.round(cost * 0.5) ? '' : 'disabled'}>🕰️ Abrir crisis diplomática (${Math.round(cost * 0.5)} infl.)</button><button data-act="wclose">Cancelar</button></div></div></div></div></div>`;
   const nb = root.querySelector('.wd-body'); if (nb) nb.scrollTop = sc;
 }
 
@@ -730,6 +736,10 @@ const ACT = {
     UI.war = null; renderWarDialog(); G.paused = false; renderWindow(); fullRepaint();
     if (r.war.targets.length) focusState(r.war.targets[0], 55);
   },
+  wcrisis: () => { const W = UI.war; const r = openCrisis(G.player, W.def, W.cb, [...W.targets], {law: W.law}); if (!r.ok) { toast('⚠️', r.msg); return; } UI.war = null; renderWarDialog(); UI.winTab.dip = 'crisis'; UI.win = null; openWindow('diplomacy'); },
+  dcwar: d => { const k = (G.dcrises || []).find(x => x.id === +d.id); if (k) { resolveCrisis(k, 'war'); renderWindow(); } },
+  dcback: d => { const k = (G.dcrises || []).find(x => x.id === +d.id); if (k) { resolveCrisis(k, 'att_back'); renderWindow(); } },
+  dcyield: d => { const k = (G.dcrises || []).find(x => x.id === +d.id); if (k) { resolveCrisis(k, 'def_back'); renderWindow(); refreshDiploMap(); } },
   peace: d => { const w = G.wars.find(x => x.id === +d.id); if (!w) return; makePeace(w); renderWindow(); },
   propyes: d => { respondProposal(+d.id, true); renderWindow(); refreshDiploMap(); },
   propno: d => { respondProposal(+d.id, false); renderWindow(); },
@@ -758,6 +768,7 @@ const ACT = {
   zin: () => camZoom(0.7), zout: () => camZoom(1.4), camhome: () => camHome(),
   rotl: () => camRotate(0.3), rotr: () => camRotate(-0.3), tiltu: () => camTilt(0.15), tiltd: () => camTilt(-0.15),
   wheelmode: () => { R.wheelMode = R.wheelMode === 'zoom' ? 'pan' : 'zoom'; saveMapPrefs(); syncCamBtns(); toast('🖱️', R.wheelMode === 'zoom' ? 'La rueda del ratón o del panel táctil hace zoom.' : 'La rueda o el panel táctil desplaza el mapa (pellizca para hacer zoom).'); },
+  animtoggle: () => { R.anim = !R.anim; if (R.waterMesh) { R.waterMesh.visible = R.anim; R.cloudMesh.visible = R.anim; } R.renderMs = 10; R.dirty = true; syncCamBtns(); toast('≈', R.anim ? 'Animaciones del mapa activadas.' : 'Animaciones desactivadas (más fluidez).'); },
   edgescroll: () => { R.edgeScroll = !R.edgeScroll; saveMapPrefs(); syncCamBtns(); toast('⇱', R.edgeScroll ? 'Desplazamiento por los bordes activado.' : 'Desplazamiento por los bordes desactivado.'); },
   save: () => doSave(),
   load: () => doLoad(),

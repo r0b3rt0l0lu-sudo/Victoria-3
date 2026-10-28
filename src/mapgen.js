@@ -181,7 +181,42 @@ function buildTerrainColors(land, h, biome) {
     }
     const o = i * 4; tc[o] = r; tc[o + 1] = g; tc[o + 2] = b; tc[o + 3] = 255;
   }
+  addRivers(tc, land, h);
   return tc;
+}
+// Ríos: nacen en zonas altas y siguen la máxima pendiente hasta el mar
+function addRivers(tc, land, h) {
+  const W = MAP_W, H = MAP_H, N8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
+  const seen = new Uint8Array(W * H); let made = 0;
+  for (let y = 8; y < H - 8; y += 7) for (let x = 8; x < W - 8; x += 7) {
+    const i0 = y * W + x; if (!land[i0] || h[i0] < 0.85 || hash2(x, y, 91) > 0.16) continue;
+    const path = []; let cx = x, cy = y, ok = false, last = -1;
+    for (let step = 0; step < 1100; step++) {
+      const ci = cy * W + cx; path.push(ci);
+      if (!land[ci]) { ok = true; break; }
+      if (seen[ci] === 2) { ok = true; break; }
+      let bi = -1, bv = 1e9;
+      for (let d = 0; d < 8; d++) {
+        const nx = cx + N8[d][0], ny = cy + N8[d][1]; if (nx < 1 || ny < 1 || nx >= W - 1 || ny >= H - 1) continue;
+        const ni = ny * W + nx; if (ni === last) continue;
+        const v = h[ni] + (hash2(nx, ny, 5 + step % 7) - 0.5) * 0.02 + (path.length > 6 && path.indexOf(ni) >= 0 ? 5 : 0);
+        if (v < bv) { bv = v; bi = d; }
+      }
+      if (bi < 0) break;
+      last = ci; cx += N8[bi][0]; cy += N8[bi][1];
+    }
+    if (!ok || path.length < 40) continue;
+    made++;
+    path.forEach((ci, k) => {
+      if (!land[ci]) return; seen[ci] = 2;
+      const w = k > path.length * 0.55 ? 2 : 1, t = Math.min(1, 0.45 + k / path.length * 0.5);
+      for (let dy = 0; dy < w; dy++) for (let dx = 0; dx < w; dx++) {
+        const j = ci + dy * W + dx; if (!land[j]) continue; const o = j * 4;
+        tc[o] += (62 - tc[o]) * t; tc[o + 1] += (118 - tc[o + 1]) * t; tc[o + 2] += (170 - tc[o + 2]) * t;
+      }
+    });
+  }
+  MAP.rivers = made;
 }
 
 // Asignación de estados mediante Dijkstra multi-fuente restringido a la tierra

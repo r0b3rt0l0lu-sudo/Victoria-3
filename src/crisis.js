@@ -20,6 +20,7 @@ const CRISIS_TYPES = {
     desc: 'El hambre mata a miles de personas y desestabiliza al gobierno.'},
   bankruptcy: {name: 'Bancarrota del Estado', icon: '🏦', scope: 'country', months: [12, 24], fx: {demand: 0.85, invest: 0.4, credit: 3}, legit: -1.2, rad: 0.005,
     desc: 'El Estado suspende pagos: se pierde la confianza internacional y la economía se contrae.'},
+  riots: {name: 'Disturbios', icon: '🔥', scope: 'country', months: [4, 9], fx: {ind: 0.9, demand: 0.97}, legit: -0.8, rad: 0.004, w: 0, hidden: true, desc: 'Disturbios y motines paralizan ciudades y cuarteles.'},
   aid: {name: 'Plan de estímulo', icon: '💊', scope: 'country', months: [8, 8], fx: {demand: 1.05, invest: 1.2}, w: 0, hidden: true, desc: 'Medidas de apoyo extraordinarias.'}
 };
 
@@ -115,7 +116,7 @@ function respondCrisis(kind) {
 }
 
 /* ---------- patrocinio de grupos (boosts) ---------- */
-function boostMult(c, ig) { let m = 1; c.boosts.forEach(b => { if (b.kind === 'ig' && b.key === ig) m *= b.mult; }); return m; }
+function boostMult(c, ig) { let m = 1; c.boosts.forEach(b => { if (b.kind === 'ig' && b.key === ig) m *= b.mult; }); if (c.elBoost && c.elBoost[ig]) m *= c.elBoost[ig].mult; return m; }
 function profBoost(c, p) { let m = c.pboosts[p] ? c.pboosts[p].mult : 1; if (c.propa && c.propa[PROFS[p].strat]) m *= 1.5; return m; }
 /* propaganda por estrato: muy cara, refuerza el peso político del estrato entero y calma a la población */
 const STRATA_NAMES = {upper: 'Clases altas', middle: 'Clases medias', lower: 'Clases bajas'};
@@ -164,7 +165,7 @@ function sponsorAbroad(c, tag, ig) {
 }
 function decayBoosts(c) {
   if (typeof mobilizationMonth === 'function') mobilizationMonth(c);
-  propagandaMonth(c);
+  propagandaMonth(c); warWearMonth(c); politics2Month(c);
   for (const k in (c.propa || {})) if (--c.propa[k].months <= 0) delete c.propa[k];
   c.boosts = c.boosts.filter(b => --b.months > 0);
   for (const p in c.pboosts) if (--c.pboosts[p].months <= 0) delete c.pboosts[p];

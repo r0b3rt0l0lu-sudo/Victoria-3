@@ -106,8 +106,10 @@ function initRenderer(canvas) {
   const mat = new THREE.MeshLambertMaterial({map: R.tex});
   R.mesh = new THREE.Mesh(geo, mat);
   R.scene.add(R.mesh);
-  R.scene.add(new THREE.AmbientLight(0xffffff, 0.92));
-  const dl = new THREE.DirectionalLight(0xfff0d8, 0.55); dl.position.set(-60, 90, -40); R.scene.add(dl);
+  R.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+  const dl = new THREE.DirectionalLight(0xfff0d8, 0.78); dl.position.set(-60, 90, -40); R.scene.add(dl);
+  R.scene.fog = new THREE.Fog(0x14222c, 170, 560);
+  buildWaterAndClouds();
   // marco alrededor del mapa
   const frame = new THREE.Mesh(new THREE.PlaneGeometry(2000, 1200), new THREE.MeshBasicMaterial({color: 0x101a22}));
   frame.rotation.x = -Math.PI / 2; frame.position.y = -2; R.scene.add(frame);
@@ -122,6 +124,56 @@ function initRenderer(canvas) {
   requestAnimationFrame(frame_);
 }
 
+/* ---------- agua animada, nubes, ciudades ---------- */
+function buildWaterAndClouds() {
+  const w = 360, d = LAT_TOP - LAT_BOT;
+  R.waterU = {t: {value: 0}};
+  const wm = new THREE.ShaderMaterial({
+    uniforms: R.waterU, transparent: true, depthWrite: false,
+    vertexShader: 'varying vec2 vP; void main(){ vP = position.xz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+    fragmentShader: 'uniform float t; varying vec2 vP; void main(){ float a = sin(vP.x*1.7 + t*0.9 + sin(vP.y*0.8 + t*0.4)*1.6) * sin(vP.y*2.1 - t*0.7 + sin(vP.x*0.6 - t*0.3)*1.3); float s = smoothstep(0.55, 1.0, a); float g = sin(vP.x*0.35 + t*0.15)*0.5+0.5; gl_FragColor = vec4(0.75,0.9,1.0, s*0.22 + g*0.04); }'
+  });
+  const wp = new THREE.Mesh(new THREE.PlaneGeometry(w, d), wm); wp.rotation.x = -Math.PI / 2; wp.position.set(0, 0.012, -(LAT_TOP + LAT_BOT) / 2); wp.renderOrder = 1; R.scene.add(wp); R.waterMesh = wp;
+  // nubes: textura procedural
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 256; const g = cv.getContext('2d'), im = g.createImageData(512, 256);
+  for (let y = 0; y < 256; y++) for (let x = 0; x < 512; x++) { const v = fbm(x / 60, y / 40, 313, 5); const a = clamp((v - 0.52) * 4.2, 0, 1); const o = (y * 512 + x) * 4; im.data[o] = 245; im.data[o + 1] = 248; im.data[o + 2] = 252; im.data[o + 3] = a * 255; }
+  g.putImageData(im, 0, 0);
+  const ct = new THREE.CanvasTexture(cv); ct.wrapS = ct.wrapT = THREE.RepeatWrapping; ct.repeat.set(2.4, 1.2);
+  const cm = new THREE.MeshBasicMaterial({map: ct, transparent: true, opacity: 0.4, depthWrite: false, fog: false});
+  const cp = new THREE.Mesh(new THREE.PlaneGeometry(w, d), cm); cp.rotation.x = -Math.PI / 2; cp.position.set(0, 3.2, -(LAT_TOP + LAT_BOT) / 2); cp.renderOrder = 2; R.scene.add(cp); R.cloudMesh = cp; R.cloudTex = ct;
+  R.anim = true;
+}
+function animateMap(t) {
+  if (!R.anim || !R.waterU) return false;
+  R.waterU.t.value = t / 1000; R.cloudTex.offset.x = (t / 1000) * 0.0016; R.cloudTex.offset.y = (t / 1000) * 0.0004;
+  const k = clamp((R.cam.dist - 45) / 70, 0, 1); R.cloudMesh.material.opacity = 0.42 * k; R.cloudMesh.visible = k > 0.02;
+  return true;
+}
+function buildCities() {
+  if (R.cityMesh || !G.S || !G.S.length) return;
+  const items = [];
+  G.S.forEach(s => {
+    const pop = popTotal(s) || 0; if (!pop) return;
+    const n = clamp(Math.round(Math.sqrt(pop / 220000)), 1, 7), prov = MAP.provs[stateCapitalProv(s.id)];
+    for (let k = 0; k < n; k++) {
+      let px = prov.px, py = prov.py;
+      if (k) { const a = hash2(s.id, k, 17) * 6.283, r = 2 + hash2(s.id, k, 19) * 9; const qx = Math.round(px + Math.cos(a) * r), qy = Math.round(py + Math.sin(a) * r * 0.9); const qi = qy * MAP_W + qx; if (qx > 0 && qy > 0 && qx < MAP_W && qy < MAP_H && MAP.land[qi] && MAP.stateOf[qi] === s.id) { px = qx; py = qy; } }
+      const hh = MAP.height[py * MAP_W + px] * R.exag;
+      items.push({sid: s.id, x: xToLon(px), z: -yToLat(py), y: hh, h: 0.12 + Math.min(1, Math.sqrt(pop) / 2500) * 0.38 * (k === 0 ? 1 : 0.55) + hash2(s.id, k, 23) * 0.08, w: 0.09 + (k === 0 ? 0.06 : 0.02) + Math.min(0.05, pop / 6e7)});
+    }
+  });
+  const geo = new THREE.BoxGeometry(1, 1, 1); geo.translate(0, 0.5, 0);
+  const mesh = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({color: 0xffffff}), items.length);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3();
+  items.forEach((it, i) => { p.set(it.x, it.y, it.z); sc.set(it.w, it.h, it.w); m4.compose(p, q, sc); mesh.setMatrixAt(i, m4); });
+  mesh.instanceMatrix.needsUpdate = true; R.cityMesh = mesh; R.cityItems = items; R.scene.add(mesh);
+  updateCityColors();
+}
+function updateCityColors() {
+  if (!R.cityMesh) return; const c = new THREE.Color();
+  R.cityItems.forEach((it, i) => { const s = G.S[it.sid]; const base = [0.62, 0.56, 0.48]; let col = base; if (s.owner !== NONE && G.C[s.owner]) { const rgb = R.occRGB(s.owner); col = [base[0] * 0.4 + rgb[0] / 255 * 0.6, base[1] * 0.4 + rgb[1] / 255 * 0.6, base[2] * 0.4 + rgb[2] / 255 * 0.6]; } c.setRGB(col[0], col[1], col[2]); R.cityMesh.setColorAt(i, c); });
+  if (R.cityMesh.instanceColor) R.cityMesh.instanceColor.needsUpdate = true;
+}
 function resizeRenderer() {
   const w = window.innerWidth, h = window.innerHeight;
   R.renderer.setSize(w, h, false);
@@ -291,6 +343,7 @@ function paintPixel(i, fill, hov, sel) {
   const tc = MAP.terrainCol, d = R.img.data, o = i * 4;
   let r = tc[o], g = tc[o + 1], b = tc[o + 2];
   const pr = G.P ? G.P[MAP.provOf[i]] : null;
+  const gn = (((i * 2246822519) >>> 0) & 255) / 255 - 0.5; r += gn * 7; g += gn * 7; b += gn * 7;
   if (fill[3] > 0) {
     const a = fill[3];
     // modula con la luminancia del terreno para conservar el relieve
@@ -322,6 +375,7 @@ function fullRepaint() {
   }
   R.ctx.putImageData(R.img, 0, 0);
   R.tex.needsUpdate = true; R.dirty = true; R.minimapDirty = true;
+  if (R.cityMesh) updateCityColors();
 }
 
 function repaintState(id) {
@@ -348,7 +402,7 @@ function setSelected(id) { const old = R.sel; R.sel = id; repaintState(old); rep
 function setMapMode(m) { R.mode = m; fullRepaint(); }
 
 function onOwnershipChanged(sid) {
-  computeEdges(G.ownerOf);
+  computeEdges(G.ownerOf); if (R.cityMesh) updateCityColors();
   fullRepaint(); R.labelsDirty = true; computeLabels();
 }
 
@@ -490,9 +544,13 @@ let _lastT = 0;
 function frame_(t) {
   const dt = Math.min(0.1, (t - _lastT) / 1000); _lastT = t;
   keyboardPan(dt);
+  if (R.cityMesh === undefined && G.S && G.S.length && MAP.provs) { try { buildCities(); } catch (e) { console.warn(e); } R.cityMesh = R.cityMesh || null; R.dirty = true; }
+  if (R.anim && t - (R.lastAnim || 0) > 55) { R.lastAnim = t; if (animateMap(t)) R.dirty = true; }
   if (R.dirty || R.labelsDirty) {
     updateCamera();
-    R.renderer.render(R.scene, R.camera);
+    const t0 = performance.now(); R.renderer.render(R.scene, R.camera);
+    R.renderMs = (R.renderMs || 10) * 0.9 + (performance.now() - t0) * 0.1;
+    if (R.anim && R.renderMs > 45 && t > 8000) { R.anim = false; R.waterMesh.visible = false; R.cloudMesh.visible = false; if (typeof syncCamBtns === 'function') syncCamBtns(); }
     if (R.labelsDirty) { updateLabels(); R.labelsDirty = false; }
     drawMinimap();
     R.dirty = false;

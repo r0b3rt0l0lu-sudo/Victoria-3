@@ -52,3 +52,9 @@
 - Entrenamiento (recluta→élite, ×0,75–×1,25), entrenar en casa, IA entrena en paz.
 - Batalla: minimapa táctico con divisiones y frente que avanza + sucesos (cañoneo, carga de caballería, carga desesperada, flanqueo, pánico, lluvia).
 - Sigue PENDIENTE de la Parte 2: suministro/cercos, producción de equipo, doctrinas, aviación, marina, árbol nacional.
+
+## Sesión: suministro, árbol nacional, crisis diplomáticas, cansancio, política y gráficos
+- HECHO: suministro y cercos (`src/logistics.js`), cansancio de guerra y capitulación, crisis diplomáticas (`src/dcrisis.js`),
+  elecciones y 7 movimientos políticos (`src/politics2.js`), árbol nacional para 8 países + genérico (`src/national.js`),
+  gráficos: ríos, agua animada, nubes, ciudades 3D, niebla, viñeta, grano de terreno (botón ≈ para desactivar animaciones).
+- PENDIENTE Parte 2: producción de equipo, doctrinas, aviación, marina, conferencia de paz, niebla de guerra, guerra civil real.

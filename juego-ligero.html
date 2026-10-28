@@ -352,11 +352,25 @@ svg.orders line.arrow{stroke:#e8644f;stroke-width:3;opacity:.8}svg.orders line.a
 #bmap{display:block;width:100%;height:auto;border-radius:6px;border:1px solid #6b5a2f;margin:8px 0;background:#222}
 .blog{margin-top:6px;max-height:120px;overflow:auto}.blog .ev{font-size:12.5px;padding:3px 6px;border-left:3px solid #6b5a2f;margin:3px 0;background:rgba(0,0,0,.2)}.blog .ev.charge{border-color:#e8644f}.blog .ev.barrage{border-color:#f0a03c}.blog .ev.cav{border-color:#e0d070}.blog .ev.flank{border-color:#9fd37a}
 #battlepanel{max-height:calc(100vh - 130px);overflow-y:auto}
+
+/* ===== árbol nacional, movimientos ===== */
+.pl-focus{font-size:11.5px;color:#9fd37a;margin-top:1px}
+.ntree{overflow:auto;max-height:calc(100vh - 340px);border:1px solid rgba(201,166,87,.25);border-radius:6px;background:radial-gradient(#26313a,#161d23)}
+.ncanvas{position:relative}.ncanvas svg{position:absolute;left:0;top:0;pointer-events:none}
+.nl{fill:none;stroke:#8a7a48;stroke-width:2.5}.nl.ex{stroke:#e8644f;stroke-dasharray:6 5}
+.nbr{position:absolute;top:8px;width:200px;text-align:center;color:var(--gold2);font-family:var(--head);letter-spacing:.05em;font-size:13px;border-bottom:1px solid var(--goldd);padding-bottom:3px}
+.nnode{position:absolute;width:200px;min-height:86px;padding:7px 9px;border-radius:8px;background:linear-gradient(180deg,#2c3944,#1d262d);border:1px solid #4d5964;display:flex;flex-direction:column;gap:3px;font-size:12px}
+.nnode .nh{display:flex;gap:6px;align-items:center}.nnode .ni{font-size:20px}.nnode .nfx{color:#9fd37a}
+.nnode.done{border-color:var(--gold);background:linear-gradient(180deg,#5a4a1e,#2f2810)}.nnode.cur{border-color:#79c35a;box-shadow:0 0 12px rgba(121,195,90,.5)}
+.nnode.avail{border-color:var(--gold2);cursor:pointer}.nnode.avail:hover{filter:brightness(1.25)}.nnode.locked{opacity:.55}.nnode.blocked{opacity:.5;border-color:#a8483a}
+.mov{margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(201,166,87,.15)}
+
+#vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 55%,rgba(5,10,14,.38) 100%)}
 </style>
 </head>
 <body>
 <canvas id="gl"></canvas>
-<div id="labels"></div><div id="markers"></div>
+<div id="vignette"></div><div id="labels"></div><div id="markers"></div>
 <div id="hud"></div>
 <div id="statepanel"></div>
 <div id="armypanel"></div><div id="battlepanel"></div><div id="drawbar"></div>
@@ -416,7 +430,7 @@ const ICON_PATHS = {
   cannon: 'M3 14l12-5 3 4-12 5zM17 13l4 3M5 20a3 3 0 100-6 3 3 0 000 6z',
   horse: 'M5 20l2-7-3-3 4-3 3 1 3-4 2 3 4 4-2 3-3-1-2 7M9 7l-1-3'
 };
-const EMO_ICON = {'💰': 'coin', '⚖': 'scale', '🏆': 'trophy', '🕊': 'globe', '💡': 'bulb', '🏛': 'columns', '👥': 'people', '🍞': 'bread', '📉': 'chartdown', '✉': 'mail', '🔍': 'search', '🏅': 'medal', '💾': 'save', '📂': 'folder', '📜': 'scroll', '📖': 'book', '💷': 'money', '🏭': 'factory', '🤝': 'handshake', '⚔': 'swords', '🏗': 'hammer', '🏴': 'flag', '🏳': 'wflag', '⛰': 'mountain', '📈': 'chartup', '🔥': 'fire', '🏠': 'home', '⟲': 'rotl', '⟳': 'rotr', '⤒': 'tiltu', '⤓': 'tiltd', '🖱': 'mouse', '🖐': 'hand', '⇱': 'edge', '⚓': 'anchor', '✈': 'plane', '★': 'star'};
+const EMO_ICON = {'💰': 'coin', '⚖': 'scale', '🏆': 'trophy', '🕊': 'globe', '💡': 'bulb', '🏛': 'columns', '👥': 'people', '🍞': 'bread', '📉': 'chartdown', '✉': 'mail', '🔍': 'search', '🏅': 'medal', '💾': 'save', '📂': 'folder', '📜': 'scroll', '📖': 'book', '💷': 'money', '🏭': 'factory', '🤝': 'handshake', '⚔': 'swords', '🏗': 'hammer', '🏴': 'flag', '🏳': 'wflag', '⛰': 'mountain', '📈': 'chartup', '🔥': 'fire', '🏠': 'home', '⟲': 'rotl', '⟳': 'rotr', '⤒': 'tiltu', '⤓': 'tiltd', '🖱': 'mouse', '🖐': 'hand', '⇱': 'edge', '⚓': 'anchor', '✈': 'plane', '★': 'star', '🌳': 'tree'};
 function icon(name, cls) { const p = ICON_PATHS[name]; return p ? `<svg class="ic ${cls || ''}" viewBox="0 0 24 24" aria-hidden="true"><path d="${p}"/></svg>` : ''; }
 // sustituye el emoji de un elemento por su icono SVG
 function iconize(root) {
@@ -1396,7 +1410,42 @@ function buildTerrainColors(land, h, biome) {
     }
     const o = i * 4; tc[o] = r; tc[o + 1] = g; tc[o + 2] = b; tc[o + 3] = 255;
   }
+  addRivers(tc, land, h);
   return tc;
+}
+// Ríos: nacen en zonas altas y siguen la máxima pendiente hasta el mar
+function addRivers(tc, land, h) {
+  const W = MAP_W, H = MAP_H, N8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
+  const seen = new Uint8Array(W * H); let made = 0;
+  for (let y = 8; y < H - 8; y += 7) for (let x = 8; x < W - 8; x += 7) {
+    const i0 = y * W + x; if (!land[i0] || h[i0] < 0.85 || hash2(x, y, 91) > 0.16) continue;
+    const path = []; let cx = x, cy = y, ok = false, last = -1;
+    for (let step = 0; step < 1100; step++) {
+      const ci = cy * W + cx; path.push(ci);
+      if (!land[ci]) { ok = true; break; }
+      if (seen[ci] === 2) { ok = true; break; }
+      let bi = -1, bv = 1e9;
+      for (let d = 0; d < 8; d++) {
+        const nx = cx + N8[d][0], ny = cy + N8[d][1]; if (nx < 1 || ny < 1 || nx >= W - 1 || ny >= H - 1) continue;
+        const ni = ny * W + nx; if (ni === last) continue;
+        const v = h[ni] + (hash2(nx, ny, 5 + step % 7) - 0.5) * 0.02 + (path.length > 6 && path.indexOf(ni) >= 0 ? 5 : 0);
+        if (v < bv) { bv = v; bi = d; }
+      }
+      if (bi < 0) break;
+      last = ci; cx += N8[bi][0]; cy += N8[bi][1];
+    }
+    if (!ok || path.length < 40) continue;
+    made++;
+    path.forEach((ci, k) => {
+      if (!land[ci]) return; seen[ci] = 2;
+      const w = k > path.length * 0.55 ? 2 : 1, t = Math.min(1, 0.45 + k / path.length * 0.5);
+      for (let dy = 0; dy < w; dy++) for (let dx = 0; dx < w; dx++) {
+        const j = ci + dy * W + dx; if (!land[j]) continue; const o = j * 4;
+        tc[o] += (62 - tc[o]) * t; tc[o + 1] += (118 - tc[o + 1]) * t; tc[o + 2] += (170 - tc[o + 2]) * t;
+      }
+    });
+  }
+  MAP.rivers = made;
 }
 
 // Asignación de estados mediante Dijkstra multi-fuente restringido a la tierra
@@ -1754,6 +1803,7 @@ function recalcMods(c) {
   c.lawMods = Object.assign({}, m);
   c.techs.forEach(id => { const t = TECH[id]; for (const k in t.fx) m[k] = (m[k] || 0) + t.fx[k]; });
   (c.traits || []).forEach(id => { const t = typeof TRAITS !== 'undefined' && TRAITS[id]; if (t) for (const k in t.fx) m[k] = (m[k] || 0) + t.fx[k]; });
+  if (c.natMods) for (const k in c.natMods) m[k] = (m[k] || 0) + c.natMods[k];
   c.mods = m;
   return m;
 }
@@ -1774,6 +1824,7 @@ function createWorld(playerTag) {
   G.player = playerTag; G.paused = true; G.speed = 2; G.week = 0; G.notifs = []; G.pendingEvent = null;
   G.log = []; G.wars = []; G.nextWarId = 1; G.eventCool = {};
   G.armies = []; G.battles = []; G.recruits = []; G.nextArmyId = 1; G.nextBattleId = 1; G.hostile = new Set(); G.occList = []; initProvinceState();
+  G.dcrises = []; G.nextDC = 1; G.sup = {}; G.fronts = []; G.nextFront = 1; G.battleLog = [];
   G.crises = []; G.diff = G.diff || 2; G.pacts = []; G.blocs = []; G.proposals = []; G.nextId = 1; G.pt = {}; G.fx = {}; G.cycle = 0;
   G.C = {};
   Object.keys(COUNTRY_DATA).forEach(t => G.C[t] = mkCountry(t));
@@ -1935,7 +1986,7 @@ function advanceDay() {
   let monthly = false;
   if (d.d > dim) { d.d = 1; d.m++; monthly = true; if (d.m > 11) { d.m = 0; d.y++; } }
   econDay();
-  militaryDay();
+  militaryDay(); natDay();
   if (d.t % 2 === 0) aiMilitary();
   if (monthly) monthlyTick();
   dailyEvents();
@@ -2422,7 +2473,7 @@ function monthlyTick(init) {
     if (c.ai) aiMonth(c);
     if (!init) { journal(c); traitMonth(c); if (!c.ai) achMonth(c); }
   });
-  if (!init) { randomEvents(); stepColonizeAll(); diploMonth(); crisisMonth(); }
+  if (!init) { randomEvents(); stepColonizeAll(); diploMonth(); crisisMonth(); dcrisisMonth(); }
   // crecimiento de población (mensual)
   G.S.forEach(s => {
     const c = G.C[s.owner];
@@ -2700,6 +2751,7 @@ const CRISIS_TYPES = {
     desc: 'El hambre mata a miles de personas y desestabiliza al gobierno.'},
   bankruptcy: {name: 'Bancarrota del Estado', icon: '🏦', scope: 'country', months: [12, 24], fx: {demand: 0.85, invest: 0.4, credit: 3}, legit: -1.2, rad: 0.005,
     desc: 'El Estado suspende pagos: se pierde la confianza internacional y la economía se contrae.'},
+  riots: {name: 'Disturbios', icon: '🔥', scope: 'country', months: [4, 9], fx: {ind: 0.9, demand: 0.97}, legit: -0.8, rad: 0.004, w: 0, hidden: true, desc: 'Disturbios y motines paralizan ciudades y cuarteles.'},
   aid: {name: 'Plan de estímulo', icon: '💊', scope: 'country', months: [8, 8], fx: {demand: 1.05, invest: 1.2}, w: 0, hidden: true, desc: 'Medidas de apoyo extraordinarias.'}
 };
 
@@ -2795,7 +2847,7 @@ function respondCrisis(kind) {
 }
 
 /* ---------- patrocinio de grupos (boosts) ---------- */
-function boostMult(c, ig) { let m = 1; c.boosts.forEach(b => { if (b.kind === 'ig' && b.key === ig) m *= b.mult; }); return m; }
+function boostMult(c, ig) { let m = 1; c.boosts.forEach(b => { if (b.kind === 'ig' && b.key === ig) m *= b.mult; }); if (c.elBoost && c.elBoost[ig]) m *= c.elBoost[ig].mult; return m; }
 function profBoost(c, p) { let m = c.pboosts[p] ? c.pboosts[p].mult : 1; if (c.propa && c.propa[PROFS[p].strat]) m *= 1.5; return m; }
 /* propaganda por estrato: muy cara, refuerza el peso político del estrato entero y calma a la población */
 const STRATA_NAMES = {upper: 'Clases altas', middle: 'Clases medias', lower: 'Clases bajas'};
@@ -2844,7 +2896,7 @@ function sponsorAbroad(c, tag, ig) {
 }
 function decayBoosts(c) {
   if (typeof mobilizationMonth === 'function') mobilizationMonth(c);
-  propagandaMonth(c);
+  propagandaMonth(c); warWearMonth(c); politics2Month(c);
   for (const k in (c.propa || {})) if (--c.propa[k].months <= 0) delete c.propa[k];
   c.boosts = c.boosts.filter(b => --b.months > 0);
   for (const p in c.pboosts) if (--c.pboosts[p].months <= 0) delete c.pboosts[p];
@@ -3167,6 +3219,7 @@ function warWeek() {
     const humans = [w.att, w.def].some(t => !G.C[t].ai);
     const dead = !alive(w.att) || !alive(w.def);
     if (dead) { endWar(w, alive(w.att) ? w.att : w.def); continue; }
+    if (capitulationCheck(w)) continue;
     if (Math.abs(w.score) >= 100 && !humans) endWar(w, w.score > 0 ? w.att : w.def);
     else if (!humans && w.weeks > 30 && Math.abs(w.score) > 45) endWar(w, w.score > 0 ? w.att : w.def);
     else if (!humans && w.weeks > 70 && Math.abs(w.score) < 25) endWar(w, null);
@@ -3486,7 +3539,7 @@ function aiFabricate(c) {
 function aiWarsNew() {
   if (G.wars.length >= 3) return;
   const cand = G.tags.filter(t => t !== NONE && alive(t) && G.C[t].rank <= 16 && !G.C[t].wars.length && !G.C[t].overlord);
-  if (!cand.length || Math.random() > 0.08 * (G.diff >= 3 ? 1.3 : 1)) return;
+  if (!cand.length || Math.random() > 0.13 * (G.diff >= 3 ? 1.3 : 1)) return;
   const a = pick(cand), A = G.C[a];
   const tg = G.tags.filter(t => t !== NONE && t !== a && alive(t) && !warBlockers(a, t) && armyPower(G.C[t]) * 1.5 < armyPower(A) && relOf(a, t) < 25 && !G.C[t].overlord);
   if (!tg.length) return;
@@ -3501,7 +3554,9 @@ function aiWarsNew() {
     else if (roll < 0.75) cb = 'trade';
   }
   if (cb === 'regime') return;
-  declareWar(a, d, cb, targets, {free: A.influence < warCost(a, targets, cb)});
+  const fr = A.influence < warCost(a, targets, cb);
+  if (Math.random() < 0.35 && !crisisOf(a) && !crisisOf(d)) { const r = openCrisis(a, d, cb, targets, {free: fr, ai: true}); if (r.ok) return; }
+  declareWar(a, d, cb, targets, {free: fr});
 }
 function respondProposal(id, accept) {
   const i = G.proposals.findIndex(p => p.id === id); if (i < 0) return;
@@ -3605,7 +3660,7 @@ const MOB_LEVELS = [
   {name: 'Movilización total', pct: 0.10, desc: 'Un 10% de la población. Economía de guerra total: producción muy reducida y mucho malestar.'}
 ];
 function divLimit(c) { return Math.max(0, Math.floor((c.stats.soldiers + c.stats.pop * MOB_LEVELS[c.mob || 0].pct) / MEN_PER_DIV)); }
-const mobK = c => 1 - 0.04 * (c.mob || 0);
+const mobK = c => (1 - 0.04 * (c.mob || 0)) * (typeof wearK === 'function' ? wearK(c) : 1);
 function setMobilization(c, lvl) {
   lvl = clamp(lvl | 0, 0, 4); if (lvl === (c.mob || 0)) return {ok: false, msg: ''};
   if (lvl > (c.mob || 0)) { const cost = c.stats.income * 0.5 * (lvl - (c.mob || 0)); if (!c.ai && c.treasury < cost) return {ok: false, msg: 'No tienes fondos para movilizar.'}; if (!c.ai) c.treasury -= cost; c.legitimacy -= 1.5 * (lvl - (c.mob || 0)); }
@@ -3829,7 +3884,7 @@ function bleed(tag, men) {
   if (men <= 0) return;
   const c = G.C[tag]; if (!c || !c.states.length) return;
   c.cnt = c.cnt || {}; c.cnt.casualties = (c.cnt.casualties || 0) + men;
-  c.wearV = (c.wearV || 0) + men / Math.max(1e5, c.stats.pop) * 40;
+  c.wearV = (c.wearV || 0) + men / Math.max(1e5, c.stats.pop) * 240;
   let left = men;
   for (let k = 0; k < 4 && left > 0; k++) { const s = G.S[pick(c.states)]; const take = Math.min(left, (s.pops.peasants || 0) * 0.02); s.pops.peasants -= take; left -= take; }
 }
@@ -4121,8 +4176,8 @@ function cleanupArmies() {
 /* ---------- guardado de datos militares ---------- */
 function provSave() { const o = []; G.P.forEach((p, i) => { if (p.by || p.prog || p.fort) o.push([i, p.by, p.prog, p.pby || null, p.fort || 0]); }); return o; }
 function provLoad(list) { initProvinceState(); (list || []).forEach(([i, by, prog, pby, fort]) => { const p = G.P[i]; if (p) { p.by = by; p.prog = prog; p.pby = pby; p.fort = fort; } }); G.occList = (list || []).map(x => x[0]); G.S.forEach(s => refreshStateOcc(s.id)); }
-function saveExtra() { return {battleLog: G.battleLog || [], fronts: G.fronts || [], nextFront: G.nextFront || 1}; }
-function loadExtra(x) { G.battleLog = (x && x.battleLog) || []; G.fronts = (x && x.fronts) || []; G.nextFront = (x && x.nextFront) || 1; }
+function saveExtra() { return {battleLog: G.battleLog || [], fronts: G.fronts || [], nextFront: G.nextFront || 1, dcrises: G.dcrises || [], nextDC: G.nextDC || 1, mov: G.movStore || null}; }
+function loadExtra(x) { G.battleLog = (x && x.battleLog) || []; G.fronts = (x && x.fronts) || []; G.nextFront = (x && x.nextFront) || 1; G.dcrises = (x && x.dcrises) || []; G.nextDC = (x && x.nextDC) || 1; }
 
 /* ---------- órdenes de movilidad al estilo HoI4 ---------- */
 // juntar: el ejército va hacia otro propio y se fusiona al llegar
@@ -4293,6 +4348,205 @@ function executeAttack(f) {
   return {ok: true};
 }
 
+/* ===== SUMINISTRO, CERCOS, CANSANCIO DE GUERRA Y CAPITULACIÓN ===== */
+// Cada país tiene una red de suministro que parte de su capital y sus puertos y se expande por las provincias que controla.
+// Los ejércitos fuera de la red (o rodeados) pierden organización y fuerza, y acaban rindiéndose.
+const SUPPLY_EVERY = 3;
+const controlled = (tag, pid) => { const by = G.P[pid].by; if (by) return sameSide(tag, by); const o = provOwner(pid); return o !== NONE && (o === tag || sameSide(tag, o)); };
+function provCap(pid, tag) {         // capacidad de divisiones que la provincia puede abastecer
+  const s = G.S[provState(pid)], own = controlled(tag, pid);
+  return (own ? 6 : 3.5) + 1.6 * Math.min(5, s.infra || 0) + (MAP.provs[pid].port ? 2 : 0);
+}
+function computeSupply(tag) {
+  const c = G.C[tag], lvl = new Map(), heap = [];
+  const push = it => { heap.push(it); let i = heap.length - 1; while (i > 0) { const q = (i - 1) >> 1; if (heap[q][0] >= heap[i][0]) break; [heap[q], heap[i]] = [heap[i], heap[q]]; i = q; } };
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { let k = i * 2 + 1; if (k >= heap.length) break; if (k + 1 < heap.length && heap[k + 1][0] > heap[k][0]) k++; if (heap[k][0] <= heap[i][0]) break; [heap[k], heap[i]] = [heap[i], heap[k]]; i = k; } } return top; };
+  const seed = (pid, v) => { if (v > (lvl.get(pid) || 0)) { lvl.set(pid, v); push([v, pid, 0]); } };
+  if (c.capital >= 0 && G.S[c.capital].owner === tag) { const cp = stateCapitalProv(c.capital); if (controlled(tag, cp)) seed(cp, 1); }
+  c.states.forEach(sid => MAP.stats[sid].provs.forEach(pid => { if (MAP.provs[pid].port && controlled(tag, pid)) seed(pid, 0.85); }));
+  // los aliados de la misma guerra comparten sus capitales
+  if (!heap.length) {      // sin capital ni puertos controlados: se improvisa un centro de suministro en el estado más poblado
+    let best = null, bp = -1; c.states.forEach(sid => { const s = G.S[sid]; MAP.stats[sid].provs.forEach(pid => { if (controlled(tag, pid) && s.popBase > bp) { bp = s.popBase; best = pid; } }); });
+    if (best !== null) seed(best, 0.7);
+  }
+  const done = new Set();
+  while (heap.length) {
+    const [v, pid, out] = pop(); if (done.has(pid) || v < (lvl.get(pid) || 0)) continue; done.add(pid);
+    const here = controlled(tag, pid);
+    MAP.provs[pid].nb.forEach(q => {
+      const qc = controlled(tag, q), s = G.S[provState(q)];
+      let nv, no = out;
+      if (qc && here) nv = v - 0.07 / (1 + 0.22 * Math.min(5, s.infra || 0));
+      else { no = here ? 1 : out + 1; if (no > 3) return; nv = v - (here ? 0.28 : 0.3); }
+      if (nv > (lvl.get(q) || 0) && nv > 0.01) { lvl.set(q, nv); push([nv, q, no]); }
+    });
+  }
+  G.sup = G.sup || {}; G.sup[tag] = {t: G.date.t, m: lvl};
+  return lvl;
+}
+function supplyAt(tag, pid) { const s = G.sup && G.sup[tag]; return s ? (s.m.get(pid) || 0) : 1; }
+const supplyMod = a => { const s = a.sup === undefined ? 1 : a.sup; return s >= 0.6 ? 1 : 0.6 + s * 0.66; };
+function supplyDay() {
+  const tags = new Set(); G.armies.forEach(a => tags.add(a.tag));
+  let idx = 0;
+  tags.forEach(t => { if (!G.sup || !G.sup[t] || (G.date.t + idx) % SUPPLY_EVERY === 0) computeSupply(t); idx++; });
+  const cnt = {};
+  G.armies.forEach(a => { const k = a.tag + '|' + a.loc; cnt[k] = (cnt[k] || 0) + a.divs.length; });
+  const dead = [];
+  G.armies.forEach(a => {
+    let l = supplyAt(a.tag, a.loc); const n = cnt[a.tag + '|' + a.loc], cap = provCap(a.loc, a.tag);
+    if (n > cap) l *= cap / n;
+    a.sup = a.sup === undefined ? l : a.sup * 0.6 + l * 0.4;
+    if (a.sup < 0.5) {
+      const def = 0.5 - a.sup, k = a.sup < 0.15 ? 3 : 1;
+      a.divs.forEach(d => { d.o = Math.max(0, d.o - DIVS[d.t].org * def * 0.03 * k); d.s = Math.max(0, d.s - def * 0.004 * k); });
+      a.divs = a.divs.filter(d => d.s > 0.04); if (!a.divs.length) { a._dead = true; return; }
+    }
+    // cerco: sin suministro durante semanas -> rendición
+    if (l < 0.06 && !a.battle && hostileHere(a)) {
+      a.cut = (a.cut || 0) + 1;
+      if (a.cut === 12 && a.tag === G.player) notify('war', `¡${a.name} está aislado y sin suministros en ${provName(a.loc)}! Rompe el cerco o se rendirá.`, provState(a.loc));
+      if (a.cut >= 24) dead.push(a);
+    } else a.cut = Math.max(0, (a.cut || 0) - 2);
+  });
+  dead.forEach(a => {
+    const foe = armiesAt(a.loc).find(o => hostileTags(a.tag, o.tag)) || null;
+    G.wars.forEach(w => { const wa = foe && w.attAll.includes(foe.tag) && w.defAll.includes(a.tag), wd = foe && w.defAll.includes(foe.tag) && w.attAll.includes(a.tag); if (wa || wd) { w.bw = w.bw || {att: 0, def: 0}; w.bw[wa ? 'att' : 'def'] += 2; } });
+    const c = G.C[a.tag]; c.cnt = c.cnt || {}; c.cnt.surrendered = (c.cnt.surrendered || 0) + a.divs.length; c.wearV = (c.wearV || 0) + 1.5; c.prestige = Math.max(0, c.prestige - 2);
+    if (a.tag === G.player || (foe && foe.tag === G.player)) notify('war', `${a.name} (${c.name}) se rinde cercado en ${provName(a.loc)}.`, provState(a.loc));
+    a._dead = true;
+  });
+  if (G.armies.some(a => a._dead)) { G.armies = G.armies.filter(a => !a._dead); G.battles = G.battles.filter(b => b.A.some(armyById) && b.B.some(armyById)); }
+}
+const equipMod = () => 1;
+// solo se considera cercado al ejército sin suministro que está en territorio enemigo o junto a tropas enemigas
+function hostileHere(a) {
+  const o = provOwner(a.loc), by = G.P[a.loc].by;
+  if ((o !== NONE && hostileTags(a.tag, o)) || (by && hostileTags(a.tag, by))) return true;
+  return MAP.provs[a.loc].nb.some(q => armiesAt(q).some(e => hostileTags(a.tag, e.tag))) || armiesAt(a.loc).some(e => hostileTags(a.tag, e.tag));
+}
+
+/* ---------- cansancio de guerra ---------- */
+function warWearMonth(c) {
+  c.wear = c.wear || 0;
+  c.wear += (c.wearV || 0) + (c.wars.length ? 0.9 : -2.5); c.wearV = 0;
+  c.wear = clamp(c.wear, 0, 100);
+  const w = c.wear;
+  if (w > 35) { c.legitimacy -= (w - 35) * 0.012; c.radicals = Math.min(0.9, c.radicals + (w - 35) * 0.00015); }
+  if (w > 60 && c.stats.indLevels > 4 && Math.random() < 0.012 * (w - 55) / 10 * diffP().crisis && !G.crises.some(x => x.type === 'riots' && x.scope === c.tag)) addCrisis('riots', c.tag, {name: 'Motines contra la guerra'});
+}
+const wearK = c => 1 - 0.0015 * (c.wear || 0);
+
+/* ---------- capitulación ---------- */
+function occShare(tag, enemies) {
+  const c = G.C[tag]; let occ = 0, tot = 0;
+  c.states.forEach(id => { const s = G.S[id]; tot += s.popBase + 1; if (s.occ > 0 && s.occBy && enemies.includes(s.occBy)) occ += (s.popBase + 1) * s.occ; });
+  return tot ? occ / tot : 0;
+}
+function capitalLost(tag, enemies) { const c = G.C[tag]; const s = G.S[c.capital]; return !!(s && s.owner === tag && s.occ >= 1 && enemies.includes(s.occBy)); }
+// devuelve true si la guerra termina por capitulación del líder de un bando
+function capitulationCheck(w) {
+  for (const [lead, mine, theirs, winner] of [[w.def, w.defAll, w.attAll, w.att], [w.att, w.attAll, w.defAll, w.def]]) {
+    const c = G.C[lead], sh = occShare(lead, theirs), cap = capitalLost(lead, theirs);
+    const cond = (cap && sh > 0.4) || sh > 0.68 || ((c.wear || 0) >= 97 && sh > 0.2);
+    if (!cond) { w['capT' + lead] = 0; continue; }
+    w['capT' + lead] = (w['capT' + lead] || 0) + 1;
+    if (!c.ai && w['capT' + lead] === 1) notify('war', `¡Tu situación es desesperada! ${sh > 0.5 ? 'Más de la mitad' : 'Gran parte'} de tu país está ocupado${cap ? ' y has perdido la capital' : ''}. Si no cambia en 3 semanas, capitularás.`, c.capital);
+    if (w['capT' + lead] >= (c.ai ? 2 : 4)) {
+      notify('war', `¡${c.name} capitula! ${G.C[winner].name} gana la guerra.`, c.capital);
+      c.wear = Math.max(0, (c.wear || 0) - 30); c.legitimacy -= 10; cnt(G.C[winner], 'capitulations');
+      endWar(w, winner); return true;
+    }
+  }
+  return false;
+}
+
+/* ===== CRISIS DIPLOMÁTICAS: antes de la guerra hay unos meses de tensión en los que se suman apoyos y se puede ceder sin combatir ===== */
+const DCRISIS_MONTHS = 3;
+const crisisOf = tag => (G.dcrises || []).find(x => x.att === tag || x.def === tag || x.sides.att.includes(tag) || x.sides.def.includes(tag));
+function openCrisis(attTag, defTag, cbId, targets, opts) {
+  opts = opts || {}; G.dcrises = G.dcrises || []; G.nextDC = G.nextDC || 1;
+  const A = G.C[attTag], D = G.C[defTag], cb = CBS[cbId || 'humiliate'];
+  const block = warBlockers(attTag, defTag); if (block) return {ok: false, msg: block};
+  if (crisisOf(attTag) || crisisOf(defTag)) return {ok: false, msg: 'Uno de los países ya está implicado en otra crisis diplomática.'};
+  const av = cbAvailable(attTag, defTag, cbId); if (!av.ok && !opts.free) return {ok: false, msg: av.why};
+  targets = (targets || []).slice();
+  if (cb.terr) {
+    const valid = new Set(reachableStates(attTag, defTag).map(x => x.id));
+    targets = targets.filter(t => valid.has(t) && (cbId !== 'claim' || hasClaim(A, t)));
+    if (!targets.length) return {ok: false, msg: 'Elige al menos un territorio válido.'};
+    if (targets.length > cb.max(A)) targets = targets.slice(0, cb.max(A));
+  }
+  const cost = opts.free ? 0 : Math.round(warCost(attTag, targets, cbId) * 0.5);
+  if (!A.ai && !opts.free) { if (A.influence < cost) return {ok: false, msg: `Necesitas ${cost} de influencia.`}; A.influence -= cost; }
+  const k = {id: G.nextDC++, att: attTag, def: defTag, cb: cbId, targets, law: opts.law || null, left: DCRISIS_MONTHS, sides: {att: [attTag], def: [defTag]}, log: [], started: Object.assign({}, G.date), ai: !!opts.ai};
+  G.dcrises.push(k);
+  addRel(attTag, defTag, -40);
+  const msg = `¡Crisis diplomática! ${A.name} exige a ${D.name}: ${cb.name}${targets.length ? ' (' + targets.map(t => G.S[t].name).join(', ') + ')' : ''}. Los demás países toman partido.`;
+  if (attTag === G.player || defTag === G.player) notify('diplo', msg, targets[0] ?? D.capital); else logMsg(msg);
+  return {ok: true, crisis: k};
+}
+function crisisPower(list) { let p = 0; list.forEach(t => { if (alive(t)) p += armyPower(G.C[t]); }); return p; }
+function crisisJoin(k, tag, side, why) {
+  if (!alive(tag) || k.sides.att.includes(tag) || k.sides.def.includes(tag)) return;
+  k.sides[side].push(tag); k.log.push(`${G.C[tag].name} apoya a ${G.C[side === 'att' ? k.att : k.def].name}${why ? ' (' + why + ')' : ''}.`);
+  if (tag === G.player) notify('diplo', `Tu país se alinea con ${G.C[side === 'att' ? k.att : k.def].name} en la crisis diplomática.`);
+}
+function dcrisisMonth() {
+  if (!G.dcrises || !G.dcrises.length) return;
+  G.dcrises.slice().forEach(k => {
+    if (!alive(k.att) || !alive(k.def)) { G.dcrises = G.dcrises.filter(x => x !== k); return; }
+    k.left--;
+    // los aliados, garantes y miembros de bloque toman partido
+    const callers = (lead, side) => {
+      allies(lead).forEach(t => { if (Math.random() < 0.75 || !G.C[t].ai) crisisJoin(k, t, side, 'alianza'); });
+      if (side === 'def') guaranteedBy(lead).forEach(t => { if (Math.random() < 0.8) crisisJoin(k, t, 'def', 'garantía'); });
+      const b = blocOf(lead); if (b) b.members.forEach(t => { if (t !== lead && Math.random() < 0.55) crisisJoin(k, t, side, 'bloque'); });
+      G.C[lead].subjects?.forEach(t => crisisJoin(k, t, side, 'vasallo'));
+    };
+    callers(k.att, 'att'); callers(k.def, 'def');
+    const pa = crisisPower(k.sides.att), pd = crisisPower(k.sides.def) * 1.1, ratio = pa / Math.max(1, pd);
+    k.ratio = ratio;
+    const A = G.C[k.att], D = G.C[k.def];
+    // decisiones de la IA
+    if (D.ai && k.left >= 0) { const p = ratio > 3 ? 0.3 : ratio > 2 ? 0.12 : ratio > 1.4 ? 0.04 : 0; if (Math.random() < p) { resolveCrisis(k, 'def_back'); return; } }
+    if (A.ai && ratio < 0.6 && Math.random() < 0.4) { resolveCrisis(k, 'att_back'); return; }
+    if (k.left <= 0) resolveCrisis(k, 'war');
+    else if (k.att === G.player || k.def === G.player) notify('diplo', `Crisis con ${G.C[k.att === G.player ? k.def : k.att].name}: quedan ${k.left} meses. Fuerzas ${fmtN(pa, 0)} contra ${fmtN(pd, 0)}.`);
+  });
+}
+function resolveCrisis(k, how) {
+  G.dcrises = (G.dcrises || []).filter(x => x !== k);
+  const A = G.C[k.att], D = G.C[k.def];
+  if (how === 'war') {
+    const r = declareWar(k.att, k.def, k.cb, k.targets, {law: k.law, free: true});
+    if (r.ok) { const w = r.war; k.sides.att.forEach(t => { if (alive(t) && !w.attAll.includes(t) && !w.defAll.includes(t)) { w.attAll.push(t); G.C[t].wars.push(w.id); } }); k.sides.def.forEach(t => { if (alive(t) && !w.attAll.includes(t) && !w.defAll.includes(t)) { w.defAll.push(t); G.C[t].wars.push(w.id); } }); recalcHostile(); }
+    else logMsg(`La crisis entre ${A.name} y ${D.name} se enfría: ${r.msg}`);
+  } else if (how === 'def_back') {
+    // el defensor cede sin combatir: se aplican las exigencias
+    const w = {id: -1, att: k.att, def: k.def, cb: k.cb, targets: k.targets, cTargets: [], score: 100, weeks: 0, attAll: k.sides.att.slice(), defAll: k.sides.def.slice(), law: k.law, bw: {att: 0, def: 0}};
+    notify('diplo', `${D.name} cede ante ${A.name} y acepta sus exigencias sin combatir.`, k.targets[0] ?? D.capital);
+    endWar(w, k.att); D.prestige = Math.max(0, D.prestige - 4); cnt(A, 'crisesWon');
+  } else if (how === 'att_back') {
+    A.prestige = Math.max(0, A.prestige - 8); A.legitimacy -= 2; D.prestige += 4; addRel(k.att, k.def, 10); cnt(D, 'crisesWon');
+    notify('diplo', `${A.name} se retira de la crisis con ${D.name}: pierde prestigio.`, D.capital);
+  }
+}
+/* ---------- pestaña de la ventana de diplomacia ---------- */
+function dcrisisTabHtml() {
+  const list = G.dcrises || [];
+  const sideH = t => t.map(x => `${flag(x, 'sm')} ${G.C[x].name}`).join(', ');
+  return `<div class="card"><h3>Crisis diplomáticas</h3><p class="hint">Antes de una guerra puedes abrir una <b>crisis</b> (cuesta la mitad de influencia): durante ${DCRISIS_MONTHS} meses ambos bandos suman aliados. Si el defensor es mucho más débil puede <b>ceder</b> y aceptar tus exigencias sin guerra; si no, estalla la guerra con todos los apoyos ya alineados.</p>
+  ${list.length ? list.map(k => { const mineA = k.att === G.player, mineD = k.def === G.player; const pa = crisisPower(k.sides.att), pd = crisisPower(k.sides.def);
+    return `<div class="war"><div class="warh">${CBS[k.cb].icon} <b>${CBS[k.cb].name}</b> <small class="dim">· quedan ${k.left} meses</small></div>
+    <div class="sides"><div><small>Agresor</small>${sideH(k.sides.att)}</div><div><small>Defensor</small>${sideH(k.sides.def)}</div></div>
+    ${k.targets.length ? `<small class="dim">Exigencias: ${k.targets.map(t => G.S[t].name).join(', ')}</small>` : ''}
+    <div class="wbar"><b style="width:${clamp(pa / Math.max(1, pa + pd), 0, 1) * 100}%"></b></div><div class="kv sm"><span>Fuerza militar</span><b>${fmtN(pa, 0)} vs ${fmtN(pd, 0)}</b></div>
+    <div class="blog">${k.log.slice(-4).map(x => `<div class="ev">${x}</div>`).join('')}</div>
+    ${mineA ? `<div class="btnrow"><button class="danger" data-act="dcwar" data-id="${k.id}">⚔️ Declarar la guerra ya</button><button data-act="dcback" data-id="${k.id}">🏳️ Retirarse (−8 prestigio)</button></div>` : ''}
+    ${mineD ? `<div class="btnrow"><button data-act="dcyield" data-id="${k.id}">🏳️ Ceder ante las exigencias</button><span class="hint">Si te mantienes firme, la guerra estallará al acabar el plazo.</span></div>` : ''}</div>`; }).join('') : '<p class="hint">No hay crisis diplomáticas en curso.</p>'}</div>`;
+}
+
 /* ===== RENDER 3D DEL MAPA (three.js) ===== */
 const R = {occ: {}, mode: 'political', hover: -1, sel: -1, dirty: true, labelsDirty: true, cam: {tx: 12, tz: -52, dist: 120, tilt: 0.78, yaw: 0}, exag: 0.55};
 const MAP_MODES = [
@@ -4401,8 +4655,10 @@ function initRenderer(canvas) {
   const mat = new THREE.MeshLambertMaterial({map: R.tex});
   R.mesh = new THREE.Mesh(geo, mat);
   R.scene.add(R.mesh);
-  R.scene.add(new THREE.AmbientLight(0xffffff, 0.92));
-  const dl = new THREE.DirectionalLight(0xfff0d8, 0.55); dl.position.set(-60, 90, -40); R.scene.add(dl);
+  R.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+  const dl = new THREE.DirectionalLight(0xfff0d8, 0.78); dl.position.set(-60, 90, -40); R.scene.add(dl);
+  R.scene.fog = new THREE.Fog(0x14222c, 170, 560);
+  buildWaterAndClouds();
   // marco alrededor del mapa
   const frame = new THREE.Mesh(new THREE.PlaneGeometry(2000, 1200), new THREE.MeshBasicMaterial({color: 0x101a22}));
   frame.rotation.x = -Math.PI / 2; frame.position.y = -2; R.scene.add(frame);
@@ -4417,6 +4673,56 @@ function initRenderer(canvas) {
   requestAnimationFrame(frame_);
 }
 
+/* ---------- agua animada, nubes, ciudades ---------- */
+function buildWaterAndClouds() {
+  const w = 360, d = LAT_TOP - LAT_BOT;
+  R.waterU = {t: {value: 0}};
+  const wm = new THREE.ShaderMaterial({
+    uniforms: R.waterU, transparent: true, depthWrite: false,
+    vertexShader: 'varying vec2 vP; void main(){ vP = position.xz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+    fragmentShader: 'uniform float t; varying vec2 vP; void main(){ float a = sin(vP.x*1.7 + t*0.9 + sin(vP.y*0.8 + t*0.4)*1.6) * sin(vP.y*2.1 - t*0.7 + sin(vP.x*0.6 - t*0.3)*1.3); float s = smoothstep(0.55, 1.0, a); float g = sin(vP.x*0.35 + t*0.15)*0.5+0.5; gl_FragColor = vec4(0.75,0.9,1.0, s*0.22 + g*0.04); }'
+  });
+  const wp = new THREE.Mesh(new THREE.PlaneGeometry(w, d), wm); wp.rotation.x = -Math.PI / 2; wp.position.set(0, 0.012, -(LAT_TOP + LAT_BOT) / 2); wp.renderOrder = 1; R.scene.add(wp); R.waterMesh = wp;
+  // nubes: textura procedural
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 256; const g = cv.getContext('2d'), im = g.createImageData(512, 256);
+  for (let y = 0; y < 256; y++) for (let x = 0; x < 512; x++) { const v = fbm(x / 60, y / 40, 313, 5); const a = clamp((v - 0.52) * 4.2, 0, 1); const o = (y * 512 + x) * 4; im.data[o] = 245; im.data[o + 1] = 248; im.data[o + 2] = 252; im.data[o + 3] = a * 255; }
+  g.putImageData(im, 0, 0);
+  const ct = new THREE.CanvasTexture(cv); ct.wrapS = ct.wrapT = THREE.RepeatWrapping; ct.repeat.set(2.4, 1.2);
+  const cm = new THREE.MeshBasicMaterial({map: ct, transparent: true, opacity: 0.4, depthWrite: false, fog: false});
+  const cp = new THREE.Mesh(new THREE.PlaneGeometry(w, d), cm); cp.rotation.x = -Math.PI / 2; cp.position.set(0, 3.2, -(LAT_TOP + LAT_BOT) / 2); cp.renderOrder = 2; R.scene.add(cp); R.cloudMesh = cp; R.cloudTex = ct;
+  R.anim = true;
+}
+function animateMap(t) {
+  if (!R.anim || !R.waterU) return false;
+  R.waterU.t.value = t / 1000; R.cloudTex.offset.x = (t / 1000) * 0.0016; R.cloudTex.offset.y = (t / 1000) * 0.0004;
+  const k = clamp((R.cam.dist - 45) / 70, 0, 1); R.cloudMesh.material.opacity = 0.42 * k; R.cloudMesh.visible = k > 0.02;
+  return true;
+}
+function buildCities() {
+  if (R.cityMesh || !G.S || !G.S.length) return;
+  const items = [];
+  G.S.forEach(s => {
+    const pop = popTotal(s) || 0; if (!pop) return;
+    const n = clamp(Math.round(Math.sqrt(pop / 220000)), 1, 7), prov = MAP.provs[stateCapitalProv(s.id)];
+    for (let k = 0; k < n; k++) {
+      let px = prov.px, py = prov.py;
+      if (k) { const a = hash2(s.id, k, 17) * 6.283, r = 2 + hash2(s.id, k, 19) * 9; const qx = Math.round(px + Math.cos(a) * r), qy = Math.round(py + Math.sin(a) * r * 0.9); const qi = qy * MAP_W + qx; if (qx > 0 && qy > 0 && qx < MAP_W && qy < MAP_H && MAP.land[qi] && MAP.stateOf[qi] === s.id) { px = qx; py = qy; } }
+      const hh = MAP.height[py * MAP_W + px] * R.exag;
+      items.push({sid: s.id, x: xToLon(px), z: -yToLat(py), y: hh, h: 0.12 + Math.min(1, Math.sqrt(pop) / 2500) * 0.38 * (k === 0 ? 1 : 0.55) + hash2(s.id, k, 23) * 0.08, w: 0.09 + (k === 0 ? 0.06 : 0.02) + Math.min(0.05, pop / 6e7)});
+    }
+  });
+  const geo = new THREE.BoxGeometry(1, 1, 1); geo.translate(0, 0.5, 0);
+  const mesh = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({color: 0xffffff}), items.length);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3();
+  items.forEach((it, i) => { p.set(it.x, it.y, it.z); sc.set(it.w, it.h, it.w); m4.compose(p, q, sc); mesh.setMatrixAt(i, m4); });
+  mesh.instanceMatrix.needsUpdate = true; R.cityMesh = mesh; R.cityItems = items; R.scene.add(mesh);
+  updateCityColors();
+}
+function updateCityColors() {
+  if (!R.cityMesh) return; const c = new THREE.Color();
+  R.cityItems.forEach((it, i) => { const s = G.S[it.sid]; const base = [0.62, 0.56, 0.48]; let col = base; if (s.owner !== NONE && G.C[s.owner]) { const rgb = R.occRGB(s.owner); col = [base[0] * 0.4 + rgb[0] / 255 * 0.6, base[1] * 0.4 + rgb[1] / 255 * 0.6, base[2] * 0.4 + rgb[2] / 255 * 0.6]; } c.setRGB(col[0], col[1], col[2]); R.cityMesh.setColorAt(i, c); });
+  if (R.cityMesh.instanceColor) R.cityMesh.instanceColor.needsUpdate = true;
+}
 function resizeRenderer() {
   const w = window.innerWidth, h = window.innerHeight;
   R.renderer.setSize(w, h, false);
@@ -4586,6 +4892,7 @@ function paintPixel(i, fill, hov, sel) {
   const tc = MAP.terrainCol, d = R.img.data, o = i * 4;
   let r = tc[o], g = tc[o + 1], b = tc[o + 2];
   const pr = G.P ? G.P[MAP.provOf[i]] : null;
+  const gn = (((i * 2246822519) >>> 0) & 255) / 255 - 0.5; r += gn * 7; g += gn * 7; b += gn * 7;
   if (fill[3] > 0) {
     const a = fill[3];
     // modula con la luminancia del terreno para conservar el relieve
@@ -4617,6 +4924,7 @@ function fullRepaint() {
   }
   R.ctx.putImageData(R.img, 0, 0);
   R.tex.needsUpdate = true; R.dirty = true; R.minimapDirty = true;
+  if (R.cityMesh) updateCityColors();
 }
 
 function repaintState(id) {
@@ -4643,7 +4951,7 @@ function setSelected(id) { const old = R.sel; R.sel = id; repaintState(old); rep
 function setMapMode(m) { R.mode = m; fullRepaint(); }
 
 function onOwnershipChanged(sid) {
-  computeEdges(G.ownerOf);
+  computeEdges(G.ownerOf); if (R.cityMesh) updateCityColors();
   fullRepaint(); R.labelsDirty = true; computeLabels();
 }
 
@@ -4785,9 +5093,13 @@ let _lastT = 0;
 function frame_(t) {
   const dt = Math.min(0.1, (t - _lastT) / 1000); _lastT = t;
   keyboardPan(dt);
+  if (R.cityMesh === undefined && G.S && G.S.length && MAP.provs) { try { buildCities(); } catch (e) { console.warn(e); } R.cityMesh = R.cityMesh || null; R.dirty = true; }
+  if (R.anim && t - (R.lastAnim || 0) > 55) { R.lastAnim = t; if (animateMap(t)) R.dirty = true; }
   if (R.dirty || R.labelsDirty) {
     updateCamera();
-    R.renderer.render(R.scene, R.camera);
+    const t0 = performance.now(); R.renderer.render(R.scene, R.camera);
+    R.renderMs = (R.renderMs || 10) * 0.9 + (performance.now() - t0) * 0.1;
+    if (R.anim && R.renderMs > 45 && t > 8000) { R.anim = false; R.waterMesh.visible = false; R.cloudMesh.visible = false; if (typeof syncCamBtns === 'function') syncCamBtns(); }
     if (R.labelsDirty) { updateLabels(); R.labelsDirty = false; }
     drawMinimap();
     R.dirty = false;
@@ -4868,7 +5180,7 @@ function buildHud() {
     <div class="crest" id="crest"></div>
     <div class="pl-main">
       <div class="pl-name" id="pl-name"></div>
-      <div class="pl-sub" id="pl-sub"></div><div class="pl-traits" id="pl-traits"></div>
+      <div class="pl-sub" id="pl-sub"></div><div class="pl-focus" id="pl-focus"></div><div class="pl-traits" id="pl-traits"></div>
     </div>
     <div class="chips">
       <div class="chip" id="ch-treasury" data-tip="Tesoro del Estado"><b>💰</b><span></span></div>
@@ -4897,7 +5209,7 @@ function buildHud() {
     <button class="rbtn" data-act="win" data-w="manual" title="Manual del juego (F1)">📖</button>
   </div>
   <div id="menu">
-    ${[['budget', '💷', 'Presupuesto'], ['production', '🏭', 'Producción y mercado'], ['pops', '👥', 'Población'], ['politics', '🏛️', 'Política'], ['tech', '💡', 'Tecnología'], ['diplomacy', '🤝', 'Diplomacia'], ['military', '⚔️', 'Ejército y guerra'], ['construction', '🏗️', 'Construcción']]
+    ${[['budget', '💷', 'Presupuesto'], ['production', '🏭', 'Producción y mercado'], ['pops', '👥', 'Población'], ['politics', '🏛️', 'Política'], ['tech', '💡', 'Tecnología'], ['diplomacy', '🤝', 'Diplomacia'], ['military', '⚔️', 'Ejército y guerra'], ['construction', '🏗️', 'Construcción'], ['national', '🌳', 'Decisiones nacionales']]
       .map(([id, ic, t]) => `<button class="mbtn" data-act="win" data-w="${id}" data-tip="${t}" id="mb-${id}"><span>${ic}</span></button>`).join('')}
   </div>
   <div id="camctl">
@@ -4906,6 +5218,7 @@ function buildHud() {
     <button data-act="rotl" title="Girar a la izquierda (Q)">⟲</button><button data-act="rotr" title="Girar a la derecha (E)">⟳</button>
     <button data-act="tiltu" title="Inclinar más (R)">⤒</button><button data-act="tiltd" title="Inclinar menos (F)">⤓</button>
     <button data-act="wheelmode" id="btn-wheel" title="Rueda del ratón: zoom o desplazar">🖱️</button>
+    <button data-act="animtoggle" id="btn-anim" title="Animaciones del mapa: agua y nubes">≈</button>
     <button data-act="edgescroll" id="btn-edge" title="Desplazar al acercar el ratón al borde de la pantalla">⇱</button>
   </div>
   <div id="mapctl">
@@ -4917,7 +5230,7 @@ function buildHud() {
   $('#crest').innerHTML = '';
   syncCamBtns(); iconize($('#hud'));
 }
-function syncCamBtns() { const w = $('#btn-wheel'), e2 = $('#btn-edge'); if (w) { w.classList.toggle('on', R.wheelMode === 'pan'); w.innerHTML = icon(R.wheelMode === 'pan' ? 'hand' : 'mouse'); } if (e2) e2.classList.toggle('on', !!R.edgeScroll); }
+function syncCamBtns() { const an = $('#btn-anim'); if (an) an.classList.toggle('on', !!R.anim); const w = $('#btn-wheel'), e2 = $('#btn-edge'); if (w) { w.classList.toggle('on', R.wheelMode === 'pan'); w.innerHTML = icon(R.wheelMode === 'pan' ? 'hand' : 'mouse'); } if (e2) e2.classList.toggle('on', !!R.edgeScroll); }
 function minimapJump(e) {
   const r = e.currentTarget.getBoundingClientRect();
   const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
@@ -4930,6 +5243,7 @@ function updateHud(force) {
   $('#crest').innerHTML = flag(c.tag, 'big');
   $('#pl-name').textContent = c.name;
   $('#pl-sub').textContent = `${c.gov} · Rango ${c.rank}`;
+  { const pf = $('#pl-focus'); const cu = c.nat && c.nat.cur && natNode(c, c.nat.cur.id); pf.textContent = cu ? `🌳 ${cu.name} · ${Math.ceil(c.nat.cur.left / 7)} sem.` : ''; pf.style.display = cu ? 'block' : 'none'; }
   const tb = (c.traits || []).map(id => TRAITS[id]).filter(Boolean).map(t => `<span class="tchip ${t.good ? 'g' : 'b'}" data-tip="${traitTip(t)}">${t.icon}</span>`).join('');
   const tr = $('#pl-traits'); if (tr && tr.dataset.k !== tb) { tr.innerHTML = tb; tr.dataset.k = tb; }
   const set = (id, txt, tip) => { const e = $('#' + id); e.querySelector('span').textContent = txt; if (tip) e.dataset.tip = tip; };
@@ -5099,6 +5413,8 @@ WINDOWS.politics = {title: 'Política', icon: '🏛️', render() {
       <div class="ig ${g.gov ? 'gov' : ''}" data-tip="<b>${d.name}</b><br>${d.desc}"><div class="igh"><span class="igi" style="background:${d.color}">${d.icon}</span><div><b>${d.name}</b><small>${g.gov ? 'En el gobierno' : 'Oposición'}</small></div><span class="face">${faceFor(g.approval)}</span></div>
       <div class="kv"><span>Influencia</span><b>${pctS(g.share, 1)}</b></div>${bar(g.share, 0.5, '', '')}
       <div class="kv"><span>Aprobación</span><b class="${g.approval < -1 ? 'bad' : g.approval > 1 ? 'good' : ''}">${sgn(g.approval)}</b></div></div>`; }).join('')}</div></div></div></div>`;
+  } else if (t === 'mov') {
+    body = movTabHtml();
   } else if (t === 'ideo') {
     body = ideoTab();
   } else {
@@ -5114,7 +5430,7 @@ WINDOWS.politics = {title: 'Política', icon: '🏛️', render() {
         ${cur ? '<div class="notice">Esta ley está en vigor.</div>' : `<div class="kv"><span>Probabilidad de aprobación</span><b>${pctS(chance)}</b></div><button class="primary" data-act="enact" data-id="${sel.id}" ${c.lawChange || (sel.tech && !c.techs.has(sel.tech)) ? 'disabled' : ''}>Promulgar reforma (50 influencia)</button>${sel.tech && !c.techs.has(sel.tech) ? `<small class="bad">Requiere: ${TECH[sel.tech].name}</small>` : ''}`}`;
       })() : '<p class="hint">Selecciona una ley para ver sus efectos y las posturas de los grupos de interés.</p>'}</div>`;
   }
-  return tabs('pol', [['igs', 'Gobierno y grupos de interés'], ['ideo', 'Ideologías y cambio de régimen'], ['laws', 'Leyes']]) + body;
+  return tabs('pol', [['igs', 'Gobierno y grupos de interés'], ['ideo', 'Ideologías y cambio de régimen'], ['mov', 'Elecciones y movimientos'], ['laws', 'Leyes']]) + body;
 }};
 const MODNAME = {tax: 'Recaudación', bur: 'Burocracia', invest: 'Inversión privada', lit: 'Alfabetización', grow: 'Crecimiento', army: 'Ejército', rad: 'Radicalismo', out: 'Producción', lab: 'Cuota salarial', stab: 'Estabilidad'};
 const MODGOOD = {rad: -1};
@@ -5221,6 +5537,8 @@ WINDOWS.diplomacy = {title: 'Diplomacia', icon: '🤝', render() {
       ${c.fabricating ? `<div class="notice">📜 Fabricando reclamación sobre <b>${G.S[c.fabricating.state].name}</b>: ${c.fabricating.months} meses.</div>` : ''}</div>
       <div class="card"><h3>Fabricar reclamaciones</h3><p class="hint">Selecciona un país en Potencias (${sel ? G.C[sel].name : 'ninguno'}) y elige un estado alcanzable. Cuesta 30 de influencia y 6 meses.</p><table class="tbl"><tbody>${rs.map(x => `<tr><td>${G.S[x.id].name}</td><td class="r">${fmtN(popTotal(G.S[x.id]), 1)}</td><td class="r">${hasClaim(c, x.id) ? '<span class="tag good">Reclamado</span>' : `<button data-act="fabricate" data-id="${x.id}" ${c.fabricating || c.influence < 30 ? 'disabled' : ''}>Fabricar</button>`}</td></tr>`).join('') || '<tr><td class="dim">Elige un país primero.</td></tr>'}</tbody></table></div></div>
     <div class="col wide"><div class="card"><h3>Casus belli disponibles</h3>${Object.keys(CBS).filter(k => !CBS[k].hidden).map(k => `<div class="cbrow"><span class="cbi">${CBS[k].icon}</span><div><b>${CBS[k].name}</b> <small class="dim">${CBS[k].cost} infl. base${CBS[k].perState ? ' + ' + CBS[k].perState + ' por territorio' : ''}</small><p class="hint">${CBS[k].desc}</p></div></div>`).join('')}</div></div></div>`;
+  } else if (t === 'crisis') {
+    body = dcrisisTabHtml();
   } else if (t === 'vassals') {
     const sub = c.subjects || [];
     body = `${c.overlord ? `<div class="notice">👑 Eres vasallo de <b>${G.C[c.overlord].name}</b>: pagas el 12% de tus ingresos y no puedes declarar guerras.</div>` : ''}
@@ -5230,7 +5548,7 @@ WINDOWS.diplomacy = {title: 'Diplomacia', icon: '🤝', render() {
     body = `<div class="card"><h3>Colonización</h3>${c.colonizing ? `<div class="notice">⚓ Colonizando <b>${G.S[c.colonizing.state].name}</b> — ${c.colonizing.months} meses restantes.</div>` : '<p class="hint">Reclama tierras sin dueño al alcance de tus territorios. Cuesta 80 de influencia y tarda 6 meses.</p>'}
      <table class="tbl clickable"><thead><tr><th>Estado</th><th class="r">Población</th><th class="r">Distancia</th><th></th></tr></thead><tbody>${tg.map(x => { const s2 = G.S[x.id]; return `<tr data-act="focus" data-id="${s2.id}"><td>${s2.name}</td><td class="r">${fmtN(popTotal(s2), 1)}</td><td class="r">${Math.round(x.d)}°</td><td class="r"><button data-act="colonize" data-id="${s2.id}" ${c.colonizing || c.influence < 80 ? 'disabled' : ''}>Colonizar</button></td></tr>`; }).join('') || '<tr><td colspan="4" class="dim">No hay territorios sin reclamar a tu alcance.</td></tr>'}</tbody></table></div>`;
   }
-  return tabs('dip', [['world', 'Potencias'], ['pacts', 'Acuerdos' + (mail ? ` (${mail})` : '')], ['blocs', 'Bloques'], ['claims', 'Casus belli'], ['vassals', 'Vasallos'], ['colony', 'Colonización']]) + body;
+  return tabs('dip', [['world', 'Potencias'], ['pacts', 'Acuerdos' + (mail ? ` (${mail})` : '')], ['blocs', 'Bloques'], ['crisis', 'Crisis' + ((G.dcrises || []).length ? ` (${G.dcrises.length})` : '')], ['claims', 'Casus belli'], ['vassals', 'Vasallos'], ['colony', 'Colonización']]) + body;
 }};
 
 /* --- Ejército y guerra --- */
@@ -5397,7 +5715,7 @@ function renderWarDialog() {
    <div class="wbar"><b style="width:${clamp(A.p / Math.max(1, A.p + Dp.p), 0, 1) * 100}%"></b></div>
    <small class="dim">Aliados que te seguirán: ${ally.join(', ') || 'ninguno'}. Defensores probables: ${enemyAl.join(', ') || 'ninguno'}.</small>
    <div class="notice">Coste: <b>${cost}</b> de influencia (tienes ${Math.floor(c.influence)}). Infamia: +${Math.round(cb.infamy * (1 + tg.length * 0.3))}.</div>
-   <div class="btnrow"><button class="primary" data-act="wgo" ${okGo ? '' : 'disabled'}>⚔️ Declarar la guerra</button><button data-act="wclose">Cancelar</button></div></div></div></div></div>`;
+   <div class="btnrow"><button class="primary" data-act="wgo" ${okGo ? '' : 'disabled'}>⚔️ Declarar la guerra</button><button data-act="wcrisis" ${cbAvailable(G.player, W.def, W.cb).ok && (!cb.terr || tg.length) && c.influence >= Math.round(cost * 0.5) ? '' : 'disabled'}>🕰️ Abrir crisis diplomática (${Math.round(cost * 0.5)} infl.)</button><button data-act="wclose">Cancelar</button></div></div></div></div></div>`;
   const nb = root.querySelector('.wd-body'); if (nb) nb.scrollTop = sc;
 }
 
@@ -5534,6 +5852,10 @@ const ACT = {
     UI.war = null; renderWarDialog(); G.paused = false; renderWindow(); fullRepaint();
     if (r.war.targets.length) focusState(r.war.targets[0], 55);
   },
+  wcrisis: () => { const W = UI.war; const r = openCrisis(G.player, W.def, W.cb, [...W.targets], {law: W.law}); if (!r.ok) { toast('⚠️', r.msg); return; } UI.war = null; renderWarDialog(); UI.winTab.dip = 'crisis'; UI.win = null; openWindow('diplomacy'); },
+  dcwar: d => { const k = (G.dcrises || []).find(x => x.id === +d.id); if (k) { resolveCrisis(k, 'war'); renderWindow(); } },
+  dcback: d => { const k = (G.dcrises || []).find(x => x.id === +d.id); if (k) { resolveCrisis(k, 'att_back'); renderWindow(); } },
+  dcyield: d => { const k = (G.dcrises || []).find(x => x.id === +d.id); if (k) { resolveCrisis(k, 'def_back'); renderWindow(); refreshDiploMap(); } },
   peace: d => { const w = G.wars.find(x => x.id === +d.id); if (!w) return; makePeace(w); renderWindow(); },
   propyes: d => { respondProposal(+d.id, true); renderWindow(); refreshDiploMap(); },
   propno: d => { respondProposal(+d.id, false); renderWindow(); },
@@ -5562,6 +5884,7 @@ const ACT = {
   zin: () => camZoom(0.7), zout: () => camZoom(1.4), camhome: () => camHome(),
   rotl: () => camRotate(0.3), rotr: () => camRotate(-0.3), tiltu: () => camTilt(0.15), tiltd: () => camTilt(-0.15),
   wheelmode: () => { R.wheelMode = R.wheelMode === 'zoom' ? 'pan' : 'zoom'; saveMapPrefs(); syncCamBtns(); toast('🖱️', R.wheelMode === 'zoom' ? 'La rueda del ratón o del panel táctil hace zoom.' : 'La rueda o el panel táctil desplaza el mapa (pellizca para hacer zoom).'); },
+  animtoggle: () => { R.anim = !R.anim; if (R.waterMesh) { R.waterMesh.visible = R.anim; R.cloudMesh.visible = R.anim; } R.renderMs = 10; R.dirty = true; syncCamBtns(); toast('≈', R.anim ? 'Animaciones del mapa activadas.' : 'Animaciones desactivadas (más fluidez).'); },
   edgescroll: () => { R.edgeScroll = !R.edgeScroll; saveMapPrefs(); syncCamBtns(); toast('⇱', R.edgeScroll ? 'Desplazamiento por los bordes activado.' : 'Desplazamiento por los bordes desactivado.'); },
   save: () => doSave(),
   load: () => doLoad(),
@@ -5813,6 +6136,7 @@ function renderArmyPanel() {
   <div class="kv"><span>Fuerza</span><b>${Math.round(armyStr(a) * 100)}%</b></div>${bar(armyStr(a), 1, '')}
   <div class="kv"><span>Organización</span><b>${Math.round(armyOrg(a) * 100)}%</b></div>${bar(armyOrg(a), 1, 'warn')}
   <div class="kv"><span>Entrenamiento</span><b>${trainName(armyTrain(a))} (${Math.round(armyTrain(a) * 100)}%) · rinde ×${(0.75 + 0.5 * armyTrain(a)).toFixed(2)}</b></div>${bar(armyTrain(a), 1, 'blue')}
+  <div class="kv"><span>Suministro</span><b class="${(a.sup === undefined ? 1 : a.sup) < 0.5 ? 'bad' : ''}">${Math.round((a.sup === undefined ? 1 : a.sup) * 100)}%${a.cut > 0 ? ` · ⚠ cercado ${a.cut}/24 d` : ''}</b></div>${bar(a.sup === undefined ? 1 : a.sup, 1, (a.sup === undefined ? 1 : a.sup) < 0.5 ? 'bad' : 'good')}
   <div class="kv"><span>Hombres</span><b>${fmtN(armyMen(a), 0)}</b></div>
   <div class="kv"><span>Composición</span><b>${Object.keys(cnt).map(k => DIVS[k].icon + ' ' + cnt[k]).join(' · ')}</b></div>
   <div class="kv"><span>Atrincheramiento</span><b>${'■'.repeat(Math.round(a.dig || 0))}${'□'.repeat(6 - Math.round(a.dig || 0))}</b></div>
@@ -6052,6 +6376,329 @@ document.addEventListener('change', e => {
   const el = e.target;
   if (el.id === 'drawauto' && el.value && UI.draw) { const r = autoFront(G.player, el.value); UI.draw.line = r.line; if (UI.draw.mode === 'attack') UI.draw.targets = r.targets; renderDrawBar(); R.labelsDirty = true; if (!r.line.length) toast('⚠️', 'No hay frontera con ese país.'); }
   else if (el.dataset && el.dataset.act === 'frontauto') ACT.frontauto(el.dataset);
+});
+
+/* ===== ELECCIONES Y MOVIMIENTOS POLÍTICOS ===== */
+const LAWSEQ = {power: ['autocracy', 'oligarchy', 'landed_voting', 'wealth_voting', 'universal'], labor: ['no_regs', 'inspections', 'regulated'], press: ['censorship', 'limited_press', 'free_press'], religion: ['state_religion', 'tolerance', 'secular']};
+const nextOpt = (c, cat) => { const q = LAWSEQ[cat], i = q.indexOf(c.laws[cat]); return i >= 0 && i < q.length - 1 ? q[i + 1] : null; };
+const MOVES = {
+  suffrage: {name: 'Movimiento sufragista', icon: '🗳️', desc: 'Exige ampliar el derecho al voto.', demand: c => { const o = nextOpt(c, 'power'); return o && {cat: 'power', opt: o}; },
+    target: c => 8 + c.lit * 0.45 + c.radicals * 55 + (c.ig.intel ? c.ig.intel.share * 60 : 0)},
+  labor: {name: 'Movimiento obrero', icon: '✊', desc: 'Sindicatos que reclaman regulación laboral.', demand: c => { const o = nextOpt(c, 'labor'); return o && {cat: 'labor', opt: o}; },
+    target: c => 4 + Math.min(35, c.stats.indLevels * 0.8) + c.radicals * 70 + Math.max(0, 8 - c.stats.sol) * 4 + (c.ig.union ? c.ig.union.share * 40 : 0)},
+  abolition: {name: 'Movimiento abolicionista', icon: '⛓️', desc: 'Exige acabar con la esclavitud.', demand: c => c.laws.bonded === 'slavery_legal' ? {cat: 'bonded', opt: 'slavery_banned'} : null,
+    target: c => 12 + c.lit * 0.3 + (c.ig.intel ? c.ig.intel.share * 80 : 0)},
+  press: {name: 'Movimiento liberal', icon: '📰', desc: 'Reclama libertad de prensa y de opinión.', demand: c => { const o = nextOpt(c, 'press'); return o && {cat: 'press', opt: o}; },
+    target: c => c.lit * 0.65 + (c.ig.intel ? c.ig.intel.share * 55 : 0) + c.radicals * 20},
+  secular: {name: 'Movimiento laicista', icon: '🕯️', desc: 'Pide separar la Iglesia del Estado.', demand: c => { const o = nextOpt(c, 'religion'); return o && {cat: 'religion', opt: o}; },
+    target: c => c.lit * 0.35 + (c.ig.intel ? c.ig.intel.share * 40 : 0) - (c.ig.devout ? c.ig.devout.share * 60 : 0)},
+  socialist: {name: 'Movimiento socialista', icon: '🚩', desc: 'Exige que el Estado intervenga en la economía.', demand: c => c.laws.economy !== 'interventionism' && c.stats.indLevels > 6 ? {cat: 'economy', opt: 'interventionism'} : null,
+    target: c => c.radicals * 95 + Math.max(0, 7 - c.stats.sol) * 5},
+  peasant: {name: 'Movimiento campesino', icon: '🌾', desc: 'Reclama el fin de la servidumbre.', demand: c => c.laws.agrarian === 'serfdom' ? {cat: 'agrarian', opt: 'tenant'} : null,
+    target: c => c.radicals * 60 + Math.max(0, 6 - c.stats.sol) * 6 + (c.ig.rural ? c.ig.rural.share * 50 : 0)}
+};
+const MOVE_KEYS = Object.keys(MOVES);
+function movementsMonth(c) {
+  if (c.tag === NONE || !c.states.length || !c.ig) return;
+  c.mov = c.mov || {};
+  MOVE_KEYS.forEach(k => {
+    const m = MOVES[k], d = m.demand(c); let s = c.mov[k] || 0;
+    if (!d) s *= 0.8; else s += (clamp(m.target(c), 0, 100) - s) * 0.07 + (Math.random() - 0.5) * 3;
+    s = clamp(s, 0, 100); c.mov[k] = Math.round(s * 10) / 10;
+    if (!d || s < 50) return;
+    c.legitimacy -= (s - 50) * 0.008; c.radicals = Math.min(0.9, c.radicals + (s - 50) * 0.00008);
+    if (s > 85 && Math.random() < 0.05 * diffP().crisis && !G.crises.some(x => x.type === 'riots' && x.scope === c.tag)) { addCrisis('riots', c.tag, {name: 'Disturbios: ' + m.name.toLowerCase()}); c.legitimacy -= 2; }
+    if (c.ai && s > 60 && Math.random() < 0.3) {
+      if (!c.lawChange && Math.random() < 0.6) startLawChange(c, d.opt); else if (s > 75) { c.mov[k] = Math.max(0, s - 20); c.radicals = Math.min(0.9, c.radicals + 0.008); c.legitimacy -= 1.5; }
+    }
+  });
+}
+function movConcede(c, k) {
+  const d = MOVES[k].demand(c); if (!d) return {ok: false, msg: 'Ya no hay nada que conceder.'};
+  if (c.lawChange) return {ok: false, msg: 'Ya hay una reforma en debate.'};
+  const r = startLawChange(c, d.opt); if (r.ok) c.mov[k] = Math.max(0, c.mov[k] - 12);
+  return r.ok ? {ok: true, msg: `Inicias la reforma «${LAW[d.opt].name}» para apaciguar al movimiento.`} : r;
+}
+function movSuppress(c, k) {
+  if (c.influence < 20) return {ok: false, msg: 'Necesitas 20 de influencia.'};
+  c.influence -= 20; c.mov[k] = Math.max(0, c.mov[k] - 25); c.radicals = Math.min(0.9, c.radicals + 0.01); c.legitimacy -= 2;
+  return {ok: true, msg: `${MOVES[k].name} reprimido: pierde fuerza, pero crece el malestar.`};
+}
+function movCoopt(c, k) {
+  const cost = c.stats.income * 8; if (c.treasury < cost) return {ok: false, msg: 'Fondos insuficientes.'};
+  c.treasury -= cost; c.mov[k] = Math.max(0, c.mov[k] - 15);
+  return {ok: true, msg: `Sobornas y cooptas a los líderes del ${MOVES[k].name.toLowerCase()}.`};
+}
+
+/* ---------- elecciones ---------- */
+const hasVote = c => ['landed_voting', 'wealth_voting', 'universal'].includes(c.laws.power);
+function electionMonth(c) {
+  if (!c.ig || !c.ig[IG_ORDER[0]]) return;
+  if (!hasVote(c)) { c.el = null; return; }
+  if (!c.el) c.el = {next: G.date.y + 1 + (c.id % 4), last: null, camp: null, campOn: false};
+  const e = c.el, y = G.date.y, m = G.date.m;
+  if (!e.campOn && ((y === e.next - 1 && m === 11) || (y === e.next && m < 3 && !e.campOn))) {
+    e.campOn = true; e.camp = null;
+    if (c.ai) { if (Math.random() < 0.4) e.camp = pick(IG_ORDER.filter(k => c.ig[k].share > 0.1)); }
+    else notify('politics', 'Comienza la campaña electoral. Tienes tres meses para apoyar a un partido.');
+  }
+  if (y === e.next && m === 2) holdElection(c);
+}
+function holdElection(c) {
+  const e = c.el, res = IG_ORDER.map(k => { const g = c.ig[k]; return {k, v: Math.max(0.001, g.share * (1 + g.approval / 25) * (0.82 + Math.random() * 0.36) * (e.camp === k ? 1.3 : 1))}; });
+  let tot = 0; res.forEach(r => tot += r.v); res.forEach(r => r.pct = r.v / tot); res.sort((a, b) => b.pct - a.pct);
+  const coal = []; let acc = 0; res.forEach((r, i) => { if (acc < 0.5 || i === 0) { coal.push(r.k); acc += r.pct; } });
+  c.elBoost = c.elBoost || {};
+  const prevGov = IG_ORDER.filter(k => c.ig[k].gov);
+  coal.forEach(k => { c.elBoost[k] = {mult: 1.2, months: 48}; });
+  prevGov.forEach(k => { if (!coal.includes(k)) c.elBoost[k] = {mult: 0.88, months: 48}; });
+  const changed = prevGov[0] !== coal[0];
+  c.legitimacy = Math.min(100, c.legitimacy + 2 + (c.laws.power === 'universal' ? 3 : 1));
+  if (changed) c.radicals = Math.max(0, c.radicals - 0.01);
+  if (e.camp && coal.includes(e.camp)) { c.prestige += 2; c.legitimacy = Math.min(100, c.legitimacy + 1.5); }
+  e.last = {y: G.date.y, res: res.map(r => ({k: r.k, pct: r.pct})), coal, camp: e.camp, changed};
+  e.next = G.date.y + 4; e.campOn = false; e.camp = null; cnt(c, 'elections');
+  if (c.tag === G.player) notify('politics', `Elecciones: gana ${IGS[res[0].k].name} con el ${Math.round(res[0].pct * 100)}% del voto${changed ? '. ¡Cambia la mayoría de gobierno!' : '.'}`);
+  else logMsg(`Elecciones en ${c.name}: gana ${IGS[res[0].k].name}.`);
+  recalcMods(c);
+}
+function sponsorCampaign(c, ig) {
+  const e = c.el; if (!e || !e.campOn) return {ok: false, msg: 'No hay campaña electoral en curso.'};
+  if (e.camp) return {ok: false, msg: 'Ya apoyas a un partido en esta campaña.'};
+  const cost = c.stats.income * 6;
+  if (c.influence < 25 || c.treasury < cost) return {ok: false, msg: `Necesitas 25 de influencia y ${money(cost)}.`};
+  c.influence -= 25; c.treasury -= cost; e.camp = ig;
+  return {ok: true, msg: `Apoyas la campaña de ${IGS[ig].name}: +30% de voto.`};
+}
+function politics2Month(c) {
+  movementsMonth(c); electionMonth(c);
+  if (c.elBoost) for (const k in c.elBoost) if (--c.elBoost[k].months <= 0) delete c.elBoost[k];
+}
+
+/* ---------- interfaz ---------- */
+function movTabHtml() {
+  const c = me(), e = c.el;
+  const igName = k => `<span class="igi" style="background:${IGS[k].color}">${IGS[k].icon}</span> ${IGS[k].name}`;
+  const elect = !hasVote(c) ? `<p class="hint">Tu estructura de poder (<b>${LAW[c.laws.power].name}</b>) no celebra elecciones. Se necesita voto por propiedad, censitario o sufragio universal.</p>` : `
+    <div class="kv"><span>Próximas elecciones</span><b>marzo de ${e ? e.next : '—'}</b></div>
+    ${e && e.campOn ? `<div class="notice">🗳️ <b>Campaña electoral en curso.</b> Apoya a un partido (+30% de voto): ${money(c.stats.income * 6)} y 25 de influencia.</div>
+      <div class="btnrow">${IG_ORDER.map(k => `<button data-act="campaign" data-k="${k}" ${e.camp ? 'disabled' : ''} class="${e.camp === k ? 'on' : ''}">${IGS[k].icon} ${IGS[k].name} ${pctS(c.ig[k].share, 0)}</button>`).join('')}</div>` : '<p class="hint">La campaña empieza tres meses antes de las elecciones.</p>'}
+    ${e && e.last ? `<h4 class="sub">Resultado de ${e.last.y}</h4>${e.last.res.map(r => `<div class="kv sm"><span>${igName(r.k)}${e.last.coal.includes(r.k) ? ' ✔' : ''}</span><b>${Math.round(r.pct * 100)}%</b></div>${bar(r.pct, 0.5, e.last.coal.includes(r.k) ? 'good' : '')}`).join('')}<small class="dim">Los partidos de la coalición ganadora reciben +20% de influencia durante 4 años.</small>` : ''}`;
+  const ms = MOVE_KEYS.map(k => ({k, m: MOVES[k], s: (c.mov || {})[k] || 0, d: MOVES[k].demand(c)})).filter(x => x.d || x.s > 1).sort((a, b) => b.s - a.s);
+  return `<div class="cols"><div class="col"><div class="card"><h3>🗳️ Elecciones</h3>${elect}</div></div>
+  <div class="col wide"><div class="card"><h3>Movimientos políticos</h3><p class="hint">Crecen con el malestar, la alfabetización y la pobreza. Por encima del 50% restan legitimidad; por encima del 85% provocan disturbios. Puedes <b>conceder</b> la reforma, <b>reprimir</b> o <b>cooptar</b> a sus líderes.</p>
+   ${ms.length ? ms.map(({k, m, s, d}) => `<div class="mov"><div class="kv"><b>${m.icon} ${m.name}</b><span class="${s > 85 ? 'bad' : s > 50 ? 'warn' : ''}">${Math.round(s)}%</span></div>${bar(s, 100, s > 85 ? 'bad' : s > 50 ? 'warn' : '')}
+    <small class="dim">${m.desc}${d ? ` Demanda: <b>${LAW[d.opt].name}</b>.` : ' Su demanda está satisfecha.'}</small>
+    ${d ? `<div class="btnrow"><button data-act="movconcede" data-k="${k}">📜 Conceder</button><button data-act="movsupp" data-k="${k}">🛡️ Reprimir (20 infl.)</button><button data-act="movcoopt" data-k="${k}">💰 Cooptar (${money(c.stats.income * 8)})</button></div>` : ''}</div>`).join('') : '<p class="hint">No hay movimientos políticos activos.</p>'}</div></div></div>`;
+}
+Object.assign(ACT, {
+  campaign: d => { const r = sponsorCampaign(me(), d.k); toast(r.ok ? '🗳️' : '⚠️', r.msg); renderWindow(); },
+  movconcede: d => { const r = movConcede(me(), d.k); toast(r.ok ? '📜' : '⚠️', r.msg); renderWindow(); },
+  movsupp: d => { const r = movSuppress(me(), d.k); toast(r.ok ? '🛡️' : '⚠️', r.msg); renderWindow(); },
+  movcoopt: d => { const r = movCoopt(me(), d.k); toast(r.ok ? '💰' : '⚠️', r.msg); renderWindow(); }
+});
+
+/* ===== ÁRBOL NACIONAL: decisiones propias de cada país ===== */
+// nodo: [id, nombre, icono, rama, nivel, días, requisitos, excluyentes, descripción, efectos]
+const NAT_BRANCHES = {
+  PRU: ['Unificación pequeñoalemana', 'Federación con Austria', 'Militarismo prusiano', 'Reformas liberales de 1848'],
+  GBR: ['Taller del mundo', 'Imperio en la India', 'Reforma electoral', 'Espléndido aislamiento'],
+  FRA: ['Monarquía de Julio', 'Segundo Imperio', 'República social', 'Expansión en África'],
+  RUS: ['Abolición de la servidumbre', 'Gran Juego en Asia', 'Paneslavismo', 'Autocracia reforzada'],
+  OTT: ['Tanzimat', 'Panislamismo', 'Alianza con las potencias', 'Federalismo balcánico'],
+  SPA: ['Guerras carlistas: carlistas', 'Guerras carlistas: liberales', 'Recuperar las Américas', 'Modernización e Iberismo'],
+  USA: ['Destino manifiesto', 'Compromiso', 'Abolición y Reconstrucción', 'Doctrina Monroe'],
+  JAP: ['Mantener el sakoku', 'Restauración Meiji', 'Militarismo', 'Apertura comercial'],
+  GEN: ['Industrializar', 'Reformar el Estado', 'Armarse', 'Expandirse']
+};
+const NAT_RAW = {
+  PRU: [
+    ['zollverein', 'Zollverein', '🛤️', 0, 0, 70, [], [], 'Unión aduanera alemana: más comercio e ingresos.', [['mod', 'tax', .05], ['mod', 'invest', .04], ['tech', 'railways']]],
+    ['kleindeutsch', 'Solución pequeñoalemana', '🦅', 0, 1, 100, ['zollverein'], ['grossdeutsch'], 'Unificar Alemania bajo Prusia y sin Austria.', [['claim', 'Sajonia'], ['claim', 'Hannover'], ['claim', 'Hesse'], ['claim', 'Baden'], ['mod', 'army', .03], ['prestige', 15]]],
+    ['northgerman', 'Confederación de la Alemania del Norte', '🏰', 0, 2, 120, ['kleindeutsch'], [], 'Reclamas el norte y el sur de Alemania.', [['claim', 'Holstein'], ['claim', 'Mecklemburgo'], ['claim', 'Baviera'], ['claim', 'Wurtemberg'], ['prestige', 25], ['divs', 3]]],
+    ['grossdeutsch', 'Solución grande-alemana', '🤝', 1, 1, 100, ['zollverein'], ['kleindeutsch'], 'Federación con Austria: relaciones y estabilidad.', [['rel', 'AUS', 50], ['mod', 'stab', 2], ['mod', 'crisis', .05], ['legit', 5]]],
+    ['dualism', 'Dualismo austro-prusiano', '⚖️', 1, 2, 110, ['grossdeutsch'], [], 'Cooperación económica con los Habsburgo.', [['mod', 'tax', .04], ['mod', 'invest', .05], ['infl', 60]]],
+    ['staff', 'Estado Mayor de Moltke', '🎖️', 2, 0, 70, [], [], 'Profesionalizas el mando del ejército.', [['mod', 'army', .05], ['gen', 3], ['tech', 'general_staff']]],
+    ['conscription', 'Servicio militar universal', '🪖', 2, 1, 100, ['staff'], [], 'La gran reforma militar prusiana.', [['law', 'army', 'conscription'], ['divs', 3], ['mod', 'milCost', -.05]]],
+    ['ironblood', 'Hierro y sangre', '🔥', 2, 2, 130, ['conscription'], ['constitution'], 'Militarismo extremo: poder militar a costa de la libertad.', [['mod', 'defense', .1], ['mod', 'army', .06], ['mod', 'rad', .05], ['ig', 'armed', 1.3]]],
+    ['frankfurt', 'Parlamento de Fráncfort', '📜', 3, 0, 80, [], [], 'Las aperturas liberales de 1848.', [['law', 'press', 'limited_press'], ['ig', 'intel', 1.2], ['legit', 4]]],
+    ['constitution', 'Constitución prusiana', '🏛️', 3, 1, 110, ['frankfurt'], ['ironblood'], 'Monarquía constitucional con voto censitario.', [['law', 'power', 'wealth_voting'], ['legit', 8], ['mod', 'invest', .05]]],
+    ['socialpol', 'Política social de Bismarck', '🏥', 3, 2, 120, ['constitution'], [], 'Seguridad social y educación pública.', [['mod', 'lit', .3], ['mod', 'stab', 2], ['law', 'education', 'public_edu']]]
+  ],
+  GBR: [
+    ['workshop', 'Taller del mundo', '🏭', 0, 0, 70, [], [], 'La industria británica abastece al planeta.', [['mod', 'indOut', .06], ['mod', 'invest', .05], ['tech', 'steam_engine']]],
+    ['freetrade', 'Libre comercio', '🚢', 0, 1, 100, ['workshop'], [], 'Derogas las leyes de granos y abres los mercados.', [['law', 'economy', 'laissez'], ['mod', 'tax', .04], ['mod', 'invest', .05]]],
+    ['crystal', 'Gran Exposición', '💎', 0, 2, 110, ['freetrade'], [], 'El Palacio de Cristal exhibe el poder industrial.', [['prestige', 30], ['mod', 'innov', .08]]],
+    ['raj', 'Compañía y Raj', '🐘', 1, 0, 80, [], [], 'Consolidas el dominio de la India.', [['mod', 'tax', .05], ['mod', 'army', .03], ['build', 'Bengala', 'barracks', 1]]],
+    ['greatgame', 'El Gran Juego', '♟️', 1, 1, 100, ['raj'], ['isolation'], 'Contienes la expansión rusa en Asia.', [['rel', 'RUS', -30], ['divs', 3], ['prestige', 15], ['mod', 'logistics', .05]]],
+    ['empire', 'El sol nunca se pone', '👑', 1, 2, 130, ['greatgame'], [], 'Cúspide del imperio colonial.', [['prestige', 35], ['mod', 'tax', .06], ['mod', 'army', .04]]],
+    ['reformact', 'Ley de Reforma', '🗳️', 2, 0, 80, [], [], 'Se amplía el derecho al voto.', [['law', 'power', 'wealth_voting'], ['legit', 5], ['ig', 'petty', 1.25]]],
+    ['chartism', 'Cartismo y fábricas', '✊', 2, 1, 100, ['reformact'], [], 'Respondes a las demandas obreras.', [['law', 'labor', 'inspections'], ['mod', 'rad', -.1], ['mod', 'lit', .2]]],
+    ['suffrage2', 'Camino al sufragio universal', '🗳️', 2, 2, 120, ['chartism'], [], 'Un voto por cada ciudadano.', [['law', 'power', 'universal'], ['legit', 6]]],
+    ['isolation', 'Espléndido aislamiento', '🏝️', 3, 1, 100, ['workshop'], ['greatgame'], 'Evitas compromisos continentales.', [['mod', 'defense', .08], ['mod', 'crisis', .06], ['infl', 80]]]
+  ],
+  FRA: [
+    ['julymon', 'Monarquía de Julio', '👑', 0, 0, 80, [], [], 'El reino de la burguesía.', [['law', 'power', 'wealth_voting'], ['ig', 'indus', 1.25], ['mod', 'invest', .05]]],
+    ['citizen', 'El Rey Ciudadano', '🎩', 0, 1, 100, ['julymon'], [], 'Enriqueceos: crecimiento y bolsa.', [['mod', 'invest', .06], ['mod', 'tax', .04], ['prestige', 8]]],
+    ['empire2', 'Segundo Imperio', '🦅', 1, 1, 110, ['julymon'], ['republic2'], 'Napoleón III restaura el imperio.', [['law', 'power', 'oligarchy'], ['mod', 'army', .05], ['mod', 'indOut', .05], ['prestige', 20]]],
+    ['haussmann', 'Reformas de Haussmann', '🏙️', 1, 2, 110, ['empire2'], [], 'París se reconstruye y el país se llena de ferrocarriles.', [['build', 'Isla de Francia', 'railway', 2], ['mod', 'infra', .1], ['mod', 'constr', .08]]],
+    ['paris', 'Revolución de 1848', '🚩', 2, 0, 80, [], [], 'Las barricadas cambian el rumbo.', [['rad', .03], ['ig', 'union', 1.3]]],
+    ['republic2', 'República social', '🇫🇷', 2, 1, 110, ['paris'], ['empire2'], 'Una república con derechos sociales.', [['law', 'power', 'universal'], ['law', 'labor', 'inspections'], ['legit', 6]]],
+    ['progtax', 'Fiscalidad progresiva', '💶', 2, 2, 120, ['republic2'], [], 'Los ricos pagan más.', [['law', 'tax', 'graduated'], ['mod', 'tax', .06]]],
+    ['algeria', 'Conquista de Argelia', '🐪', 3, 0, 80, [], [], 'La expansión en el Magreb.', [['divs', 3], ['claim', 'Libia'], ['prestige', 10], ['build', 'Argelia', 'barracks', 1]]],
+    ['africa', 'Imperio africano', '🌍', 3, 1, 110, ['algeria'], [], 'Una Francia de ultramar.', [['mod', 'tax', .05], ['mod', 'logistics', .06], ['prestige', 20]]]
+  ],
+  RUS: [
+    ['emancip', 'Emancipación de los siervos', '⛓️', 0, 0, 90, [], ['autocracy2'], 'Acabas con la servidumbre.', [['law', 'agrarian', 'tenant'], ['mod', 'grow', .0005], ['mod', 'rad', -.05], ['ig', 'rural', 1.25]]],
+    ['zemstvo', 'Zemstvos y reforma judicial', '⚖️', 0, 1, 110, ['emancip'], [], 'Administración local y justicia moderna.', [['mod', 'bur', .08], ['mod', 'lit', .2], ['law', 'education', 'elite_edu']]],
+    ['transsib', 'Ferrocarril transiberiano', '🚂', 0, 2, 130, ['zemstvo'], [], 'Unes el imperio de oeste a este.', [['build', 'Moscú', 'railway', 2], ['build', 'Siberia Occidental', 'railway', 1], ['mod', 'infra', .1], ['mod', 'logistics', .08]]],
+    ['greatgame2', 'Gran Juego en Asia', '♟️', 1, 0, 90, [], [], 'Avanzas hacia Asia Central.', [['claim', 'Georgia'], ['divs', 3], ['rel', 'GBR', -30], ['mod', 'army', .03]]],
+    ['caucasus', 'Conquista del Cáucaso', '🏔️', 1, 1, 110, ['greatgame2'], [], 'Pacificas las montañas.', [['claim', 'Cáucaso Norte'], ['prestige', 20], ['mod', 'tax', .03]]],
+    ['panslav', 'Paneslavismo', '🛡️', 2, 0, 90, [], [], 'Protector de los eslavos.', [['claim', 'Bosnia'], ['claim', 'Bulgaria'], ['claim', 'Galitzia'], ['prestige', 15]]],
+    ['balkans', 'Protector de los Balcanes', '⚔️', 2, 1, 110, ['panslav'], [], 'Presión sobre Estambul.', [['claim', 'Macedonia'], ['claim', 'Serbia'], ['divs', 4], ['mod', 'army', .04]]],
+    ['autocracy2', 'Autocracia, ortodoxia y nacionalidad', '🦅', 3, 0, 90, [], ['emancip'], 'El lema del zar Nicolás.', [['law', 'power', 'autocracy'], ['law', 'press', 'censorship'], ['legit', 8], ['ig', 'devout', 1.3]]],
+    ['okhrana', 'Policía secreta', '🕵️', 3, 1, 110, ['autocracy2'], [], 'Vigilancia de la sociedad.', [['mod', 'stab', 4], ['mod', 'rad', -.15], ['mod', 'lit', -.1]]]
+  ],
+  OTT: [
+    ['tanzimat', 'Tanzimat', '📜', 0, 0, 90, [], ['islamism'], 'Reformas de modernización.', [['law', 'religion', 'tolerance'], ['law', 'army', 'professional'], ['mod', 'bur', .1], ['mod', 'tax', .05]]],
+    ['reorgan', 'Reorganización militar', '🪖', 0, 1, 110, ['tanzimat'], [], 'Un ejército moderno.', [['divs', 4], ['mod', 'army', .05], ['tech', 'military_academy']]],
+    ['constit', 'Constitución de 1876', '🏛️', 0, 2, 130, ['reorgan'], [], 'Primer parlamento otomano.', [['law', 'power', 'landed_voting'], ['legit', 8]]],
+    ['islamism', 'Panislamismo', '☪️', 1, 0, 90, [], ['tanzimat'], 'El sultán como califa de todos los creyentes.', [['law', 'religion', 'state_religion'], ['ig', 'devout', 1.35], ['legit', 6], ['claim', 'Libia']]],
+    ['caliph', 'Califato', '🕌', 1, 1, 110, ['islamism'], [], 'Prestigio religioso.', [['prestige', 20], ['mod', 'stab', 3], ['mod', 'rad', -.1]]],
+    ['powers', 'Alianza con las potencias', '🤝', 2, 0, 90, [], [], 'Buscas el apoyo de Londres y París.', [['rel', 'GBR', 40], ['rel', 'FRA', 30], ['mod', 'invest', .05], ['money', 6]]],
+    ['concess', 'Ferrocarriles y concesiones', '🚂', 2, 1, 110, ['powers'], [], 'Capital extranjero para infraestructuras.', [['build', 'Constantinopla', 'railway', 2], ['build', 'Anatolia Occidental', 'railway', 1], ['mod', 'infra', .08]]],
+    ['millet', 'Sistema de millets reformado', '🕊️', 3, 0, 90, [], [], 'Igualdad entre comunidades.', [['mod', 'stab', 2], ['mod', 'rad', -.05]]],
+    ['balkan', 'Federalismo balcánico', '🗺️', 3, 1, 110, ['millet'], [], 'Autonomía para los Balcanes.', [['mod', 'stab', 3], ['mod', 'rad', -.1], ['legit', 5]]]
+  ],
+  SPA: [
+    ['carlist', 'Victoria carlista', '⛪', 0, 0, 90, [], ['liberal_win'], 'El pretendiente Carlos triunfa.', [['law', 'religion', 'state_religion'], ['ig', 'devout', 1.35], ['ig', 'lands', 1.2], ['legit', 4]]],
+    ['catholic', 'Estado católico', '✝️', 0, 1, 110, ['carlist'], [], 'La Iglesia recupera sus privilegios.', [['mod', 'stab', 3], ['mod', 'lit', -.1], ['mod', 'rad', -.05]]],
+    ['liberal_win', 'Victoria liberal', '🗳️', 1, 0, 90, [], ['carlist'], 'Isabel II con los liberales.', [['law', 'power', 'landed_voting'], ['legit', 5], ['ig', 'petty', 1.2]]],
+    ['const37', 'Constitución de 1837', '📜', 1, 1, 110, ['liberal_win'], [], 'Monarquía constitucional y desamortización.', [['law', 'agrarian', 'commercial'], ['mod', 'invest', .05], ['mod', 'tax', .04]]],
+    ['americas', 'Recuperar las Américas', '🌎', 2, 0, 100, [], [], 'Sueños de reconquista ultramarina.', [['claim', 'Perú'], ['mod', 'army', .03], ['divs', 3]]],
+    ['modern', 'Modernización ferroviaria', '🚂', 3, 0, 100, [], [], 'La red de ferrocarril peninsular.', [['build', 'Madrid', 'railway', 2], ['mod', 'infra', .08], ['mod', 'invest', .04], ['tech', 'railways']]],
+    ['iberism', 'Iberismo', '🦁', 3, 1, 120, ['modern'], [], 'Una península unida.', [['mod', 'tax', .05], ['prestige', 20], ['mod', 'innov', .05]]]
+  ],
+  USA: [
+    ['manifest', 'Destino manifiesto', '🦅', 0, 0, 90, [], [], 'Hacia el Pacífico.', [['mod', 'grow', .0008], ['claim', 'Texas'], ['claim', 'California'], ['prestige', 10]]],
+    ['homestead', 'Ley de Homestead', '🏡', 0, 1, 110, ['manifest'], [], 'Tierras para los colonos.', [['mod', 'agriOut', .08], ['mod', 'grow', .0008], ['law', 'agrarian', 'commercial']]],
+    ['transcont', 'Ferrocarril transcontinental', '🚂', 0, 2, 130, ['homestead'], [], 'De costa a costa.', [['build', 'Illinois y Misuri', 'railway', 2], ['mod', 'infra', .1], ['mod', 'logistics', .06]]],
+    ['compromise', 'El compromiso', '🤝', 1, 0, 90, [], ['abolition2'], 'Se mantiene el equilibrio entre Norte y Sur.', [['mod', 'stab', 3], ['ig', 'lands', 1.25], ['mod', 'crisis', .05]]],
+    ['abolition2', 'Abolición', '⛓️', 2, 0, 90, [], ['compromise'], 'Fin de la esclavitud.', [['law', 'bonded', 'slavery_banned'], ['ig', 'intel', 1.25], ['rad', .03]]],
+    ['reconstr', 'Reconstrucción', '🏗️', 2, 1, 120, ['abolition2'], [], 'Se reconstruye y educa al Sur.', [['mod', 'lit', .2], ['mod', 'stab', 2], ['law', 'education', 'public_edu']]],
+    ['monroe', 'Doctrina Monroe', '🛡️', 3, 0, 90, [], [], 'América para los americanos.', [['mod', 'defense', .06], ['prestige', 15], ['infl', 60]]],
+    ['bigstick', 'El gran garrote', '🌴', 3, 1, 110, ['monroe'], [], 'Diplomacia de cañoneras.', [['divs', 3], ['prestige', 20], ['mod', 'army', .04]]]
+  ],
+  JAP: [
+    ['sakoku', 'Mantener el sakoku', '🚪', 0, 0, 90, [], ['meiji', 'opening'], 'Japón se mantiene cerrado.', [['law', 'migration', 'closed_borders'], ['mod', 'stab', 4], ['mod', 'crisis', .08], ['mod', 'innov', -.05]]],
+    ['meiji', 'Restauración Meiji', '🌸', 1, 0, 100, [], ['sakoku'], 'El emperador recupera el poder y el país se moderniza.', [['mod', 'innov', .12], ['mod', 'bur', .1], ['mod', 'lit', .3], ['tech', 'telegraph']]],
+    ['bunmei', 'Civilización y progreso', '🏭', 1, 1, 120, ['meiji'], [], 'Industrialización acelerada.', [['mod', 'indOut', .08], ['mod', 'invest', .06], ['build', 'Kanto', 'railway', 2]]],
+    ['meijiarmy', 'Ejército imperial', '⚔️', 2, 1, 110, ['meiji'], [], 'Conscripción y flota moderna.', [['law', 'army', 'conscription'], ['divs', 4], ['mod', 'army', .06]]],
+    ['ultranat', 'Militarismo ultranacionalista', '🔥', 2, 2, 130, ['meijiarmy'], [], 'La expansión por Asia.', [['claim', 'Liaoning'], ['claim', 'Taiwán'], ['mod', 'army', .05], ['prestige', 25]]],
+    ['opening', 'Apertura comercial', '⛵', 3, 0, 90, [], ['sakoku'], 'Comerciar con Occidente.', [['mod', 'tax', .05], ['mod', 'invest', .06], ['law', 'migration', 'controlled'], ['tech', 'steamships']]]
+  ],
+  GEN: [
+    ['g_ind1', 'Fomento industrial', '🏭', 0, 0, 80, [], [], 'Ayudas a la industria nacional.', [['mod', 'indOut', .05], ['mod', 'invest', .04]]],
+    ['g_ind2', 'Infraestructuras', '🚂', 0, 1, 110, ['g_ind1'], [], 'Ferrocarriles y puertos.', [['mod', 'infra', .08], ['mod', 'constr', .06], ['tech', 'railways']]],
+    ['g_ref1', 'Reforma administrativa', '📜', 1, 0, 80, [], [], 'Una burocracia eficaz.', [['mod', 'bur', .1], ['mod', 'tax', .05]]],
+    ['g_ref2', 'Educación pública', '🎓', 1, 1, 110, ['g_ref1'], [], 'Escuelas para todos.', [['mod', 'lit', .3], ['law', 'education', 'public_edu']]],
+    ['g_arm1', 'Reorganización militar', '🪖', 2, 0, 80, [], [], 'Modernizas las fuerzas armadas.', [['mod', 'army', .04], ['divs', 2], ['gen', 2]]],
+    ['g_arm2', 'Industria de guerra', '🔫', 2, 1, 110, ['g_arm1'], [], 'Armas propias.', [['mod', 'defense', .07], ['mod', 'milCost', -.06]]],
+    ['g_exp1', 'Política exterior activa', '🌍', 3, 0, 80, [], [], 'Más peso en el mundo.', [['infl', 60], ['prestige', 12]]],
+    ['g_exp2', 'Ambición imperial', '👑', 3, 1, 110, ['g_exp1'], [], 'Sueños de grandeza.', [['mod', 'tax', .04], ['prestige', 18], ['divs', 2]]]
+  ]
+};
+const NAT = {};      // árboles ya convertidos
+Object.keys(NAT_RAW).forEach(k => { NAT[k] = NAT_RAW[k].map(n => ({id: n[0], name: n[1], icon: n[2], b: n[3], t: n[4], days: n[5], req: n[6], excl: n[7], desc: n[8], fx: n[9]})); });
+const natTree = c => NAT[c.tag] || NAT.GEN;
+const natBranches = c => NAT_BRANCHES[c.tag] || NAT_BRANCHES.GEN;
+const natNode = (c, id) => natTree(c).find(n => n.id === id);
+function natState(c, n) {
+  c.nat = c.nat || {done: [], cur: null};
+  if (c.nat.done.includes(n.id)) return {k: 'done'};
+  if (c.nat.cur && c.nat.cur.id === n.id) return {k: 'cur'};
+  const ex = n.excl.find(x => c.nat.done.includes(x) || (c.nat.cur && c.nat.cur.id === x)); if (ex) return {k: 'blocked', why: 'Excluyente con «' + natNode(c, ex).name + '».'};
+  const miss = n.req.find(r => !c.nat.done.includes(r)); if (miss) return {k: 'locked', why: 'Requiere «' + natNode(c, miss).name + '».'};
+  return {k: 'avail'};
+}
+const stateByName = name => G.S.find(s => s.name === name);
+function applyNatFx(c, fx) {
+  const txt = [];
+  fx.forEach(e => {
+    const [k, a, b] = e;
+    if (k === 'mod') { c.natMods = c.natMods || {}; c.natMods[a] = (c.natMods[a] || 0) + b; }
+    else if (k === 'law') { if (LAW[b]) { c.laws[a] = b; } }
+    else if (k === 'tech') { if (TECH[a] && !c.techs.has(a)) c.techs.add(a); }
+    else if (k === 'claim') { const s = stateByName(a); if (s && s.owner !== c.tag && !c.claims.some(x => x.state === s.id)) c.claims.push({state: s.id, perm: true}); }
+    else if (k === 'build') { const s = a === 'cap' ? G.S[c.capital] : stateByName(a); if (s && s.owner === c.tag) s.b[b] = (s.b[b] || 0) + e[3]; }
+    else if (k === 'divs') { if (c.states.length && c.capital >= 0) { const divs = []; for (let i = 0; i < a; i++) divs.push(mkDivision(i % 4 === 3 ? 'art' : 'inf', 0.5)); mkArmy(c.tag, stateCapitalProv(c.capital), divs); } }
+    else if (k === 'gen') { genPool(c).push(newGeneral(a)); }
+    else if (k === 'prestige') c.prestige += a;
+    else if (k === 'infl') c.influence += a;
+    else if (k === 'legit') c.legitimacy = clamp(c.legitimacy + a, 0, 100);
+    else if (k === 'rad') c.radicals = clamp(c.radicals + a, 0, 0.9);
+    else if (k === 'money') c.treasury += c.stats.income * a;
+    else if (k === 'rel') { if (G.C[a] && alive(a)) addRel(c.tag, a, b); }
+    else if (k === 'ig') { c.boosts.push({kind: 'ig', key: a, mult: b, months: 60, mode: 'boost'}); }
+  });
+  recalcMods(c);
+  return txt;
+}
+function natFxText(fx) {
+  const M = {tax: 'Impuestos', bur: 'Burocracia', invest: 'Inversión', lit: 'Alfabetización', grow: 'Crecimiento', army: 'Ejército', rad: 'Radicalismo', stab: 'Estabilidad', indOut: 'Industria', infra: 'Infraestructura', constr: 'Construcción', innov: 'Innovación', milCost: 'Coste militar', defense: 'Defensa', logistics: 'Logística', crisis: 'Resistencia a crisis', agriOut: 'Agricultura'};
+  return fx.map(([k, a, b, e]) => {
+    if (k === 'mod' && a === 'stab') return `Estabilidad ${b > 0 ? '+' : ''}${b}`;
+    if (k === 'mod') return `${M[a] || a} ${b > 0 ? '+' : ''}${Math.abs(b) < 0.01 && Math.abs(b) > 0 ? (b * 1000).toFixed(1) + '‰' : Math.round(b * 100) + '%'}`;
+    if (k === 'law') return `Ley: ${LAW[b] ? LAW[b].name : b}`; if (k === 'tech') return `Tecnología: ${TECH[a] ? TECH[a].name : a}`;
+    if (k === 'claim') return `Reclamación: ${a}`; if (k === 'build') return `${a}: +${e} ${b}`; if (k === 'divs') return `+${a} divisiones`; if (k === 'gen') return 'Un general';
+    if (k === 'prestige') return `+${a} prestigio`; if (k === 'infl') return `+${a} influencia`; if (k === 'legit') return `${a > 0 ? '+' : ''}${a} legitimidad`; if (k === 'rad') return `Radicales ${a > 0 ? '+' : ''}${Math.round(a * 100)}%`;
+    if (k === 'money') return `+${a} sem. de ingresos`; if (k === 'rel') return `Relaciones con ${G.C[a] ? G.C[a].name : a} ${b > 0 ? '+' : ''}${b}`; if (k === 'ig') return `${IGS[a].name} ×${b}`;
+    return k;
+  }).join(' · ');
+}
+function natStart(c, id) {
+  c.nat = c.nat || {done: [], cur: null};
+  const n = natNode(c, id); if (!n) return {ok: false, msg: 'Decisión desconocida.'};
+  const st = natState(c, n); if (st.k !== 'avail') return {ok: false, msg: st.why || 'No disponible.'};
+  if (c.nat.cur) return {ok: false, msg: 'Ya hay una decisión en curso.'};
+  c.nat.cur = {id, left: Math.round(n.days * (1 + (G.diff >= 3 ? 0.15 : 0)) * (c.ai ? 1.8 : 1)), total: n.days};
+  return {ok: true, msg: `Comienza la decisión «${n.name}» (${Math.round(c.nat.cur.left / 7)} semanas).`};
+}
+function natDay() {
+  G.tags.forEach(t => {
+    if (t === NONE) return; const c = G.C[t]; if (!c.states.length) return;
+    c.nat = c.nat || {done: [], cur: null};
+    if (c.nat.cur) {
+      if (--c.nat.cur.left <= 0) {
+        const n = natNode(c, c.nat.cur.id); c.nat.done.push(n.id); c.nat.cur = null; applyNatFx(c, n.fx); cnt(c, 'natDone');
+        if (t === G.player) notify('journal', `Decisión nacional completada: «${n.name}». ${natFxText(n.fx)}`);
+      }
+    } else if (c.ai && G.date.d === 1 && Math.random() < 0.22) {         // la IA elige una decisión disponible
+      const av = natTree(c).filter(n => natState(c, n).k === 'avail'); if (!av.length) return;
+      const w = av.map(n => 1 + n.fx.filter(f => f[0] === 'mod').length * 0.5 + (c.wars.length && n.fx.some(f => f[0] === 'divs') ? 2 : 0));
+      let r = Math.random() * w.reduce((a, b) => a + b, 0), pk = av[0]; for (let i = 0; i < av.length; i++) { r -= w[i]; if (r <= 0) { pk = av[i]; break; } }
+      natStart(c, pk.id);
+    }
+  });
+}
+/* ---------- ventana ---------- */
+const NAT_CW = 230, NAT_CH = 132;
+WINDOWS.national = {title: 'Decisiones nacionales', icon: '🌳', render() {
+  const c = me(); c.nat = c.nat || {done: [], cur: null};
+  const tree = natTree(c), br = natBranches(c), cur = c.nat.cur && natNode(c, c.nat.cur.id);
+  const W = br.length * NAT_CW + 20, H = (Math.max(...tree.map(n => n.t)) + 1) * NAT_CH + 50;
+  const pos = n => ({x: 10 + n.b * NAT_CW + 15, y: 40 + n.t * NAT_CH});
+  const lines = tree.map(n => n.req.map(r => { const p = natNode(c, r), a = pos(p), b = pos(n); return `<path d="M${a.x + 100} ${a.y + 86} C${a.x + 100} ${a.y + 112} ${b.x + 100} ${b.y - 24} ${b.x + 100} ${b.y}" class="nl"/>`; }).join('') + n.excl.map(x => { const p = natNode(c, x); if (!p || p.id < n.id) return ''; const a = pos(p), b = pos(n); return `<path d="M${a.x + 200} ${a.y + 43} L${b.x} ${b.y + 43}" class="nl ex"/>`; }).join('')).join('');
+  const nodes = tree.map(n => { const st = natState(c, n), p = pos(n); const cu = st.k === 'cur' ? c.nat.cur : null;
+    return `<div class="nnode ${st.k}" style="left:${p.x}px;top:${p.y}px" ${st.k === 'avail' ? `data-act="natstart" data-id="${n.id}"` : ''}><div class="nh"><span class="ni">${n.icon}</span><b>${n.name}</b></div><small>${n.desc}</small><small class="nfx">${natFxText(n.fx)}</small>
+      ${cu ? `<div class="bar"><i style="width:${(1 - cu.left / (cu.total * 1.15)) * 100}%"></i></div><small>${Math.ceil(cu.left / 7)} semanas</small>` : st.k === 'done' ? '<small class="good">✔ Completada</small>' : st.k === 'avail' ? `<small class="dim">⏱ ${Math.round(n.days / 7)} semanas — clic para comenzar</small>` : `<small class="dim">${st.why || ''}</small>`}</div>`; }).join('');
+  return `<div class="card"><div class="kv"><b>${NAT_BRANCHES[c.tag] ? '🌳 Árbol de ' + c.name : '🌳 Árbol genérico'}</b>${cur ? `<span>En curso: <b>${cur.name}</b> · ${Math.ceil(c.nat.cur.left / 7)} semanas <button data-act="natcancel">Cancelar</button></span>` : '<span class="good">Elige tu próxima decisión</span>'}</div>
+  <p class="hint">Cada decisión tarda entre 10 y 20 semanas y sus efectos son permanentes. Las ramas con línea roja son <b>excluyentes</b>: elegir una bloquea la otra.</p>
+  <div class="ntree scrollable"><div class="ncanvas" style="width:${W}px;height:${H}px"><svg width="${W}" height="${H}">${lines}</svg>${br.map((b, i) => `<div class="nbr" style="left:${10 + i * NAT_CW + 15}px"><b>${b}</b></div>`).join('')}${nodes}</div></div></div>`;
+}};
+Object.assign(ACT, {
+  natstart: d => { const r = natStart(me(), d.id); toast(r.ok ? '🌳' : '⚠️', r.msg); renderWindow(true); },
+  natcancel: () => { me().nat.cur = null; renderWindow(true); }
 });
 
 /* ===== EVENTOS AMPLIADOS, RASGOS NACIONALES Y LOGROS ===== */
@@ -6669,6 +7316,17 @@ const MANUAL = [
 <p>En <b>Ejército y guerra</b> pulsa el botón de paz. Si la puntuación te favorece más de 30 puntos <b>impones la paz</b> (consigues los objetivos del casus belli: territorios ocupados al ≥50%, o todos si vences de forma aplastante); si la desfavorece más de 30 la <b>pides</b> y cedes; en un empate puedes proponer <b>paz blanca</b>, que el rival puede rechazar. La IA cierra las guerras entre ellas cuando hay un claro vencedor.</p>
 <h4>Resultados</h4><ul><li>El ganador obtiene prestigio y los aliados un pequeño premio; el perdedor pierde prestigio y legitimidad.</li><li>Si el <b>defensor gana</b>, el atacante paga indemnización y el defensor puede anexionar hasta tres estados enemigos que hubiera ocupado.</li></ul>`},
 
+{id: 'logistics', title: '16b. Suministro, cercos, cansancio y capitulación', html: `
+<h4>Suministro</h4><p>Cada país tiene una <b>red de suministro</b> que parte de su capital y de sus puertos y se extiende por las provincias que controla; los <b>ferrocarriles</b> (infraestructura) alargan su alcance y aumentan cuántas divisiones puede mantener cada provincia. Fuera de tu red (en territorio enemigo o neutral) el suministro cae unos 30% por provincia. Un ejército con menos del 50% de suministro pierde organización y fuerza cada día y combate peor; amontonar demasiadas divisiones en una provincia también reduce el suministro. El panel del ejército muestra su suministro actual.</p>
+<h4>Cercos</h4><p>Un ejército sin ninguna conexión de suministro rodeado de enemigos está <b>cercado</b>: tras unas semanas se <b>rinde</b> y el bando contrario suma puntos de guerra. Rompe el cerco antes, o evita adentrarte demasiado sin carreteras ni ferrocarriles. Si pierdes la capital, tu red se reconstruye desde tus puertos o tu estado más poblado.</p>
+<h4>Cansancio de guerra</h4><p>Las bajas y los meses de guerra elevan el <b>cansancio de guerra</b>; en paz se recupera. Por encima de 35 restan legitimidad y suben el malestar, reducen la producción y pueden provocar <b>motines</b> (disturbios) por encima de 60.</p>
+<h4>Capitulación</h4><p>Si el líder de un bando pierde la capital y más del 40% de su país (o más del 68% sin perder la capital, o está agotado por la guerra), tiene unas semanas para revertirlo; después <b>capitula</b> y la guerra termina con victoria del enemigo.</p>
+<h4>Crisis diplomáticas</h4><p>En el diálogo de guerra puedes abrir una <b>crisis diplomática</b> (la mitad de influencia). Durante 3 meses los aliados, garantes y bloques de ambos lados toman partido. El defensor, si es mucho más débil, puede <b>ceder</b> y aceptar tus exigencias sin combatir; si no, estalla la guerra con todos los apoyos alineados. El agresor puede retirarse (−8 prestigio) o declarar la guerra antes de tiempo. Consulta Diplomacia → <b>Crisis</b>.</p>`},
+{id: 'political', title: '16c. Elecciones y movimientos políticos', html: `
+<h4>Elecciones</h4><p>Los países con voto por propiedad, censitario o sufragio universal celebran <b>elecciones cada 4 años</b> (marzo). La campaña empieza 3 meses antes y puedes <b>apoyar a un partido</b> (+30% de voto) por dinero e influencia. Los grupos de interés de la coalición ganadora ganan un 20% de influencia durante 4 años; el gobierno derrotado pierde un 12%. Ver Política → <b>Elecciones y movimientos</b>.</p>
+<h4>Movimientos políticos</h4><p>Sufragistas, obreros, abolicionistas, liberales, laicistas, socialistas y campesinos crecen con el malestar, la alfabetización y la pobreza y exigen una reforma concreta. Por encima del 50% restan legitimidad; por encima del 85% provocan <b>disturbios</b>. Responde <b>concediendo</b> la reforma, <b>reprimiendo</b> (20 influencia, más malestar) o <b>cooptando</b> a sus líderes (dinero).</p>`},
+{id: 'national', title: '16d. Decisiones nacionales', html: `
+<p>La ventana <b>Decisiones nacionales</b> (🌳) muestra el árbol de tu país: Prusia, Reino Unido, Francia, Rusia, Imperio Otomano, España, Estados Unidos y Japón tienen ramas propias con decisiones históricas y alternativas; el resto usa un árbol genérico (industrializar, reformar, armarse, expandirse). Solo puedes hacer <b>una decisión a la vez</b>; cada una tarda de 10 a 20 semanas y sus efectos (leyes, tecnologías, reclamaciones, edificios, divisiones, bonificaciones…) son permanentes. Las ramas unidas por una línea roja son <b>excluyentes</b>.</p>`},
 {id: 'vassals', title: '17. Vasallos', html: `
 <p>Un <b>vasallo</b> te paga el 12% de sus ingresos semanales, sigue tu política exterior (se une a tus guerras) y no puede declarar guerras ni fundar bloques. Se consigue con el casus belli <i>Vasallaje</i>.</p>
 <ul><li><b>Anexionar</b> (80 infl.): incorporas todos sus estados.</li><li><b>Liberar</b>: lo devuelves a la independencia (mejora la relación).</li>

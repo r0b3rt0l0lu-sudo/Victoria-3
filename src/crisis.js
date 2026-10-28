@@ -55,7 +55,7 @@ function crisisMonth() {
     if (cr.left <= 0) {
       G.crises.splice(i, 1);
       if (cr.type === 'panic') G.afterPanic = G.date.t;
-      if (cr.scope === 'global' || cr.scope === G.player) if (cr.type !== 'aid') notify('crisis', `Termina: ${cr.name}.`);
+      if (cr.scope === 'global' || cr.scope === G.player) { if (cr.type !== 'aid') { notify('crisis', `Termina: ${cr.name}.`); cnt(G.C[G.player], 'crisesEnded'); } }
     }
   }
   // crisis globales aleatorias
@@ -222,7 +222,7 @@ function govTransition(c, ig, kind, silent) {
   }
   c.ig = c.ig || {}; politics(c);
   c.gov = govName(c);
-  c.govHist.push({y: G.date.y, from: old, to: c.gov, kind});
+  c.govHist.push({y: G.date.y, from: old, to: c.gov, kind}); cnt(c, 'govChanges'); if (kind === 'revolution') cnt(c, 'revolutions');
   if (!silent) notify('politics', `${c.name}: ${msg} Nuevo régimen: ${c.gov}.`);
   return {ok: true, msg};
 }

@@ -64,7 +64,7 @@ function buildHud() {
     <div class="crest" id="crest"></div>
     <div class="pl-main">
       <div class="pl-name" id="pl-name"></div>
-      <div class="pl-sub" id="pl-sub"></div>
+      <div class="pl-sub" id="pl-sub"></div><div class="pl-traits" id="pl-traits"></div>
     </div>
     <div class="chips">
       <div class="chip" id="ch-treasury" data-tip="Tesoro del Estado"><b>💰</b><span></span></div>
@@ -86,6 +86,7 @@ function buildHud() {
   </div>
   <div id="topright">
     <button class="rbtn" data-act="search" title="Buscar país o estado (Ctrl+K)">🔍</button>
+    <button class="rbtn" data-act="win" data-w="achievements" title="Logros">🏅</button>
     <button class="rbtn" data-act="save" title="Guardar partida">💾</button>
     <button class="rbtn" data-act="load" title="Cargar partida">📂</button>
     <button class="rbtn" data-act="win" data-w="journal" title="Diario">📜</button>
@@ -95,6 +96,14 @@ function buildHud() {
     ${[['budget', '💷', 'Presupuesto'], ['production', '🏭', 'Producción y mercado'], ['pops', '👥', 'Población'], ['politics', '🏛️', 'Política'], ['tech', '💡', 'Tecnología'], ['diplomacy', '🤝', 'Diplomacia'], ['military', '⚔️', 'Ejército y guerra'], ['construction', '🏗️', 'Construcción']]
       .map(([id, ic, t]) => `<button class="mbtn" data-act="win" data-w="${id}" data-tip="${t}" id="mb-${id}"><span>${ic}</span></button>`).join('')}
   </div>
+  <div id="camctl">
+    <button data-act="zin" title="Acercar (+)">＋</button><button data-act="zout" title="Alejar (−)">－</button>
+    <button data-act="camhome" title="Vista inicial">🏠</button>
+    <button data-act="rotl" title="Girar a la izquierda (Q)">⟲</button><button data-act="rotr" title="Girar a la derecha (E)">⟳</button>
+    <button data-act="tiltu" title="Inclinar más (R)">⤒</button><button data-act="tiltd" title="Inclinar menos (F)">⤓</button>
+    <button data-act="wheelmode" id="btn-wheel" title="Rueda del ratón: zoom o desplazar">🖱️</button>
+    <button data-act="edgescroll" id="btn-edge" title="Desplazar al acercar el ratón al borde de la pantalla">⇱</button>
+  </div>
   <div id="mapctl">
     <canvas id="minimap" width="260" height="104"></canvas>
     <div id="modes">${MAP_MODES.map(m => `<button class="mode ${m.id === R.mode ? 'on' : ''}" data-act="mode" data-m="${m.id}" data-tip="${m.name}">${m.icon}</button>`).join('')}</div>
@@ -102,7 +111,9 @@ function buildHud() {
   $('#minimap').addEventListener('mousedown', e => minimapJump(e));
   $('#minimap').addEventListener('mousemove', e => { if (e.buttons) minimapJump(e); });
   $('#crest').innerHTML = '';
+  syncCamBtns();
 }
+function syncCamBtns() { const w = $('#btn-wheel'), e2 = $('#btn-edge'); if (w) { w.classList.toggle('on', R.wheelMode === 'pan'); w.textContent = R.wheelMode === 'pan' ? '🖐️' : '🖱️'; } if (e2) e2.classList.toggle('on', !!R.edgeScroll); }
 function minimapJump(e) {
   const r = e.currentTarget.getBoundingClientRect();
   const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
@@ -115,6 +126,8 @@ function updateHud(force) {
   $('#crest').innerHTML = flag(c.tag, 'big');
   $('#pl-name').textContent = c.name;
   $('#pl-sub').textContent = `${c.gov} · Rango ${c.rank}`;
+  const tb = (c.traits || []).map(id => TRAITS[id]).filter(Boolean).map(t => `<span class="tchip ${t.good ? 'g' : 'b'}" data-tip="${traitTip(t)}">${t.icon}</span>`).join('');
+  const tr = $('#pl-traits'); if (tr && tr.dataset.k !== tb) { tr.innerHTML = tb; tr.dataset.k = tb; }
   const set = (id, txt, tip) => { const e = $('#' + id); e.querySelector('span').textContent = txt; if (tip) e.dataset.tip = tip; };
   set('ch-treasury', money(c.treasury), `<b>Tesoro</b><br>${money(c.treasury)}`);
   const bal = st.income - st.expense - (c.budget.expense.constr || 0) - (c.budget.expense.pub || 0) - (c.budget.expense.interest || 0);
@@ -275,6 +288,7 @@ WINDOWS.politics = {title: 'Política', icon: '🏛️', render() {
       <div class="kv"><span>Radicales</span><b>${pctS(c.radicals)}</b></div>${bar(c.radicals, 0.6, 'bad')}
       <div class="kv"><span>Leales</span><b>${pctS(c.loyalists)}</b></div>${bar(c.loyalists, 0.6, 'good')}
       <p class="hint">La coalición de gobierno son los grupos de interés con más influencia que suman la mitad del poder político.</p>
+      <h4 class="sub">Rasgos nacionales</h4><div class="traits">${traitsHtml(c)}</div>
       ${c.lawChange ? `<div class="notice">📜 Reforma en curso: <b>${LAW[c.lawChange.opt].name}</b> — ${c.lawChange.months} meses · probabilidad de éxito ${pctS(c.lawChange.chance)}</div>` : ''}
     </div></div>
     <div class="col wide"><div class="card"><h3>Grupos de interés</h3><div class="igs">${IG_ORDER.slice().sort((a, b) => c.ig[b].share - c.ig[a].share).map(k => { const g = c.ig[k], d = IGS[k]; return `
@@ -688,6 +702,10 @@ const ACT = {
   goMail: () => { UI.winTab.dip = 'pacts'; UI.win = null; openWindow('diplomacy'); },
   msec: d => { UI.manualSec = d.id; renderWindow(true); },
   diff: d => { G.diff = +d.n; $$('#st-diff button').forEach(b => b.classList.toggle('on', b.dataset.n === d.n)); },
+  zin: () => camZoom(0.7), zout: () => camZoom(1.4), camhome: () => camHome(),
+  rotl: () => camRotate(0.3), rotr: () => camRotate(-0.3), tiltu: () => camTilt(0.15), tiltd: () => camTilt(-0.15),
+  wheelmode: () => { R.wheelMode = R.wheelMode === 'zoom' ? 'pan' : 'zoom'; saveMapPrefs(); syncCamBtns(); toast('🖱️', R.wheelMode === 'zoom' ? 'La rueda del ratón o del panel táctil hace zoom.' : 'La rueda o el panel táctil desplaza el mapa (pellizca para hacer zoom).'); },
+  edgescroll: () => { R.edgeScroll = !R.edgeScroll; saveMapPrefs(); syncCamBtns(); toast('⇱', R.edgeScroll ? 'Desplazamiento por los bordes activado.' : 'Desplazamiento por los bordes desactivado.'); },
   save: () => doSave(),
   load: () => doLoad(),
   cont: () => doLoad(true),
@@ -754,7 +772,7 @@ function showEvent() {
   const ev = EVENTS.find(x => x.id === e.id); const c = me();
   G.paused = true; updateHud();
   const el = $('#event'); el.classList.add('open');
-  el.innerHTML = `<div class="evbox"><div class="evhead"><h2>${e.title}</h2><small>${dateStr()}</small></div><div class="evbody"><p>${e.text}</p>${ev.opts.map((o, i) => `<button class="evopt" data-act="evt" data-i="${i}">${o.t}${o.cost ? ` <small>(−${money(c.stats.income * o.cost)})</small>` : ''}</button>`).join('')}</div></div>`;
+  el.innerHTML = `<div class="evbox"><div class="evhead"><h2>${e.icon || '📰'} ${e.title}</h2><small>${dateStr()}</small></div><div class="evbody"><p>${e.text}</p>${ev.opts.map((o, i) => `<button class="evopt" data-act="evt" data-i="${i}">${o.t}${o.cost ? ` <small>(−${money(c.stats.income * o.cost)})</small>` : ''}${o.hint ? `<em>${o.hint}</em>` : ''}</button>`).join('')}</div></div>`;
 }
 
 /* ---------- pantalla de inicio ---------- */
@@ -786,6 +804,7 @@ function buildStart() {
     <div class="st-right" id="st-info"></div>
   </div>`;
   selectStartCountry('GBR');
+  document.body.classList.add('starting');
 }
 function selectStartCountry(tag) {
   UI.startTag = tag;
@@ -793,6 +812,7 @@ function selectStartCountry(tag) {
   $$('#st-list .st-card').forEach(e => e.classList.toggle('on', e.dataset.tag === tag));
   $('#st-info').innerHTML = `<div class="st-crest">${flag(tag, 'huge')}</div><h2>${c.name}</h2><div class="st-gov">${c.gov} · Rango ${c.rank} · <span class="${d[1]}">${d[0]}</span></div>
    <p class="st-intro">${INTRO[tag] || `Gobierna ${c.name} en el año 1836 y llévala hacia la era industrial.`}</p>
+   <div class="traits st">${traitsHtml(c)}</div>
    <div class="st-stats"><div><small>Población</small><b>${fmtN(c.stats.pop, 1)}</b></div><div><small>Alfabetización</small><b>${Math.round(c.lit)}%</b></div><div><small>Estados</small><b>${c.states.length}</b></div><div><small>Ejército</small><b>${fmtN(c.stats.soldiers, 0)}</b></div></div>
    <div class="st-diffrow"><small>Dificultad económica</small><div class="seg" id="st-diff">${[1, 2, 3, 4].map(n => `<button data-act="diff" data-n="${n}" class="${(G.diff || 2) === n ? 'on' : ''}" data-tip="${['Pocas crisis, costes bajos', 'Crisis ocasionales y costes realistas', 'Crisis frecuentes, intereses y costes altos', 'Crisis constantes: economía muy hostil'][n - 1]}">${DIFF[n].name}</button>`).join('')}</div></div>
    <button class="primary big" data-act="start">Comenzar partida</button>${hasSave() ? '<button class="cont" data-act="cont">📂 Continuar partida guardada</button>' : ''}`;
@@ -805,7 +825,7 @@ function selectStartCountry(tag) {
 function startGame() {
   const tag = UI.startTag;
   G.player = tag; G.tags.forEach(t => G.C[t].ai = t !== tag);
-  UI.started = true; G.paused = true;
+  UI.started = true; G.paused = true; achSnapshot(G.C[tag]); document.body.classList.remove('starting');
   $('#start').classList.add('hide'); setTimeout(() => $('#start').style.display = 'none', 600);
   $('#hud').classList.add('show');
   buildHud(); updateHud(); computeLabels();

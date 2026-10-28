@@ -43,8 +43,11 @@ const MANUAL = [
 
 {id: 'map', title: '4. El mapa y la cámara', html: `
 <table class="tbl"><tbody>
-<tr><td>Desplazarse</td><td>Arrastra con el botón izquierdo, o usa <b>W A S D</b> / flechas.</td></tr>
-<tr><td>Zoom</td><td>Rueda del ratón (acerca hacia el cursor) o teclas <b>+</b> / <b>-</b>.</td></tr>
+<tr><td>Desplazarse</td><td>Arrastra con el botón izquierdo del ratón, o usa <b>W A S D</b> / flechas. En pantallas táctiles, arrastra con un dedo.</td></tr>
+<tr><td>Zoom</td><td>Rueda del ratón (acerca hacia el cursor), teclas <b>+</b> / <b>-</b>, <b>doble clic</b> (acerca; con Mayús aleja), los botones <b>＋ －</b> del lateral derecho o, en táctil/panel táctil, el <b>gesto de pellizco</b>.</td></tr>
+<tr><td>Rueda = desplazar</td><td>Si usas un panel táctil y prefieres desplazarte con dos dedos, pulsa el botón 🖱️/🖐️ del lateral: la rueda pasa a mover el mapa (el pellizco sigue haciendo zoom).</td></tr>
+<tr><td>Bordes de pantalla</td><td>El botón ⇱ activa el desplazamiento al acercar el ratón al borde de la ventana.</td></tr>
+<tr><td>Vista inicial</td><td>Botón 🏠. Los botones ⟲ ⟳ giran y ⤒ ⤓ inclinan la cámara.</td></tr>
 <tr><td>Girar e inclinar</td><td>Botón derecho + arrastrar (o <b>Mayús</b> + arrastrar); teclas <b>Q E</b> (girar) y <b>R F</b> (inclinar).</td></tr>
 <tr><td>Seleccionar un estado</td><td>Clic. Abre el panel con población, nivel de vida, edificios y recursos.</td></tr>
 <tr><td>Información rápida</td><td>Pasa el ratón sobre un estado para ver un resumen.</td></tr>
@@ -259,7 +262,20 @@ const MANUAL = [
 
 {id: 'goals', title: '19. Objetivos y eventos', html: `
 <p>El <b>Diario</b> (📜) muestra objetivos con recompensa en prestigio e innovación (duplicar la industria, ampliar la alfabetización, aumentar el ejército, crecer…), y la crónica de los últimos sucesos.</p>
-<p>Los <b>eventos</b> (malas cosechas, huelgas, descubrimientos, escándalos…) aparecen en ventanas que detienen el juego y te piden elegir entre varias respuestas, algunas con coste en dinero. Una misma clase de evento no se repite hasta pasado un año.</p>`},
+<h4>Eventos</h4>
+<p>Hay más de 35 eventos que detienen el juego y te piden elegir entre varias respuestas. Muchos tienen <b>consecuencias fuertes</b>: pueden hacerte perder o ganar territorios, provocar guerras, cambiar leyes, dar tecnologías gratis, hundir la inversión o alterar el peso de los grupos de interés. Aparecen según tu situación (legitimidad, radicales, deuda, industria, monarquía, leyes…); cada opción muestra en cursiva su efecto. Un mismo evento no se repite hasta pasado más de un año.</p>
+<table class="tbl"><tbody>
+<tr><td>📜 Ultimátum de una gran potencia</td><td>Una potencia mucho más fuerte exige un territorio: ceder, pagar tributo o ir a la guerra.</td></tr>
+<tr><td>🏴 Movimiento separatista · 🔥 Rebelión provincial</td><td>Puedes perder un estado o gastar legitimidad para conservarlo.</td></tr>
+<tr><td>🗡️ Conspiración · 🎖️ Motín · 👑 Muerte del soberano</td><td>Cambian la estabilidad y el peso del ejército; la sucesión puede acabar en guerra civil o crisis.</td></tr>
+<tr><td>⛏️ Fiebre del oro · 🛢️ Hallazgo de recursos · 🎡 Exposición Universal · 🔬 Genio</td><td>Oportunidades: dinero, yacimientos, prestigio o tecnologías gratis.</td></tr>
+<tr><td>🥔 Plaga · ☣️ Cólera · 🌋 Terremoto · 🔥 Incendio</td><td>Desastres que cuestan población y legitimidad si no respondes.</td></tr>
+<tr><td>🔥 Ola revolucionaria (1846-1850)</td><td>Reformar a tiempo o reprimir con mano dura.</td></tr>
+</tbody></table>
+<h4>Rasgos nacionales</h4>
+<p>Cada país arranca con <b>ventajas y desventajas</b> según su situación en 1836, que ves bajo el nombre en la placa superior, en Política → Gobierno y en la pantalla de inicio. Ejemplos: <i>Cuna de la industria</i> (Reino Unido), <i>Ejército disciplinado</i> (Prusia), <i>Tierras inmensas</i> pero <i>Sociedad servil</i> (Rusia), <i>Mosaico de naciones</i> (Austria), <i>El enfermo de Europa</i> (Imperio Otomano), <i>Deuda heredada</i> (España y Portugal), <i>Aislamiento</i> (Japón), <i>Neutralidad armada</i> (Suiza), <i>Inestabilidad crónica</i> (repúblicas latinoamericanas). Algunos rasgos modifican producción, recaudación, ejército, innovación o estabilidad; otros alteran el tesoro inicial. Los rasgos negativos con condición <i>(«puede superarse»)</i> desaparecen al cumplir un objetivo (alfabetización, tecnologías, legitimidad…).</p>
+<h4>Logros</h4>
+<p>El botón 🏅 muestra más de 55 <b>logros</b> en seis categorías (Economía, Tecnología, Política, Diplomacia, Guerra y Prestigio), de 1 a 3 estrellas. Se comprueban cada mes y dan prestigio e innovación. Los que ya se cumplían al empezar la partida no pueden obtenerse. También se guarda cuántos has desbloqueado en alguna partida.</p>`},
 
 {id: 'perf', title: '20. Rendimiento y guardado', html: `
 <ul><li>La simulación económica se reparte en <b>etapas diarias</b> para evitar picos de cálculo, y el dibujo del mapa solo repinta lo que cambia (un estado al pasar el ratón, los frentes de guerra) en lugar de toda la textura.</li>
@@ -270,7 +286,7 @@ const MANUAL = [
 <table class="tbl"><tbody>
 <tr><td><b>Espacio</b></td><td>Pausa / reanudar</td></tr><tr><td><b>, .</b></td><td>Velocidad menor / mayor</td></tr>
 <tr><td><b>W A S D</b> / flechas</td><td>Mover la cámara</td></tr><tr><td><b>Q E</b> · <b>R F</b></td><td>Girar · inclinar</td></tr>
-<tr><td><b>+ -</b> / rueda</td><td>Zoom</td></tr><tr><td><b>Ctrl+K</b> o <b>/</b></td><td>Buscar país o estado</td></tr>
+<tr><td><b>+ -</b> / rueda / doble clic</td><td>Zoom</td></tr><tr><td>Botones laterales</td><td>Zoom, giro, inclinación, vista inicial y modos de desplazamiento</td></tr><tr><td><b>Ctrl+K</b> o <b>/</b></td><td>Buscar país o estado</td></tr>
 <tr><td><b>F1</b></td><td>Abrir este manual</td></tr><tr><td><b>Esc</b></td><td>Cerrar ventana, búsqueda o diálogo</td></tr>
 </tbody></table>`},
 

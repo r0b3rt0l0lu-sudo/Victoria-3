@@ -39,6 +39,13 @@ Abre **`index.html`** en un navegador moderno (Chrome, Edge o Firefox con WebGL)
 * **Economía continua** (cálculo repartido por días), **ciclo económico**, **crisis** mundiales y nacionales y **4 niveles de dificultad**.
 * **Rendimiento**: repintado parcial del mapa, redibujado más rápido y tick económico repartido en etapas.
 
+## Novedades (última versión)
+
+* **Controles del mapa mejorados**: zoom con rueda, doble clic, botones en pantalla y pellizco táctil; arrastre con ratón o dedo; modo «rueda = desplazar» para paneles táctiles; desplazamiento por los bordes opcional; botones de giro, inclinación y vista inicial.
+* **36 eventos** con consecuencias más fuertes (ultimátums, separatismo, sucesión real, conspiraciones, desastres, hallazgos…).
+* **37 rasgos nacionales** (ventajas y desventajas iniciales según la situación de cada país) que pueden superarse con el tiempo.
+* **58 logros** en 6 categorías con recompensas.
+
 ## Qué se simula
 
 * **Mapa**: contornos procedurales del mundo de 1836 (272 estados), relieve y biomas generados, malla 3D con three.js.

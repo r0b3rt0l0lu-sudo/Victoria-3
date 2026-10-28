@@ -32,7 +32,7 @@ function mkCountry(tag) {
     lawChange: null, journalDone: {}, wars: [], investPool: 0, queue: [], projects: [], cpUsed: 0, cpTotal: 0,
     stats: {pop: 0, gdp: 0, soldiers: 0, literacy: 0, sol: 0, indLevels: 0, bur: 0, burNeed: 1, income: 0, expense: 0, taxEff: 1, avgWage: 3.5, constr: 0, innovRate: 0, army: 0},
     budget: {income: {}, expense: {}}, hist: {gdp: [], pop: [], treasury: [], sol: [], prestige: []},
-    ai: true, claims: [], boosts: [], pboosts: {}, bloc: null, overlord: null, infamy: 0, monarchy: !!(d && /Monarqu|Imperio|Shogun|Despotismo/.test(d[4])), tradeLoss: 0, fx: {}, pressure: 0, lowLeg: 0, govHist: [], fabricating: null, states: [], capital: -1, startPop: 1, rank: 99, power: 0, gdpPrev: 0, lawMods: {}, colonizing: null
+    ai: true, traits: [], ach: {}, cnt: {}, claims: [], boosts: [], pboosts: {}, bloc: null, overlord: null, infamy: 0, monarchy: !!(d && /Monarqu|Imperio|Shogun|Despotismo/.test(d[4])), tradeLoss: 0, fx: {}, pressure: 0, lowLeg: 0, govHist: [], fabricating: null, states: [], capital: -1, startPop: 1, rank: 99, power: 0, gdpPrev: 0, lawMods: {}, colonizing: null
   };
   c.laws = Object.assign({}, LAW_PROFILES[c.profile], LAW_OVERRIDES[tag] || {});
   return c;
@@ -43,6 +43,7 @@ function recalcMods(c) {
   for (const cat in c.laws) { const o = LAW[c.laws[cat]]; if (o) for (const k in o.mods) m[k] = (m[k] || 0) + o.mods[k]; }
   c.lawMods = Object.assign({}, m);
   c.techs.forEach(id => { const t = TECH[id]; for (const k in t.fx) m[k] = (m[k] || 0) + t.fx[k]; });
+  (c.traits || []).forEach(id => { const t = typeof TRAITS !== 'undefined' && TRAITS[id]; if (t) for (const k in t.fx) m[k] = (m[k] || 0) + t.fx[k]; });
   c.mods = m;
   return m;
 }
@@ -85,8 +86,8 @@ function initGame(playerTag) {
   warmUp();
   G.tags.forEach(t => { const c = G.C[t]; c.techs = new Set(); c.research = null; c.innovStock = 0; recalcMods(c); c.treasury = t === NONE ? 0 : Math.round(c.stats.income * (6 + (COUNTRY_DATA[t] ? COUNTRY_DATA[t][9] / 300000 : 1) * 1.5)); c.startPop = Math.max(1, c.stats.pop); c.hist = {gdp: [], pop: [], treasury: [], sol: [], prestige: []}; });
   updateRanks();
-  G.tags.forEach(t => { const c = G.C[t]; c.prestige = Math.round(10 + (c.power ? Math.sqrt(c.power) * 3 : 0)); c.start = {ind: c.stats.indLevels, lit: c.lit, soldiers: c.stats.soldiers, prestige: c.prestige}; });
-  initClaims(); seedDiplomacy(); G.notifs.length = 0; G.log.length = 0; G.week = 0;
+  G.tags.forEach(t => { const c = G.C[t]; c.prestige = Math.round(10 + (c.power ? Math.sqrt(c.power) * 3 : 0)); c.start = {ind: c.stats.indLevels, lit: c.lit, soldiers: c.stats.soldiers, prestige: c.prestige, rank: c.rank}; });
+  assignTraits(); initClaims(); seedDiplomacy(); G.notifs.length = 0; G.log.length = 0; G.week = 0;
   logMsg('Comienza la partida en enero de ' + START_YEAR + '.');
 }
 
@@ -702,7 +703,7 @@ function monthlyTick(init) {
     c.prestige = Math.max(0, c.prestige + (c.rank <= 8 ? 0.5 : c.rank <= 20 ? 0.2 : 0.05) - 0.1);
     // IA
     if (c.ai) aiMonth(c);
-    if (!init) journal(c);
+    if (!init) { journal(c); traitMonth(c); if (!c.ai) achMonth(c); }
   });
   if (!init) { randomEvents(); stepColonizeAll(); diploMonth(); crisisMonth(); }
   // crecimiento de población (mensual)
@@ -815,7 +816,7 @@ function resolveLawChange(c) {
   const lc = c.lawChange; c.lawChange = null;
   const o = LAW[lc.opt];
   if (Math.random() < lc.chance) {
-    c.laws[o.cat] = lc.opt; recalcMods(c);
+    c.laws[o.cat] = lc.opt; recalcMods(c); cnt(c, 'reforms');
     if (c.tag === G.player) notify('law', `Reforma aprobada: ${o.name}.`);
     c.prestige += 2;
   } else {
@@ -892,7 +893,7 @@ function stepColonize(c) {
   if (c.colonizing.months > 0) return;
   const s = G.S[c.colonizing.state]; c.colonizing = null;
   if (s.owner !== NONE) return;
-  transferState(s, c.tag);
+  transferState(s, c.tag); cnt(c, 'colonies');
   c.prestige += 4;
   if (c.tag === G.player) notify('colony', `${s.name} ha sido incorporada a tus dominios.`, s.id);
   else logMsg(`${c.name} coloniza ${s.name}.`);
@@ -951,21 +952,6 @@ const EVENTS = [
          {t:'Dejar a la iniciativa privada', fx: c => { c.innovStock += 15; }}]}
 ];
 
-function randomEvents() {
-  const c = G.C[G.player];
-  if (G.pendingEvent) return;
-  if (Math.random() > 0.12) return;
-  const ok = EVENTS.filter(e => e.cond(c) && !(G.eventCool[e.id] > G.date.t));
-  if (!ok.length) return;
-  const e = ok[Math.floor(Math.random() * ok.length)];
-  G.eventCool[e.id] = G.date.t + 365;
-  G.pendingEvent = {id: e.id, title: e.title, text: e.text(c)};
-}
-function resolveEvent(i) {
-  const pe = G.pendingEvent; if (!pe) return;
-  const e = EVENTS.find(x => x.id === pe.id); const c = G.C[G.player]; const o = e.opts[i]; if (o.cost) c.treasury -= c.stats.income * o.cost; o.fx(c);
-  G.pendingEvent = null;
-}
 function dailyEvents() { }
 
 function yearly() {

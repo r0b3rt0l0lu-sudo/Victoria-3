@@ -262,7 +262,7 @@ function endWar(w, winner) {
     let gained = [];
     if (cb.terr) {
       w.targets.forEach(sid => { const s = G.S[sid]; if (s && s.owner === w.def && (full || (s.occ || 0) >= 0.5 || w.score >= 60)) { transferState(s, w.att); gained.push(s.name); } });
-      A.prestige += 6 + gained.length * 4;
+      A.prestige += 6 + gained.length * 4; cnt(A, 'statesGained', gained.length);
     } else if (w.cb === 'humiliate') {
       const ind = Math.min(Math.max(0, D.treasury), D.stats.income * 8); D.treasury -= ind; A.treasury += ind;
       A.prestige += 12; D.prestige = Math.max(0, D.prestige - 12);
@@ -272,9 +272,9 @@ function endWar(w, winner) {
       const ind = Math.min(Math.max(0, D.treasury), D.stats.income * 5); D.treasury -= ind; A.treasury += ind;
       D.tradeLoss = Math.min(0.25, (D.tradeLoss || 0) + 0.06); makePact('trade', w.att, w.def, {forced: true}); A.prestige += 8;
     } else if (w.cb === 'vassal') {
-      makeSubject(w.att, w.def); A.prestige += 15;
+      makeSubject(w.att, w.def); A.prestige += 15; cnt(A, 'vassalsMade');
     }
-    D.prestige = Math.max(0, D.prestige - 8); D.legitimacy -= 4;
+    D.prestige = Math.max(0, D.prestige - 8); D.legitimacy -= 4; cnt(A, 'warsWon'); if (w.cb === 'humiliate') cnt(A, 'humiliations');
     notify('war', `${A.name} ha vencido a ${D.name}${gained.length ? ' y se anexiona ' + gained.join(', ') : ' (' + cb.name + ')'}.`, w.targets[0]);
     // aliados del vencedor ganan prestigio
     w.attAll.forEach(t => { if (t !== w.att) G.C[t].prestige += 3; });
@@ -285,7 +285,7 @@ function endWar(w, winner) {
     const regained = [];
     w.cTargets.forEach(sid => { const s = G.S[sid]; if (s && s.owner === w.att && ((s.occ || 0) >= 0.5 || w.score <= -70)) { transferState(s, w.def); regained.push(s.name); } });
     notify('war', `${D.name} ha repelido la invasión de ${A.name}${regained.length ? ' y se anexiona ' + regained.join(', ') : ''}.`, w.cTargets[0] ?? w.targets[0]);
-    addRel(w.att, w.def, 10);
+    addRel(w.att, w.def, 10); cnt(D, 'defended'); cnt(D, 'warsWon'); cnt(D, 'statesGained', regained.length);
   }
   G.tags.forEach(t => { if (t !== NONE) G.C[t].legitimacy = clamp(G.C[t].legitimacy, 0, 100); });
 }
@@ -379,7 +379,7 @@ function playerProposePact(type, to, level) {
   const r = acceptChance(type, G.player, to, level);
   me_.influence -= def.cost;
   if (type === 'embargo' || type === 'rival') { makePact(type, G.player, to); return {ok: true, msg: `${def.name} establecido contra ${G.C[to].name}.`}; }
-  if (Math.random() < r.p) { const p = makePact(type, G.player, to, {level}); return {ok: true, msg: `${G.C[to].name} acepta: ${def.name}.`, pact: p}; }
+  if (Math.random() < r.p) { const p = makePact(type, G.player, to, {level}); cnt(me_, 'pactsMade'); return {ok: true, msg: `${G.C[to].name} acepta: ${def.name}.`, pact: p}; }
   return {ok: false, msg: `${G.C[to].name} rechaza la propuesta de ${def.name.toLowerCase()}.`};
 }
 
@@ -563,7 +563,7 @@ function respondProposal(id, accept) {
   if (!accept) { addRel(G.player, p.from, -3); return; }
   if (!alive(p.from)) return;
   if (p.type === 'bloc') { const b = G.blocs.find(x => x.id === p.bloc); if (b) joinBloc(G.player, b); return; }
-  makePact(p.type, p.from, G.player, {level: 1});
+  makePact(p.type, p.from, G.player, {level: 1}); cnt(G.C[G.player], 'pactsMade');
   notify('diplo', `Aceptas: ${PACTS[p.type].name} con ${G.C[p.from].name}.`);
 }
 function improveRelations(c, tag) {

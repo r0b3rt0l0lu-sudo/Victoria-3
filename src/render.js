@@ -131,7 +131,7 @@ function resizeRenderer() {
 
 function updateCamera() {
   const c = R.cam;
-  c.dist = clamp(c.dist, 9, 330);
+  c.dist = clamp(c.dist, 6, 420);
   c.tilt = clamp(c.tilt, 0.08, 1.3);
   const lim = 360 / 2 - 8;
   c.tx = clamp(c.tx, -lim, lim); c.tz = clamp(c.tz, -88, 66);
@@ -160,54 +160,103 @@ function stateAtWorld(p) {
   return MAP.land[i] ? MAP.stateOf[i] : -1;
 }
 
+function camChanged() { updateCamera(); R.dirty = true; R.labelsDirty = true; }
+function zoomAt(cx, cy, factor) {
+  const before = cx === undefined ? null : screenToWorld(cx, cy);
+  R.cam.dist *= factor; updateCamera();
+  if (before) { const after = screenToWorld(cx, cy); if (after) { R.cam.tx += before.x - after.x; R.cam.tz += before.z - after.z; } }
+  camChanged();
+}
+function camZoom(f) { zoomAt(R.canvas.clientWidth / 2, R.canvas.clientHeight / 2, f); }
+function camHome() { R.cam.tx = 12; R.cam.tz = -52; R.cam.dist = 130; R.cam.tilt = 0.78; R.cam.yaw = 0; camChanged(); }
+function camRotate(d) { R.cam.yaw += d; camChanged(); }
+function camTilt(d) { R.cam.tilt += d; camChanged(); }
+function loadMapPrefs() { try { const p = JSON.parse(localStorage.getItem('victoria-map-prefs') || '{}'); R.wheelMode = p.wheelMode || 'zoom'; R.edgeScroll = !!p.edgeScroll; } catch (e) { R.wheelMode = 'zoom'; R.edgeScroll = false; } }
+function saveMapPrefs() { try { localStorage.setItem('victoria-map-prefs', JSON.stringify({wheelMode: R.wheelMode, edgeScroll: R.edgeScroll})); } catch (e) {} }
+
 function setupControls() {
-  const cv = R.canvas; let drag = null;
+  const cv = R.canvas; const pts = new Map(); let drag = null, pinch = null;
+  loadMapPrefs();
+  cv.style.touchAction = 'none';
   cv.addEventListener('contextmenu', e => e.preventDefault());
-  cv.addEventListener('mousedown', e => {
-    drag = {x: e.clientX, y: e.clientY, btn: e.button, moved: false, world: screenToWorld(e.clientX, e.clientY), yaw: R.cam.yaw, tilt: R.cam.tilt};
+  const mid = () => { const a = [...pts.values()]; return {x: (a[0].x + a[1].x) / 2, y: (a[0].y + a[1].y) / 2, d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y)}; };
+  cv.addEventListener('pointerdown', e => {
+    try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+    pts.set(e.pointerId, {x: e.clientX, y: e.clientY});
+    if (pts.size === 1) drag = {x: e.clientX, y: e.clientY, btn: e.button, moved: false, world: screenToWorld(e.clientX, e.clientY), yaw: R.cam.yaw, tilt: R.cam.tilt, touch: e.pointerType !== 'mouse'};
+    else if (pts.size === 2) { drag = null; pinch = mid(); }
+    R.hasFocusCanvas = true;
   });
-  window.addEventListener('mouseup', e => {
-    if (drag && !drag.moved && drag.btn === 0 && e.target === cv) {
-      const id = stateAtWorld(screenToWorld(e.clientX, e.clientY));
-      if (window.onMapClick) window.onMapClick(id, e);
+  cv.addEventListener('pointermove', e => {
+    R.mouse = {x: e.clientX, y: e.clientY};
+    if (pts.has(e.pointerId)) pts.set(e.pointerId, {x: e.clientX, y: e.clientY});
+    if (pinch && pts.size >= 2) {
+      const m = mid();
+      const before = screenToWorld(pinch.x, pinch.y);
+      R.cam.dist *= pinch.d / Math.max(10, m.d); updateCamera();
+      const after = screenToWorld(pinch.x, pinch.y);
+      if (before && after) { R.cam.tx += before.x - after.x; R.cam.tz += before.z - after.z; }
+      const w1 = screenToWorld(pinch.x, pinch.y), w2 = screenToWorld(m.x, m.y);
+      if (w1 && w2) { R.cam.tx += w1.x - w2.x; R.cam.tz += w1.z - w2.z; }
+      pinch = m; camChanged(); return;
     }
-    drag = null;
-  });
-  window.addEventListener('mousemove', e => {
     if (drag) {
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-      if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
+      if (Math.abs(dx) + Math.abs(dy) > (drag.touch ? 10 : 4)) drag.moved = true;
       if (drag.moved) {
-        if (drag.btn === 2 || e.shiftKey) { R.cam.yaw = drag.yaw - dx * 0.005; R.cam.tilt = drag.tilt + dy * 0.004; updateCamera(); }
-        else if (drag.world) { const cur = screenToWorld(e.clientX, e.clientY); if (cur) { R.cam.tx += drag.world.x - cur.x; R.cam.tz += drag.world.z - cur.z; updateCamera(); } }
-        R.dirty = true; R.labelsDirty = true;
-        document.body.classList.add('dragging');
+        if (drag.btn === 2 || e.shiftKey) { R.cam.yaw = drag.yaw - dx * 0.005; R.cam.tilt = drag.tilt + dy * 0.004; camChanged(); }
+        else if (drag.world) { const cur = screenToWorld(e.clientX, e.clientY); if (cur) { R.cam.tx += drag.world.x - cur.x; R.cam.tz += drag.world.z - cur.z; camChanged(); } }
+        document.body.classList.add('dragging'); hideTipSafe();
         return;
       }
     }
-    if (e.target === cv) {
+    if (e.pointerType === 'mouse' && !drag) {
       const id = stateAtWorld(screenToWorld(e.clientX, e.clientY));
       setHover(id);
       if (window.onMapHover) window.onMapHover(id, e);
-    } else { setHover(-1); if (window.onMapHover) window.onMapHover(-1, e); }
+    }
   });
-  window.addEventListener('mouseup', () => document.body.classList.remove('dragging'));
+  const end = e => {
+    pts.delete(e.pointerId); if (pts.size < 2) pinch = null;
+    if (drag && !drag.moved && drag.btn === 0 && e.type === 'pointerup') {
+      const id = stateAtWorld(screenToWorld(e.clientX, e.clientY));
+      if (window.onMapClick) window.onMapClick(id, e);
+    }
+    if (pts.size === 0) { drag = null; document.body.classList.remove('dragging'); }
+  };
+  cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+  cv.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse' && !drag) { setHover(-1); if (window.onMapHover) window.onMapHover(-1, e); } R.mouse = null; });
+  cv.addEventListener('dblclick', e => zoomAt(e.clientX, e.clientY, e.shiftKey ? 1.7 : 0.55));
   cv.addEventListener('wheel', e => {
     e.preventDefault();
-    const before = screenToWorld(e.clientX, e.clientY);
-    R.cam.dist *= Math.exp(e.deltaY * 0.0013);
-    updateCamera();
-    const after = screenToWorld(e.clientX, e.clientY);
-    if (before && after) { R.cam.tx += before.x - after.x; R.cam.tz += before.z - after.z; }
-    updateCamera(); R.dirty = true; R.labelsDirty = true;
+    let dy = e.deltaY, dx = e.deltaX;
+    if (e.deltaMode === 1) { dy *= 16; dx *= 16; } else if (e.deltaMode === 2) { dy *= 400; dx *= 400; }
+    if (e.ctrlKey) { zoomAt(e.clientX, e.clientY, Math.exp(dy * 0.012)); return; }   // pellizco del panel táctil
+    if (R.wheelMode === 'pan') {
+      const k = R.cam.dist * 0.0016; const cy = Math.cos(R.cam.yaw), sy = Math.sin(R.cam.yaw);
+      R.cam.tx += (dx * cy + dy * sy) * k; R.cam.tz += (-dx * sy + dy * cy) * k; camChanged();
+    } else zoomAt(e.clientX, e.clientY, Math.exp(clamp(dy, -240, 240) * 0.0016));
   }, {passive: false});
   const keys = {};
-  window.addEventListener('keydown', e => { if (/input|textarea/i.test(e.target.tagName)) return; keys[e.key.toLowerCase()] = true; });
+  window.addEventListener('keydown', e => { if (/input|textarea|select/i.test(e.target.tagName)) return; keys[e.key.toLowerCase()] = true; });
   window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+  window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
   R.keys = keys;
 }
+function hideTipSafe() { const t = document.getElementById('tooltip'); if (t) t.style.display = 'none'; }
 
+function edgeScrollStep(dt) {
+  if (!R.edgeScroll || !R.mouse || document.body.classList.contains('dragging')) return;
+  const w = R.canvas.clientWidth, h = R.canvas.clientHeight, m = R.mouse, E = 10;
+  let dx = 0, dz = 0;
+  if (m.x < E) dx = -1; else if (m.x > w - E) dx = 1;
+  if (m.y < E) dz = -1; else if (m.y > h - E) dz = 1;
+  if (!dx && !dz) return;
+  const sp = R.cam.dist * 0.7 * dt, cy = Math.cos(R.cam.yaw), sy = Math.sin(R.cam.yaw);
+  R.cam.tx += (dx * cy + dz * sy) * sp; R.cam.tz += (-dx * sy + dz * cy) * sp; camChanged();
+}
 function keyboardPan(dt) {
+  edgeScrollStep(dt);
   const k = R.keys; if (!k) return;
   const sp = R.cam.dist * 0.6 * dt;
   let dx = 0, dz = 0;

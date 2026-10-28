@@ -223,8 +223,8 @@ function setupControls() {
       if (window.onMapClick) window.onMapClick(id, e);
     }
     if (drag && !drag.moved && drag.btn === 2 && e.type === 'pointerup') {
-      const id = stateAtWorld(screenToWorld(e.clientX, e.clientY));
-      if (window.onMapRightClick) window.onMapRightClick(id, e);
+      const wp = screenToWorld(e.clientX, e.clientY), id = stateAtWorld(wp);
+      if (window.onMapRightClick) window.onMapRightClick(id, e, provAtWorld(wp));
     }
     if (pts.size === 0) { drag = null; document.body.classList.remove('dragging'); }
   };
@@ -277,6 +277,7 @@ function keyboardPan(dt) {
   if (k['-']) { R.cam.dist *= 1 + dt * 1.2; updateCamera(); R.dirty = true; R.labelsDirty = true; }
 }
 
+function focusProv(pid, dist) { const p = MAP.provs[pid]; R.cam.tx = p.lon; R.cam.tz = -p.lat; if (dist) R.cam.dist = dist; updateCamera(); R.dirty = true; R.labelsDirty = true; }
 function focusState(id, dist) {
   const s = G.S[id]; const c = stateCenter(s);
   R.cam.tx = c[0]; R.cam.tz = -c[1]; if (dist) R.cam.dist = dist;
@@ -285,24 +286,24 @@ function focusState(id, dist) {
 function focusLonLat(lon, lat, dist) { R.cam.tx = lon; R.cam.tz = -lat; if (dist) R.cam.dist = dist; updateCamera(); R.dirty = true; R.labelsDirty = true; }
 
 /* ---------- pintado ---------- */
+R.occRGB = tag => (R._rgb = R._rgb || {})[tag] || (R._rgb[tag] = hex2rgb(G.C[tag].color));
 function paintPixel(i, fill, hov, sel) {
   const tc = MAP.terrainCol, d = R.img.data, o = i * 4;
   let r = tc[o], g = tc[o + 1], b = tc[o + 2];
-  const oc = R.occ[MAP.stateOf[i]];
+  const pr = G.P ? G.P[MAP.provOf[i]] : null;
   if (fill[3] > 0) {
     const a = fill[3];
     // modula con la luminancia del terreno para conservar el relieve
     const lum = 0.55 + 0.9 * ((r * 0.3 + g * 0.59 + b * 0.11) / 255);
     r = r * (1 - a) + fill[0] * lum * a; g = g * (1 - a) + fill[1] * lum * a; b = b * (1 - a) + fill[2] * lum * a;
   }
-  if (oc) {
-    const rk = MAP.pxRank[i];
-    if (rk >= 0) {
-      const x = i % MAP_W, y = (i / MAP_W) | 0, st = ((x + y) >> 1) & 1;
-      if (Math.abs(rk - oc.frac) < oc.fw) { if (st) { r = 255; g = 232; b = 130; } else { r = 150; g = 22; b = 22; } }
-      else if (rk < oc.frac) { const k = st ? 0.78 : 0.45; r = r * (1 - k) + oc.rgb[0] * k; g = g * (1 - k) + oc.rgb[1] * k; b = b * (1 - k) + oc.rgb[2] * k; }
-    }
-  }
+  if (pr && R.anyOcc) {
+    const nbp = MAP.pnb[i], nby = nbp !== NOPROV ? G.P[nbp].by : null, by = pr.by;
+    const x = i % MAP_W, y = (i / MAP_W) | 0, st = ((x + y) >> 1) & 1;
+    if (nbp !== NOPROV && by !== nby) { if (st) { r = 255; g = 232; b = 130; } else { r = 150; g = 22; b = 22; } }
+    else if (by) { const k = st ? 0.78 : 0.45, rgb = R.occRGB(by); r = r * (1 - k) + rgb[0] * k; g = g * (1 - k) + rgb[1] * k; b = b * (1 - k) + rgb[2] * k; }
+    else if (MAP.pedge[i]) { r *= 0.84; g *= 0.84; b *= 0.84; }
+  } else if (MAP.pedge[i]) { r *= 0.84; g *= 0.84; b *= 0.84; }
   const e = MAP.edge[i];
   if (e === 2) { r = r * 0.35 + 18; g = g * 0.35 + 18; b = b * 0.35 + 22; }
   else if (e === 1) { r *= 0.72; g *= 0.72; b *= 0.72; }
@@ -340,11 +341,8 @@ function setHover(id) {
   R.hoverTimer = setTimeout(() => { R.hoverTimer = null; const nw = R.hoverWant; if (nw === R.hover) return; const old = R.hover; R.hover = nw; repaintState(old); repaintState(nw); }, 45);
 }
 function onFrontChanged(ids) {
-  ids.forEach(sid => {
-    const s = G.S[sid]; if (!s) return;
-    if ((s.occ || 0) > 0 && s.occBy) R.occ[sid] = {frac: s.occ, rgb: hex2rgb(G.C[s.occBy].color), fw: clamp(1.8 / Math.sqrt(Math.max(1, MAP.stats[sid].area)), 0.012, 0.15)}; else delete R.occ[sid];
-    repaintState(sid);
-  });
+  R.anyOcc = G.P.some(p => p.by);
+  ids.forEach(sid => { if (G.S[sid]) repaintState(sid); });
 }
 function setSelected(id) { const old = R.sel; R.sel = id; repaintState(old); repaintState(id); }
 function setMapMode(m) { R.mode = m; fullRepaint(); }
@@ -425,7 +423,7 @@ function updateArmyTokens() {
   wanted.forEach(([a, i, n]) => {
     let el = R.ak[a.id];
     if (!el) { el = document.createElement('div'); el.className = 'atoken'; el.dataset.aid = a.id; el.dataset.act = 'seltoken'; el.dataset.id = a.id; R.markerRoot.appendChild(el); R.ak[a.id] = el; }
-    const c = stateCenter(G.S[a.loc]); const p = worldToScreen(c[0], 0.5, -c[1]);
+    const pv = MAP.provs[a.loc]; const p = worldToScreen(pv.lon, 0.5, -pv.lat);
     const off = (i - (n - 1) / 2) * 30;
     const x = p[0] + off, y = p[1] + (a.tag === G.player ? 0 : 0);
     if (x < -40 || x > cw + 40 || y < -40 || y > ch + 40) { el.style.display = 'none'; return; }
@@ -445,7 +443,7 @@ function drawOrders() {
   const sel = window.UI && UI.selArmy; let h = '';
   G.armies.forEach(a => {
     if (!a.path.length || !(a.tag === G.player || a.id === sel)) return;
-    const pts = [a.loc].concat(a.path).map(sid => { const c = stateCenter(G.S[sid]); const p = worldToScreen(c[0], 0.5, -c[1]); return p[0].toFixed(1) + ',' + p[1].toFixed(1); });
+    const pts = [a.loc].concat(a.path).map(pid => { const pv = MAP.provs[pid]; const p = worldToScreen(pv.lon, 0.5, -pv.lat); return p[0].toFixed(1) + ',' + p[1].toFixed(1); });
     const last = pts[pts.length - 1].split(',');
     h += `<polyline points="${pts.join(' ')}" class="${a.id === sel ? 'sel' : ''}"/><circle cx="${last[0]}" cy="${last[1]}" r="5" class="${a.id === sel ? 'sel' : ''}"/>`;
   });
@@ -455,7 +453,7 @@ function drawOrders() {
 function updateMarkers() {
   if (!R.markerRoot) return;
   const want = [];
-  G.battles.forEach(b => { if (G.S[b.state]) want.push({id: 'bt' + b.id, state: b.state, ch: '⚔️', cls: 'war'}); });
+  G.battles.forEach(b => { if (G.S[b.state]) want.push({id: 'bt' + b.id, state: b.state, prov: b.prov, ch: '⚔️', cls: 'war'}); });
   const me = G.C[G.player];
   if (me && me.capital >= 0) want.push({id: 'cap', state: me.capital, ch: '★', cls: 'cap'});
   if (me && me.colonizing) want.push({id: 'col', state: me.colonizing.state, ch: '⚓', cls: 'col'});
@@ -465,7 +463,7 @@ function updateMarkers() {
   for (const k in R.mk) if (!ids.has(k)) { R.mk[k].remove(); delete R.mk[k]; }
   want.forEach(w => {
     let el = R.mk[w.id]; if (!el) { el = document.createElement('div'); el.className = 'marker ' + w.cls; el.textContent = w.ch; R.markerRoot.appendChild(el); R.mk[w.id] = el; }
-    const c = stateCenter(G.S[w.state]); const p = worldToScreen(c[0], 0.6, -c[1]);
+    const c = w.prov !== undefined ? [MAP.provs[w.prov].lon, MAP.provs[w.prov].lat] : stateCenter(G.S[w.state]); const p = worldToScreen(c[0], 0.6, -c[1]);
     el.style.transform = `translate(-50%,-100%) translate(${p[0].toFixed(1)}px,${p[1].toFixed(1)}px)`;
   });
 }

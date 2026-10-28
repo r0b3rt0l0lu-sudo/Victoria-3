@@ -63,7 +63,7 @@ function createWorld(playerTag) {
   G.date = {y: START_YEAR, m: 0, d: 1, t: 0};
   G.player = playerTag; G.paused = true; G.speed = 2; G.week = 0; G.notifs = []; G.pendingEvent = null;
   G.log = []; G.wars = []; G.nextWarId = 1; G.eventCool = {};
-  G.armies = []; G.battles = []; G.recruits = []; G.nextArmyId = 1; G.nextBattleId = 1; G.hostile = new Set();
+  G.armies = []; G.battles = []; G.recruits = []; G.nextArmyId = 1; G.nextBattleId = 1; G.hostile = new Set(); G.occList = []; initProvinceState();
   G.crises = []; G.diff = G.diff || 2; G.pacts = []; G.blocs = []; G.proposals = []; G.nextId = 1; G.pt = {}; G.fx = {}; G.cycle = 0;
   G.C = {};
   Object.keys(COUNTRY_DATA).forEach(t => G.C[t] = mkCountry(t));
@@ -196,14 +196,14 @@ function saveData() {
   const S = G.S.map(s => { const o = {}; SK.forEach(k => o[k] = s[k]); return o; });
   const C = {};
   G.tags.forEach(t => { const c = G.C[t]; C[t] = JSON.parse(JSON.stringify(c, (k, v) => v instanceof Set ? {__set: [...v]} : v)); });
-  return JSON.stringify({v: 1, date: G.date, player: G.player, week: G.week, S, C, price: G.price, avail: G.avail, prod: G.prod, dem: G.dem, ratio: G.ratio, stock: G.stock, hist: G.hist, wars: G.wars, nextWarId: G.nextWarId, log: G.log.slice(0, 80), eventCool: G.eventCool, armies: G.armies, battles: G.battles, recruits: G.recruits, nextArmyId: G.nextArmyId, nextBattleId: G.nextBattleId, pacts: G.pacts, blocs: G.blocs, proposals: G.proposals, crises: G.crises, diff: G.diff, nextId: G.nextId, pt: G.pt, afterPanic: G.afterPanic, potato: G.potato});
+  return JSON.stringify({v: 1, date: G.date, player: G.player, week: G.week, S, C, price: G.price, avail: G.avail, prod: G.prod, dem: G.dem, ratio: G.ratio, stock: G.stock, hist: G.hist, wars: G.wars, nextWarId: G.nextWarId, log: G.log.slice(0, 80), eventCool: G.eventCool, v2: 2, P: provSave(), ext: saveExtra(), armies: G.armies, battles: G.battles, recruits: G.recruits, nextArmyId: G.nextArmyId, nextBattleId: G.nextBattleId, pacts: G.pacts, blocs: G.blocs, proposals: G.proposals, crises: G.crises, diff: G.diff, nextId: G.nextId, pt: G.pt, afterPanic: G.afterPanic, potato: G.potato});
 }
 function loadData(text) {
   const d = JSON.parse(text, (k, v) => v && v.__set ? new Set(v.__set) : v);
   createWorld(d.player);
   d.S.forEach((o, i) => Object.assign(G.S[i], o));
   G.tags.forEach(t => { if (d.C[t]) Object.assign(G.C[t], d.C[t]); });
-  G.armies = d.armies || []; G.battles = d.battles || []; G.recruits = d.recruits || []; G.nextArmyId = d.nextArmyId || 1000; G.nextBattleId = d.nextBattleId || 1000; G.hostile = new Set();
+  G.armies = d.armies || []; G.battles = d.battles || []; G.recruits = d.recruits || []; G.nextArmyId = d.nextArmyId || 1000; G.nextBattleId = d.nextBattleId || 1000; G.hostile = new Set(); if (d.v2 === 2) provLoad(d.P); loadExtra(d.ext);
   G.pacts = d.pacts || []; G.blocs = d.blocs || []; G.proposals = d.proposals || []; G.crises = d.crises || []; G.diff = d.diff || 2; G.nextId = d.nextId || 1000; G.pt = d.pt || {}; G.afterPanic = d.afterPanic; G.potato = d.potato;
   G.date = d.date; G.week = d.week; G.wars = d.wars; G.nextWarId = d.nextWarId; G.log = d.log; G.eventCool = d.eventCool || {};
   Object.assign(G.price, d.price); Object.assign(G.avail, d.avail); Object.assign(G.prod, d.prod); Object.assign(G.dem, d.dem); Object.assign(G.ratio, d.ratio); Object.assign(G.stock, d.stock);
@@ -212,7 +212,7 @@ function loadData(text) {
   G.tags.forEach(t => { G.C[t].ai = t !== d.player; G.C[t].states = []; });
   G.S.forEach(s => G.C[s.owner].states.push(s.id));
   refreshOwnerOf();
-  if (!d.armies) initArmies();
+  if (d.v2 !== 2) initArmies();
   G.paused = true;
   return d;
 }
@@ -906,7 +906,7 @@ function stepColonize(c) {
 
 function transferState(s, tag) {
   const old = G.C[s.owner]; const nw = G.C[tag];
-  s.occ = 0; s.occBy = null;
+  s.occ = 0; s.occBy = null; clearProvOcc(s.id);
   if (old.tag !== NONE && !old.claims.some(x => x.state === s.id)) old.claims.push({state: s.id, perm: true});
   nw.claims = nw.claims.filter(x => x.state !== s.id);
   old.states = old.states.filter(i => i !== s.id);

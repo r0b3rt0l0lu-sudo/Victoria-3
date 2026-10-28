@@ -111,9 +111,9 @@ function buildHud() {
   $('#minimap').addEventListener('mousedown', e => minimapJump(e));
   $('#minimap').addEventListener('mousemove', e => { if (e.buttons) minimapJump(e); });
   $('#crest').innerHTML = '';
-  syncCamBtns();
+  syncCamBtns(); iconize($('#hud'));
 }
-function syncCamBtns() { const w = $('#btn-wheel'), e2 = $('#btn-edge'); if (w) { w.classList.toggle('on', R.wheelMode === 'pan'); w.textContent = R.wheelMode === 'pan' ? '🖐️' : '🖱️'; } if (e2) e2.classList.toggle('on', !!R.edgeScroll); }
+function syncCamBtns() { const w = $('#btn-wheel'), e2 = $('#btn-edge'); if (w) { w.classList.toggle('on', R.wheelMode === 'pan'); w.innerHTML = icon(R.wheelMode === 'pan' ? 'hand' : 'mouse'); } if (e2) e2.classList.toggle('on', !!R.edgeScroll); }
 function minimapJump(e) {
   const r = e.currentTarget.getBoundingClientRect();
   const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
@@ -165,7 +165,7 @@ function renderWindow(fresh) {
   const scs = {}; if (prev && !fresh) $$('.scrollable', root).forEach((e, i) => scs[i] = e.scrollTop);
   root.classList.add('open');
   root.innerHTML = `<div class="window w-${UI.win}"><div class="whead"><span class="wicon">${w.icon}</span><h2>${w.title}</h2><button class="x" data-act="closewin">✕</button></div><div class="wbody">${w.render()}</div></div>`;
-  const nb = root.querySelector('.wbody'); if (nb) nb.scrollTop = sc;
+  iconize(root); const nb = root.querySelector('.wbody'); if (nb) nb.scrollTop = sc;
   if (!fresh) $$('.scrollable', root).forEach((e, i) => { if (scs[i] !== undefined) e.scrollTop = scs[i]; });
 }
 
@@ -432,9 +432,9 @@ WINDOWS.diplomacy = {title: 'Diplomacia', icon: '🤝', render() {
 /* --- Ejército y guerra --- */
 const stars = n => '★'.repeat(n) + '<span class="dim">' + '★'.repeat(5 - n) + '</span>';
 function armyRowHtml(a) {
-  const s = G.S[a.loc], eta = armyEta(a);
-  const stat = a.battle ? '<span class="tag bad">⚔ En combate</span>' : a.path.length ? `<span class="tag">➜ ${G.S[a.dest != null ? a.dest : a.path[a.path.length - 1]].name} · ${eta} d</span>` : '<span class="tag good">En posición</span>';
-  return `<tr data-act="selarmy" data-id="${a.id}" class="${UI.selArmy === a.id ? 'sel' : ''}"><td><b>${a.name}</b><br><small class="dim">${a.gen.name} (nv. ${a.gen.lvl})</small></td><td>${s.name}</td><td class="r">${a.divs.length}</td><td class="r">${fmtN(armyMen(a) / 1000, 1)}</td><td class="r">${Math.round(armyStr(a) * 100)}%</td><td class="r">${Math.round(armyOrg(a) * 100)}%</td><td>${stat}</td></tr>`;
+  const eta = armyEta(a);
+  const stat = a.battle ? '<span class="tag bad">⚔ En combate</span>' : a.path.length ? `<span class="tag">➜ ${provName(a.dest != null ? a.dest : a.path[a.path.length - 1])} · ${eta} d</span>` : '<span class="tag good">En posición</span>';
+  return `<tr data-act="selarmy" data-id="${a.id}" class="${UI.selArmy === a.id ? 'sel' : ''}"><td><b>${a.name}</b><br><small class="dim">${a.gen.name} (nv. ${a.gen.lvl})</small></td><td>${armyStateName(a)}</td><td class="r">${a.divs.length}</td><td class="r">${fmtN(armyMen(a) / 1000, 1)}</td><td class="r">${Math.round(armyStr(a) * 100)}%</td><td class="r">${Math.round(armyOrg(a) * 100)}%</td><td>${stat}</td></tr>`;
 }
 WINDOWS.military = {title: 'Ejército y guerra', icon: '⚔️', render() {
   const c = me(), st = c.stats, tab = curTab('mil', 'armies');
@@ -496,37 +496,37 @@ function renderArmyPanel() {
   const root = $('#armypanel'); if (!root) return;
   const a = UI.selArmy ? armyById(UI.selArmy) : null;
   if (!a) { UI.selArmy = null; root.classList.remove('open'); root.innerHTML = ''; return; }
-  const own = a.tag === G.player, s = G.S[a.loc];
+  const own = a.tag === G.player;
   const others = own ? armiesAt(a.loc).filter(o => o !== a && o.tag === a.tag && !o.battle) : [];
   const cnt = {}; a.divs.forEach(d => cnt[d.t] = (cnt[d.t] || 0) + 1);
   const b = a.battle ? G.battles.find(x => x.id === a.battle) : null;
   root.classList.add('open');
-  root.innerHTML = `<div class="sp-head">${flag(a.tag, 'md')}<div><h2>${a.name}</h2><small>${G.C[a.tag].name} · ${s.name}</small></div><button class="x" data-act="armyclose">✕</button></div>
+  root.innerHTML = `<div class="sp-head">${flag(a.tag, 'md')}<div><h2>${a.name}</h2><small>${G.C[a.tag].name} · ${armyStateName(a)}</small></div><button class="x" data-act="armyclose">✕</button></div>
   <div class="gen"><b>🎖️ ${a.gen.name}</b> <small>nivel ${a.gen.lvl}</small>
     <div class="kv sm"><span>Ataque</span><span class="gs">${stars(a.gen.atk)}</span></div><div class="kv sm"><span>Defensa</span><span class="gs">${stars(a.gen.def)}</span></div><div class="kv sm"><span>Logística</span><span class="gs">${stars(a.gen.log)}</span></div></div>
   <div class="kv"><span>Fuerza</span><b>${Math.round(armyStr(a) * 100)}%</b></div>${bar(armyStr(a), 1, '')}
   <div class="kv"><span>Organización</span><b>${Math.round(armyOrg(a) * 100)}%</b></div>${bar(armyOrg(a), 1, 'warn')}
   <div class="kv"><span>Hombres</span><b>${fmtN(armyMen(a), 0)}</b></div>
   <div class="kv"><span>Composición</span><b>${Object.keys(cnt).map(k => DIVS[k].icon + ' ' + cnt[k]).join(' · ')}</b></div>
-  <div class="kv"><span>Orden</span><b>${a.battle ? '⚔ En combate' + (b ? ` (día ${b.day})` : '') : a.path.length ? `➜ ${G.S[a.dest != null ? a.dest : a.path[a.path.length - 1]].name} · ${armyEta(a)} d` : 'Esperando órdenes'}</b></div>
+  <div class="kv"><span>Orden</span><b>${a.battle ? '⚔ En combate' + (b ? ` (día ${b.day})` : '') : a.path.length ? `➜ ${provName(a.dest != null ? a.dest : a.path[a.path.length - 1])} · ${armyEta(a)} d` : 'Esperando órdenes'}</b></div>
   <div class="divl">${a.divs.map(d => `<div class="dv" data-tip="${DIVS[d.t].name}: fuerza ${Math.round(d.s * 100)}%, organización ${Math.round(d.o / DIVS[d.t].org * 100)}%">${DIVS[d.t].icon}<i style="height:${Math.round(d.s * 100)}%"></i><u style="height:${Math.round(d.o / DIVS[d.t].org * 100)}%"></u></div>`).join('')}</div>
   ${own ? `<p class="hint">🖱️ <b>Clic derecho</b> en un estado para mover este ejército.</p>
   <div class="btnrow"><button data-act="armystop" ${a.path.length ? '' : 'disabled'}>✋ Detener</button><button data-act="armycap" ${a.battle ? 'disabled' : ''}>★ A la capital</button><button data-act="armysplit" ${a.divs.length < 2 || a.battle ? 'disabled' : ''}>✂ Dividir</button><button data-act="armydisband" ${a.battle ? 'disabled' : ''}>✖ Disolver</button></div>
   ${others.length ? `<div class="btnrow">${others.map(o => `<button data-act="armymerge" data-id="${o.id}" ${a.divs.length + o.divs.length > MAX_DIVS_ARMY ? 'disabled' : ''}>⛓ Fusionar con ${o.name} (${o.divs.length})</button>`).join('')}</div>` : ''}` : '<p class="hint">Ejército extranjero.</p>'}
-  <div class="btnrow"><button data-act="focus" data-id="${a.loc}">📍 Centrar</button></div>`;
+  <div class="btnrow"><button data-act="focusprov" data-id="${a.loc}">📍 Centrar</button></div>`;
 }
-window.onMapRightClick = (id) => {
+window.onMapRightClick = (sid, e, pid) => {
   const a = UI.selArmy ? armyById(UI.selArmy) : null;
-  if (!a || a.tag !== G.player || id < 0) return;
-  if (id === a.loc) { a.path = []; renderArmyPanel(); return; }
-  const r = orderMove(a, id);
+  if (!a || a.tag !== G.player || pid === undefined || pid < 0) return;
+  if (pid === a.loc) { a.path = []; renderArmyPanel(); return; }
+  const r = orderMove(a, pid);
   if (!r.ok) { toast('⚠️', r.msg); return; }
-  toast('➜', `${a.name} marcha hacia ${G.S[id].name} (${r.eta} días).`);
+  toast('➜', `${a.name} marcha hacia ${provName(pid)} (${r.eta} días).`);
   renderArmyPanel(); R.labelsDirty = true;
 };
 document.addEventListener('contextmenu', e => {
   const t = e.target.closest && e.target.closest('.atoken');
-  if (t) { e.preventDefault(); const a = armyById(+t.dataset.aid); if (a && window.onMapRightClick) window.onMapRightClick(a.loc); }
+  if (t) { e.preventDefault(); const a = armyById(+t.dataset.aid); if (a && window.onMapRightClick) window.onMapRightClick(provState(a.loc), e, a.loc); }
 });
 
 function crisisTab() {
@@ -716,6 +716,7 @@ const ACT = {
   enact: d => { const r = startLawChange(me(), d.id); if (!r.ok) toast('⚠️', r.msg); else toast('📜', 'La reforma ha entrado en debate parlamentario.'); renderWindow(); },
   dipsel: d => { UI.dipSel = d.tag; renderWindow(); },
   focus: d => { focusState(+d.id, 55); },
+  focusprov: d => { focusProv(+d.id, 40); },
   colonize: d => { if (startColonize(me(), +d.id)) toast('⚓', 'Comienza la colonización.'); renderWindow(); renderStatePanel(); },
   build: d => { if (queueBuild(me(), +d.id, d.b)) toast('🏗️', `${BLD[d.b].name} añadido a la cola de construcción.`); else toast('⚠️', 'No se puede construir ahí.'); renderStatePanel(); },
   cancelq: d => { me().queue.splice(+d.i, 1); renderWindow(); },
@@ -779,7 +780,7 @@ const ACT = {
   cont: () => doLoad(true),
   pickc: d => selectStartCountry(d.tag),
   filterc: () => {},
-  selarmy: d => { selectArmy(+d.id); const a = armyById(+d.id); if (a) focusState(a.loc, 45); renderWindow(); },
+  selarmy: d => { selectArmy(+d.id); const a = armyById(+d.id); if (a) focusProv(a.loc, 40); renderWindow(); },
   seltoken: d => { selectArmy(+d.id); if (UI.win === 'military') renderWindow(); },
   armyclose: () => selectArmy(null),
   armystop: () => { const a = armyById(UI.selArmy); if (a) { a.path = []; a.dest = null; renderArmyPanel(); R.labelsDirty = true; } },

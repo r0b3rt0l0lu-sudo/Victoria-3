@@ -182,8 +182,7 @@ function recruitSides(w) {
 /* ---------- frentes y ocupación ---------- */
 function prepareFronts(w) {
   const sideTags = (list) => new Set(list);
-  w.targets.forEach(sid => { if (typeof computeFrontRank === 'function') computeFrontRank(sid, sideTags(w.attAll)); });
-  w.cTargets.forEach(sid => { if (typeof computeFrontRank === 'function') computeFrontRank(sid, sideTags(w.defAll)); });
+  void sideTags;
 }
 function setOcc(sid, frac, by, changed) {
   const s = G.S[sid]; if (!s) return;
@@ -277,7 +276,8 @@ function endWar(w, winner) {
 }
 function clearOccupationKeep(w) {
   const ch = new Set();
-  G.S.forEach(s => { if ((s.occ || 0) > 0 && s.occBy && ((w.attAll.includes(s.occBy) && w.defAll.includes(s.owner)) || (w.defAll.includes(s.occBy) && w.attAll.includes(s.owner)))) { s.occ = 0; s.occBy = null; s._occNotified = false; ch.add(s.id); } });
+  G.P.forEach((p, pid) => { const sid = provState(pid), o = G.S[sid].owner; if ((p.by || p.prog > 0) && ((w.attAll.includes(p.by || p.pby) && w.defAll.includes(o)) || (w.defAll.includes(p.by || p.pby) && w.attAll.includes(o)))) { p.by = null; p.prog = 0; ch.add(sid); MAP.provs[pid].nb.forEach(q => ch.add(provState(q))); } });
+  ch.forEach(sid => { const s = G.S[sid]; refreshStateOcc(sid); s._occNotified = false; });
   if (ch.size && typeof onFrontChanged === 'function') onFrontChanged(ch);
 }
 

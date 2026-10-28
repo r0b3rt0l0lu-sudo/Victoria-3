@@ -16,7 +16,7 @@ function newGeneral() {
 function nextArmyId() { G.nextArmyId = (G.nextArmyId || 1); return G.nextArmyId++; }
 function mkDivision(type) { return {t: type, s: 1, o: DIVS[type].org}; }
 function mkArmy(tag, loc, divs, name) {
-  const a = {id: nextArmyId(), tag, loc, divs: divs || [], gen: newGeneral(), path: [], hop: 0, battle: null, from: null, arrived: G.date.t, rest: 0, name: name || ''};
+  const a = {id: nextArmyId(), tag, loc, divs: divs || [], gen: newGeneral(), path: [], hop: 0, battle: null, from: null, arrived: G.date.t, rest: 0, dig: 0, sup: 1, front: null, plan: null, name: name || ''};
   if (!a.name) a.name = `${armyOrdinal(tag)}.º Ejército`;
   G.armies.push(a); return a;
 }
@@ -30,59 +30,44 @@ function countDivs(tag) { let n = 0; G.armies.forEach(a => { if (a.tag === tag) 
 function divLimit(c) { return Math.max(0, Math.floor(c.stats.soldiers / MEN_PER_DIV)); }
 function armiesPower(tag) { let p = 0; armiesOf(tag).forEach(a => a.divs.forEach(d => p += d.s * (DIVS[d.t].att + DIVS[d.t].def))); return p; }
 
-/* ---------- terreno y movimiento ---------- */
-function terrainInfo(s) {
-  if (s._terr) return s._terr;
-  const b = MAP.stats[s.id].biomes, tot = Math.max(1, b.reduce((x, y) => x + y, 0));
-  const mnt = (b[BIOME.MOUNTAIN] + b[BIOME.SNOW]) / tot, frs = b[BIOME.FOREST] / tot, jun = b[BIOME.JUNGLE] / tot, des = b[BIOME.DESERT] / tot;
-  s._terr = {move: 1 + 1.4 * mnt + 0.5 * frs + 0.8 * jun + 0.4 * des, def: 1 + 0.35 * mnt + 0.12 * frs + 0.2 * jun, mnt};
-  return s._terr;
-}
+
+/* ---------- terreno y movimiento (sobre provincias) ---------- */
+const armyState = a => provState(a.loc);
+const armyStateName = a => { const p = MAP.provs[a.loc]; return G.S[p.s].name + (MAP.stats[p.s].provs.length > 1 ? ' (prov. ' + (MAP.stats[p.s].provs.indexOf(a.loc) + 1) + ')' : ''); };
+const provName = pid => { const p = MAP.provs[pid]; return G.S[p.s].name + (MAP.stats[p.s].provs.length > 1 ? ' (prov. ' + (MAP.stats[p.s].provs.indexOf(pid) + 1) + ')' : ''); };
 function hopDays(a, fromId, toId) {
-  const A = G.S[fromId], B = G.S[toId]; const c = G.C[a.tag];
+  const B = MAP.provs[toId]; const c = G.C[a.tag];
   let spd = 9; a.divs.forEach(d => { spd = Math.min(spd, DIVS[d.t].spd); }); if (spd === 9) spd = 1;
-  const lg = 1 + 0.1 * (a.gen.log - 1) + (c.mods.logistics || 0);
-  return clamp(Math.round(distStates(A, B) * 1.8 * terrainInfo(B).move / spd / lg), 2, 45);
+  const lg = 1 + 0.1 * (a.gen.log - 1) + (c.mods.logistics || 0) + (typeof docMod === 'function' ? docMod(a.tag, 'spd') : 0);
+  const so = G.S[B.s]; const rail = (so.owner === a.tag || sameSide(a.tag, so.owner)) ? 1 - Math.min(0.35, (so.infra || 0) * 0.05) : 1;
+  return clamp(Math.round(provDist(fromId, toId) * 1.9 * B.terr.move * rail / spd / lg), 1, 16);
 }
 function sameSide(ta, tb) {
   if (ta === tb) return true;
   return G.wars.some(w => (w.attAll.includes(ta) && w.attAll.includes(tb)) || (w.defAll.includes(ta) && w.defAll.includes(tb))) || !!pactBetween('alliance', ta, tb);
 }
 function hostileTags(ta, tb) { return G.hostile && G.hostile.has(ta + '|' + tb); }
-function canEnter(tag, sid) {
+function canEnterState(tag, sid) {
   const o = G.S[sid].owner;
   if (o === tag || o === NONE || sameSide(tag, o) || hostileTags(tag, o)) return true;
   // en guerra se puede atravesar territorio neutral, salvo el de países con pacto de no agresión, garantía o alianza con nosotros
   return G.C[tag].wars.length > 0 && !anyPactBetween(tag, o, ['nonagg', 'guarantee', 'alliance']) && !G.C[o].overlord && G.C[o].bloc !== G.C[tag].bloc;
 }
+const canEnter = (tag, pid) => canEnterState(tag, provState(pid));
 function recalcHostile() {
   const h = new Set();
   G.wars.forEach(w => w.attAll.forEach(x => w.defAll.forEach(y => { h.add(x + '|' + y); h.add(y + '|' + x); })));
   G.hostile = h;
 }
-// Dijkstra por días de marcha entre estados (solo estados permitidos)
 function findPath(a, dest) {
   if (dest === a.loc) return [];
-  const dist = new Map([[a.loc, 0]]), prev = new Map(); const open = [[0, a.loc]]; const done = new Set();
-  while (open.length) {
-    open.sort((x, y) => x[0] - y[0]); const [d, u] = open.shift();
-    if (done.has(u)) continue; done.add(u);
-    if (u === dest) break;
-    for (const v of G.S[u].neigh) {
-      if (done.has(v) || !canEnter(a.tag, v)) continue;
-      const nd = d + hopDays(a, u, v);
-      if (nd < (dist.get(v) ?? 1e9)) { dist.set(v, nd); prev.set(v, u); open.push([nd, v]); }
-    }
-  }
-  if (!prev.has(dest)) return null;
-  const path = []; let cur = dest; while (cur !== a.loc) { path.unshift(cur); cur = prev.get(cur); }
-  return path;
+  return pathProvs(a.loc, dest, (u, v) => canEnter(a.tag, v), (u, v) => hopDays(a, u, v), 6000);
 }
-function orderMove(a, dest) {
+function orderMove(a, dest, keepPlan) {
   if (a.battle) return {ok: false, msg: 'El ejército está en combate.'};
   const p = findPath(a, dest);
-  if (p === null) return {ok: false, msg: 'No hay un camino terrestre permitido hasta ese estado.'};
-  a.path = p; a.dest = dest; a.hop = p.length ? hopDays(a, a.loc, p[0]) : 0;
+  if (p === null) return {ok: false, msg: 'No hay un camino terrestre permitido hasta esa provincia.'};
+  a.path = p; a.dest = dest; a.hop = p.length ? hopDays(a, a.loc, p[0]) : 0; if (!keepPlan) { a.front = null; a.plan = null; }
   return {ok: true, eta: p.reduce((t, s, i) => t + hopDays(a, i ? p[i - 1] : a.loc, s), 0)};
 }
 function armyEta(a) {
@@ -90,12 +75,13 @@ function armyEta(a) {
 }
 function stepMove(a) {
   if (a.battle || !a.path.length) return;
+  if (a.sup !== undefined && a.sup < 0.25 && Math.random() < 0.4) return;      // sin suministro avanza más despacio
   a.hop--;
   if (a.hop > 0) return;
   const next = a.path[0];
   if (!canEnter(a.tag, next)) { a.path = []; return; }
   a.from = a.loc; a.loc = next; a.arrived = G.date.t; a.path.shift();
-  a.rest = 0;
+  a.rest = 0; a.dig = 0;
   if (a.path.length) a.hop = hopDays(a, a.loc, a.path[0]); else a.dest = null;
 }
 
@@ -106,8 +92,8 @@ function sideOfBattle(b, army) {
   if (hostileTo(b.B)) return 'A';
   return null;
 }
-function createBattles(byState) {
-  byState.forEach((list, sid) => {
+function createBattles(byProv) {
+  byProv.forEach((list, pid) => {
     if (list.length < 2) return;
     list.forEach(a => {
       if (a.battle) return;
@@ -116,31 +102,36 @@ function createBattles(byState) {
       let b = foe.battle ? G.battles.find(x => x.id === foe.battle) : null;
       if (!b) {
         const attacker = a.arrived >= foe.arrived ? a : foe, defender = attacker === a ? foe : a;   // ataca quien llegó último
-        b = {id: G.nextBattleId++, state: sid, A: [attacker.id], B: [defender.id], day: 0, att: 'A'};
+        b = {id: G.nextBattleId++, prov: pid, state: provState(pid), A: [attacker.id], B: [defender.id], day: 0, att: 'A'};
         G.battles.push(b);
         attacker.battle = b.id; defender.battle = b.id; attacker.path = []; defender.path = [];
-        const msg = `¡Batalla en ${G.S[sid].name}! ${G.C[attacker.tag].name} ataca a ${G.C[defender.tag].name}.`;
-        if (attacker.tag === G.player || defender.tag === G.player) notify('war', msg, sid); else logMsg(msg);
+        const msg = `¡Batalla en ${provName(pid)}! ${G.C[attacker.tag].name} ataca a ${G.C[defender.tag].name}.`;
+        if (attacker.tag === G.player || defender.tag === G.player) notify('war', msg, b.state); else logMsg(msg);
       } else {
         const side = sideOfBattle(b, a);
         if (side) { b[side].push(a.id); a.battle = b.id; a.path = []; }
       }
     });
-    // incorporar el resto de ejércitos presentes
-    list.forEach(a => { if (a.battle) return; const b = G.battles.find(x => x.state === sid); if (b) { const side = sideOfBattle(b, a); if (side) { b[side].push(a.id); a.battle = b.id; a.path = []; } } });
+    list.forEach(a => { if (a.battle) return; const b = G.battles.find(x => x.prov === pid); if (b) { const side = sideOfBattle(b, a); if (side) { b[side].push(a.id); a.battle = b.id; a.path = []; } } });
   });
 }
 function sideStats(b, ids, isAttacker) {
   let F = 0, T = 0, n = 0, org = 0, orgN = 0;
-  const s = G.S[b.state]; const terr = terrainInfo(s);
+  const pv = MAP.provs[b.prov]; const terr = pv.terr;
   ids.forEach(id => {
     const a = armyById(id); if (!a) return;
     const c = G.C[a.tag];
-    const am = 1 + c.mods.army + (a.gen.atk - 1) * 0.05 + blocArmyBonus(c), dm = 1 + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05;
+    const dm0 = typeof docMod === 'function' ? docMod : () => 0;
+    const air = typeof airBonus === 'function' ? airBonus(a.tag, b.state) : 0;
+    const plan = a.plan && a.plan.ready ? 0.15 * Math.min(1, a.plan.days / 15) : 0;
+    const sup = typeof supplyMod === 'function' ? supplyMod(a) : 1;
+    const dig = isAttacker ? 0 : Math.min(5, a.dig || 0) * 0.04;
+    const am = (1 + c.mods.army + (a.gen.atk - 1) * 0.05 + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup;
+    const dm = (1 + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + dm0(a.tag, 'def') + air + dig) * sup;
     a.divs.forEach(d => {
       const info = DIVS[d.t];
-      if (n < BATTLE_WIDTH) {
-        const str = d.s * (0.55 + 0.45 * d.o / info.org);
+      if (n < BATTLE_WIDTH + (terr.mnt > 0.4 ? -2 : 0)) {
+        const str = d.s * (0.55 + 0.45 * d.o / info.org) * (typeof equipMod === 'function' ? equipMod(a.tag, d.t) : 1);
         F += info.att * str * am; T += info.def * str * dm * (isAttacker ? 1 : terr.def);
         n++;
       }
@@ -160,8 +151,6 @@ function battleDay(b) {
   const apply = (armies, orgLoss) => {
     let lost = 0;
     armies.forEach(a => {
-      const c = G.C[a.tag];
-      let w = 0;
       a.divs.forEach((d, i) => {
         if (i >= BATTLE_WIDTH) return;
         const info = DIVS[d.t];
@@ -169,10 +158,9 @@ function battleDay(b) {
         const sl = (orgLoss / 100) * 0.38 * (0.6 + 0.8 * (1 - d.o / info.org));
         d.s = Math.max(0, d.s - sl); lost += sl * MEN_PER_DIV;
       });
-      // las divisiones destruidas desaparecen
       a.divs = a.divs.filter(d => d.s > 0.04);
-      if (a.divs.length === 0) { a._dead = true; }
-      void c; void w;
+      if (a.divs.length === 0) a._dead = true;
+      if (typeof useAmmo === 'function') useAmmo(a);
     });
     return lost;
   };
@@ -180,48 +168,56 @@ function battleDay(b) {
   b.lostA = (b.lostA || 0) + lostA; b.lostB = (b.lostB || 0) + lostB;
   A.forEach(a => bleed(a.tag, lostA / Math.max(1, A.length))); B.forEach(a => bleed(a.tag, lostB / Math.max(1, B.length)));
   b.rA = rBA; b.rB = rAB; b.orgA = sa.org; b.orgB = sb.org;
-  // fin del combate
   G.armies = G.armies.filter(a => !a._dead);
   const A2 = b.A.map(armyById).filter(Boolean), B2 = b.B.map(armyById).filter(Boolean);
   const oA = A2.length ? sideStats(b, b.A, true).org : 0, oB = B2.length ? sideStats(b, b.B, true).org : 0;
   if (!A2.length || !B2.length) { endBattle(b, A2.length ? 'A' : 'B'); return; }
   if (b.day >= 3 && (oA < 0.18 || oB < 0.18)) endBattle(b, oA < oB ? 'B' : 'A');
 }
-// Bajas: se restan de la población de reclutamiento del país
+// Bajas: se restan de la población de reclutamiento del país y suben el cansancio de guerra
 function bleed(tag, men) {
   if (men <= 0) return;
   const c = G.C[tag]; if (!c || !c.states.length) return;
   c.cnt = c.cnt || {}; c.cnt.casualties = (c.cnt.casualties || 0) + men;
+  c.wearV = (c.wearV || 0) + men / Math.max(1e5, c.stats.pop) * 40;
   let left = men;
   for (let k = 0; k < 4 && left > 0; k++) { const s = G.S[pick(c.states)]; const take = Math.min(left, (s.pops.peasants || 0) * 0.02); s.pops.peasants -= take; left -= take; }
 }
 function endBattle(b, winner) {
   G.battles = G.battles.filter(x => x !== b);
   const win = (winner === 'A' ? b.A : b.B).map(armyById).filter(Boolean), lose = (winner === 'A' ? b.B : b.A).map(armyById).filter(Boolean);
-  win.forEach(a => { a.battle = null; a.rest = 0; a.gen.xp += 8; if (a.gen.xp >= a.gen.lvl * 30 && a.gen.lvl < 5) { a.gen.xp = 0; a.gen.lvl++; const k = pick(['atk', 'def', 'log']); a.gen[k] = Math.min(5, a.gen[k] + 1); if (a.tag === G.player) notify('war', `${a.gen.name} sube a nivel ${a.gen.lvl}.`); } });
-  lose.forEach(a => { a.battle = null; retreatArmy(a, b); });
-  // puntuación de batallas en las guerras implicadas
+  win.forEach(a => { a.battle = null; a.rest = 0; a.gen.xp += 8; gainXp(a.tag, 1.5); if (a.gen.xp >= a.gen.lvl * 30 && a.gen.lvl < 5) { a.gen.xp = 0; a.gen.lvl++; const k = pick(['atk', 'def', 'log']); a.gen[k] = Math.min(5, a.gen[k] + 1); if (a.tag === G.player) notify('war', `${a.gen.name} sube a nivel ${a.gen.lvl}.`); } });
+  lose.forEach(a => { a.battle = null; gainXp(a.tag, 0.5); retreatArmy(a, b); generalFate(a, b); });
   const wt = win[0] ? win[0].tag : null, lt = lose[0] ? lose[0].tag : null;
   if (wt && lt) G.wars.forEach(w => { const wa = w.attAll.includes(wt) && w.defAll.includes(lt), wd = w.defAll.includes(wt) && w.attAll.includes(lt); if (wa || wd) { w.bw = w.bw || {att: 0, def: 0}; if (wa) w.bw.att++; else w.bw.def++; } });
-  if (win[0] && (win[0].tag === G.player || (lose[0] && lose[0].tag === G.player))) notify('war', `Batalla de ${G.S[b.state].name}: victoria de ${G.C[wt].name}.`, b.state);
+  if (win[0] && (win[0].tag === G.player || (lose[0] && lose[0].tag === G.player))) notify('war', `Batalla de ${provName(b.prov)}: victoria de ${G.C[wt].name}.`, b.state);
+}
+// experiencia militar nacional (para doctrinas)
+function gainXp(tag, n) { const c = G.C[tag]; if (c) c.mxp = (c.mxp || 0) + n; }
+// el general derrotado puede morir o ser capturado
+function generalFate(a, b) {
+  if (Math.random() > 0.035) return;
+  const old = a.gen.name; a.gen = newGeneral();
+  if (a.tag === G.player) notify('war', `El general ${old} ha muerto en combate. ${a.gen.name} toma el mando de ${a.name}.`, b.state);
 }
 function retreatArmy(a, b) {
   const sidesOwn = tag => sameSide(a.tag, tag);
-  const nb = G.S[a.loc].neigh.filter(n => canEnter(a.tag, n) && !armiesAt(n).some(o => hostileTags(a.tag, o.tag)));
+  const nb = MAP.provs[a.loc].nb.filter(n => canEnter(a.tag, n) && !armiesAt(n).some(o => hostileTags(a.tag, o.tag)));
   let dest = nb.find(n => n === a.from) ?? null;
-  if (dest === null) dest = nb.sort((x, y) => (sidesOwn(G.S[y].owner) ? 1 : 0) - (sidesOwn(G.S[x].owner) ? 1 : 0))[0] ?? null;
-  a.path = [];
-  if (dest === null) {      // rodeado: pierde parte de la fuerza y se reorganiza en el estado propio más cercano
-    a.divs.forEach(d => { d.s *= 0.75; d.o *= 0.5; });
-    const home = nearestOwnState(a.tag, a.loc); if (home !== null) a.loc = home;
+  if (dest === null) dest = nb.sort((x, y) => (sidesOwn(provOwner(y)) ? 1 : 0) - (sidesOwn(provOwner(x)) ? 1 : 0))[0] ?? null;
+  a.path = []; a.dig = 0;
+  if (dest === null) {      // rodeado: pierde parte de la fuerza y se rinde parcialmente
+    a.divs.forEach(d => { d.s *= 0.7; d.o *= 0.4; });
+    a.divs = a.divs.filter(d => d.s > 0.1);
+    const home = nearestOwnProv(a.tag, a.loc); if (home !== null) a.loc = home;
     return;
   }
   a.loc = dest; a.from = null; a.arrived = G.date.t; a.divs.forEach(d => { d.o = Math.min(d.o, DIVS[d.t].org * 0.3); });
 }
-function armiesAt(sid) { return G.armies.filter(a => a.loc === sid); }
-function nearestOwnState(tag, from) {
+function armiesAt(pid) { return G.armies.filter(a => a.loc === pid); }
+function nearestOwnProv(tag, from) {
   const c = G.C[tag]; let best = null, bd = 1e9;
-  c.states.forEach(id => { if (armiesAt(id).some(o => hostileTags(tag, o.tag))) return; const d = distStates(G.S[from], G.S[id]); if (d < bd) { bd = d; best = id; } });
+  c.states.forEach(sid => MAP.stats[sid].provs.forEach(id => { if (armiesAt(id).some(o => hostileTags(tag, o.tag))) return; const d = provDist(from, id); if (d < bd) { bd = d; best = id; } }));
   return best;
 }
 
@@ -232,33 +228,36 @@ function militaryDay() {
   recalcHostileIfNeeded();
   if (G.armies.length) {
     G.armies.forEach(stepMove);
-    const byState = new Map();
-    G.armies.forEach(a => { (byState.get(a.loc) || byState.set(a.loc, []).get(a.loc)).push(a); });
-    createBattles(byState);
+    const byProv = new Map();
+    G.armies.forEach(a => { (byProv.get(a.loc) || byProv.set(a.loc, []).get(a.loc)).push(a); });
+    createBattles(byProv);
     G.battles.slice().forEach(battleDay);
+    if (typeof supplyDay === 'function') supplyDay();
     G.armies.forEach(a => {
       if (a.battle) return;
-      const own = G.S[a.loc].owner === a.tag || sameSide(a.tag, G.S[a.loc].owner);
-      a.rest++;
+      const owner = provOwner(a.loc), own = owner === a.tag || sameSide(a.tag, owner);
+      a.rest++; if (!a.path.length && a.rest % 4 === 0) a.dig = Math.min(5, (a.dig || 0) + 1);
+      const supK = Math.max(0.2, a.sup === undefined ? 1 : a.sup);
       a.divs.forEach(d => {
         const info = DIVS[d.t];
-        d.o = Math.min(info.org, d.o + info.org * (own ? 0.06 : 0.025) * (a.path.length ? 0.4 : 1));
-        if (own && d.s < 1 && !a.path.length) { const g = Math.min(1 - d.s, 0.006); const men = g * MEN_PER_DIV; const s = G.S[a.loc]; if ((s.pops.peasants || 0) > men * 4 && G.C[a.tag].treasury > -1e12) { d.s += g; s.pops.peasants -= men; } }
+        d.o = Math.min(info.org, d.o + info.org * (own ? 0.06 : 0.025) * (a.path.length ? 0.4 : 1) * supK);
+        if (own && d.s < 1 && !a.path.length && a.sup > 0.5) { const g = Math.min(1 - d.s, 0.006); const men = g * MEN_PER_DIV; const s = G.S[provState(a.loc)]; if ((s.pops.peasants || 0) > men * 4 && (typeof takeReplacements !== 'function' || takeReplacements(a.tag, d.t, g))) { d.s += g; s.pops.peasants -= men; } }
       });
     });
     occupationDay();
+    if (typeof frontsDay === 'function') frontsDay();
   }
-  // reclutamiento en curso
   for (let i = G.recruits.length - 1; i >= 0; i--) {
     const r = G.recruits[i]; r.days--;
     if (r.days > 0) continue;
     G.recruits.splice(i, 1);
     const c = G.C[r.tag]; if (!c || !c.states.length) continue;
-    const loc = G.S[r.state].owner === r.tag ? r.state : c.capital;
+    const sid = G.S[r.state].owner === r.tag ? r.state : c.capital;
+    const loc = stateCapitalProv(sid);
     let a = G.armies.find(x => x.tag === r.tag && x.loc === loc && !x.battle && x.divs.length < MAX_DIVS_ARMY && !x.path.length);
     if (!a) a = mkArmy(r.tag, loc, []);
     a.divs.push(mkDivision(r.type));
-    if (r.tag === G.player) notify('war', `Nueva división de ${DIVS[r.type].name.toLowerCase()} en ${G.S[loc].name}.`, loc);
+    if (r.tag === G.player) notify('war', `Nueva división de ${DIVS[r.type].name.toLowerCase()} en ${G.S[sid].name}.`, sid);
   }
   G.wars.forEach(w => { w.score = computeWarScore(w); });
 }
@@ -268,26 +267,35 @@ function recalcHostileIfNeeded() {
   if (sig !== _hostileSig) { _hostileSig = sig; recalcHostile(); }
 }
 
-/* ---------- ocupación ---------- */
+/* ---------- ocupación por provincias ---------- */
 function occupationDay() {
-  const changed = new Set();
-  const byState = new Map();
-  G.armies.forEach(a => { if (!a.battle) (byState.get(a.loc) || byState.set(a.loc, []).get(a.loc)).push(a); });
-  G.S.forEach(s => {
-    const owner = s.owner; if (owner === NONE) { if (s.occ) { s.occ = 0; s.occBy = null; changed.add(s.id); } return; }
-    const here = byState.get(s.id) || [];
-    const enemy = here.find(a => hostileTags(a.tag, owner)), friend = here.some(a => a.tag === owner || sameSide(a.tag, owner) && !hostileTags(a.tag, owner));
-    let occ = s.occ || 0, by = s.occBy;
+  const changedProv = new Set(), changedState = new Set();
+  const byProv = new Map();
+  G.armies.forEach(a => { if (!a.battle) (byProv.get(a.loc) || byProv.set(a.loc, []).get(a.loc)).push(a); });
+  // solo se revisan las provincias con tropas y las que tienen una ocupación en curso
+  const check = new Set(byProv.keys()); G.occList = (G.occList || []).filter(pid => G.P[pid].by || G.P[pid].prog > 0); G.occList.forEach(p => check.add(p));
+  check.forEach(pid => {
+    const pr = G.P[pid], sid = provState(pid), s = G.S[sid], owner = s.owner;
+    if (owner === NONE) { if (pr.by) { pr.by = null; pr.prog = 0; changedProv.add(pid); } return; }
+    const here = byProv.get(pid) || [];
+    const enemy = here.find(a => hostileTags(a.tag, owner)), friend = here.some(a => a.tag === owner || (sameSide(a.tag, owner) && !hostileTags(a.tag, owner)));
+    const before = pr.by;
     if (enemy && !friend) {
-      if (!by || by === enemy.tag || !sameSide(by, enemy.tag)) { by = enemy.tag; }
-      if (occ === 0 && typeof computeFrontRank === 'function') { const w = G.wars.find(x => (x.attAll.includes(enemy.tag) && x.defAll.includes(owner)) || (x.defAll.includes(enemy.tag) && x.attAll.includes(owner))); const side = new Set(w ? (w.attAll.includes(enemy.tag) ? w.attAll : w.defAll) : [enemy.tag]); computeFrontRank(s.id, side); }
-      occ = Math.min(1, occ + 0.1);
-    } else if (friend && occ > 0) occ = Math.max(0, occ - 0.2);
-    else if (!enemy && occ > 0 && occ < 1) occ = Math.max(0, occ - 0.1);
-    occ = Math.round(occ * 100) / 100;
-    if (occ !== (s.occ || 0) || (occ > 0 && by !== s.occBy)) { s.occ = occ; s.occBy = occ > 0 ? by : null; changed.add(s.id); if (occ >= 1 && !s._occNotified) { s._occNotified = true; if (owner === G.player || by === G.player) notify('war', `${G.S[s.id].name} ha sido ocupada por ${G.C[by].name}.`, s.id); } if (occ === 0) s._occNotified = false; }
+      if (!pr.by || (pr.by !== enemy.tag && !sameSide(pr.by, enemy.tag))) { if (pr.by) { pr.by = null; pr.prog = 0; } }
+      if (!pr.by) { pr.prog = (pr.prog || 0) + 1; pr.pby = enemy.tag; if (pr.prog >= OCC_DAYS) { pr.by = enemy.tag; pr.prog = OCC_DAYS; } }
+    } else if (friend && (pr.by || pr.prog > 0)) { pr.prog = Math.max(0, pr.prog - 2); if (pr.prog <= 0 || pr.by) { if (pr.by && pr.prog <= OCC_DAYS - 3) { pr.by = null; pr.prog = 0; } } }
+    if (pr.by !== before) { changedProv.add(pid); changedState.add(sid); }
+    if ((pr.by || pr.prog > 0) && !G.occList.includes(pid)) G.occList.push(pid);
   });
-  if (changed.size && typeof onFrontChanged === 'function') onFrontChanged(changed);
+  const sts = new Set(); changedProv.forEach(pid => sts.add(provState(pid)));
+  sts.forEach(sid => {
+    const s = G.S[sid], was = s.occ || 0;
+    refreshStateOcc(sid);
+    if ((s.occ || 0) >= 1 && !s._occNotified) { s._occNotified = true; if (s.owner === G.player || s.occBy === G.player) notify('war', `${s.name} ha sido ocupada por ${G.C[s.occBy].name}.`, sid); }
+    if ((s.occ || 0) === 0) s._occNotified = false;
+    void was; changedState.add(sid);
+  });
+  if (changedProv.size) { const ids = new Set(changedState); changedProv.forEach(pid => MAP.provs[pid].nb.forEach(q => ids.add(provState(q)))); if (typeof onFrontChanged === 'function') onFrontChanged(ids); }
 }
 
 /* ---------- puntuación de guerra a partir de hechos ---------- */
@@ -303,6 +311,7 @@ function computeWarScore(w) {
   if (cap(w.def, w.attAll)) sc += 25; if (cap(w.att, w.defAll)) sc -= 25;
   w.targets.forEach(sid => { const s = G.S[sid]; if (s.owner === w.def && s.occ >= 1) sc += 10; });
   const bw = w.bw || {att: 0, def: 0}; sc += clamp((bw.att - bw.def) * 1.5, -15, 15);
+  if (typeof blockadeScore === 'function') sc += blockadeScore(w);
   return clamp(Math.round(sc), -100, 100);
 }
 function sideStrength(list) { let t = 0; list.forEach(tag => armiesOf(tag).forEach(a => a.divs.forEach(d => t += d.s * DIVS[d.t].att))); return Math.round(t); }
@@ -320,13 +329,13 @@ function canRecruit(c, sid, type) {
 }
 function recruit(c, sid, type) {
   const err = canRecruit(c, sid, type); if (err) return {ok: false, msg: err};
-  const s = G.S[sid]; c.treasury -= recruitCost(c, type); s.pops.peasants -= MEN_PER_DIV;
+  const s = G.S[sid]; if (typeof takeEquipForDiv === 'function') { const m = takeEquipForDiv(c, type); if (m) return {ok: false, msg: m}; } c.treasury -= recruitCost(c, type); s.pops.peasants -= MEN_PER_DIV;
   G.recruits.push({tag: c.tag, state: sid, type, days: DIVS[type].days});
   return {ok: true};
 }
 function disbandArmy(a) {
   if (a.battle) return;
-  const men = armyMen(a), s = G.S[a.loc]; if (s && s.owner === a.tag) s.pops.peasants += men * 0.8;
+  const men = armyMen(a), s = G.S[provState(a.loc)]; if (s && s.owner === a.tag) s.pops.peasants += men * 0.8;
   G.armies = G.armies.filter(x => x !== a);
 }
 function splitArmy(a) {
@@ -340,14 +349,16 @@ function mergeArmies(a, b) {
   a.divs = a.divs.concat(b.divs); G.armies = G.armies.filter(x => x !== b); return true;
 }
 
+
 /* ---------- ejércitos iniciales ---------- */
 function initArmies() {
-  G.armies = []; G.battles = []; G.recruits = []; G.nextArmyId = 1; G.nextBattleId = 1;
+  G.armies = []; G.battles = []; G.recruits = []; G.nextArmyId = 1; G.nextBattleId = 1; G.occList = [];
+  initProvinceState();
   G.tags.forEach(t => {
     if (t === NONE) return; const c = G.C[t]; if (!c.states.length) return;
     const lim = divLimit(c); let n = Math.min(Math.floor(lim * 0.7), 160); if (n < 1 && lim >= 1) n = 1; if (!n || lim < 1) return;
     const barr = c.states.filter(id => G.S[id].b.barracks >= 1);
-    const homes = barr.length ? barr : [c.capital >= 0 ? c.capital : c.states[0]];
+    const homes = (barr.length ? barr : [c.capital >= 0 ? c.capital : c.states[0]]).map(stateCapitalProv);
     let hi = 0;
     while (n > 0) {
       const k = Math.min(n, 6 + Math.floor(Math.random() * 3)); const divs = [];
@@ -359,6 +370,11 @@ function initArmies() {
 }
 
 /* ---------- IA militar ---------- */
+function enemyProvList(t, enemies) {
+  const out = [];
+  enemies.forEach(e => G.C[e].states.forEach(id => MAP.stats[id].provs.forEach(pid => { const pr = G.P[pid]; if (pr.by && sameSide(t, pr.by)) return; out.push(pid); })));
+  return out;
+}
 function aiMilitary() {
   G.tags.forEach(t => {
     if (t === NONE) return; const c = G.C[t];
@@ -366,40 +382,41 @@ function aiMilitary() {
     const enemies = G.tags.filter(o => hostileTags(t, o));
     if (!enemies.length) return;
     const mine = armiesOf(t).filter(a => !a.battle);
-    const capital = c.capital;
-    // 1) defender la capital si hay enemigos cerca
-    const threat = capital >= 0 && G.S[capital].neigh.concat([capital]).some(n => armiesAt(n).some(o => hostileTags(t, o.tag)));
+    const capital = c.capital; const capP = capital >= 0 ? stateCapitalProv(capital) : -1;
+    const capNear = capital >= 0 ? new Set(MAP.stats[capital].provs.concat(...MAP.stats[capital].provs.map(p => MAP.provs[p].nb))) : new Set();
+    const threat = capital >= 0 && [...capNear].some(n => armiesAt(n).some(o => hostileTags(t, o.tag)));
+    let eList = null;
     mine.forEach(a => {
+      if (a.front) return;
       if (a.path.length && !threat) return;
-      if (threat && capital >= 0 && a.loc !== capital) { const near = distStates(G.S[a.loc], G.S[capital]) < 14; if (near || mine.length < 3) { orderMove(a, capital); return; } }
+      if (threat && capP >= 0 && !capNear.has(a.loc)) { const near = provDist(a.loc, capP) < 12; if (near || mine.length < 3) { orderMove(a, capP); return; } }
       if (a.path.length) return;
-      // 2) atacar el estado enemigo vecino más débil / objetivo de guerra
       const strA = armyStr(a) * a.divs.length;
-      if (armyOrg(a) < 0.55 && G.S[a.loc].owner === t) return;                  // se reorganiza
+      if ((armyOrg(a) < 0.55 || (a.sup !== undefined && a.sup < 0.4)) && provOwner(a.loc) === t) return;
       const cands = [];
-      const consider = sid => {
-        if (!canEnter(t, sid)) return;
-        const foes = armiesAt(sid).filter(o => hostileTags(t, o.tag)); const fs = foes.reduce((x, o) => x + armyStr(o) * o.divs.length, 0);
-        const owner = G.S[sid].owner; const enemyOwned = owner !== NONE && hostileTags(t, owner);
+      MAP.provs[a.loc].nb.forEach(pid => {
+        if (!canEnter(t, pid)) return;
+        const foes = armiesAt(pid).filter(o => hostileTags(t, o.tag)); const fs = foes.reduce((x, o) => x + armyStr(o) * o.divs.length, 0);
+        const owner = provOwner(pid); const enemyOwned = owner !== NONE && hostileTags(t, owner);
         if (!enemyOwned && !foes.length) return;
         if (fs > strA * 1.3) return;
-        let score = 10 - fs * 2 + (enemyOwned ? 4 : 0) + (G.S[sid].occ >= 1 && G.S[sid].occBy === t ? -8 : 0) + (G.S[sid].occ < 1 ? 2 : 0);
+        const pr = G.P[pid];
+        let score = 10 - fs * 2 + (enemyOwned ? 4 : 0) + (pr.by && sameSide(t, pr.by) ? -8 : 0) + (!pr.by ? 2 : 0);
+        const sid = provState(pid);
         G.wars.forEach(w => { if (w.targets.includes(sid) && w.attAll.includes(t)) score += 6; });
         if (enemies.some(e => G.C[e].capital === sid)) score += 5;
-        cands.push({sid, score});
-      };
-      G.S[a.loc].neigh.forEach(consider);
-      // enemigos dentro de nuestro territorio: ir a por ellos
+        cands.push({pid, score});
+      });
       if (!cands.length) {
         let tgt = null, td = 1e9;
-        G.armies.forEach(o => { if (!hostileTags(t, o.tag) || o.battle) return; const os = G.S[o.loc].owner; if (os !== t && !sameSide(t, os)) return; const d = distStates(G.S[a.loc], G.S[o.loc]); if (d < td && armyStr(o) * o.divs.length < strA * 1.4) { td = d; tgt = o.loc; } });
+        G.armies.forEach(o => { if (!hostileTags(t, o.tag) || o.battle) return; const os = provOwner(o.loc); if (os !== t && !sameSide(t, os)) return; const d = provDist(a.loc, o.loc); if (d < td && armyStr(o) * o.divs.length < strA * 1.4) { td = d; tgt = o.loc; } });
         if (tgt !== null && tgt !== a.loc) { orderMove(a, tgt); return; }
       }
-      if (cands.length) { cands.sort((x, y) => y.score - x.score); orderMove(a, cands[0].sid); return; }
-      // 3) marchar hacia la frontera enemiga más cercana
+      if (cands.length) { cands.sort((x, y) => y.score - x.score); orderMove(a, cands[0].pid); return; }
+      eList = eList || enemyProvList(t, enemies);
       let best = null, bd = 1e9;
-      enemies.forEach(e => G.C[e].states.forEach(id => { if (G.S[id].occ >= 1 && G.S[id].occBy && sameSide(t, G.S[id].occBy)) return; const d = distStates(G.S[a.loc], G.S[id]) - (G.wars.some(w => w.targets.includes(id)) ? 5 : 0); if (d < bd) { bd = d; best = id; } }));
-      if (best !== null && best !== a.loc) { const p = findPath(a, best); if (p && p.length) { a.path = p.slice(0, 40); a.dest = best; a.hop = hopDays(a, a.loc, p[0]); } }
+      eList.forEach(pid => { const d = provDist(a.loc, pid) - (G.wars.some(w => w.targets.includes(provState(pid))) ? 4 : 0); if (d < bd) { bd = d; best = pid; } });
+      if (best !== null && best !== a.loc) { const p = findPath(a, best); if (p && p.length) { a.path = p.slice(0, 60); a.dest = best; a.hop = hopDays(a, a.loc, p[0]); } }
     });
   });
 }
@@ -419,9 +436,9 @@ function aiRecruitWeek() {
 }
 function evacuateForeignArmies() {
   G.armies.forEach(a => {
-    const o = G.S[a.loc].owner;
+    const o = provOwner(a.loc);
     if (!(o === a.tag || o === NONE || sameSide(a.tag, o) || hostileTags(a.tag, o)) && !a.battle) {
-      const home = nearestOwnState(a.tag, a.loc); if (home !== null) { a.loc = home; a.path = []; a.from = null; }
+      const home = nearestOwnProv(a.tag, a.loc); if (home !== null) { a.loc = home; a.path = []; a.from = null; }
     }
   });
 }
@@ -430,3 +447,9 @@ function cleanupArmies() {
   G.battles = G.battles.filter(b => b.A.some(id => armyById(id)) && b.B.some(id => armyById(id)));
   G.armies.forEach(a => { if (a.battle && !G.battles.some(b => b.id === a.battle)) a.battle = null; });
 }
+
+/* ---------- guardado de datos militares ---------- */
+function provSave() { const o = []; G.P.forEach((p, i) => { if (p.by || p.prog || p.fort) o.push([i, p.by, p.prog, p.pby || null, p.fort || 0]); }); return o; }
+function provLoad(list) { initProvinceState(); (list || []).forEach(([i, by, prog, pby, fort]) => { const p = G.P[i]; if (p) { p.by = by; p.prog = prog; p.pby = pby; p.fort = fort; } }); G.occList = (list || []).map(x => x[0]); G.S.forEach(s => refreshStateOcc(s.id)); }
+function saveExtra() { return {}; }
+function loadExtra(x) { void x; }

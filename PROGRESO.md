@@ -26,3 +26,10 @@
 
 ## Compilación
 `python3 build.py` → `index.html` (autónomo). `python3 build.py --light` → `juego-ligero.html` (three.js por CDN, necesita Internet).
+
+## Parte 2 — avance (sesión actual)
+- HECHO: **provincias** (≈830, 2–9 por estado; `src/provinces.js`), ejércitos y batallas por provincia, ocupación por provincia
+  (5 días), línea de frente dibujada entre provincias ocupadas y libres, A* sobre provincias, atrincheramiento, muerte de generales,
+  experiencia militar y cansancio de guerra (datos), guardado v2.
+- HECHO: **iconos SVG** (`src/icons.js`) en HUD, menú, cámara, modos de mapa y ventanas + pulido visual general (CSS).
+- PENDIENTE: suministro, producción de equipo, doctrinas, aviación, marina, frentes/planes, árbol nacional, ventanas nuevas.

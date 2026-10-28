@@ -103,7 +103,17 @@ function initRenderer(canvas) {
   geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   geo.setIndex(new THREE.BufferAttribute(idx, 1));
   geo.computeVertexNormals();
+  // textura de detalle que se repite: oculta el aspecto pixelado al acercar la cámara
+  const dc = document.createElement('canvas'); dc.width = dc.height = 128; const dg = dc.getContext('2d'), di = dg.createImageData(128, 128);
+  for (let y = 0; y < 128; y++) for (let x = 0; x < 128; x++) { const v = 0.5 * hash2(x, y, 41) + 0.5 * vnoise(x / 6, y / 6, 43); const o = (y * 128 + x) * 4; di.data[o] = di.data[o + 1] = di.data[o + 2] = v * 255; di.data[o + 3] = 255; }
+  dg.putImageData(di, 0, 0); R.detail = new THREE.CanvasTexture(dc); R.detail.wrapS = R.detail.wrapT = THREE.RepeatWrapping;
   const mat = new THREE.MeshLambertMaterial({map: R.tex});
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.detailMap = {value: R.detail}; R.detailU = sh.uniforms;
+    sh.uniforms.detailK = {value: 1}; 
+    sh.fragmentShader = sh.fragmentShader.replace('#include <map_pars_fragment>', '#include <map_pars_fragment>\nuniform sampler2D detailMap; uniform float detailK;')
+      .replace('#include <map_fragment>', '#include <map_fragment>\n float dt = texture2D(detailMap, vMapUv * vec2(130.0, 52.0)).r; float dt2 = texture2D(detailMap, vMapUv * vec2(21.0, 8.4)).r; diffuseColor.rgb *= 1.0 + detailK * ((dt - 0.5) * 0.28 + (dt2 - 0.5) * 0.18);');
+  };
   R.mesh = new THREE.Mesh(geo, mat);
   R.scene.add(R.mesh);
   R.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
@@ -148,31 +158,6 @@ function animateMap(t) {
   R.waterU.t.value = t / 1000; R.cloudTex.offset.x = (t / 1000) * 0.0016; R.cloudTex.offset.y = (t / 1000) * 0.0004;
   const k = clamp((R.cam.dist - 45) / 70, 0, 1); R.cloudMesh.material.opacity = 0.42 * k; R.cloudMesh.visible = k > 0.02;
   return true;
-}
-function buildCities() {
-  if (R.cityMesh || !G.S || !G.S.length) return;
-  const items = [];
-  G.S.forEach(s => {
-    const pop = popTotal(s) || 0; if (!pop) return;
-    const n = clamp(Math.round(Math.sqrt(pop / 220000)), 1, 7), prov = MAP.provs[stateCapitalProv(s.id)];
-    for (let k = 0; k < n; k++) {
-      let px = prov.px, py = prov.py;
-      if (k) { const a = hash2(s.id, k, 17) * 6.283, r = 2 + hash2(s.id, k, 19) * 9; const qx = Math.round(px + Math.cos(a) * r), qy = Math.round(py + Math.sin(a) * r * 0.9); const qi = qy * MAP_W + qx; if (qx > 0 && qy > 0 && qx < MAP_W && qy < MAP_H && MAP.land[qi] && MAP.stateOf[qi] === s.id) { px = qx; py = qy; } }
-      const hh = MAP.height[py * MAP_W + px] * R.exag;
-      items.push({sid: s.id, x: xToLon(px), z: -yToLat(py), y: hh, h: 0.12 + Math.min(1, Math.sqrt(pop) / 2500) * 0.38 * (k === 0 ? 1 : 0.55) + hash2(s.id, k, 23) * 0.08, w: 0.09 + (k === 0 ? 0.06 : 0.02) + Math.min(0.05, pop / 6e7)});
-    }
-  });
-  const geo = new THREE.BoxGeometry(1, 1, 1); geo.translate(0, 0.5, 0);
-  const mesh = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({color: 0xffffff}), items.length);
-  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3();
-  items.forEach((it, i) => { p.set(it.x, it.y, it.z); sc.set(it.w, it.h, it.w); m4.compose(p, q, sc); mesh.setMatrixAt(i, m4); });
-  mesh.instanceMatrix.needsUpdate = true; R.cityMesh = mesh; R.cityItems = items; R.scene.add(mesh);
-  updateCityColors();
-}
-function updateCityColors() {
-  if (!R.cityMesh) return; const c = new THREE.Color();
-  R.cityItems.forEach((it, i) => { const s = G.S[it.sid]; const base = [0.62, 0.56, 0.48]; let col = base; if (s.owner !== NONE && G.C[s.owner]) { const rgb = R.occRGB(s.owner); col = [base[0] * 0.4 + rgb[0] / 255 * 0.6, base[1] * 0.4 + rgb[1] / 255 * 0.6, base[2] * 0.4 + rgb[2] / 255 * 0.6]; } c.setRGB(col[0], col[1], col[2]); R.cityMesh.setColorAt(i, c); });
-  if (R.cityMesh.instanceColor) R.cityMesh.instanceColor.needsUpdate = true;
 }
 function resizeRenderer() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -479,7 +464,7 @@ function updateArmyTokens() {
     if (!el) { el = document.createElement('div'); el.className = 'atoken'; el.dataset.aid = a.id; el.dataset.act = 'seltoken'; el.dataset.id = a.id; R.markerRoot.appendChild(el); R.ak[a.id] = el; }
     const pv = MAP.provs[a.loc]; let plon = pv.lon, plat = pv.lat;
     if (a.path.length && a.hopMax > 0 && !a.battle) { const nx = MAP.provs[a.path[0]], f = clamp(1 - a.hop / a.hopMax, 0, 1); plon += (nx.lon - plon) * f; plat += (nx.lat - plat) * f; }
-    const p = worldToScreen(plon, 0.5, -plat);
+    const p = worldToScreen(plon, R.cam.dist < 62 ? 1.0 : 0.5, -plat);
     const off = (i - (n - 1) / 2) * 30;
     const x = p[0] + off, y = p[1] + (a.tag === G.player ? 0 : 0);
     if (x < -40 || x > cw + 40 || y < -40 || y > ch + 40) { el.style.display = 'none'; return; }
@@ -517,7 +502,7 @@ function updateMarkers() {
   if (me && me.colonizing) want.push({id: 'col', state: me.colonizing.state, ch: '⚓', cls: 'col'});
   R.mk = R.mk || {};
   const ids = new Set(want.map(w => w.id));
-  updateArmyTokens();
+  updateArmyTokens(); if (!R.anim) updateArmyMeshes(performance.now());
   for (const k in R.mk) if (!ids.has(k)) { R.mk[k].remove(); delete R.mk[k]; }
   want.forEach(w => {
     let el = R.mk[w.id]; if (!el) { el = document.createElement('div'); el.className = 'marker ' + w.cls; el.textContent = w.ch; if (w.id.startsWith('bt')) { el.dataset.act = 'selbattle'; el.dataset.id = w.id.slice(2); } R.markerRoot.appendChild(el); R.mk[w.id] = el; }
@@ -545,7 +530,7 @@ function frame_(t) {
   const dt = Math.min(0.1, (t - _lastT) / 1000); _lastT = t;
   keyboardPan(dt);
   if (R.cityMesh === undefined && G.S && G.S.length && MAP.provs) { try { buildCities(); } catch (e) { console.warn(e); } R.cityMesh = R.cityMesh || null; R.dirty = true; }
-  if (R.anim && t - (R.lastAnim || 0) > 55) { R.lastAnim = t; if (animateMap(t)) R.dirty = true; }
+  if (R.anim && t - (R.lastAnim || 0) > 55) { R.lastAnim = t; if (animateMap(t)) R.dirty = true; if (G.armies && G.armies.length && (R.cam.dist < 62 || R.figsShown)) updateArmyMeshes(t); }
   if (R.dirty || R.labelsDirty) {
     updateCamera();
     const t0 = performance.now(); R.renderer.render(R.scene, R.camera);

@@ -282,6 +282,43 @@ svg.orders circle{fill:#9fd37a;stroke:#000}svg.orders circle.sel{fill:#fff}
 .dv i{position:absolute;left:0;bottom:0;width:4px;background:#79c35a}.dv u{position:absolute;right:0;bottom:0;width:4px;background:#e0b04a}
 .divt{margin-bottom:8px}.divt small{display:block;color:var(--dim)}
 tr.sel td{background:rgba(201,166,87,.18)}
+
+/* ===== pulido visual e iconos ===== */
+.ic{width:1.15em;height:1.15em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.2em;flex:none}
+.chip>b{display:flex;font-size:16px;color:var(--gold2)}
+#ch-treasury>b{color:#e8c95a}#ch-balance>b{color:#9fd37a}#ch-prestige>b{color:#f0b84a}#ch-influence>b{color:#79b8e8}#ch-innov>b{color:#ffe28a}#ch-leg>b{color:#c9b6f0}#ch-pop>b{color:#e0b690}#ch-sol>b{color:#d9a35e}#ch-crisis>b{color:#e0705a}#ch-mail>b{color:#9fd0f5}
+.chip{background:linear-gradient(180deg,rgba(0,0,0,.45),rgba(0,0,0,.25));box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.chip.clk:hover{border-color:var(--gold2);filter:brightness(1.2)}
+.mbtn{color:var(--gold2);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(0,0,0,.7),inset 0 0 0 2px rgba(0,0,0,.45),inset 0 2px 0 rgba(255,255,255,.12)}
+.mbtn span{display:flex;font-size:26px}.mbtn .ic{stroke-width:1.5}
+.mbtn.on{color:#fff6d6;box-shadow:0 0 14px rgba(236,214,151,.55),inset 0 0 0 2px rgba(0,0,0,.4)}
+.rbtn{color:var(--gold2);display:flex;align-items:center;justify-content:center;font-size:20px;transition:transform .12s,filter .12s}
+.rbtn:hover{transform:scale(1.1);filter:brightness(1.3)}
+#camctl button{color:var(--gold2);display:flex;align-items:center;justify-content:center}
+#camctl button.on{background:#6a5524;color:#fff6d6}
+.mode{color:var(--gold2);display:flex;align-items:center;justify-content:center;font-size:16px}
+.mode.on{color:#fff6d6;box-shadow:0 0 8px rgba(236,214,151,.5)}
+.wicon{display:flex;font-size:28px;color:var(--gold2)}
+.whead{background:linear-gradient(180deg,rgba(201,166,87,.16),rgba(201,166,87,0) 85%);border-bottom:1px solid var(--goldd)}
+.whead h2{text-shadow:0 2px 3px #000;letter-spacing:.08em}
+.tabs .tab{transition:background .12s,color .12s}
+.tabs .tab:hover{background:rgba(201,166,87,.16)}
+.tabs .tab.on{background:linear-gradient(180deg,#8a6f2f,#5b4818);color:#fff6d6;box-shadow:inset 0 1px 0 rgba(255,255,255,.2)}
+.card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.015));border:1px solid rgba(201,166,87,.22);box-shadow:0 2px 6px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.04)}
+.card h3{border-bottom:1px solid rgba(201,166,87,.28);padding-bottom:5px}
+.tbl tbody tr:nth-child(even){background:rgba(255,255,255,.025)}
+.tbl.clickable tbody tr:hover{background:rgba(201,166,87,.14)}
+button:not(:disabled){transition:filter .12s,transform .08s}
+button:not(:disabled):active{transform:translateY(1px)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.bar{border-radius:6px;overflow:hidden;box-shadow:inset 0 1px 3px rgba(0,0,0,.6)}
+.bar>i{background:linear-gradient(180deg,#8cc96d,#4c8a35)}
+.bar.warn>i{background:linear-gradient(180deg,#f0c860,#a67c1c)}
+#tooltip{border:1px solid var(--gold);box-shadow:0 6px 20px rgba(0,0,0,.7);backdrop-filter:blur(2px)}
+.toast{border-left:3px solid var(--gold);box-shadow:0 4px 14px rgba(0,0,0,.6)}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-track{background:rgba(0,0,0,.25)}::-webkit-scrollbar-thumb{background:#5b4a22;border-radius:6px;border:2px solid #1b232a}::-webkit-scrollbar-thumb:hover{background:var(--gold)}
+.atoken .ic{width:12px;height:12px}
+.tbl button{white-space:nowrap}
 </style>
 </head>
 <body>
@@ -300,6 +337,63 @@ tr.sel td{background:rgba(201,166,87,.18)}
 <div id="loading"><h1>VICTORIA</h1><div class="lb"><i></i></div><p id="loadtxt">Cargando…</p></div>
 <script src="https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.min.js"></script>
 <script>
+/* ===== ICONOS SVG (sustituyen a los emojis, que se ven distinto en cada sistema) ===== */
+const ICON_PATHS = {
+  coin: 'M12 4a8 8 0 100 16 8 8 0 000-16zM12 7.5v9M9.6 9.6c0-1 1-1.7 2.4-1.7s2.4.7 2.4 1.7c0 2.3-4.8 1.2-4.8 3.7 0 1 1 1.7 2.4 1.7s2.4-.7 2.4-1.7',
+  scale: 'M12 4v16M7 20h10M4 7h16M4 7l-2.5 6a2.8 2.8 0 005 0zM20 7l-2.5 6a2.8 2.8 0 005 0z',
+  trophy: 'M8 4h8v5a4 4 0 01-8 0zM8 6H4v1a4 4 0 004 4M16 6h4v1a4 4 0 01-4 4M12 13v4M8 20h8M10 17h4',
+  globe: 'M12 3a9 9 0 100 18 9 9 0 000-18zM3 12h18M12 3c3.5 3.5 3.5 14.500 0 18M12 3c-3.500 3.500-3.500 14.500 0 18',
+  bulb: 'M9 18h6M10 21h4M12 3a6 6 0 00-3.500 10.900c.6.500 1 1.200 1 2.100h5c0-.9.4-1.600 1-2.100A6 6 0 0012 3z',
+  columns: 'M3 9l9-5 9 5H3zM5.500 9v9M9.800 9v9M14.200 9v9M18.500 9v9M3 20.500h18',
+  people: 'M9 11a3.500 3.500 0 100-7 3.500 3.500 0 000 7zM2.500 20c0-3.600 2.900-6 6.500-6s6.500 2.400 6.500 6M16 4.300a3.300 3.300 0 010 6.400M18 14.400c2 .8 3.500 2.600 3.500 5.600',
+  bread: 'M4 13c0-3.500 3-6 8-6s8 2.500 8 6v4H4zM8 11l1 2.500M12 10l1 2.500M16 11l1 2.500',
+  chartdown: 'M3 4v16h18M7 8l4 4 3-3 5 6M19 11v4h-4',
+  chartup: 'M3 4v16h18M7 15l4-4 3 3 5-6M15 8h4v4',
+  mail: 'M3 6h18v12H3zM3.500 7l8.500 6.500L20.500 7',
+  search: 'M10.500 4a6.500 6.500 0 100 13 6.500 6.500 0 000-13zM15.500 15.500L21 21',
+  medal: 'M12 14a5 5 0 100-10 5 5 0 000 10zM8.500 13.500L7 21l5-3 5 3-1.500-7.500',
+  save: 'M4 4h13l3 3v13H4zM8 4v5h7V4M8 20v-6h8v6',
+  folder: 'M3 6h6l2 2h10v11H3z',
+  scroll: 'M8 4h10a2 2 0 012 2v1H10M8 4a2 2 0 00-2 2v11a3 3 0 003 3h9a2 2 0 002-2V7M9.500 11h7M9.500 15h5',
+  book: 'M4 5a2 2 0 012-2h13v16H6a2 2 0 00-2 2zM4 19a2 2 0 012-2h13M9 7h6',
+  money: 'M3 7h18v10H3zM12 9.500a2.500 2.500 0 100 5 2.500 2.500 0 000-5zM6.500 10v4M17.500 10v4',
+  factory: 'M3 20V10l6 4v-4l6 4V5h3v15zM7 17h2M12 17h2',
+  handshake: 'M2 12l5-4.500 4 2 4-2L20 12l-5 5-3-1-2.500 2.500-3-1.500zM7 7.500L3.500 11M16.500 7.500L20 11',
+  swords: 'M4 4l10 10M4 4v4.500l1 1M20 4L10 14M20 4v4.500l-1 1M9 15l-4 4M15 15l4 4M5 17l2 2M17 17l-2 2',
+  hammer: 'M14 4l6 6-3 3-6-6zM12 9l-8 8 3 3 8-8',
+  flag: 'M5 21V4M5 4h13l-3 4 3 4H5',
+  wflag: 'M5 21V4M5 4h13v9H5',
+  mountain: 'M2 20l7-13 4 7 3-4 6 10z',
+  fire: 'M12 3c1 4 5 5 5 10a5 5 0 01-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3 0-6 1-9z',
+  home: 'M3 11l9-7 9 7M5 10v10h14V10M10 20v-6h4v6',
+  rotl: 'M4 12a8 8 0 108-8M4 4v5h5',
+  rotr: 'M20 12a8 8 0 11-8-8M20 4v5h-5',
+  tiltu: 'M6 15l6-6 6 6',
+  tiltd: 'M6 9l6 6 6-6',
+  mouse: 'M12 3a5 5 0 00-5 5v8a5 5 0 0010 0V8a5 5 0 00-5-5zM12 7v4',
+  hand: 'M8 12V6a1.500 1.500 0 013 0v5M11 11V4.500a1.500 1.500 0 013 0V11M14 11V6a1.500 1.500 0 013 0v7c0 4-2 7-6 7-3 0-5-2-6-5l-2-4a1.500 1.500 0 012.500-1L8 14',
+  edge: 'M4 4h6M4 4v6M4 4l7 7M20 20h-6M20 20v-6M20 20l-7-7',
+  anchor: 'M12 5a2 2 0 100-4 2 2 0 000 4zM12 5v16M7 11H4a8 8 0 0016 0h-3M8 9h8',
+  plane: 'M12 3l2 7 8 4v2l-8-2-1 5 3 2v1l-5-1-5 1v-1l3-2-1-5-8 2v-2l8-4z',
+  star: 'M12 3l2.800 5.800 6.200.9-4.500 4.400 1 6.200L12 17.400 6.500 20.300l1-6.200L3 9.700l6.200-.9z',
+  tree: 'M12 3v18M12 8l-5-3M12 12l6-3M12 16l-5-3M7 5v3M18 9v3',
+  ship: 'M3 15l2 5h14l2-5zM12 3v9M12 4l6 7h-6M12 6l-5 5h5',
+  shield: 'M12 3l8 3v6c0 5-3.500 8-8 9-4.500-1-8-4-8-9V6z',
+  helmet: 'M4 15a8 8 0 1116 0v3H4zM4 15h16M12 7v8',
+  cannon: 'M3 14l12-5 3 4-12 5zM17 13l4 3M5 20a3 3 0 100-6 3 3 0 000 6z',
+  horse: 'M5 20l2-7-3-3 4-3 3 1 3-4 2 3 4 4-2 3-3-1-2 7M9 7l-1-3'
+};
+const EMO_ICON = {'💰': 'coin', '⚖': 'scale', '🏆': 'trophy', '🕊': 'globe', '💡': 'bulb', '🏛': 'columns', '👥': 'people', '🍞': 'bread', '📉': 'chartdown', '✉': 'mail', '🔍': 'search', '🏅': 'medal', '💾': 'save', '📂': 'folder', '📜': 'scroll', '📖': 'book', '💷': 'money', '🏭': 'factory', '🤝': 'handshake', '⚔': 'swords', '🏗': 'hammer', '🏴': 'flag', '🏳': 'wflag', '⛰': 'mountain', '📈': 'chartup', '🔥': 'fire', '🏠': 'home', '⟲': 'rotl', '⟳': 'rotr', '⤒': 'tiltu', '⤓': 'tiltd', '🖱': 'mouse', '🖐': 'hand', '⇱': 'edge', '⚓': 'anchor', '✈': 'plane', '★': 'star'};
+function icon(name, cls) { const p = ICON_PATHS[name]; return p ? `<svg class="ic ${cls || ''}" viewBox="0 0 24 24" aria-hidden="true"><path d="${p}"/></svg>` : ''; }
+// sustituye el emoji de un elemento por su icono SVG
+function iconize(root) {
+  (root || document).querySelectorAll('.chip > b, .rbtn, .mbtn > span, #camctl button, .mode, .wicon, .mapbtn').forEach(el => {
+    if (el.dataset.ic) return;
+    const t = el.textContent.replace(/️/g, '').trim(); const n = EMO_ICON[t];
+    if (n) { el.innerHTML = icon(n); el.dataset.ic = n; }
+  });
+}
+
 /* ===== GEOGRAFÍA: contornos aproximados del mundo (lon, lat) ===== */
 const MAP_W = 2048, MAP_H = 820, LAT_TOP = 84, LAT_BOT = -60;
 
@@ -1389,6 +1483,7 @@ function buildMap() {
   for (let i = 0; i < N; i++) if (land[i]) order[pos[so[i]]++] = i;
   MAP.pixOff = off; MAP.pixOrder = order;
   MAP.edge = new Uint8Array(N);
+  buildProvinces();
   console.log('Mapa generado en', Math.round(performance.now() - t0), 'ms; estados:', S);
 }
 
@@ -1435,6 +1530,149 @@ function computeFrontRank(sid, sideTags) {
   }
   for (let k = 0; k < n; k++) rank[ord[off[sid] + k]] = (dist[k] < 0 ? mx : dist[k]) / mx;
   MAP.rankFor[sid] = key;
+}
+
+/* ===== PROVINCIAS: subdivisión de cada estado para mover tropas ===== */
+// Datos estáticos en MAP.provs / MAP.provOf; datos dinámicos (ocupación, fortificación) en G.P.
+const NOPROV = 65535;
+const OCC_DAYS = 5;            // días que debe mantenerse una provincia sin defensores para ocuparla
+
+function buildProvinces() {
+  const t0 = performance.now();
+  const W = MAP_W, H = MAP_H, N = W * H, land = MAP.land, so = MAP.stateOf;
+  const provOf = new Uint16Array(N).fill(NOPROV);
+  const provs = [];
+  const off = MAP.pixOff, ord = MAP.pixOrder;
+  const nb8 = [1, -1, W, -W, W + 1, W - 1, -W + 1, -W - 1];
+  const queue = new Int32Array(N);
+  for (let sid = 0; sid < MAP.stats.length; sid++) {
+    const st = MAP.stats[sid], n = off[sid + 1] - off[sid]; if (!n) continue;
+    const want = clamp(Math.round(n / 650), 2, 9);
+    // muestra de píxeles para elegir semillas (farthest-point + Lloyd)
+    const step = Math.max(1, Math.floor(n / 500)), sample = [];
+    for (let k = 0; k < n; k += step) { const i = ord[off[sid] + k]; sample.push([i % W, (i / W) | 0]); }
+    const cx = st.sx / st.area, cy = st.sy / st.area;
+    let first = sample[0], bd = 1e18; sample.forEach(p => { const d = (p[0] - cx) ** 2 + (p[1] - cy) ** 2; if (d < bd) { bd = d; first = p; } });
+    let seeds = [first];
+    const md = sample.map(p => (p[0] - first[0]) ** 2 + (p[1] - first[1]) ** 2);
+    while (seeds.length < want && seeds.length < sample.length) {
+      let bi = 0, bv = -1; md.forEach((v, i) => { if (v > bv) { bv = v; bi = i; } });
+      const p = sample[bi]; seeds.push(p);
+      sample.forEach((q, i) => { const d = (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2; if (d < md[i]) md[i] = d; });
+    }
+    for (let it = 0; it < 3; it++) {
+      const sx = seeds.map(() => 0), sy = seeds.map(() => 0), sn = seeds.map(() => 0);
+      sample.forEach(q => { let b = 0, v = 1e18; seeds.forEach((p, j) => { const d = (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2; if (d < v) { v = d; b = j; } }); sx[b] += q[0]; sy[b] += q[1]; sn[b]++; });
+      seeds = seeds.map((p, j) => { if (!sn[j]) return p; const mx = sx[j] / sn[j], my = sy[j] / sn[j]; let bp = p, bv = 1e18; sample.forEach(q => { const d = (q[0] - mx) ** 2 + (q[1] - my) ** 2; if (d < bv) { bv = d; bp = q; } }); return bp; });
+    }
+    // reparto por anchura (BFS multifuente dentro del estado)
+    const base = provs.length; let qh = 0, qt = 0;
+    const uniq = new Set();
+    seeds.forEach(p => { const i = p[1] * W + p[0]; if (uniq.has(i)) return; uniq.add(i); provs.push({s: sid}); provOf[i] = provs.length - 1; queue[qt++] = i; });
+    while (qh < qt) {
+      const i = queue[qh++], p = provOf[i], x = i % W;
+      for (let d = 0; d < 8; d++) {
+        const dx = d === 0 || d === 4 || d === 6 ? 1 : d === 1 || d === 5 || d === 7 ? -1 : 0;
+        if ((x === 0 && dx < 0) || (x === W - 1 && dx > 0)) continue;
+        const j = i + nb8[d]; if (j < 0 || j >= N || !land[j] || so[j] !== sid || provOf[j] !== NOPROV) continue;
+        provOf[j] = p; queue[qt++] = j;
+      }
+    }
+    // componentes sin semilla (islas): provincia propia
+    for (let k = off[sid]; k < off[sid + 1]; k++) {
+      const i0 = ord[k]; if (provOf[i0] !== NOPROV) continue;
+      provs.push({s: sid}); const p = provs.length - 1; provOf[i0] = p; qh = 0; qt = 0; queue[qt++] = i0;
+      while (qh < qt) {
+        const i = queue[qh++], x = i % W;
+        for (let d = 0; d < 8; d++) {
+          const dx = d === 0 || d === 4 || d === 6 ? 1 : d === 1 || d === 5 || d === 7 ? -1 : 0;
+          if ((x === 0 && dx < 0) || (x === W - 1 && dx > 0)) continue;
+          const j = i + nb8[d]; if (j < 0 || j >= N || !land[j] || so[j] !== sid || provOf[j] !== NOPROV) continue;
+          provOf[j] = p; queue[qt++] = j;
+        }
+      }
+    }
+    st.provs = []; for (let p = base; p < provs.length; p++) st.provs.push(p);
+  }
+  // métricas y adyacencia
+  const P = provs.length;
+  provs.forEach((p, id) => { p.id = id; p.area = 0; p.sx = 0; p.sy = 0; p.biomes = new Float32Array(9); p.coast = 0; p.nb = new Set(); });
+  const pnb = new Uint16Array(N).fill(NOPROV), pedge = new Uint8Array(N);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x; if (!land[i]) continue;
+    const p = provs[provOf[i]]; p.area++; p.sx += x; p.sy += y; p.biomes[MAP.biome[i]]++;
+    if (MAP.dLand[i] < 2.5) p.coast++;
+    if (x < W - 1 && land[i + 1] && provOf[i + 1] !== provOf[i]) { const q = provOf[i + 1]; p.nb.add(q); provs[q].nb.add(provOf[i]); pnb[i] = q; pnb[i + 1] = provOf[i]; if (so[i + 1] === so[i]) { pedge[i] = 1; pedge[i + 1] = 1; } }
+    if (y < H - 1 && land[i + W] && provOf[i + W] !== provOf[i]) { const q = provOf[i + W]; p.nb.add(q); provs[q].nb.add(provOf[i]); pnb[i] = q; pnb[i + W] = provOf[i]; if (so[i + W] === so[i]) { pedge[i] = 1; pedge[i + W] = 1; } }
+  }
+  // píxel representativo (más cercano al centroide) y terreno
+  const best = new Float32Array(P).fill(1e18);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x; if (!land[i]) continue; const p = provs[provOf[i]];
+    const d = (x - p.sx / p.area) ** 2 + (y - p.sy / p.area) ** 2;
+    if (d < best[p.id]) { best[p.id] = d; p.px = x; p.py = y; }
+  }
+  provs.forEach(p => {
+    p.nb = [...p.nb]; p.lon = xToLon(p.px); p.lat = yToLat(p.py);
+    const b = p.biomes, tot = Math.max(1, p.area);
+    const mnt = (b[BIOME.MOUNTAIN] + b[BIOME.SNOW]) / tot, frs = b[BIOME.FOREST] / tot, jun = b[BIOME.JUNGLE] / tot, des = b[BIOME.DESERT] / tot, tun = b[BIOME.TUNDRA] / tot;
+    p.terr = {move: 1 + 1.6 * mnt + 0.5 * frs + 0.9 * jun + 0.5 * des + 0.3 * tun, def: 1 + 0.4 * mnt + 0.14 * frs + 0.22 * jun, mnt};
+    let bi = 0; for (let k = 1; k < 9; k++) if (b[k] > b[bi]) bi = k; p.biome = bi;
+    p.port = p.coast > 6;
+    p.name = MAP.seeds[p.s].name + ' ' + (MAP.stats[p.s].provs.indexOf(p.id) + 1);
+    delete p.biomes; delete p.sx; delete p.sy;
+  });
+  MAP.provs = provs; MAP.provOf = provOf; MAP.pnb = pnb; MAP.pedge = pedge;
+  console.log('Provincias:', P, 'en', Math.round(performance.now() - t0), 'ms');
+}
+
+const provState = pid => MAP.provs[pid].s;
+const provOwner = pid => G.S[MAP.provs[pid].s].owner;
+function provDist(a, b) { const A = MAP.provs[a], B = MAP.provs[b]; return Math.hypot(A.lon - B.lon, A.lat - B.lat); }
+function stateCapitalProv(sid) {   // provincia más central del estado
+  const st = MAP.stats[sid]; return st.provs[0];
+}
+function provAtWorld(p) {
+  if (!p) return -1;
+  const px = Math.floor(lonToX(p.x)), py = Math.floor(latToY(-p.z));
+  if (px < 0 || py < 0 || px >= MAP_W || py >= MAP_H) return -1;
+  const i = py * MAP_W + px; return MAP.land[i] ? MAP.provOf[i] : -1;
+}
+// datos dinámicos
+function initProvinceState() {
+  G.P = MAP.provs.map(() => ({by: null, prog: 0, fort: 0, ent: 0}));
+}
+const provOcc = pid => G.P[pid].by;
+// recalcula la ocupación agregada de un estado a partir de sus provincias
+function refreshStateOcc(sid) {
+  const s = G.S[sid], st = MAP.stats[sid]; let tot = 0, occ = 0; const by = {};
+  st.provs.forEach(pid => { const a = MAP.provs[pid].area; tot += a; const o = G.P[pid].by; if (o && o !== s.owner) { occ += a; by[o] = (by[o] || 0) + a; } });
+  const f = tot ? Math.round(occ / tot * 100) / 100 : 0; let top = null, tv = 0; for (const k in by) if (by[k] > tv) { tv = by[k]; top = k; }
+  const changed = f !== (s.occ || 0) || (f > 0 && top !== s.occBy);
+  s.occ = f; s.occBy = f > 0 ? top : null; return changed;
+}
+// libera todas las provincias de un estado (cambio de dueño, fin de guerra)
+function clearProvOcc(sid) { MAP.stats[sid].provs.forEach(pid => { const p = G.P[pid]; p.by = null; p.prog = 0; }); refreshStateOcc(sid); }
+// camino A* entre provincias. canStep(from,to) decide si se puede entrar; cost(from,to) en días
+function pathProvs(from, to, canStep, cost, limit) {
+  if (from === to) return [];
+  const P = MAP.provs, g = new Map([[from, 0]]), prev = new Map();
+  const heap = [[0, from]]; const done = new Set(); let n = 0;
+  const push = it => { heap.push(it); let i = heap.length - 1; while (i > 0) { const q = (i - 1) >> 1; if (heap[q][0] <= heap[i][0]) break; [heap[q], heap[i]] = [heap[i], heap[q]]; i = q; } };
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { let c = i * 2 + 1; if (c >= heap.length) break; if (c + 1 < heap.length && heap[c + 1][0] < heap[c][0]) c++; if (heap[c][0] >= heap[i][0]) break; [heap[c], heap[i]] = [heap[i], heap[c]]; i = c; } } return top; };
+  heap.length = 0; push([provDist(from, to) * 2, from]);
+  while (heap.length) {
+    const [, u] = pop(); if (done.has(u)) continue; done.add(u);
+    if (u === to) break; if (++n > (limit || 4000)) break;
+    for (const v of P[u].nb) {
+      if (done.has(v) || !canStep(u, v)) continue;
+      const nd = g.get(u) + cost(u, v);
+      if (nd < (g.get(v) ?? 1e9)) { g.set(v, nd); prev.set(v, u); push([nd + provDist(v, to) * 2, v]); }
+    }
+  }
+  if (!prev.has(to)) return null;
+  const path = []; let cur = to; while (cur !== from) { path.unshift(cur); cur = prev.get(cur); }
+  return path;
 }
 
 /* ===== SIMULACIÓN ===== */
@@ -1502,7 +1740,7 @@ function createWorld(playerTag) {
   G.date = {y: START_YEAR, m: 0, d: 1, t: 0};
   G.player = playerTag; G.paused = true; G.speed = 2; G.week = 0; G.notifs = []; G.pendingEvent = null;
   G.log = []; G.wars = []; G.nextWarId = 1; G.eventCool = {};
-  G.armies = []; G.battles = []; G.recruits = []; G.nextArmyId = 1; G.nextBattleId = 1; G.hostile = new Set();
+  G.armies = []; G.battles = []; G.recruits = []; G.nextArmyId = 1; G.nextBattleId = 1; G.hostile = new Set(); G.occList = []; initProvinceState();
   G.crises = []; G.diff = G.diff || 2; G.pacts = []; G.blocs = []; G.proposals = []; G.nextId = 1; G.pt = {}; G.fx = {}; G.cycle = 0;
   G.C = {};
   Object.keys(COUNTRY_DATA).forEach(t => G.C[t] = mkCountry(t));
@@ -1635,14 +1873,14 @@ function saveData() {
   const S = G.S.map(s => { const o = {}; SK.forEach(k => o[k] = s[k]); return o; });
   const C = {};
   G.tags.forEach(t => { const c = G.C[t]; C[t] = JSON.parse(JSON.stringify(c, (k, v) => v instanceof Set ? {__set: [...v]} : v)); });
-  return JSON.stringify({v: 1, date: G.date, player: G.player, week: G.week, S, C, price: G.price, avail: G.avail, prod: G.prod, dem: G.dem, ratio: G.ratio, stock: G.stock, hist: G.hist, wars: G.wars, nextWarId: G.nextWarId, log: G.log.slice(0, 80), eventCool: G.eventCool, armies: G.armies, battles: G.battles, recruits: G.recruits, nextArmyId: G.nextArmyId, nextBattleId: G.nextBattleId, pacts: G.pacts, blocs: G.blocs, proposals: G.proposals, crises: G.crises, diff: G.diff, nextId: G.nextId, pt: G.pt, afterPanic: G.afterPanic, potato: G.potato});
+  return JSON.stringify({v: 1, date: G.date, player: G.player, week: G.week, S, C, price: G.price, avail: G.avail, prod: G.prod, dem: G.dem, ratio: G.ratio, stock: G.stock, hist: G.hist, wars: G.wars, nextWarId: G.nextWarId, log: G.log.slice(0, 80), eventCool: G.eventCool, v2: 2, P: provSave(), ext: saveExtra(), armies: G.armies, battles: G.battles, recruits: G.recruits, nextArmyId: G.nextArmyId, nextBattleId: G.nextBattleId, pacts: G.pacts, blocs: G.blocs, proposals: G.proposals, crises: G.crises, diff: G.diff, nextId: G.nextId, pt: G.pt, afterPanic: G.afterPanic, potato: G.potato});
 }
 function loadData(text) {
   const d = JSON.parse(text, (k, v) => v && v.__set ? new Set(v.__set) : v);
   createWorld(d.player);
   d.S.forEach((o, i) => Object.assign(G.S[i], o));
   G.tags.forEach(t => { if (d.C[t]) Object.assign(G.C[t], d.C[t]); });
-  G.armies = d.armies || []; G.battles = d.battles || []; G.recruits = d.recruits || []; G.nextArmyId = d.nextArmyId || 1000; G.nextBattleId = d.nextBattleId || 1000; G.hostile = new Set();
+  G.armies = d.armies || []; G.battles = d.battles || []; G.recruits = d.recruits || []; G.nextArmyId = d.nextArmyId || 1000; G.nextBattleId = d.nextBattleId || 1000; G.hostile = new Set(); if (d.v2 === 2) provLoad(d.P); loadExtra(d.ext);
   G.pacts = d.pacts || []; G.blocs = d.blocs || []; G.proposals = d.proposals || []; G.crises = d.crises || []; G.diff = d.diff || 2; G.nextId = d.nextId || 1000; G.pt = d.pt || {}; G.afterPanic = d.afterPanic; G.potato = d.potato;
   G.date = d.date; G.week = d.week; G.wars = d.wars; G.nextWarId = d.nextWarId; G.log = d.log; G.eventCool = d.eventCool || {};
   Object.assign(G.price, d.price); Object.assign(G.avail, d.avail); Object.assign(G.prod, d.prod); Object.assign(G.dem, d.dem); Object.assign(G.ratio, d.ratio); Object.assign(G.stock, d.stock);
@@ -1651,7 +1889,7 @@ function loadData(text) {
   G.tags.forEach(t => { G.C[t].ai = t !== d.player; G.C[t].states = []; });
   G.S.forEach(s => G.C[s.owner].states.push(s.id));
   refreshOwnerOf();
-  if (!d.armies) initArmies();
+  if (d.v2 !== 2) initArmies();
   G.paused = true;
   return d;
 }
@@ -2345,7 +2583,7 @@ function stepColonize(c) {
 
 function transferState(s, tag) {
   const old = G.C[s.owner]; const nw = G.C[tag];
-  s.occ = 0; s.occBy = null;
+  s.occ = 0; s.occBy = null; clearProvOcc(s.id);
   if (old.tag !== NONE && !old.claims.some(x => x.state === s.id)) old.claims.push({state: s.id, perm: true});
   nw.claims = nw.claims.filter(x => x.state !== s.id);
   old.states = old.states.filter(i => i !== s.id);
@@ -2850,8 +3088,7 @@ function recruitSides(w) {
 /* ---------- frentes y ocupación ---------- */
 function prepareFronts(w) {
   const sideTags = (list) => new Set(list);
-  w.targets.forEach(sid => { if (typeof computeFrontRank === 'function') computeFrontRank(sid, sideTags(w.attAll)); });
-  w.cTargets.forEach(sid => { if (typeof computeFrontRank === 'function') computeFrontRank(sid, sideTags(w.defAll)); });
+  void sideTags;
 }
 function setOcc(sid, frac, by, changed) {
   const s = G.S[sid]; if (!s) return;
@@ -2945,7 +3182,8 @@ function endWar(w, winner) {
 }
 function clearOccupationKeep(w) {
   const ch = new Set();
-  G.S.forEach(s => { if ((s.occ || 0) > 0 && s.occBy && ((w.attAll.includes(s.occBy) && w.defAll.includes(s.owner)) || (w.defAll.includes(s.occBy) && w.attAll.includes(s.owner)))) { s.occ = 0; s.occBy = null; s._occNotified = false; ch.add(s.id); } });
+  G.P.forEach((p, pid) => { const sid = provState(pid), o = G.S[sid].owner; if ((p.by || p.prog > 0) && ((w.attAll.includes(p.by || p.pby) && w.defAll.includes(o)) || (w.defAll.includes(p.by || p.pby) && w.attAll.includes(o)))) { p.by = null; p.prog = 0; ch.add(sid); MAP.provs[pid].nb.forEach(q => ch.add(provState(q))); } });
+  ch.forEach(sid => { const s = G.S[sid]; refreshStateOcc(sid); s._occNotified = false; });
   if (ch.size && typeof onFrontChanged === 'function') onFrontChanged(ch);
 }
 
@@ -3253,7 +3491,7 @@ function newGeneral() {
 function nextArmyId() { G.nextArmyId = (G.nextArmyId || 1); return G.nextArmyId++; }
 function mkDivision(type) { return {t: type, s: 1, o: DIVS[type].org}; }
 function mkArmy(tag, loc, divs, name) {
-  const a = {id: nextArmyId(), tag, loc, divs: divs || [], gen: newGeneral(), path: [], hop: 0, battle: null, from: null, arrived: G.date.t, rest: 0, name: name || ''};
+  const a = {id: nextArmyId(), tag, loc, divs: divs || [], gen: newGeneral(), path: [], hop: 0, battle: null, from: null, arrived: G.date.t, rest: 0, dig: 0, sup: 1, front: null, plan: null, name: name || ''};
   if (!a.name) a.name = `${armyOrdinal(tag)}.º Ejército`;
   G.armies.push(a); return a;
 }
@@ -3267,59 +3505,44 @@ function countDivs(tag) { let n = 0; G.armies.forEach(a => { if (a.tag === tag) 
 function divLimit(c) { return Math.max(0, Math.floor(c.stats.soldiers / MEN_PER_DIV)); }
 function armiesPower(tag) { let p = 0; armiesOf(tag).forEach(a => a.divs.forEach(d => p += d.s * (DIVS[d.t].att + DIVS[d.t].def))); return p; }
 
-/* ---------- terreno y movimiento ---------- */
-function terrainInfo(s) {
-  if (s._terr) return s._terr;
-  const b = MAP.stats[s.id].biomes, tot = Math.max(1, b.reduce((x, y) => x + y, 0));
-  const mnt = (b[BIOME.MOUNTAIN] + b[BIOME.SNOW]) / tot, frs = b[BIOME.FOREST] / tot, jun = b[BIOME.JUNGLE] / tot, des = b[BIOME.DESERT] / tot;
-  s._terr = {move: 1 + 1.4 * mnt + 0.5 * frs + 0.8 * jun + 0.4 * des, def: 1 + 0.35 * mnt + 0.12 * frs + 0.2 * jun, mnt};
-  return s._terr;
-}
+
+/* ---------- terreno y movimiento (sobre provincias) ---------- */
+const armyState = a => provState(a.loc);
+const armyStateName = a => { const p = MAP.provs[a.loc]; return G.S[p.s].name + (MAP.stats[p.s].provs.length > 1 ? ' (prov. ' + (MAP.stats[p.s].provs.indexOf(a.loc) + 1) + ')' : ''); };
+const provName = pid => { const p = MAP.provs[pid]; return G.S[p.s].name + (MAP.stats[p.s].provs.length > 1 ? ' (prov. ' + (MAP.stats[p.s].provs.indexOf(pid) + 1) + ')' : ''); };
 function hopDays(a, fromId, toId) {
-  const A = G.S[fromId], B = G.S[toId]; const c = G.C[a.tag];
+  const B = MAP.provs[toId]; const c = G.C[a.tag];
   let spd = 9; a.divs.forEach(d => { spd = Math.min(spd, DIVS[d.t].spd); }); if (spd === 9) spd = 1;
-  const lg = 1 + 0.1 * (a.gen.log - 1) + (c.mods.logistics || 0);
-  return clamp(Math.round(distStates(A, B) * 1.8 * terrainInfo(B).move / spd / lg), 2, 45);
+  const lg = 1 + 0.1 * (a.gen.log - 1) + (c.mods.logistics || 0) + (typeof docMod === 'function' ? docMod(a.tag, 'spd') : 0);
+  const so = G.S[B.s]; const rail = (so.owner === a.tag || sameSide(a.tag, so.owner)) ? 1 - Math.min(0.35, (so.infra || 0) * 0.05) : 1;
+  return clamp(Math.round(provDist(fromId, toId) * 1.9 * B.terr.move * rail / spd / lg), 1, 16);
 }
 function sameSide(ta, tb) {
   if (ta === tb) return true;
   return G.wars.some(w => (w.attAll.includes(ta) && w.attAll.includes(tb)) || (w.defAll.includes(ta) && w.defAll.includes(tb))) || !!pactBetween('alliance', ta, tb);
 }
 function hostileTags(ta, tb) { return G.hostile && G.hostile.has(ta + '|' + tb); }
-function canEnter(tag, sid) {
+function canEnterState(tag, sid) {
   const o = G.S[sid].owner;
   if (o === tag || o === NONE || sameSide(tag, o) || hostileTags(tag, o)) return true;
   // en guerra se puede atravesar territorio neutral, salvo el de países con pacto de no agresión, garantía o alianza con nosotros
   return G.C[tag].wars.length > 0 && !anyPactBetween(tag, o, ['nonagg', 'guarantee', 'alliance']) && !G.C[o].overlord && G.C[o].bloc !== G.C[tag].bloc;
 }
+const canEnter = (tag, pid) => canEnterState(tag, provState(pid));
 function recalcHostile() {
   const h = new Set();
   G.wars.forEach(w => w.attAll.forEach(x => w.defAll.forEach(y => { h.add(x + '|' + y); h.add(y + '|' + x); })));
   G.hostile = h;
 }
-// Dijkstra por días de marcha entre estados (solo estados permitidos)
 function findPath(a, dest) {
   if (dest === a.loc) return [];
-  const dist = new Map([[a.loc, 0]]), prev = new Map(); const open = [[0, a.loc]]; const done = new Set();
-  while (open.length) {
-    open.sort((x, y) => x[0] - y[0]); const [d, u] = open.shift();
-    if (done.has(u)) continue; done.add(u);
-    if (u === dest) break;
-    for (const v of G.S[u].neigh) {
-      if (done.has(v) || !canEnter(a.tag, v)) continue;
-      const nd = d + hopDays(a, u, v);
-      if (nd < (dist.get(v) ?? 1e9)) { dist.set(v, nd); prev.set(v, u); open.push([nd, v]); }
-    }
-  }
-  if (!prev.has(dest)) return null;
-  const path = []; let cur = dest; while (cur !== a.loc) { path.unshift(cur); cur = prev.get(cur); }
-  return path;
+  return pathProvs(a.loc, dest, (u, v) => canEnter(a.tag, v), (u, v) => hopDays(a, u, v), 6000);
 }
-function orderMove(a, dest) {
+function orderMove(a, dest, keepPlan) {
   if (a.battle) return {ok: false, msg: 'El ejército está en combate.'};
   const p = findPath(a, dest);
-  if (p === null) return {ok: false, msg: 'No hay un camino terrestre permitido hasta ese estado.'};
-  a.path = p; a.dest = dest; a.hop = p.length ? hopDays(a, a.loc, p[0]) : 0;
+  if (p === null) return {ok: false, msg: 'No hay un camino terrestre permitido hasta esa provincia.'};
+  a.path = p; a.dest = dest; a.hop = p.length ? hopDays(a, a.loc, p[0]) : 0; if (!keepPlan) { a.front = null; a.plan = null; }
   return {ok: true, eta: p.reduce((t, s, i) => t + hopDays(a, i ? p[i - 1] : a.loc, s), 0)};
 }
 function armyEta(a) {
@@ -3327,12 +3550,13 @@ function armyEta(a) {
 }
 function stepMove(a) {
   if (a.battle || !a.path.length) return;
+  if (a.sup !== undefined && a.sup < 0.25 && Math.random() < 0.4) return;      // sin suministro avanza más despacio
   a.hop--;
   if (a.hop > 0) return;
   const next = a.path[0];
   if (!canEnter(a.tag, next)) { a.path = []; return; }
   a.from = a.loc; a.loc = next; a.arrived = G.date.t; a.path.shift();
-  a.rest = 0;
+  a.rest = 0; a.dig = 0;
   if (a.path.length) a.hop = hopDays(a, a.loc, a.path[0]); else a.dest = null;
 }
 
@@ -3343,8 +3567,8 @@ function sideOfBattle(b, army) {
   if (hostileTo(b.B)) return 'A';
   return null;
 }
-function createBattles(byState) {
-  byState.forEach((list, sid) => {
+function createBattles(byProv) {
+  byProv.forEach((list, pid) => {
     if (list.length < 2) return;
     list.forEach(a => {
       if (a.battle) return;
@@ -3353,31 +3577,36 @@ function createBattles(byState) {
       let b = foe.battle ? G.battles.find(x => x.id === foe.battle) : null;
       if (!b) {
         const attacker = a.arrived >= foe.arrived ? a : foe, defender = attacker === a ? foe : a;   // ataca quien llegó último
-        b = {id: G.nextBattleId++, state: sid, A: [attacker.id], B: [defender.id], day: 0, att: 'A'};
+        b = {id: G.nextBattleId++, prov: pid, state: provState(pid), A: [attacker.id], B: [defender.id], day: 0, att: 'A'};
         G.battles.push(b);
         attacker.battle = b.id; defender.battle = b.id; attacker.path = []; defender.path = [];
-        const msg = `¡Batalla en ${G.S[sid].name}! ${G.C[attacker.tag].name} ataca a ${G.C[defender.tag].name}.`;
-        if (attacker.tag === G.player || defender.tag === G.player) notify('war', msg, sid); else logMsg(msg);
+        const msg = `¡Batalla en ${provName(pid)}! ${G.C[attacker.tag].name} ataca a ${G.C[defender.tag].name}.`;
+        if (attacker.tag === G.player || defender.tag === G.player) notify('war', msg, b.state); else logMsg(msg);
       } else {
         const side = sideOfBattle(b, a);
         if (side) { b[side].push(a.id); a.battle = b.id; a.path = []; }
       }
     });
-    // incorporar el resto de ejércitos presentes
-    list.forEach(a => { if (a.battle) return; const b = G.battles.find(x => x.state === sid); if (b) { const side = sideOfBattle(b, a); if (side) { b[side].push(a.id); a.battle = b.id; a.path = []; } } });
+    list.forEach(a => { if (a.battle) return; const b = G.battles.find(x => x.prov === pid); if (b) { const side = sideOfBattle(b, a); if (side) { b[side].push(a.id); a.battle = b.id; a.path = []; } } });
   });
 }
 function sideStats(b, ids, isAttacker) {
   let F = 0, T = 0, n = 0, org = 0, orgN = 0;
-  const s = G.S[b.state]; const terr = terrainInfo(s);
+  const pv = MAP.provs[b.prov]; const terr = pv.terr;
   ids.forEach(id => {
     const a = armyById(id); if (!a) return;
     const c = G.C[a.tag];
-    const am = 1 + c.mods.army + (a.gen.atk - 1) * 0.05 + blocArmyBonus(c), dm = 1 + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05;
+    const dm0 = typeof docMod === 'function' ? docMod : () => 0;
+    const air = typeof airBonus === 'function' ? airBonus(a.tag, b.state) : 0;
+    const plan = a.plan && a.plan.ready ? 0.15 * Math.min(1, a.plan.days / 15) : 0;
+    const sup = typeof supplyMod === 'function' ? supplyMod(a) : 1;
+    const dig = isAttacker ? 0 : Math.min(5, a.dig || 0) * 0.04;
+    const am = (1 + c.mods.army + (a.gen.atk - 1) * 0.05 + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup;
+    const dm = (1 + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + dm0(a.tag, 'def') + air + dig) * sup;
     a.divs.forEach(d => {
       const info = DIVS[d.t];
-      if (n < BATTLE_WIDTH) {
-        const str = d.s * (0.55 + 0.45 * d.o / info.org);
+      if (n < BATTLE_WIDTH + (terr.mnt > 0.4 ? -2 : 0)) {
+        const str = d.s * (0.55 + 0.45 * d.o / info.org) * (typeof equipMod === 'function' ? equipMod(a.tag, d.t) : 1);
         F += info.att * str * am; T += info.def * str * dm * (isAttacker ? 1 : terr.def);
         n++;
       }
@@ -3397,8 +3626,6 @@ function battleDay(b) {
   const apply = (armies, orgLoss) => {
     let lost = 0;
     armies.forEach(a => {
-      const c = G.C[a.tag];
-      let w = 0;
       a.divs.forEach((d, i) => {
         if (i >= BATTLE_WIDTH) return;
         const info = DIVS[d.t];
@@ -3406,10 +3633,9 @@ function battleDay(b) {
         const sl = (orgLoss / 100) * 0.38 * (0.6 + 0.8 * (1 - d.o / info.org));
         d.s = Math.max(0, d.s - sl); lost += sl * MEN_PER_DIV;
       });
-      // las divisiones destruidas desaparecen
       a.divs = a.divs.filter(d => d.s > 0.04);
-      if (a.divs.length === 0) { a._dead = true; }
-      void c; void w;
+      if (a.divs.length === 0) a._dead = true;
+      if (typeof useAmmo === 'function') useAmmo(a);
     });
     return lost;
   };
@@ -3417,48 +3643,56 @@ function battleDay(b) {
   b.lostA = (b.lostA || 0) + lostA; b.lostB = (b.lostB || 0) + lostB;
   A.forEach(a => bleed(a.tag, lostA / Math.max(1, A.length))); B.forEach(a => bleed(a.tag, lostB / Math.max(1, B.length)));
   b.rA = rBA; b.rB = rAB; b.orgA = sa.org; b.orgB = sb.org;
-  // fin del combate
   G.armies = G.armies.filter(a => !a._dead);
   const A2 = b.A.map(armyById).filter(Boolean), B2 = b.B.map(armyById).filter(Boolean);
   const oA = A2.length ? sideStats(b, b.A, true).org : 0, oB = B2.length ? sideStats(b, b.B, true).org : 0;
   if (!A2.length || !B2.length) { endBattle(b, A2.length ? 'A' : 'B'); return; }
   if (b.day >= 3 && (oA < 0.18 || oB < 0.18)) endBattle(b, oA < oB ? 'B' : 'A');
 }
-// Bajas: se restan de la población de reclutamiento del país
+// Bajas: se restan de la población de reclutamiento del país y suben el cansancio de guerra
 function bleed(tag, men) {
   if (men <= 0) return;
   const c = G.C[tag]; if (!c || !c.states.length) return;
   c.cnt = c.cnt || {}; c.cnt.casualties = (c.cnt.casualties || 0) + men;
+  c.wearV = (c.wearV || 0) + men / Math.max(1e5, c.stats.pop) * 40;
   let left = men;
   for (let k = 0; k < 4 && left > 0; k++) { const s = G.S[pick(c.states)]; const take = Math.min(left, (s.pops.peasants || 0) * 0.02); s.pops.peasants -= take; left -= take; }
 }
 function endBattle(b, winner) {
   G.battles = G.battles.filter(x => x !== b);
   const win = (winner === 'A' ? b.A : b.B).map(armyById).filter(Boolean), lose = (winner === 'A' ? b.B : b.A).map(armyById).filter(Boolean);
-  win.forEach(a => { a.battle = null; a.rest = 0; a.gen.xp += 8; if (a.gen.xp >= a.gen.lvl * 30 && a.gen.lvl < 5) { a.gen.xp = 0; a.gen.lvl++; const k = pick(['atk', 'def', 'log']); a.gen[k] = Math.min(5, a.gen[k] + 1); if (a.tag === G.player) notify('war', `${a.gen.name} sube a nivel ${a.gen.lvl}.`); } });
-  lose.forEach(a => { a.battle = null; retreatArmy(a, b); });
-  // puntuación de batallas en las guerras implicadas
+  win.forEach(a => { a.battle = null; a.rest = 0; a.gen.xp += 8; gainXp(a.tag, 1.5); if (a.gen.xp >= a.gen.lvl * 30 && a.gen.lvl < 5) { a.gen.xp = 0; a.gen.lvl++; const k = pick(['atk', 'def', 'log']); a.gen[k] = Math.min(5, a.gen[k] + 1); if (a.tag === G.player) notify('war', `${a.gen.name} sube a nivel ${a.gen.lvl}.`); } });
+  lose.forEach(a => { a.battle = null; gainXp(a.tag, 0.5); retreatArmy(a, b); generalFate(a, b); });
   const wt = win[0] ? win[0].tag : null, lt = lose[0] ? lose[0].tag : null;
   if (wt && lt) G.wars.forEach(w => { const wa = w.attAll.includes(wt) && w.defAll.includes(lt), wd = w.defAll.includes(wt) && w.attAll.includes(lt); if (wa || wd) { w.bw = w.bw || {att: 0, def: 0}; if (wa) w.bw.att++; else w.bw.def++; } });
-  if (win[0] && (win[0].tag === G.player || (lose[0] && lose[0].tag === G.player))) notify('war', `Batalla de ${G.S[b.state].name}: victoria de ${G.C[wt].name}.`, b.state);
+  if (win[0] && (win[0].tag === G.player || (lose[0] && lose[0].tag === G.player))) notify('war', `Batalla de ${provName(b.prov)}: victoria de ${G.C[wt].name}.`, b.state);
+}
+// experiencia militar nacional (para doctrinas)
+function gainXp(tag, n) { const c = G.C[tag]; if (c) c.mxp = (c.mxp || 0) + n; }
+// el general derrotado puede morir o ser capturado
+function generalFate(a, b) {
+  if (Math.random() > 0.035) return;
+  const old = a.gen.name; a.gen = newGeneral();
+  if (a.tag === G.player) notify('war', `El general ${old} ha muerto en combate. ${a.gen.name} toma el mando de ${a.name}.`, b.state);
 }
 function retreatArmy(a, b) {
   const sidesOwn = tag => sameSide(a.tag, tag);
-  const nb = G.S[a.loc].neigh.filter(n => canEnter(a.tag, n) && !armiesAt(n).some(o => hostileTags(a.tag, o.tag)));
+  const nb = MAP.provs[a.loc].nb.filter(n => canEnter(a.tag, n) && !armiesAt(n).some(o => hostileTags(a.tag, o.tag)));
   let dest = nb.find(n => n === a.from) ?? null;
-  if (dest === null) dest = nb.sort((x, y) => (sidesOwn(G.S[y].owner) ? 1 : 0) - (sidesOwn(G.S[x].owner) ? 1 : 0))[0] ?? null;
-  a.path = [];
-  if (dest === null) {      // rodeado: pierde parte de la fuerza y se reorganiza en el estado propio más cercano
-    a.divs.forEach(d => { d.s *= 0.75; d.o *= 0.5; });
-    const home = nearestOwnState(a.tag, a.loc); if (home !== null) a.loc = home;
+  if (dest === null) dest = nb.sort((x, y) => (sidesOwn(provOwner(y)) ? 1 : 0) - (sidesOwn(provOwner(x)) ? 1 : 0))[0] ?? null;
+  a.path = []; a.dig = 0;
+  if (dest === null) {      // rodeado: pierde parte de la fuerza y se rinde parcialmente
+    a.divs.forEach(d => { d.s *= 0.7; d.o *= 0.4; });
+    a.divs = a.divs.filter(d => d.s > 0.1);
+    const home = nearestOwnProv(a.tag, a.loc); if (home !== null) a.loc = home;
     return;
   }
   a.loc = dest; a.from = null; a.arrived = G.date.t; a.divs.forEach(d => { d.o = Math.min(d.o, DIVS[d.t].org * 0.3); });
 }
-function armiesAt(sid) { return G.armies.filter(a => a.loc === sid); }
-function nearestOwnState(tag, from) {
+function armiesAt(pid) { return G.armies.filter(a => a.loc === pid); }
+function nearestOwnProv(tag, from) {
   const c = G.C[tag]; let best = null, bd = 1e9;
-  c.states.forEach(id => { if (armiesAt(id).some(o => hostileTags(tag, o.tag))) return; const d = distStates(G.S[from], G.S[id]); if (d < bd) { bd = d; best = id; } });
+  c.states.forEach(sid => MAP.stats[sid].provs.forEach(id => { if (armiesAt(id).some(o => hostileTags(tag, o.tag))) return; const d = provDist(from, id); if (d < bd) { bd = d; best = id; } }));
   return best;
 }
 
@@ -3469,33 +3703,36 @@ function militaryDay() {
   recalcHostileIfNeeded();
   if (G.armies.length) {
     G.armies.forEach(stepMove);
-    const byState = new Map();
-    G.armies.forEach(a => { (byState.get(a.loc) || byState.set(a.loc, []).get(a.loc)).push(a); });
-    createBattles(byState);
+    const byProv = new Map();
+    G.armies.forEach(a => { (byProv.get(a.loc) || byProv.set(a.loc, []).get(a.loc)).push(a); });
+    createBattles(byProv);
     G.battles.slice().forEach(battleDay);
+    if (typeof supplyDay === 'function') supplyDay();
     G.armies.forEach(a => {
       if (a.battle) return;
-      const own = G.S[a.loc].owner === a.tag || sameSide(a.tag, G.S[a.loc].owner);
-      a.rest++;
+      const owner = provOwner(a.loc), own = owner === a.tag || sameSide(a.tag, owner);
+      a.rest++; if (!a.path.length && a.rest % 4 === 0) a.dig = Math.min(5, (a.dig || 0) + 1);
+      const supK = Math.max(0.2, a.sup === undefined ? 1 : a.sup);
       a.divs.forEach(d => {
         const info = DIVS[d.t];
-        d.o = Math.min(info.org, d.o + info.org * (own ? 0.06 : 0.025) * (a.path.length ? 0.4 : 1));
-        if (own && d.s < 1 && !a.path.length) { const g = Math.min(1 - d.s, 0.006); const men = g * MEN_PER_DIV; const s = G.S[a.loc]; if ((s.pops.peasants || 0) > men * 4 && G.C[a.tag].treasury > -1e12) { d.s += g; s.pops.peasants -= men; } }
+        d.o = Math.min(info.org, d.o + info.org * (own ? 0.06 : 0.025) * (a.path.length ? 0.4 : 1) * supK);
+        if (own && d.s < 1 && !a.path.length && a.sup > 0.5) { const g = Math.min(1 - d.s, 0.006); const men = g * MEN_PER_DIV; const s = G.S[provState(a.loc)]; if ((s.pops.peasants || 0) > men * 4 && (typeof takeReplacements !== 'function' || takeReplacements(a.tag, d.t, g))) { d.s += g; s.pops.peasants -= men; } }
       });
     });
     occupationDay();
+    if (typeof frontsDay === 'function') frontsDay();
   }
-  // reclutamiento en curso
   for (let i = G.recruits.length - 1; i >= 0; i--) {
     const r = G.recruits[i]; r.days--;
     if (r.days > 0) continue;
     G.recruits.splice(i, 1);
     const c = G.C[r.tag]; if (!c || !c.states.length) continue;
-    const loc = G.S[r.state].owner === r.tag ? r.state : c.capital;
+    const sid = G.S[r.state].owner === r.tag ? r.state : c.capital;
+    const loc = stateCapitalProv(sid);
     let a = G.armies.find(x => x.tag === r.tag && x.loc === loc && !x.battle && x.divs.length < MAX_DIVS_ARMY && !x.path.length);
     if (!a) a = mkArmy(r.tag, loc, []);
     a.divs.push(mkDivision(r.type));
-    if (r.tag === G.player) notify('war', `Nueva división de ${DIVS[r.type].name.toLowerCase()} en ${G.S[loc].name}.`, loc);
+    if (r.tag === G.player) notify('war', `Nueva división de ${DIVS[r.type].name.toLowerCase()} en ${G.S[sid].name}.`, sid);
   }
   G.wars.forEach(w => { w.score = computeWarScore(w); });
 }
@@ -3505,26 +3742,35 @@ function recalcHostileIfNeeded() {
   if (sig !== _hostileSig) { _hostileSig = sig; recalcHostile(); }
 }
 
-/* ---------- ocupación ---------- */
+/* ---------- ocupación por provincias ---------- */
 function occupationDay() {
-  const changed = new Set();
-  const byState = new Map();
-  G.armies.forEach(a => { if (!a.battle) (byState.get(a.loc) || byState.set(a.loc, []).get(a.loc)).push(a); });
-  G.S.forEach(s => {
-    const owner = s.owner; if (owner === NONE) { if (s.occ) { s.occ = 0; s.occBy = null; changed.add(s.id); } return; }
-    const here = byState.get(s.id) || [];
-    const enemy = here.find(a => hostileTags(a.tag, owner)), friend = here.some(a => a.tag === owner || sameSide(a.tag, owner) && !hostileTags(a.tag, owner));
-    let occ = s.occ || 0, by = s.occBy;
+  const changedProv = new Set(), changedState = new Set();
+  const byProv = new Map();
+  G.armies.forEach(a => { if (!a.battle) (byProv.get(a.loc) || byProv.set(a.loc, []).get(a.loc)).push(a); });
+  // solo se revisan las provincias con tropas y las que tienen una ocupación en curso
+  const check = new Set(byProv.keys()); G.occList = (G.occList || []).filter(pid => G.P[pid].by || G.P[pid].prog > 0); G.occList.forEach(p => check.add(p));
+  check.forEach(pid => {
+    const pr = G.P[pid], sid = provState(pid), s = G.S[sid], owner = s.owner;
+    if (owner === NONE) { if (pr.by) { pr.by = null; pr.prog = 0; changedProv.add(pid); } return; }
+    const here = byProv.get(pid) || [];
+    const enemy = here.find(a => hostileTags(a.tag, owner)), friend = here.some(a => a.tag === owner || (sameSide(a.tag, owner) && !hostileTags(a.tag, owner)));
+    const before = pr.by;
     if (enemy && !friend) {
-      if (!by || by === enemy.tag || !sameSide(by, enemy.tag)) { by = enemy.tag; }
-      if (occ === 0 && typeof computeFrontRank === 'function') { const w = G.wars.find(x => (x.attAll.includes(enemy.tag) && x.defAll.includes(owner)) || (x.defAll.includes(enemy.tag) && x.attAll.includes(owner))); const side = new Set(w ? (w.attAll.includes(enemy.tag) ? w.attAll : w.defAll) : [enemy.tag]); computeFrontRank(s.id, side); }
-      occ = Math.min(1, occ + 0.1);
-    } else if (friend && occ > 0) occ = Math.max(0, occ - 0.2);
-    else if (!enemy && occ > 0 && occ < 1) occ = Math.max(0, occ - 0.1);
-    occ = Math.round(occ * 100) / 100;
-    if (occ !== (s.occ || 0) || (occ > 0 && by !== s.occBy)) { s.occ = occ; s.occBy = occ > 0 ? by : null; changed.add(s.id); if (occ >= 1 && !s._occNotified) { s._occNotified = true; if (owner === G.player || by === G.player) notify('war', `${G.S[s.id].name} ha sido ocupada por ${G.C[by].name}.`, s.id); } if (occ === 0) s._occNotified = false; }
+      if (!pr.by || (pr.by !== enemy.tag && !sameSide(pr.by, enemy.tag))) { if (pr.by) { pr.by = null; pr.prog = 0; } }
+      if (!pr.by) { pr.prog = (pr.prog || 0) + 1; pr.pby = enemy.tag; if (pr.prog >= OCC_DAYS) { pr.by = enemy.tag; pr.prog = OCC_DAYS; } }
+    } else if (friend && (pr.by || pr.prog > 0)) { pr.prog = Math.max(0, pr.prog - 2); if (pr.prog <= 0 || pr.by) { if (pr.by && pr.prog <= OCC_DAYS - 3) { pr.by = null; pr.prog = 0; } } }
+    if (pr.by !== before) { changedProv.add(pid); changedState.add(sid); }
+    if ((pr.by || pr.prog > 0) && !G.occList.includes(pid)) G.occList.push(pid);
   });
-  if (changed.size && typeof onFrontChanged === 'function') onFrontChanged(changed);
+  const sts = new Set(); changedProv.forEach(pid => sts.add(provState(pid)));
+  sts.forEach(sid => {
+    const s = G.S[sid], was = s.occ || 0;
+    refreshStateOcc(sid);
+    if ((s.occ || 0) >= 1 && !s._occNotified) { s._occNotified = true; if (s.owner === G.player || s.occBy === G.player) notify('war', `${s.name} ha sido ocupada por ${G.C[s.occBy].name}.`, sid); }
+    if ((s.occ || 0) === 0) s._occNotified = false;
+    void was; changedState.add(sid);
+  });
+  if (changedProv.size) { const ids = new Set(changedState); changedProv.forEach(pid => MAP.provs[pid].nb.forEach(q => ids.add(provState(q)))); if (typeof onFrontChanged === 'function') onFrontChanged(ids); }
 }
 
 /* ---------- puntuación de guerra a partir de hechos ---------- */
@@ -3540,6 +3786,7 @@ function computeWarScore(w) {
   if (cap(w.def, w.attAll)) sc += 25; if (cap(w.att, w.defAll)) sc -= 25;
   w.targets.forEach(sid => { const s = G.S[sid]; if (s.owner === w.def && s.occ >= 1) sc += 10; });
   const bw = w.bw || {att: 0, def: 0}; sc += clamp((bw.att - bw.def) * 1.5, -15, 15);
+  if (typeof blockadeScore === 'function') sc += blockadeScore(w);
   return clamp(Math.round(sc), -100, 100);
 }
 function sideStrength(list) { let t = 0; list.forEach(tag => armiesOf(tag).forEach(a => a.divs.forEach(d => t += d.s * DIVS[d.t].att))); return Math.round(t); }
@@ -3557,13 +3804,13 @@ function canRecruit(c, sid, type) {
 }
 function recruit(c, sid, type) {
   const err = canRecruit(c, sid, type); if (err) return {ok: false, msg: err};
-  const s = G.S[sid]; c.treasury -= recruitCost(c, type); s.pops.peasants -= MEN_PER_DIV;
+  const s = G.S[sid]; if (typeof takeEquipForDiv === 'function') { const m = takeEquipForDiv(c, type); if (m) return {ok: false, msg: m}; } c.treasury -= recruitCost(c, type); s.pops.peasants -= MEN_PER_DIV;
   G.recruits.push({tag: c.tag, state: sid, type, days: DIVS[type].days});
   return {ok: true};
 }
 function disbandArmy(a) {
   if (a.battle) return;
-  const men = armyMen(a), s = G.S[a.loc]; if (s && s.owner === a.tag) s.pops.peasants += men * 0.8;
+  const men = armyMen(a), s = G.S[provState(a.loc)]; if (s && s.owner === a.tag) s.pops.peasants += men * 0.8;
   G.armies = G.armies.filter(x => x !== a);
 }
 function splitArmy(a) {
@@ -3577,14 +3824,16 @@ function mergeArmies(a, b) {
   a.divs = a.divs.concat(b.divs); G.armies = G.armies.filter(x => x !== b); return true;
 }
 
+
 /* ---------- ejércitos iniciales ---------- */
 function initArmies() {
-  G.armies = []; G.battles = []; G.recruits = []; G.nextArmyId = 1; G.nextBattleId = 1;
+  G.armies = []; G.battles = []; G.recruits = []; G.nextArmyId = 1; G.nextBattleId = 1; G.occList = [];
+  initProvinceState();
   G.tags.forEach(t => {
     if (t === NONE) return; const c = G.C[t]; if (!c.states.length) return;
     const lim = divLimit(c); let n = Math.min(Math.floor(lim * 0.7), 160); if (n < 1 && lim >= 1) n = 1; if (!n || lim < 1) return;
     const barr = c.states.filter(id => G.S[id].b.barracks >= 1);
-    const homes = barr.length ? barr : [c.capital >= 0 ? c.capital : c.states[0]];
+    const homes = (barr.length ? barr : [c.capital >= 0 ? c.capital : c.states[0]]).map(stateCapitalProv);
     let hi = 0;
     while (n > 0) {
       const k = Math.min(n, 6 + Math.floor(Math.random() * 3)); const divs = [];
@@ -3596,6 +3845,11 @@ function initArmies() {
 }
 
 /* ---------- IA militar ---------- */
+function enemyProvList(t, enemies) {
+  const out = [];
+  enemies.forEach(e => G.C[e].states.forEach(id => MAP.stats[id].provs.forEach(pid => { const pr = G.P[pid]; if (pr.by && sameSide(t, pr.by)) return; out.push(pid); })));
+  return out;
+}
 function aiMilitary() {
   G.tags.forEach(t => {
     if (t === NONE) return; const c = G.C[t];
@@ -3603,40 +3857,41 @@ function aiMilitary() {
     const enemies = G.tags.filter(o => hostileTags(t, o));
     if (!enemies.length) return;
     const mine = armiesOf(t).filter(a => !a.battle);
-    const capital = c.capital;
-    // 1) defender la capital si hay enemigos cerca
-    const threat = capital >= 0 && G.S[capital].neigh.concat([capital]).some(n => armiesAt(n).some(o => hostileTags(t, o.tag)));
+    const capital = c.capital; const capP = capital >= 0 ? stateCapitalProv(capital) : -1;
+    const capNear = capital >= 0 ? new Set(MAP.stats[capital].provs.concat(...MAP.stats[capital].provs.map(p => MAP.provs[p].nb))) : new Set();
+    const threat = capital >= 0 && [...capNear].some(n => armiesAt(n).some(o => hostileTags(t, o.tag)));
+    let eList = null;
     mine.forEach(a => {
+      if (a.front) return;
       if (a.path.length && !threat) return;
-      if (threat && capital >= 0 && a.loc !== capital) { const near = distStates(G.S[a.loc], G.S[capital]) < 14; if (near || mine.length < 3) { orderMove(a, capital); return; } }
+      if (threat && capP >= 0 && !capNear.has(a.loc)) { const near = provDist(a.loc, capP) < 12; if (near || mine.length < 3) { orderMove(a, capP); return; } }
       if (a.path.length) return;
-      // 2) atacar el estado enemigo vecino más débil / objetivo de guerra
       const strA = armyStr(a) * a.divs.length;
-      if (armyOrg(a) < 0.55 && G.S[a.loc].owner === t) return;                  // se reorganiza
+      if ((armyOrg(a) < 0.55 || (a.sup !== undefined && a.sup < 0.4)) && provOwner(a.loc) === t) return;
       const cands = [];
-      const consider = sid => {
-        if (!canEnter(t, sid)) return;
-        const foes = armiesAt(sid).filter(o => hostileTags(t, o.tag)); const fs = foes.reduce((x, o) => x + armyStr(o) * o.divs.length, 0);
-        const owner = G.S[sid].owner; const enemyOwned = owner !== NONE && hostileTags(t, owner);
+      MAP.provs[a.loc].nb.forEach(pid => {
+        if (!canEnter(t, pid)) return;
+        const foes = armiesAt(pid).filter(o => hostileTags(t, o.tag)); const fs = foes.reduce((x, o) => x + armyStr(o) * o.divs.length, 0);
+        const owner = provOwner(pid); const enemyOwned = owner !== NONE && hostileTags(t, owner);
         if (!enemyOwned && !foes.length) return;
         if (fs > strA * 1.3) return;
-        let score = 10 - fs * 2 + (enemyOwned ? 4 : 0) + (G.S[sid].occ >= 1 && G.S[sid].occBy === t ? -8 : 0) + (G.S[sid].occ < 1 ? 2 : 0);
+        const pr = G.P[pid];
+        let score = 10 - fs * 2 + (enemyOwned ? 4 : 0) + (pr.by && sameSide(t, pr.by) ? -8 : 0) + (!pr.by ? 2 : 0);
+        const sid = provState(pid);
         G.wars.forEach(w => { if (w.targets.includes(sid) && w.attAll.includes(t)) score += 6; });
         if (enemies.some(e => G.C[e].capital === sid)) score += 5;
-        cands.push({sid, score});
-      };
-      G.S[a.loc].neigh.forEach(consider);
-      // enemigos dentro de nuestro territorio: ir a por ellos
+        cands.push({pid, score});
+      });
       if (!cands.length) {
         let tgt = null, td = 1e9;
-        G.armies.forEach(o => { if (!hostileTags(t, o.tag) || o.battle) return; const os = G.S[o.loc].owner; if (os !== t && !sameSide(t, os)) return; const d = distStates(G.S[a.loc], G.S[o.loc]); if (d < td && armyStr(o) * o.divs.length < strA * 1.4) { td = d; tgt = o.loc; } });
+        G.armies.forEach(o => { if (!hostileTags(t, o.tag) || o.battle) return; const os = provOwner(o.loc); if (os !== t && !sameSide(t, os)) return; const d = provDist(a.loc, o.loc); if (d < td && armyStr(o) * o.divs.length < strA * 1.4) { td = d; tgt = o.loc; } });
         if (tgt !== null && tgt !== a.loc) { orderMove(a, tgt); return; }
       }
-      if (cands.length) { cands.sort((x, y) => y.score - x.score); orderMove(a, cands[0].sid); return; }
-      // 3) marchar hacia la frontera enemiga más cercana
+      if (cands.length) { cands.sort((x, y) => y.score - x.score); orderMove(a, cands[0].pid); return; }
+      eList = eList || enemyProvList(t, enemies);
       let best = null, bd = 1e9;
-      enemies.forEach(e => G.C[e].states.forEach(id => { if (G.S[id].occ >= 1 && G.S[id].occBy && sameSide(t, G.S[id].occBy)) return; const d = distStates(G.S[a.loc], G.S[id]) - (G.wars.some(w => w.targets.includes(id)) ? 5 : 0); if (d < bd) { bd = d; best = id; } }));
-      if (best !== null && best !== a.loc) { const p = findPath(a, best); if (p && p.length) { a.path = p.slice(0, 40); a.dest = best; a.hop = hopDays(a, a.loc, p[0]); } }
+      eList.forEach(pid => { const d = provDist(a.loc, pid) - (G.wars.some(w => w.targets.includes(provState(pid))) ? 4 : 0); if (d < bd) { bd = d; best = pid; } });
+      if (best !== null && best !== a.loc) { const p = findPath(a, best); if (p && p.length) { a.path = p.slice(0, 60); a.dest = best; a.hop = hopDays(a, a.loc, p[0]); } }
     });
   });
 }
@@ -3656,9 +3911,9 @@ function aiRecruitWeek() {
 }
 function evacuateForeignArmies() {
   G.armies.forEach(a => {
-    const o = G.S[a.loc].owner;
+    const o = provOwner(a.loc);
     if (!(o === a.tag || o === NONE || sameSide(a.tag, o) || hostileTags(a.tag, o)) && !a.battle) {
-      const home = nearestOwnState(a.tag, a.loc); if (home !== null) { a.loc = home; a.path = []; a.from = null; }
+      const home = nearestOwnProv(a.tag, a.loc); if (home !== null) { a.loc = home; a.path = []; a.from = null; }
     }
   });
 }
@@ -3667,6 +3922,12 @@ function cleanupArmies() {
   G.battles = G.battles.filter(b => b.A.some(id => armyById(id)) && b.B.some(id => armyById(id)));
   G.armies.forEach(a => { if (a.battle && !G.battles.some(b => b.id === a.battle)) a.battle = null; });
 }
+
+/* ---------- guardado de datos militares ---------- */
+function provSave() { const o = []; G.P.forEach((p, i) => { if (p.by || p.prog || p.fort) o.push([i, p.by, p.prog, p.pby || null, p.fort || 0]); }); return o; }
+function provLoad(list) { initProvinceState(); (list || []).forEach(([i, by, prog, pby, fort]) => { const p = G.P[i]; if (p) { p.by = by; p.prog = prog; p.pby = pby; p.fort = fort; } }); G.occList = (list || []).map(x => x[0]); G.S.forEach(s => refreshStateOcc(s.id)); }
+function saveExtra() { return {}; }
+function loadExtra(x) { void x; }
 
 /* ===== RENDER 3D DEL MAPA (three.js) ===== */
 const R = {occ: {}, mode: 'political', hover: -1, sel: -1, dirty: true, labelsDirty: true, cam: {tx: 12, tz: -52, dist: 120, tilt: 0.78, yaw: 0}, exag: 0.55};
@@ -3893,8 +4154,8 @@ function setupControls() {
       if (window.onMapClick) window.onMapClick(id, e);
     }
     if (drag && !drag.moved && drag.btn === 2 && e.type === 'pointerup') {
-      const id = stateAtWorld(screenToWorld(e.clientX, e.clientY));
-      if (window.onMapRightClick) window.onMapRightClick(id, e);
+      const wp = screenToWorld(e.clientX, e.clientY), id = stateAtWorld(wp);
+      if (window.onMapRightClick) window.onMapRightClick(id, e, provAtWorld(wp));
     }
     if (pts.size === 0) { drag = null; document.body.classList.remove('dragging'); }
   };
@@ -3947,6 +4208,7 @@ function keyboardPan(dt) {
   if (k['-']) { R.cam.dist *= 1 + dt * 1.2; updateCamera(); R.dirty = true; R.labelsDirty = true; }
 }
 
+function focusProv(pid, dist) { const p = MAP.provs[pid]; R.cam.tx = p.lon; R.cam.tz = -p.lat; if (dist) R.cam.dist = dist; updateCamera(); R.dirty = true; R.labelsDirty = true; }
 function focusState(id, dist) {
   const s = G.S[id]; const c = stateCenter(s);
   R.cam.tx = c[0]; R.cam.tz = -c[1]; if (dist) R.cam.dist = dist;
@@ -3955,24 +4217,24 @@ function focusState(id, dist) {
 function focusLonLat(lon, lat, dist) { R.cam.tx = lon; R.cam.tz = -lat; if (dist) R.cam.dist = dist; updateCamera(); R.dirty = true; R.labelsDirty = true; }
 
 /* ---------- pintado ---------- */
+R.occRGB = tag => (R._rgb = R._rgb || {})[tag] || (R._rgb[tag] = hex2rgb(G.C[tag].color));
 function paintPixel(i, fill, hov, sel) {
   const tc = MAP.terrainCol, d = R.img.data, o = i * 4;
   let r = tc[o], g = tc[o + 1], b = tc[o + 2];
-  const oc = R.occ[MAP.stateOf[i]];
+  const pr = G.P ? G.P[MAP.provOf[i]] : null;
   if (fill[3] > 0) {
     const a = fill[3];
     // modula con la luminancia del terreno para conservar el relieve
     const lum = 0.55 + 0.9 * ((r * 0.3 + g * 0.59 + b * 0.11) / 255);
     r = r * (1 - a) + fill[0] * lum * a; g = g * (1 - a) + fill[1] * lum * a; b = b * (1 - a) + fill[2] * lum * a;
   }
-  if (oc) {
-    const rk = MAP.pxRank[i];
-    if (rk >= 0) {
-      const x = i % MAP_W, y = (i / MAP_W) | 0, st = ((x + y) >> 1) & 1;
-      if (Math.abs(rk - oc.frac) < oc.fw) { if (st) { r = 255; g = 232; b = 130; } else { r = 150; g = 22; b = 22; } }
-      else if (rk < oc.frac) { const k = st ? 0.78 : 0.45; r = r * (1 - k) + oc.rgb[0] * k; g = g * (1 - k) + oc.rgb[1] * k; b = b * (1 - k) + oc.rgb[2] * k; }
-    }
-  }
+  if (pr && R.anyOcc) {
+    const nbp = MAP.pnb[i], nby = nbp !== NOPROV ? G.P[nbp].by : null, by = pr.by;
+    const x = i % MAP_W, y = (i / MAP_W) | 0, st = ((x + y) >> 1) & 1;
+    if (nbp !== NOPROV && by !== nby) { if (st) { r = 255; g = 232; b = 130; } else { r = 150; g = 22; b = 22; } }
+    else if (by) { const k = st ? 0.78 : 0.45, rgb = R.occRGB(by); r = r * (1 - k) + rgb[0] * k; g = g * (1 - k) + rgb[1] * k; b = b * (1 - k) + rgb[2] * k; }
+    else if (MAP.pedge[i]) { r *= 0.84; g *= 0.84; b *= 0.84; }
+  } else if (MAP.pedge[i]) { r *= 0.84; g *= 0.84; b *= 0.84; }
   const e = MAP.edge[i];
   if (e === 2) { r = r * 0.35 + 18; g = g * 0.35 + 18; b = b * 0.35 + 22; }
   else if (e === 1) { r *= 0.72; g *= 0.72; b *= 0.72; }
@@ -4010,11 +4272,8 @@ function setHover(id) {
   R.hoverTimer = setTimeout(() => { R.hoverTimer = null; const nw = R.hoverWant; if (nw === R.hover) return; const old = R.hover; R.hover = nw; repaintState(old); repaintState(nw); }, 45);
 }
 function onFrontChanged(ids) {
-  ids.forEach(sid => {
-    const s = G.S[sid]; if (!s) return;
-    if ((s.occ || 0) > 0 && s.occBy) R.occ[sid] = {frac: s.occ, rgb: hex2rgb(G.C[s.occBy].color), fw: clamp(1.8 / Math.sqrt(Math.max(1, MAP.stats[sid].area)), 0.012, 0.15)}; else delete R.occ[sid];
-    repaintState(sid);
-  });
+  R.anyOcc = G.P.some(p => p.by);
+  ids.forEach(sid => { if (G.S[sid]) repaintState(sid); });
 }
 function setSelected(id) { const old = R.sel; R.sel = id; repaintState(old); repaintState(id); }
 function setMapMode(m) { R.mode = m; fullRepaint(); }
@@ -4095,7 +4354,7 @@ function updateArmyTokens() {
   wanted.forEach(([a, i, n]) => {
     let el = R.ak[a.id];
     if (!el) { el = document.createElement('div'); el.className = 'atoken'; el.dataset.aid = a.id; el.dataset.act = 'seltoken'; el.dataset.id = a.id; R.markerRoot.appendChild(el); R.ak[a.id] = el; }
-    const c = stateCenter(G.S[a.loc]); const p = worldToScreen(c[0], 0.5, -c[1]);
+    const pv = MAP.provs[a.loc]; const p = worldToScreen(pv.lon, 0.5, -pv.lat);
     const off = (i - (n - 1) / 2) * 30;
     const x = p[0] + off, y = p[1] + (a.tag === G.player ? 0 : 0);
     if (x < -40 || x > cw + 40 || y < -40 || y > ch + 40) { el.style.display = 'none'; return; }
@@ -4115,7 +4374,7 @@ function drawOrders() {
   const sel = window.UI && UI.selArmy; let h = '';
   G.armies.forEach(a => {
     if (!a.path.length || !(a.tag === G.player || a.id === sel)) return;
-    const pts = [a.loc].concat(a.path).map(sid => { const c = stateCenter(G.S[sid]); const p = worldToScreen(c[0], 0.5, -c[1]); return p[0].toFixed(1) + ',' + p[1].toFixed(1); });
+    const pts = [a.loc].concat(a.path).map(pid => { const pv = MAP.provs[pid]; const p = worldToScreen(pv.lon, 0.5, -pv.lat); return p[0].toFixed(1) + ',' + p[1].toFixed(1); });
     const last = pts[pts.length - 1].split(',');
     h += `<polyline points="${pts.join(' ')}" class="${a.id === sel ? 'sel' : ''}"/><circle cx="${last[0]}" cy="${last[1]}" r="5" class="${a.id === sel ? 'sel' : ''}"/>`;
   });
@@ -4125,7 +4384,7 @@ function drawOrders() {
 function updateMarkers() {
   if (!R.markerRoot) return;
   const want = [];
-  G.battles.forEach(b => { if (G.S[b.state]) want.push({id: 'bt' + b.id, state: b.state, ch: '⚔️', cls: 'war'}); });
+  G.battles.forEach(b => { if (G.S[b.state]) want.push({id: 'bt' + b.id, state: b.state, prov: b.prov, ch: '⚔️', cls: 'war'}); });
   const me = G.C[G.player];
   if (me && me.capital >= 0) want.push({id: 'cap', state: me.capital, ch: '★', cls: 'cap'});
   if (me && me.colonizing) want.push({id: 'col', state: me.colonizing.state, ch: '⚓', cls: 'col'});
@@ -4135,7 +4394,7 @@ function updateMarkers() {
   for (const k in R.mk) if (!ids.has(k)) { R.mk[k].remove(); delete R.mk[k]; }
   want.forEach(w => {
     let el = R.mk[w.id]; if (!el) { el = document.createElement('div'); el.className = 'marker ' + w.cls; el.textContent = w.ch; R.markerRoot.appendChild(el); R.mk[w.id] = el; }
-    const c = stateCenter(G.S[w.state]); const p = worldToScreen(c[0], 0.6, -c[1]);
+    const c = w.prov !== undefined ? [MAP.provs[w.prov].lon, MAP.provs[w.prov].lat] : stateCenter(G.S[w.state]); const p = worldToScreen(c[0], 0.6, -c[1]);
     el.style.transform = `translate(-50%,-100%) translate(${p[0].toFixed(1)}px,${p[1].toFixed(1)}px)`;
   });
 }
@@ -4288,9 +4547,9 @@ function buildHud() {
   $('#minimap').addEventListener('mousedown', e => minimapJump(e));
   $('#minimap').addEventListener('mousemove', e => { if (e.buttons) minimapJump(e); });
   $('#crest').innerHTML = '';
-  syncCamBtns();
+  syncCamBtns(); iconize($('#hud'));
 }
-function syncCamBtns() { const w = $('#btn-wheel'), e2 = $('#btn-edge'); if (w) { w.classList.toggle('on', R.wheelMode === 'pan'); w.textContent = R.wheelMode === 'pan' ? '🖐️' : '🖱️'; } if (e2) e2.classList.toggle('on', !!R.edgeScroll); }
+function syncCamBtns() { const w = $('#btn-wheel'), e2 = $('#btn-edge'); if (w) { w.classList.toggle('on', R.wheelMode === 'pan'); w.innerHTML = icon(R.wheelMode === 'pan' ? 'hand' : 'mouse'); } if (e2) e2.classList.toggle('on', !!R.edgeScroll); }
 function minimapJump(e) {
   const r = e.currentTarget.getBoundingClientRect();
   const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
@@ -4342,7 +4601,7 @@ function renderWindow(fresh) {
   const scs = {}; if (prev && !fresh) $$('.scrollable', root).forEach((e, i) => scs[i] = e.scrollTop);
   root.classList.add('open');
   root.innerHTML = `<div class="window w-${UI.win}"><div class="whead"><span class="wicon">${w.icon}</span><h2>${w.title}</h2><button class="x" data-act="closewin">✕</button></div><div class="wbody">${w.render()}</div></div>`;
-  const nb = root.querySelector('.wbody'); if (nb) nb.scrollTop = sc;
+  iconize(root); const nb = root.querySelector('.wbody'); if (nb) nb.scrollTop = sc;
   if (!fresh) $$('.scrollable', root).forEach((e, i) => { if (scs[i] !== undefined) e.scrollTop = scs[i]; });
 }
 
@@ -4609,9 +4868,9 @@ WINDOWS.diplomacy = {title: 'Diplomacia', icon: '🤝', render() {
 /* --- Ejército y guerra --- */
 const stars = n => '★'.repeat(n) + '<span class="dim">' + '★'.repeat(5 - n) + '</span>';
 function armyRowHtml(a) {
-  const s = G.S[a.loc], eta = armyEta(a);
-  const stat = a.battle ? '<span class="tag bad">⚔ En combate</span>' : a.path.length ? `<span class="tag">➜ ${G.S[a.dest != null ? a.dest : a.path[a.path.length - 1]].name} · ${eta} d</span>` : '<span class="tag good">En posición</span>';
-  return `<tr data-act="selarmy" data-id="${a.id}" class="${UI.selArmy === a.id ? 'sel' : ''}"><td><b>${a.name}</b><br><small class="dim">${a.gen.name} (nv. ${a.gen.lvl})</small></td><td>${s.name}</td><td class="r">${a.divs.length}</td><td class="r">${fmtN(armyMen(a) / 1000, 1)}</td><td class="r">${Math.round(armyStr(a) * 100)}%</td><td class="r">${Math.round(armyOrg(a) * 100)}%</td><td>${stat}</td></tr>`;
+  const eta = armyEta(a);
+  const stat = a.battle ? '<span class="tag bad">⚔ En combate</span>' : a.path.length ? `<span class="tag">➜ ${provName(a.dest != null ? a.dest : a.path[a.path.length - 1])} · ${eta} d</span>` : '<span class="tag good">En posición</span>';
+  return `<tr data-act="selarmy" data-id="${a.id}" class="${UI.selArmy === a.id ? 'sel' : ''}"><td><b>${a.name}</b><br><small class="dim">${a.gen.name} (nv. ${a.gen.lvl})</small></td><td>${armyStateName(a)}</td><td class="r">${a.divs.length}</td><td class="r">${fmtN(armyMen(a) / 1000, 1)}</td><td class="r">${Math.round(armyStr(a) * 100)}%</td><td class="r">${Math.round(armyOrg(a) * 100)}%</td><td>${stat}</td></tr>`;
 }
 WINDOWS.military = {title: 'Ejército y guerra', icon: '⚔️', render() {
   const c = me(), st = c.stats, tab = curTab('mil', 'armies');
@@ -4673,37 +4932,37 @@ function renderArmyPanel() {
   const root = $('#armypanel'); if (!root) return;
   const a = UI.selArmy ? armyById(UI.selArmy) : null;
   if (!a) { UI.selArmy = null; root.classList.remove('open'); root.innerHTML = ''; return; }
-  const own = a.tag === G.player, s = G.S[a.loc];
+  const own = a.tag === G.player;
   const others = own ? armiesAt(a.loc).filter(o => o !== a && o.tag === a.tag && !o.battle) : [];
   const cnt = {}; a.divs.forEach(d => cnt[d.t] = (cnt[d.t] || 0) + 1);
   const b = a.battle ? G.battles.find(x => x.id === a.battle) : null;
   root.classList.add('open');
-  root.innerHTML = `<div class="sp-head">${flag(a.tag, 'md')}<div><h2>${a.name}</h2><small>${G.C[a.tag].name} · ${s.name}</small></div><button class="x" data-act="armyclose">✕</button></div>
+  root.innerHTML = `<div class="sp-head">${flag(a.tag, 'md')}<div><h2>${a.name}</h2><small>${G.C[a.tag].name} · ${armyStateName(a)}</small></div><button class="x" data-act="armyclose">✕</button></div>
   <div class="gen"><b>🎖️ ${a.gen.name}</b> <small>nivel ${a.gen.lvl}</small>
     <div class="kv sm"><span>Ataque</span><span class="gs">${stars(a.gen.atk)}</span></div><div class="kv sm"><span>Defensa</span><span class="gs">${stars(a.gen.def)}</span></div><div class="kv sm"><span>Logística</span><span class="gs">${stars(a.gen.log)}</span></div></div>
   <div class="kv"><span>Fuerza</span><b>${Math.round(armyStr(a) * 100)}%</b></div>${bar(armyStr(a), 1, '')}
   <div class="kv"><span>Organización</span><b>${Math.round(armyOrg(a) * 100)}%</b></div>${bar(armyOrg(a), 1, 'warn')}
   <div class="kv"><span>Hombres</span><b>${fmtN(armyMen(a), 0)}</b></div>
   <div class="kv"><span>Composición</span><b>${Object.keys(cnt).map(k => DIVS[k].icon + ' ' + cnt[k]).join(' · ')}</b></div>
-  <div class="kv"><span>Orden</span><b>${a.battle ? '⚔ En combate' + (b ? ` (día ${b.day})` : '') : a.path.length ? `➜ ${G.S[a.dest != null ? a.dest : a.path[a.path.length - 1]].name} · ${armyEta(a)} d` : 'Esperando órdenes'}</b></div>
+  <div class="kv"><span>Orden</span><b>${a.battle ? '⚔ En combate' + (b ? ` (día ${b.day})` : '') : a.path.length ? `➜ ${provName(a.dest != null ? a.dest : a.path[a.path.length - 1])} · ${armyEta(a)} d` : 'Esperando órdenes'}</b></div>
   <div class="divl">${a.divs.map(d => `<div class="dv" data-tip="${DIVS[d.t].name}: fuerza ${Math.round(d.s * 100)}%, organización ${Math.round(d.o / DIVS[d.t].org * 100)}%">${DIVS[d.t].icon}<i style="height:${Math.round(d.s * 100)}%"></i><u style="height:${Math.round(d.o / DIVS[d.t].org * 100)}%"></u></div>`).join('')}</div>
   ${own ? `<p class="hint">🖱️ <b>Clic derecho</b> en un estado para mover este ejército.</p>
   <div class="btnrow"><button data-act="armystop" ${a.path.length ? '' : 'disabled'}>✋ Detener</button><button data-act="armycap" ${a.battle ? 'disabled' : ''}>★ A la capital</button><button data-act="armysplit" ${a.divs.length < 2 || a.battle ? 'disabled' : ''}>✂ Dividir</button><button data-act="armydisband" ${a.battle ? 'disabled' : ''}>✖ Disolver</button></div>
   ${others.length ? `<div class="btnrow">${others.map(o => `<button data-act="armymerge" data-id="${o.id}" ${a.divs.length + o.divs.length > MAX_DIVS_ARMY ? 'disabled' : ''}>⛓ Fusionar con ${o.name} (${o.divs.length})</button>`).join('')}</div>` : ''}` : '<p class="hint">Ejército extranjero.</p>'}
-  <div class="btnrow"><button data-act="focus" data-id="${a.loc}">📍 Centrar</button></div>`;
+  <div class="btnrow"><button data-act="focusprov" data-id="${a.loc}">📍 Centrar</button></div>`;
 }
-window.onMapRightClick = (id) => {
+window.onMapRightClick = (sid, e, pid) => {
   const a = UI.selArmy ? armyById(UI.selArmy) : null;
-  if (!a || a.tag !== G.player || id < 0) return;
-  if (id === a.loc) { a.path = []; renderArmyPanel(); return; }
-  const r = orderMove(a, id);
+  if (!a || a.tag !== G.player || pid === undefined || pid < 0) return;
+  if (pid === a.loc) { a.path = []; renderArmyPanel(); return; }
+  const r = orderMove(a, pid);
   if (!r.ok) { toast('⚠️', r.msg); return; }
-  toast('➜', `${a.name} marcha hacia ${G.S[id].name} (${r.eta} días).`);
+  toast('➜', `${a.name} marcha hacia ${provName(pid)} (${r.eta} días).`);
   renderArmyPanel(); R.labelsDirty = true;
 };
 document.addEventListener('contextmenu', e => {
   const t = e.target.closest && e.target.closest('.atoken');
-  if (t) { e.preventDefault(); const a = armyById(+t.dataset.aid); if (a && window.onMapRightClick) window.onMapRightClick(a.loc); }
+  if (t) { e.preventDefault(); const a = armyById(+t.dataset.aid); if (a && window.onMapRightClick) window.onMapRightClick(provState(a.loc), e, a.loc); }
 });
 
 function crisisTab() {
@@ -4893,6 +5152,7 @@ const ACT = {
   enact: d => { const r = startLawChange(me(), d.id); if (!r.ok) toast('⚠️', r.msg); else toast('📜', 'La reforma ha entrado en debate parlamentario.'); renderWindow(); },
   dipsel: d => { UI.dipSel = d.tag; renderWindow(); },
   focus: d => { focusState(+d.id, 55); },
+  focusprov: d => { focusProv(+d.id, 40); },
   colonize: d => { if (startColonize(me(), +d.id)) toast('⚓', 'Comienza la colonización.'); renderWindow(); renderStatePanel(); },
   build: d => { if (queueBuild(me(), +d.id, d.b)) toast('🏗️', `${BLD[d.b].name} añadido a la cola de construcción.`); else toast('⚠️', 'No se puede construir ahí.'); renderStatePanel(); },
   cancelq: d => { me().queue.splice(+d.i, 1); renderWindow(); },
@@ -4956,7 +5216,7 @@ const ACT = {
   cont: () => doLoad(true),
   pickc: d => selectStartCountry(d.tag),
   filterc: () => {},
-  selarmy: d => { selectArmy(+d.id); const a = armyById(+d.id); if (a) focusState(a.loc, 45); renderWindow(); },
+  selarmy: d => { selectArmy(+d.id); const a = armyById(+d.id); if (a) focusProv(a.loc, 40); renderWindow(); },
   seltoken: d => { selectArmy(+d.id); if (UI.win === 'military') renderWindow(); },
   armyclose: () => selectArmy(null),
   armystop: () => { const a = armyById(UI.selArmy); if (a) { a.path = []; a.dest = null; renderArmyPanel(); R.labelsDirty = true; } },

@@ -32,14 +32,14 @@ function mkCountry(tag) {
     lawChange: null, journalDone: {}, wars: [], investPool: 0, queue: [], projects: [], cpUsed: 0, cpTotal: 0,
     stats: {pop: 0, gdp: 0, soldiers: 0, literacy: 0, sol: 0, indLevels: 0, bur: 0, burNeed: 1, income: 0, expense: 0, taxEff: 1, avgWage: 3.5, constr: 0, innovRate: 0, army: 0},
     budget: {income: {}, expense: {}}, hist: {gdp: [], pop: [], treasury: [], sol: [], prestige: []},
-    ai: true, states: [], capital: -1, startPop: 1, rank: 99, power: 0, gdpPrev: 0, lawMods: {}, colonizing: null
+    ai: true, claims: [], boosts: [], pboosts: {}, bloc: null, overlord: null, infamy: 0, monarchy: !!(d && /Monarqu|Imperio|Shogun|Despotismo/.test(d[4])), tradeLoss: 0, fx: {}, pressure: 0, lowLeg: 0, govHist: [], fabricating: null, states: [], capital: -1, startPop: 1, rank: 99, power: 0, gdpPrev: 0, lawMods: {}, colonizing: null
   };
   c.laws = Object.assign({}, LAW_PROFILES[c.profile], LAW_OVERRIDES[tag] || {});
   return c;
 }
 
 function recalcMods(c) {
-  const m = {tax: 0, bur: 0, invest: 0.12, lit: 0, grow: 0, army: 0, rad: 0, out: 0, lab: 0, stab: 0, agriOut: 0, mineOut: 0, indOut: 0, constr: 0, innov: 0, infra: 0};
+  const m = {tax: 0, bur: 0, invest: 0.12, lit: 0, grow: 0, army: 0, rad: 0, out: 0, lab: 0, stab: 0, agriOut: 0, mineOut: 0, indOut: 0, constr: 0, innov: 0, infra: 0, milCost: 0, defense: 0, logistics: 0, crisis: 0, steelOut: 0};
   for (const cat in c.laws) { const o = LAW[c.laws[cat]]; if (o) for (const k in o.mods) m[k] = (m[k] || 0) + o.mods[k]; }
   c.lawMods = Object.assign({}, m);
   c.techs.forEach(id => { const t = TECH[id]; for (const k in t.fx) m[k] = (m[k] || 0) + t.fx[k]; });
@@ -62,6 +62,7 @@ function createWorld(playerTag) {
   G.date = {y: START_YEAR, m: 0, d: 1, t: 0};
   G.player = playerTag; G.paused = true; G.speed = 2; G.week = 0; G.notifs = []; G.pendingEvent = null;
   G.log = []; G.wars = []; G.nextWarId = 1; G.eventCool = {};
+  G.crises = []; G.diff = G.diff || 2; G.pacts = []; G.blocs = []; G.proposals = []; G.nextId = 1; G.pt = {}; G.fx = {}; G.cycle = 0;
   G.C = {};
   Object.keys(COUNTRY_DATA).forEach(t => G.C[t] = mkCountry(t));
   G.C[NONE] = mkCountry(NONE);
@@ -85,6 +86,7 @@ function initGame(playerTag) {
   G.tags.forEach(t => { const c = G.C[t]; c.techs = new Set(); c.research = null; c.innovStock = 0; recalcMods(c); c.treasury = t === NONE ? 0 : Math.round(c.stats.income * (6 + (COUNTRY_DATA[t] ? COUNTRY_DATA[t][9] / 300000 : 1) * 1.5)); c.startPop = Math.max(1, c.stats.pop); c.hist = {gdp: [], pop: [], treasury: [], sol: [], prestige: []}; });
   updateRanks();
   G.tags.forEach(t => { const c = G.C[t]; c.prestige = Math.round(10 + (c.power ? Math.sqrt(c.power) * 3 : 0)); c.start = {ind: c.stats.indLevels, lit: c.lit, soldiers: c.stats.soldiers, prestige: c.prestige}; });
+  initClaims(); seedDiplomacy(); G.notifs.length = 0; G.log.length = 0; G.week = 0;
   logMsg('Comienza la partida en enero de ' + START_YEAR + '.');
 }
 
@@ -192,13 +194,14 @@ function saveData() {
   const S = G.S.map(s => { const o = {}; SK.forEach(k => o[k] = s[k]); return o; });
   const C = {};
   G.tags.forEach(t => { const c = G.C[t]; C[t] = JSON.parse(JSON.stringify(c, (k, v) => v instanceof Set ? {__set: [...v]} : v)); });
-  return JSON.stringify({v: 1, date: G.date, player: G.player, week: G.week, S, C, price: G.price, avail: G.avail, prod: G.prod, dem: G.dem, ratio: G.ratio, stock: G.stock, hist: G.hist, wars: G.wars, nextWarId: G.nextWarId, log: G.log.slice(0, 80), eventCool: G.eventCool});
+  return JSON.stringify({v: 1, date: G.date, player: G.player, week: G.week, S, C, price: G.price, avail: G.avail, prod: G.prod, dem: G.dem, ratio: G.ratio, stock: G.stock, hist: G.hist, wars: G.wars, nextWarId: G.nextWarId, log: G.log.slice(0, 80), eventCool: G.eventCool, pacts: G.pacts, blocs: G.blocs, proposals: G.proposals, crises: G.crises, diff: G.diff, nextId: G.nextId, pt: G.pt, afterPanic: G.afterPanic, potato: G.potato});
 }
 function loadData(text) {
   const d = JSON.parse(text, (k, v) => v && v.__set ? new Set(v.__set) : v);
   createWorld(d.player);
   d.S.forEach((o, i) => Object.assign(G.S[i], o));
   G.tags.forEach(t => { if (d.C[t]) Object.assign(G.C[t], d.C[t]); });
+  G.pacts = d.pacts || []; G.blocs = d.blocs || []; G.proposals = d.proposals || []; G.crises = d.crises || []; G.diff = d.diff || 2; G.nextId = d.nextId || 1000; G.pt = d.pt || {}; G.afterPanic = d.afterPanic; G.potato = d.potato;
   G.date = d.date; G.week = d.week; G.wars = d.wars; G.nextWarId = d.nextWarId; G.log = d.log; G.eventCool = d.eventCool || {};
   Object.assign(G.price, d.price); Object.assign(G.avail, d.avail); Object.assign(G.prod, d.prod); Object.assign(G.dem, d.dem); Object.assign(G.ratio, d.ratio); Object.assign(G.stock, d.stock);
   GOODS.forEach(g => { G.hist[g.id] = d.hist[g.id] || []; });
@@ -217,7 +220,7 @@ function advanceDay() {
   const dim = DAYS_IN_MONTH[d.m] + (d.m === 1 && isLeap(d.y) ? 1 : 0);
   let monthly = false;
   if (d.d > dim) { d.d = 1; d.m++; monthly = true; if (d.m > 11) { d.m = 0; d.y++; } }
-  if (d.t % 7 === 0) weeklyTick(false);
+  econDay();
   if (monthly) monthlyTick();
   dailyEvents();
 }
@@ -225,7 +228,7 @@ const isLeap = y => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
 
 function warmUp() {
   for (let w = 0; w < 300; w++) {
-    weeklyTick(true);
+    weeklyTick(true); GOODS.forEach(g => { const hh = G.hist[g.id]; if (w % 2 === 0) { hh.push(G.price[g.id]); if (hh.length > 220) hh.shift(); } });
     if (w % 4 === 3) { realloc(true); }
   }
   // redondear niveles
@@ -256,28 +259,60 @@ function stateStaffing(s, c) {
   });
 }
 
-function weeklyTick(warm) {
+/* ---------- economía por fases (se reparte a lo largo de la semana) ---------- */
+let ECX = null;
+const DIFF = {
+  1: {name: 'Relajada', crisis: 0.5, cost: 0.8, tax: 1.06, rate: 0.7, vol: 0.85},
+  2: {name: 'Normal', crisis: 1, cost: 1.25, tax: 1, rate: 1, vol: 1},
+  3: {name: 'Difícil', crisis: 1.7, cost: 1.7, tax: 0.93, rate: 1.5, vol: 1.15},
+  4: {name: 'Brutal', crisis: 2.6, cost: 2.3, tax: 0.85, rate: 2.2, vol: 1.3}
+};
+const FX_KEYS = ['demand', 'agri', 'ind', 'mine', 'invest', 'credit'];
+function diffP() { return DIFF[G.diff || 2]; }
+
+function recalcFx() {
+  const fx = {}; FX_KEYS.forEach(k => fx[k] = 1);
+  const ph = G.week / 52 / 9 * Math.PI * 2 + 1;
+  G.cycle = Math.sin(ph);
+  fx.demand *= 1 + 0.05 * G.cycle;
+  const cf = {};
+  G.tags.forEach(t => { cf[t] = {}; FX_KEYS.forEach(k => cf[t][k] = 1); });
+  (G.crises || []).forEach(cr => {
+    if (cr.scope === 'global') G.tags.forEach(t => { const sev = t === NONE ? 1 : crisisSeverity(G.C[t]); for (const k in cr.fx) cf[t][k] *= 1 + (cr.fx[k] - 1) * sev; });
+    else { const tgt = cf[cr.scope]; if (tgt) for (const k in cr.fx) tgt[k] *= (cr.fx[k] < 1 && cr.type !== 'aid') ? 1 + (cr.fx[k] - 1) * crisisSeverity(G.C[cr.scope]) : cr.fx[k]; }
+  });
+  G.fx = fx;
+  G.tags.forEach(t => { G.C[t].fx = cf[t]; });
+}
+
+function econBegin(warm) {
   G.week++;
-  const S = G.S, price = G.price;
-  const D = {}; GOODS.forEach(g => D[g.id] = 0);
-  const C = G.C;
-  // préstamos de precios: impuesto al consumo
-  S.forEach(s => {
+  recalcFx();
+  const D = {}, P = {}; GOODS.forEach(g => { D[g.id] = 0; P[g.id] = 0; });
+  const cstat = {};
+  G.tags.forEach(t => cstat[t] = {gdp: 0, tax: 0, ctax: 0, wages: 0, govPay: 0, ownerInc: 0, pop: 0, soldiers: 0, popSol: 0, employed: 0, workers: 0, indLevels: 0, bur: 0, constr: 0, inn: 0, spent: 0, invest: 0});
+  ECX = {D, P, R: null, cstat, utTarget: {}, warm};
+}
+
+// Fase A: personal, demanda de insumos y planes de consumo
+function econA(i0, i1) {
+  const S = G.S, price = G.price, D = ECX.D, C = G.C;
+  for (let si = i0; si < i1; si++) {
+    const s = S[si];
     const c = C[s.owner];
     stateStaffing(s, c);
+    const dm = G.fx.demand * c.fx.demand;
     const taxR = TAX_LEVELS[c.taxLevel] * (s.owner === NONE ? 0 : c.stats.taxEff);
     const ctax = 1 + (s.owner === NONE ? 0 : c.consTax * 0.04 * c.stats.taxEff);
-    // demanda de insumos
     BUILDINGS.forEach(b => {
       const L = s.b[b.id]; if (!L || !b.out) return;
       const stg = s.stg[b.id] * (s.ut[b.id] ?? 1);
       for (const g in b.inputs) D[g] += L * b.inputs[g] * stg;
     });
-    // consumo de población
     const plan = {};
     for (const p in s.pops) {
       const N = s.pops[p]; if (N <= 0) continue;
-      let budget = (s.inc[p] || 0) * (1 - taxR) ;
+      let budget = (s.inc[p] || 0) * (1 - taxR) * dm;
       const svc = Math.min(budget * 0.12, budget);
       budget -= svc;
       const items = [];
@@ -295,63 +330,64 @@ function weeklyTick(warm) {
       plan[p] = {items, left: budget, svc, b0: budget};
     }
     s.plan = plan; s.ctax = ctax; s.taxR = taxR;
-  });
-  // racionamiento
+  }
+}
+
+// Fase intermedia: racionamiento por escasez
+function econMid() {
+  const D = ECX.D, price = G.price;
   const R = {};
   GOODS.forEach(g => {
     const A = G.avail[g.id] === undefined ? D[g.id] : G.avail[g.id];
     R[g.id] = D[g.id] > 0 ? Math.min(1, A / D[g.id]) : 1;
     if (!isFinite(R[g.id])) R[g.id] = 1;
   });
-  G.ratio = R; G.dem = D;
-  // producción y flujos monetarios
-  const P = {}; GOODS.forEach(g => P[g.id] = 0);
-  const utTarget = {};
-  BUILDINGS.forEach(b => { if (!b.out) return; let iv = 0; for (const g in b.inputs) iv += b.inputs[g] * price[g]; const va = b.outAmt * price[b.out] - iv; const r = va / (VA_PER_WORKER * b.workersPerLevel); utTarget[b.id] = r <= 0.05 ? 0.45 : clamp(Math.pow(r, 0.7), 0.45, 1.35); });
-  const cstat = {};
-  G.tags.forEach(t => cstat[t] = {gdp: 0, tax: 0, ctax: 0, wages: 0, govPay: 0, ownerInc: 0, pop: 0, soldiers: 0, popSol: 0, employed: 0, workers: 0, indLevels: 0, bur: 0, constr: 0, inn: 0, spent: 0, invest: 0});
-  S.forEach(s => {
+  G.ratio = R; G.dem = D; ECX.R = R;
+  BUILDINGS.forEach(b => { if (!b.out) return; let iv = 0; for (const g in b.inputs) iv += b.inputs[g] * price[g]; const va = b.outAmt * price[b.out] - iv; const r = va / (VA_PER_WORKER * b.workersPerLevel); ECX.utTarget[b.id] = r <= 0.05 ? 0.45 : clamp(Math.pow(r, 0.7), 0.45, 1.35); });
+}
+
+// Fase B: producción, salarios, beneficios y consumo efectivo
+function econB(i0, i1) {
+  const S = G.S, price = G.price, C = G.C, R = ECX.R, P = ECX.P, cstat = ECX.cstat, utTarget = ECX.utTarget, D = ECX.D;
+  for (let si = i0; si < i1; si++) {
+    const s = S[si];
     const c = C[s.owner], cs = cstat[s.owner], m = c.mods;
     const incNext = {}; PROF_ORDER.forEach(p => incNext[p] = (s.extra && s.extra[p]) || 0); s.extra = {};
     let gdp = 0, empTot = 0;
     const radPen = 1 - 0.12 * c.radicals;
     const infraM = 1 + Math.min(0.3, (s.b.railway || 0) * 0.05) + m.infra;
     const labShare = clamp(0.65 + (m.lab || 0), 0.4, 0.85);
+    const fxA = G.fx.agri * c.fx.agri * (s.occ ? 1 - 0.6 * s.occ : 1), fxM = G.fx.mine * c.fx.mine * (s.occ ? 1 - 0.6 * s.occ : 1), fxI = G.fx.ind * c.fx.ind * (s.occ ? 1 - 0.6 * s.occ : 1);
     BUILDINGS.forEach(b => {
       const L = s.b[b.id]; if (!L) return;
       const utb = b.out ? (s.ut[b.id] ?? 1) : 1;
       const stg = s.stg[b.id];
       const jobsW = L * b.workersPerLevel * utb;
-      cs.workers += 0;
       if (b.gov || !b.out) {
-        // edificios sin producción: pagan salarios con presupuesto público o privado
         const emp = jobsW * stg;
         if (b.gov) {
           const w = Math.max(2.4, c.stats.avgWage) * 1.05;
-          const pay = emp * w * (b.id === 'barracks' ? c.milFund : b.id === 'university' ? c.eduFund : 1);
+          const pay = emp * w * (b.id === 'barracks' ? c.milFund * (1 + (c.mods.milCost || 0)) : b.id === 'university' ? c.eduFund : 1);
           for (const p in b.workers) incNext[p] += pay * b.workers[p];
           cs.govPay += pay;
           if (b.id === 'admin') cs.bur += L * b.bur * stg;
           if (b.id === 'barracks') cs.soldiers += jobsW * b.workers.soldiers * stg;
           if (b.id === 'university') cs.inn += L * b.inn * stg;
         } else {
-          // construcción y ferrocarriles: pagan salarios con el presupuesto de construcción (ingresos reciclados)
-          let inputsOk = 1;
-          if (b.inputs) for (const g in b.inputs) { const need = L * b.inputs[g] * stg; D[g] += 0; inputsOk = Math.min(inputsOk, R[g]); }
           const w = Math.max(2.4, c.stats.avgWage) * 0.9;
           const pay = jobsW * stg * w;
           for (const p in b.workers) incNext[p] += pay * b.workers[p];
           cs.spent += pay;
           if (b.id === 'constr') cs.constr += L * b.ctr * stg;
           if (b.id === 'railway') s.infra = L;
-          gdp += pay * 0;
         }
         empTot += jobsW * stg;
         return;
       }
       let rmin = 1;
       for (const g in b.inputs) rmin = Math.min(rmin, R[g]);
-      const techM = (b.grp === 'Agricultura' || b.grp === 'Plantaciones') ? 1 + m.agriOut : (b.grp === 'Extracción' ? 1 + m.mineOut : 1 + m.indOut);
+      const grp = b.grp;
+      const techM = (grp === 'Agricultura' || grp === 'Plantaciones') ? (1 + m.agriOut) * fxA : (grp === 'Extracción' ? (1 + m.mineOut) * fxM : (1 + m.indOut + (b.id === 'steel' ? (m.steelOut || 0) : 0)) * fxI);
       const eff = stg * rmin * utb;
       const outQ = L * b.outAmt * eff * techM * infraM * (1 + (m.out || 0)) * radPen;
       let inCost = 0;
@@ -359,30 +395,25 @@ function weeklyTick(warm) {
       P[b.out] += outQ;
       s.ut[b.id] = utb + (utTarget[b.id] - utb) * 0.07;
       const rev = outQ * price[b.out];
-      let va = rev - inCost;
-      if (va < 0) va = va * 1.0;
-      b.lastVA = 0;
-      const emp = jobsW * stg;                    // empleados (si la mano de obra falta, stg<1)
+      const va = rev - inCost;
+      const emp = jobsW * stg;
       const wagePool = Math.max(0, va) * labShare;
       const owners = Math.max(0, va) * (1 - labShare);
-      const inv = 0;
       const wage = emp > 0 ? wagePool / emp : 0;
-      // pago de salarios a profesiones
       for (const p in b.workers) incNext[p] += wage * emp * b.workers[p];
       empTot += emp;
-      const agri = b.grp === 'Agricultura' || b.grp === 'Plantaciones' || b.id === 'logging';
+      const agri = grp === 'Agricultura' || grp === 'Plantaciones' || b.id === 'logging';
       incNext.aristocrats += owners * (agri ? 0.75 : 0.2);
       incNext.capitalists += owners * (agri ? 0.25 : 0.8);
-      cs.invest += inv; cs.ownerInc += owners;
+      cs.ownerInc += owners;
       gdp += va;
       s.bva = s.bva || {}; s.bva[b.id] = va / L;
       s.bwage = s.bwage || {}; s.bwage[b.id] = wage;
       cs.wages += wagePool;
     });
-    // gasto de poblaciones: bienes + servicios
-    let svcTotal = 0, spend = 0;
+    let svcTotal = 0;
     for (const p in s.plan) {
-      const pl = s.plan[p], N = s.pops[p];
+      const pl = s.plan[p];
       let spent = 0, sol = 0;
       pl.items.forEach((it, i) => {
         const got = it.buy * R[it.g];
@@ -396,12 +427,9 @@ function weeklyTick(warm) {
       const sv = (p === 'aristocrats' || p === 'capitalists') ? 0.25 : 0;
       cs.invest += leftover * sv;
       svcTotal += pl.svc + leftover * (1 - sv);
-      spend += spent;
     }
-    // ingresos por servicios
     incNext.shopkeepers += svcTotal * 0.45; incNext.clerks += svcTotal * 0.25; incNext.clergy += svcTotal * 0.10; incNext.laborers += svcTotal * 0.20;
     gdp += svcTotal;
-    // desempleo y subsistencia
     let unemp = 0, unU = 0;
     for (const p of ['peasants', 'laborers', 'machinists']) {
       const avail = (s.pops[p] || 0) * WF;
@@ -411,41 +439,44 @@ function weeklyTick(warm) {
       incNext[p] += un * (p === 'peasants' ? 1.2 : 0.7);
     }
     s.unemp = unemp; s.unempU = unU; s.employed = empTot;
-    // inversión del propietario y pagos de construcción privada vuelven a la economía como servicios (se ignoran aquí)
     s.gdp = gdp; cs.gdp += gdp;
-    // ingresos efectivos del estado para la próxima semana
     for (const p in incNext) { s.inc[p] = s.inc[p] * 0.55 + incNext[p] * 0.45; if (!isFinite(s.inc[p])) s.inc[p] = 0; }
     let tot = 0, solsum = 0;
     for (const p in s.pops) { tot += s.pops[p]; solsum += s.pops[p] * s.sol[p]; }
     s.solAvg = tot ? solsum / tot : 0;
-    let wsum = 0, wn = 0;
-    // recaudación de impuestos sobre ingresos
     let taxIn = 0; for (const p in incNext) taxIn += incNext[p];
-    cs.tax += taxIn * s.taxR;
+    const occK = s.occ ? 1 - s.occ : 1;
+    cs.tax += taxIn * s.taxR * occK;
     cs.pop += tot; cs.popSol += solsum;
     s.taxPaid = taxIn * s.taxR;
-    cs.indLevels += ['textile','clothes','furniture','tools','liquor','steel'].reduce((a, k) => a + (s.b[k] || 0), 0);
-  });
-  // precios
+    cs.indLevels += (s.b.textile || 0) + (s.b.clothes || 0) + (s.b.furniture || 0) + (s.b.tools || 0) + (s.b.liquor || 0) + (s.b.steel || 0);
+  }
+}
+
+// Fase C: precios, inventarios y presupuesto de los países
+function econEnd() {
+  const S = G.S, price = G.price, C = G.C, D = ECX.D, P = ECX.P, cstat = ECX.cstat, warm = ECX.warm;
+  const vol = warm ? 1 : diffP().vol;
+  if (!G.pt) G.pt = {};
   GOODS.forEach(g => {
     const A = G.avail[g.id] === undefined ? D[g.id] : G.avail[g.id];
     const ratio = D[g.id] / Math.max(A, 1e-6);
-    let pr = price[g.id] * (1 + 0.06 * clamp(ratio - 1, -0.45, 0.9));
+    let pr = (G.pt[g.id] ?? price[g.id]) * (1 + 0.06 * vol * clamp(ratio - 1, -0.45, 0.9));
     pr += (g.base - pr) * 0.012;
-    price[g.id] = clamp(pr, g.base * 0.35, g.base * 3.2);
-    // inventario: la producción de esta semana está disponible la siguiente + 20 % del excedente
+    const tgt = clamp(pr, g.base * 0.35, g.base * 3.2);
+    G.pt[g.id] = tgt;
+    if (warm) price[g.id] = tgt;
     const surplus = Math.max(0, A - D[g.id]);
     G.stock[g.id] = surplus * 0.2;
     G.avail[g.id] = P[g.id] + G.stock[g.id];
     G.prod[g.id] = P[g.id];
-    const h = G.hist[g.id]; if (G.week % 2 === 0 || warm) { h.push(price[g.id]); if (h.length > 160) h.shift(); }
   });
   if (warm) {
     let mp = 0; GOODS.forEach(g => mp += Math.min(1.5, price[g.id] / g.base)); mp /= GOODS.length;
-    if (mp > 0.95) S.forEach(s => { const P = popTotal(s); const u = s.unemp / Math.max(1, P * WF); if (u > 0.06) { const k = 1 + 0.008 * Math.min(1, u * 1.5); BUILDINGS.forEach(b => { if (b.out && s.b[b.id] > 0 && !b.tech) s.b[b.id] = Math.min(s.cap[b.id], s.b[b.id] * k); }); } });
+    if (mp > 0.95) S.forEach(s => { const Pp = popTotal(s); const u = s.unemp / Math.max(1, Pp * WF); if (u > 0.06) { const k = 1 + 0.008 * Math.min(1, u * 1.5); BUILDINGS.forEach(b => { if (b.out && s.b[b.id] > 0 && !b.tech) s.b[b.id] = Math.min(s.cap[b.id], s.b[b.id] * k); }); } });
     BUILDINGS.forEach(b => { if (!b.out) return; const f = clamp(Math.pow(D[b.out] / Math.max(P[b.out], 1), 0.35), 0.94, 1.05); S.forEach(s => { if (s.b[b.id] > 0) s.b[b.id] = Math.min(s.cap[b.id], s.b[b.id] * f); }); });
   }
-  // países
+  const dp = diffP();
   G.tags.forEach(t => {
     const c = C[t], cs = cstat[t];
     const st = c.stats;
@@ -455,32 +486,58 @@ function weeklyTick(warm) {
     st.bur = cs.bur * (1 + c.mods.bur) + 100;
     st.burNeed = Math.max(1, cs.pop / 1000 * 0.25);
     const eff = clamp(st.bur / st.burNeed, 0.2, 1);
-    st.taxEff = t === NONE ? 0 : clamp((0.4 + 0.6 * eff) * (1 + c.mods.tax), 0.2, 1);
+    const dtx = c.ai || warm ? 1 : dp.tax;
+    st.taxEff = t === NONE ? 0 : clamp((0.4 + 0.6 * eff) * (1 + c.mods.tax) * dtx * (1 - (c.tradeLoss || 0)), 0.2, 1);
     st.avgWage = cs.wages > 0 && cs.pop > 0 ? clamp(cs.wages / (cs.pop * WF), 2.4, 12) : 3.5;
-    st.innovRate = (1 + cs.inn * c.eduFund) * (1 + c.mods.innov) + (c.lit / 100) * Math.sqrt(cs.pop / 1e6) * 0.9;
-    const income = cs.tax + cs.ctax;
+    st.innovRate = (1.5 + (c.lit / 100) * 20 * (1 + 0.25 * Math.log(1 + cs.pop / 1e6)) + 3 * Math.sqrt(Math.min(cs.inn * c.eduFund, 30))) * (1 + c.mods.innov) * (c.fx.invest < 0.6 ? 0.9 : 1);
+    const income = (cs.tax + cs.ctax) * (1 + diploIncomeBonus(c));
     const expense = cs.govPay;
     st.income = income; st.expense = expense;
     c.budget = {income: {tax: cs.tax, ctax: cs.ctax}, expense: {gov: cs.govPay}};
     if (t === NONE) return;
-    // el gasto en construcción se financia por puntos disponibles
     let spentCon = govConstruct(c, st.constr, warm);
     c.budget.expense.constr = spentCon;
-    const free = income - expense - spentCon;
+    const subs = warm ? 0 : pactMoneyFlows(c);
+    c.budget.expense.subs = subs;
+    const free = income - expense - spentCon - subs;
     const pub = warm ? Math.max(0, free) : (free > 0 && c.treasury > -c.stats.income * 8 ? free * 0.85 : 0);
     c.budget.expense.pub = pub;
     spreadPublic(c, pub);
     c.treasury += free - pub;
     if (c.treasury < 0) { c.debt = -c.treasury; } else c.debt = 0;
-    const interest = c.debt * 0.0006;
-    if (interest) { c.treasury -= interest; c.budget.expense.interest = interest; }
-    c.investPool += cs.invest * 0.9;
+    const rate = 0.0006 * dp.rate * c.fx.credit * G.fx.credit * (1 + (c.debt / Math.max(1, income)) / 40);
+    const interest = c.debt * rate;
+    if (interest && !warm) { c.treasury -= interest; c.budget.expense.interest = interest; }
+    c.investPool += cs.invest * 0.9 * G.fx.invest * c.fx.invest;
     privateInvest(c, warm);
-    // innovación
     c.innovStock = (c.innovStock || 0) + st.innovRate;
     c.influence = Math.min(500, c.influence + 0.4 + c.prestige / 400);
     researchStep(c, warm);
   });
+  ECX = null;
+}
+
+function weeklyTick(warm) {
+  econBegin(warm);
+  const N = G.S.length;
+  econA(0, N); econMid(); econB(0, N); econEnd();
+  if (!warm) for (const g in G.pt) G.price[g] = G.pt[g];
+}
+
+// Planificación diaria: la semana se reparte en etapas y los precios se suavizan día a día
+function econDay() {
+  const dow = G.date.t % 7, N = G.S.length, h = N >> 1;
+  switch (dow) {
+    case 0: econBegin(false); econA(0, h); break;
+    case 1: if (ECX) econA(h, N); break;
+    case 2: if (ECX) econMid(); break;
+    case 3: if (ECX) econB(0, h); break;
+    case 4: if (ECX) econB(h, N); break;
+    case 5: if (ECX) { econEnd(); G.weekDone = true; } break;
+    case 6: warWeek(); break;
+  }
+  if (G.pt) for (const g in G.pt) G.price[g] += (G.pt[g] - G.price[g]) * 0.3;
+  if (dow % 3 === 0) GOODS.forEach(g => { const hh = G.hist[g.id]; hh.push(G.price[g.id]); if (hh.length > 220) hh.shift(); });
 }
 
 function spreadPublic(c, amt) {
@@ -491,7 +548,7 @@ function spreadPublic(c, amt) {
 }
 /* ---------- construcción ---------- */
 function projectCost(b) { return b.cost * CP_MULT; }
-function moneyPerPoint(c) { return COST_PER_POINT * clamp(Math.sqrt(Math.max(1, c.stats.pop) / 12e6), 0.12, 2.5); }
+function moneyPerPoint(c) { return COST_PER_POINT * diffP().cost * clamp(Math.sqrt(Math.max(1, c.stats.pop) / 12e6), 0.12, 2.5); }
 function addExtra(s, p, v) { s.extra = s.extra || {}; s.extra[p] = (s.extra[p] || 0) + v; }
 function canBuild(s, b, c) {
   if (b.tech && !c.techs.has(b.tech)) return false;
@@ -574,16 +631,42 @@ function pickInvestment(c) {
 }
 
 /* ---------- investigación ---------- */
-function techAvailable(c, t) { return !c.techs.has(t.id) && (!t.req || t.req.every(r => c.techs.has(r))); }
+function techCost(c, t) { return Math.round(t.cost * (1 + 0.015 * c.techs.size) / 10) * 10; }
+function eraCount(c, era) { let n = 0; c.techs.forEach(id => { if (TECH[id].era === era) n++; }); return n; }
+function eraUnlocked(c, era) {
+  const e = ERAS[era]; if (era === 1) return true;
+  return G.date.y >= e.needYear && eraCount(c, era - 1) >= e.needPrev;
+}
+// estado de una tecnología para un país
+function techStatus(c, t) {
+  if (c.techs.has(t.id)) return {k: 'done'};
+  if (t.until && G.date.y > t.until) return {k: 'obsolete', why: `Obsoleta desde ${t.until}`};
+  if (t.after && G.date.y < t.after) return {k: 'year', why: `Disponible desde ${t.after}`};
+  if (t.ex) { const other = TECHS.find(o => o.ex === t.ex && o.id !== t.id && c.techs.has(o.id)); if (other) return {k: 'excl', why: `Excluida por ${other.name}`}; }
+  if (!eraUnlocked(c, t.era)) { const e = ERAS[t.era]; return {k: 'era', why: `Era ${t.era}: año ${e.needYear} y ${e.needPrev} tecnologías de la era anterior (${eraCount(c, t.era - 1)}/${e.needPrev})`}; }
+  const miss = (t.req || []).filter(r => !c.techs.has(r));
+  if (miss.length) return {k: 'req', why: 'Requiere: ' + miss.map(r => TECH[r].name).join(', ')};
+  return {k: 'avail'};
+}
+function techAvailable(c, t) { return techStatus(c, t).k === 'avail'; }
 function researchStep(c, warm) {
   if (warm) return;
   if (!c.research) {
-    if (c.ai) { const av = TECHS.filter(t => techAvailable(c, t)).sort((a, b) => a.cost - b.cost); if (av.length) c.research = av[0].id; }
+    if (c.ai) {
+      const av = TECHS.filter(t => techAvailable(c, t));
+      if (av.length) {
+        // la IA prefiere lo barato y lo de su especialidad; ocasionalmente elige al azar
+        av.sort((a, b) => a.cost * (0.8 + Math.random() * 0.5) - b.cost * (0.8 + Math.random() * 0.5));
+        c.research = av[0].id;
+      }
+    }
     return;
   }
   const t = TECH[c.research];
-  if (c.innovStock >= t.cost) {
-    c.innovStock -= t.cost; c.techs.add(t.id); c.research = null; recalcMods(c);
+  if (techStatus(c, t).k !== 'avail') { c.research = null; return; }
+  const cost = techCost(c, t);
+  if (c.innovStock >= cost) {
+    c.innovStock -= cost; c.techs.add(t.id); c.research = null; recalcMods(c);
     if (c.tag === G.player) notify('tech', `Has descubierto: ${t.name}.`);
   }
 }
@@ -608,6 +691,7 @@ function monthlyTick(init) {
     if (t === NONE) return;
     recalcMods(c);
     politics(c);
+    if (!init) { decayBoosts(c); checkRevolution(c); } else c.gov = govName(c);
     // alfabetización
     const edu = c.mods.lit + (c.techs.has('public_schools') ? 0 : 0);
     c.lit = clamp(c.lit + (0.01 + Math.max(0, edu)) * (0.2 + c.eduFund * 0.8) / 4 * 1 + c.stats.sol * 0.0008 - 0.005, 0, 99);
@@ -620,7 +704,7 @@ function monthlyTick(init) {
     if (c.ai) aiMonth(c);
     if (!init) journal(c);
   });
-  if (!init) { randomEvents(); aiWars(); processWars(); stepColonizeAll(); }
+  if (!init) { randomEvents(); stepColonizeAll(); diploMonth(); crisisMonth(); }
   // crecimiento de población (mensual)
   G.S.forEach(s => {
     const c = G.C[s.owner];
@@ -673,11 +757,12 @@ function politics(c) {
     const s = G.S[id];
     for (const p in s.pops) {
       const N = s.pops[p], def = PROFS[p];
-      const pol = N * ({aristocrats: 60, capitalists: 60, clergy: 15, officers: 25, bureaucrats: 10, shopkeepers: 6, clerks: 6, machinists: 5}[p] || 1) * stratM[def.strat];
+      const pol = N * ({aristocrats: 60, capitalists: 60, clergy: 15, officers: 25, bureaucrats: 10, shopkeepers: 6, clerks: 6, machinists: 5}[p] || 1) * stratM[def.strat] * profBoost(c, p);
       const w = 1 + Math.max(0, s.sol[p] - 8) * 0.04;
       for (const ig in def.ig) { clout[ig] += pol * w * def.ig[ig]; solSum[ig] += N * def.ig[ig] * s.sol[p]; solN[ig] += N * def.ig[ig]; }
     }
   });
+  IG_ORDER.forEach(k => clout[k] *= boostMult(c, k));
   let tot = 0; IG_ORDER.forEach(k => tot += clout[k]);
   const igs = {};
   IG_ORDER.forEach(k => {
@@ -687,6 +772,7 @@ function politics(c) {
     for (const lid of Object.values(c.laws)) { const w = IGS[k].likes[lid]; if (w) ap += w; }
     const sol = solN[k] > 0 ? solSum[k] / solN[k] : 8;
     ap = ap * 0.55 + (sol - 9) * 0.25;
+    c.boosts.forEach(b => { if (b.kind === 'ig' && b.key === k) ap += b.mode === 'boost' ? 1.5 : -2; });
     igs[k] = {share, sol, target: ap, approval: prev.approval === undefined ? ap : prev.approval + (ap - prev.approval) * 0.25, gov: false, support: 0};
   });
   // coalición de gobierno
@@ -814,6 +900,9 @@ function stepColonize(c) {
 
 function transferState(s, tag) {
   const old = G.C[s.owner]; const nw = G.C[tag];
+  s.occ = 0; s.occBy = null;
+  if (old.tag !== NONE && !old.claims.some(x => x.state === s.id)) old.claims.push({state: s.id, perm: true});
+  nw.claims = nw.claims.filter(x => x.state !== s.id);
   old.states = old.states.filter(i => i !== s.id);
   nw.states.push(s.id);
   s.owner = tag;
@@ -822,87 +911,6 @@ function transferState(s, tag) {
   old.queue = old.queue.filter(q => q.state !== s.id); old.projects = old.projects.filter(q => q.state !== s.id);
   if (old.capital === s.id) old.capital = old.states[0] ?? -1;
   if (typeof onOwnershipChanged === 'function') onOwnershipChanged(s.id);
-}
-
-/* ---------- guerra y diplomacia ---------- */
-function canReach(a, b) {
-  // frontera terrestre o proximidad costera
-  const A = G.C[a], B = G.C[b];
-  let min = 1e9, border = false;
-  A.states.forEach(i => B.states.forEach(j => {
-    if (G.S[i].neigh.includes(j)) border = true;
-    const d = distStates(G.S[i], G.S[j]); if (d < min) min = d;
-  }));
-  return border || min < 13;
-}
-function armyPower(c) { return c.stats.soldiers * (1 + c.mods.army) * (0.8 + 0.4 * c.milFund) * (1 + c.lit / 400); }
-function declareWar(att, def, target) {
-  const A = G.C[att], D = G.C[def];
-  if (!A || !D || att === def || def === NONE) return {ok: false, msg: 'Objetivo no válido.'};
-  if (G.wars.some(w => (w.att === att && w.def === def) || (w.att === def && w.def === att))) return {ok: false, msg: 'Ya estáis en guerra.'};
-  if (!canReach(att, def)) return {ok: false, msg: 'No hay un frente alcanzable.'};
-  if (A.influence < 40 && att === G.player) return {ok: false, msg: 'Necesitas 40 de influencia.'};
-  if (att === G.player) A.influence -= 40;
-  const tgt = target ?? pickWarTarget(att, def);
-  const w = {id: G.nextWarId++, att, def, target: tgt, score: 0, months: 0, name: `Guerra ${A.adj === D.adj ? 'civil' : 'de ' + A.name + ' contra ' + D.name}`};
-  G.wars.push(w); A.wars.push(w.id); D.wars.push(w.id);
-  A.relations[def] = -100; D.relations[att] = -100;
-  notify('war', `¡${A.name} declara la guerra a ${D.name}!`, tgt);
-  return {ok: true};
-}
-function pickWarTarget(att, def) {
-  const A = G.C[att], D = G.C[def]; let best = null, bd = 1e9;
-  D.states.forEach(j => A.states.forEach(i => { const d = distStates(G.S[i], G.S[j]) + (D.capital === j ? 8 : 0); if (d < bd) { bd = d; best = j; } }));
-  return best;
-}
-function processWars() {
-  for (let i = G.wars.length - 1; i >= 0; i--) {
-    const w = G.wars[i]; const A = G.C[w.att], D = G.C[w.def];
-    w.months++;
-    const pa = armyPower(A), pd = armyPower(D) * 1.15;
-    const diff = (pa - pd) / Math.max(1, pa + pd);
-    w.score = clamp(w.score + diff * 18 + rnd(-4, 4), -100, 100);
-    w.pa = Math.round(pa); w.pd = Math.round(pd);
-    const bothAi = A.ai && D.ai;
-    const decisive = Math.abs(w.score) >= 100 || (w.months > 8 && Math.abs(w.score) > 40 && bothAi) || w.months > 30;
-    if (decisive || (bothAi && w.months > 14 && Math.abs(w.score) > 25)) endWar(w, w.score >= 0 ? w.att : w.def);
-  }
-}
-function endWar(w, winner) {
-  const idx = G.wars.indexOf(w); if (idx >= 0) G.wars.splice(idx, 1);
-  const A = G.C[w.att], D = G.C[w.def];
-  A.wars = A.wars.filter(x => x !== w.id); D.wars = D.wars.filter(x => x !== w.id);
-  if (winner === null) { notify('war', `${A.name} y ${D.name} firman una paz blanca.`); A.relations[w.def] = -10; D.relations[w.att] = -10; return; }
-  if (winner === w.att) {
-    const tgt = G.S[w.target];
-    if (tgt && tgt.owner === w.def) transferState(tgt, w.att);
-    if (Math.abs(w.score) > 80) { const extra = G.C[w.def].states.map(i => G.S[i]).filter(s => G.C[w.def].capital !== s.id && s.neigh.some(n => G.S[n].owner === w.att)).sort(() => Math.random() - 0.5)[0]; if (extra) transferState(extra, w.att); }
-    A.prestige += 10; D.prestige = Math.max(0, D.prestige - 8);
-    const ind = Math.min(D.treasury > 0 ? D.treasury * 0.3 : 0, 400000); D.treasury -= ind; A.treasury += ind;
-    notify('war', `${A.name} ha vencido a ${D.name}${tgt ? ' y se anexiona ' + tgt.name : ''}.`, w.target);
-  } else {
-    D.prestige += 8; A.prestige = Math.max(0, A.prestige - 8);
-    const ind = Math.min(A.treasury > 0 ? A.treasury * 0.2 : 0, 300000); A.treasury -= ind; D.treasury += ind;
-    notify('war', `${D.name} ha repelido la invasión de ${A.name}.`, w.target);
-  }
-  A.relations[w.def] = -30; D.relations[w.att] = -30;
-}
-function aiWars() {
-  if (Math.random() > 0.05) return;
-  if (G.wars.length >= 3) return;
-  const cand = G.tags.filter(t => t !== NONE && G.C[t].rank <= 14 && !G.C[t].wars.length);
-  if (!cand.length) return;
-  const a = pick(cand); const A = G.C[a];
-  if (A.tag === G.player && false) return;
-  const tgts = G.tags.filter(t => t !== NONE && t !== a && G.C[t].states.length && armyPower(G.C[t]) * 1.6 < armyPower(A) && (A.relations[t] ?? 0) < 12 && canReach(a, t));
-  if (!tgts.length) return;
-  if (A.ai) declareWar(a, pick(tgts));
-}
-function improveRelations(c, tag) {
-  if (c.influence < 20) return false;
-  c.influence -= 20; c.relations[tag] = Math.min(100, (c.relations[tag] || 0) + 25);
-  if (G.C[tag]) G.C[tag].relations[c.tag] = Math.min(100, (G.C[tag].relations[c.tag] || 0) + 25);
-  return true;
 }
 
 /* ---------- eventos ---------- */

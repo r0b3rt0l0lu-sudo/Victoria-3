@@ -315,3 +315,36 @@ function computeEdges(ownerOf) {
     if (y < H - 1 && land[i + W]) { const b = so[i + W]; if (a !== b) { const t = ownerOf[a] !== ownerOf[b] ? 2 : 1; if (t > e[i]) e[i] = t; if (t > e[i + W]) e[i + W] = t; } }
   }
 }
+
+
+// Distancia normalizada (0 = entrada del invasor, 1 = fondo del estado) para dibujar el frente de guerra
+function computeFrontRank(sid, sideTags) {
+  if (!MAP.pxRank) { MAP.pxRank = new Float32Array(MAP_W * MAP_H).fill(-1); MAP.rankFor = {}; }
+  const key = [...sideTags].sort().join(',');
+  if (MAP.rankFor[sid] === key) return;
+  const W = MAP_W, so = MAP.stateOf, land = MAP.land, rank = MAP.pxRank;
+  const off = MAP.pixOff, ord = MAP.pixOrder;
+  const n = off[sid + 1] - off[sid]; if (!n) return;
+  const owner = G.S.map(s => s.owner);
+  const dist = new Int32Array(n).fill(-1);
+  const idxOf = new Map(); for (let k = 0; k < n; k++) idxOf.set(ord[off[sid] + k], k);
+  const queue = new Int32Array(n); let qh = 0, qt = 0;
+  const nb = [1, -1, W, -W];
+  for (let k = 0; k < n; k++) {
+    const i = ord[off[sid] + k]; let seed = false;
+    for (let d = 0; d < 4 && !seed; d++) { const j = i + nb[d]; if (j < 0 || j >= land.length || !land[j]) continue; const t = so[j]; if (t !== sid && sideTags.has(owner[t])) seed = true; }
+    if (seed) { dist[k] = 0; queue[qt++] = k; }
+  }
+  if (qt === 0) { // sin frontera terrestre: desembarco desde la costa
+    for (let k = 0; k < n; k++) if (MAP.dLand[ord[off[sid] + k]] < 3) { dist[k] = 0; queue[qt++] = k; }
+  }
+  if (qt === 0) { for (let k = 0; k < n; k++) { dist[k] = 0; queue[qt++] = k; } }
+  const nb8 = [1, -1, W, -W, W + 1, W - 1, -W + 1, -W - 1];
+  let mx = 1;
+  while (qh < qt) {
+    const k = queue[qh++]; const i = ord[off[sid] + k];
+    for (let d = 0; d < 8; d++) { const j = i + nb8[d]; const kk = idxOf.get(j); if (kk !== undefined && dist[kk] < 0) { dist[kk] = dist[k] + 1; if (dist[kk] > mx) mx = dist[kk]; queue[qt++] = kk; } }
+  }
+  for (let k = 0; k < n; k++) rank[ord[off[sid] + k]] = (dist[k] < 0 ? mx : dist[k]) / mx;
+  MAP.rankFor[sid] = key;
+}

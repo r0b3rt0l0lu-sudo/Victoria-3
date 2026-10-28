@@ -92,28 +92,28 @@ const PROF_ORDER = ['aristocrats','capitalists','clergy','officers','bureaucrats
 const STRATA_NAME = {upper:'Clase alta', middle:'Clase media', lower:'Clase baja'};
 
 const IGS = {
- lands: {name:'Terratenientes', icon:'🌳', color:'#a8803c', desc:'La aristocracia rural defiende la tradición y la propiedad de la tierra.',
+ lands: {ideo:'Conservadurismo', name:'Terratenientes', icon:'🌳', color:'#a8803c', desc:'La aristocracia rural defiende la tradición y la propiedad de la tierra.',
    likes:{autocracy:2,oligarchy:2,landed_voting:2,serfdom:2,tenant:1,mercantilism:1,state_religion:1,censorship:1,peasant_levies:1,percapita:1,closed_borders:1,slavery_legal:1,
           universal:-3,laissez:-1,commercial:-1,tolerance:-.5,free_press:-1,public_edu:-1,conscription:-1,graduated:-2,free_movement:-1,secular:-1,regulated:-1}},
- indus: {name:'Industriales', icon:'🏭', color:'#7a8a9a', desc:'Capitalistas e industriales que impulsan la economía de mercado.',
+ indus: {ideo:'Liberalismo económico', name:'Industriales', icon:'🏭', color:'#7a8a9a', desc:'Capitalistas e industriales que impulsan la economía de mercado.',
    likes:{laissez:3,commercial:2,wealth_voting:2,free_movement:1,controlled:.5,limited_press:1,no_regs:2,professional:1,proportional:1,elite_edu:1,slavery_banned:.5,
           mercantilism:-1,serfdom:-2,interventionism:-1,regulated:-3,inspections:-1,graduated:-2,universal:-1,autocracy:-1}},
- intel: {name:'Intelectuales', icon:'📚', color:'#5a8fb8', desc:'Académicos, burócratas y reformadores liberales.',
+ intel: {ideo:'Republicanismo', name:'Intelectuales', icon:'📚', color:'#5a8fb8', desc:'Académicos, burócratas y reformadores liberales.',
    likes:{free_press:3,limited_press:1,public_edu:3,elite_edu:1,secular:2,tolerance:1,wealth_voting:1,universal:2,slavery_banned:2,commercial:1,inspections:1,
           censorship:-3,autocracy:-2,serfdom:-3,state_religion:-2,slavery_legal:-3,no_edu:-2,closed_borders:-1}},
- petty: {name:'Pequeña Burguesía', icon:'🏪', color:'#c2a35a', desc:'Tenderos, oficinistas y pequeños propietarios.',
+ petty: {ideo:'Liberalismo político', name:'Pequeña Burguesía', icon:'🏪', color:'#c2a35a', desc:'Tenderos, oficinistas y pequeños propietarios.',
    likes:{wealth_voting:2,tolerance:1,limited_press:1,proportional:2,controlled:1,interventionism:1,public_edu:1,inspections:1,laissez:.5,
           autocracy:-2,serfdom:-1,graduated:-1,censorship:-1,closed_borders:-.5}},
- devout:{name:'Clero', icon:'⛪', color:'#9a6ab0', desc:'Jerarquía religiosa y fieles devotos.',
+ devout:{ideo:'Tradicionalismo religioso', name:'Clero', icon:'⛪', color:'#9a6ab0', desc:'Jerarquía religiosa y fieles devotos.',
    likes:{state_religion:3,censorship:1,autocracy:1,oligarchy:1,serfdom:.5,no_edu:1,closed_borders:.5,mercantilism:.5,
           secular:-3,tolerance:-1,free_press:-2,public_edu:-1,universal:-1,slavery_legal:-1}},
- armed: {name:'Fuerzas Armadas', icon:'🎖️', color:'#8a4a4a', desc:'Oficiales y soldados que exigen un ejército fuerte.',
+ armed: {ideo:'Nacionalismo autoritario', name:'Fuerzas Armadas', icon:'🎖️', color:'#8a4a4a', desc:'Oficiales y soldados que exigen un ejército fuerte.',
    likes:{conscription:2,professional:2,autocracy:1,oligarchy:1,peasant_levies:.5,closed_borders:.5,mercantilism:.5,censorship:.5,
           free_press:-1,universal:-.5,graduated:-.5}},
- union: {name:'Sindicatos', icon:'⚙️', color:'#c0584a', desc:'Obreros industriales organizados.',
+ union: {ideo:'Socialismo', name:'Sindicatos', icon:'⚙️', color:'#c0584a', desc:'Obreros industriales organizados.',
    likes:{regulated:3,inspections:2,universal:3,public_edu:1,free_press:1,interventionism:1,graduated:2,free_movement:.5,secular:.5,
           no_regs:-3,autocracy:-2,laissez:-1,censorship:-1,serfdom:-2,wealth_voting:-1,percapita:-1}},
- rural: {name:'Folk Rural', icon:'🧑‍🌾', color:'#6e9a4a', desc:'Campesinos y trabajadores del campo.',
+ rural: {ideo:'Agrarismo', name:'Folk Rural', icon:'🧑‍🌾', color:'#6e9a4a', desc:'Campesinos y trabajadores del campo.',
    likes:{tenant:1,commercial:1,tolerance:.5,peasant_levies:1,proportional:.5,state_religion:.5,closed_borders:.5,serfdom:-3,slavery_legal:-1,percapita:-2,
           conscription:-1.5,graduated:.5,universal:.5,free_movement:-.5}}
 };
@@ -190,31 +190,101 @@ const LAW_OVERRIDES = {
  SPA:{bonded:'slavery_legal'}, POR:{bonded:'slavery_legal'}, OMA:{bonded:'slavery_legal'}
 };
 
-const TECHS = [
- {id:'crop_rotation', name:'Rotación de Cultivos', cat:'Producción', cost:120, fx:{agriOut:.12}, desc:'Mejora el rendimiento agrícola.'},
- {id:'mechanical_loom', name:'Telar Mecánico', cat:'Producción', cost:140, fx:{indOut:.10}, desc:'Mayor eficiencia en la industria textil.'},
- {id:'steam_engine', name:'Máquina de Vapor', cat:'Producción', cost:180, fx:{mineOut:.12, indOut:.06}, desc:'Bombea las minas y mueve las fábricas.', req:['mechanical_loom']},
- {id:'iron_plow', name:'Arado de Acero', cat:'Producción', cost:200, fx:{agriOut:.10}, req:['crop_rotation'], desc:'Roturación de suelos duros.'},
- {id:'blast_furnace', name:'Alto Horno', cat:'Producción', cost:240, fx:{mineOut:.06}, req:['steam_engine'], desc:'Desbloquea las acerías.'},
- {id:'railways', name:'Ferrocarriles', cat:'Producción', cost:300, fx:{constr:.1}, req:['steam_engine'], desc:'Desbloquea los ferrocarriles.'},
- {id:'telegraph', name:'Telégrafo', cat:'Sociedad', cost:280, fx:{bur:.15}, req:['railways'], desc:'Comunicaciones instantáneas.'},
- {id:'bessemer', name:'Convertidor Bessemer', cat:'Producción', cost:420, fx:{indOut:.12, mineOut:.05}, req:['blast_furnace'], desc:'Acero barato en masa.'},
- {id:'liberalism', name:'Liberalismo', cat:'Sociedad', cost:150, fx:{invest:.03}, desc:'Desbloquea el voto censitario, el laissez-faire y el Estado laico.'},
- {id:'academia', name:'Academia Científica', cat:'Sociedad', cost:130, fx:{innov:.15}, desc:'Más puntos de innovación.'},
- {id:'public_schools', name:'Escuelas Públicas', cat:'Sociedad', cost:220, fx:{lit:.15}, req:['academia'], desc:'Desbloquea la educación pública.'},
- {id:'nationalism', name:'Nacionalismo', cat:'Sociedad', cost:200, fx:{army:.05}, desc:'Desbloquea la conscripción nacional.'},
- {id:'political_agitation', name:'Agitación Política', cat:'Sociedad', cost:200, fx:{}, req:['liberalism'], desc:'Desbloquea la prensa libre.'},
- {id:'sanitation', name:'Saneamiento', cat:'Sociedad', cost:260, fx:{grow:.002}, req:['academia'], desc:'Ciudades más saludables. Desbloquea inspecciones de fábricas.'},
- {id:'income_tax', name:'Impuesto sobre la Renta', cat:'Sociedad', cost:260, fx:{tax:.05}, req:['liberalism'], desc:'Desbloquea el impuesto progresivo.'},
- {id:'joint_stock', name:'Sociedades Anónimas', cat:'Producción', cost:240, fx:{invest:.08}, req:['liberalism'], desc:'Mayor inversión privada.'},
- {id:'socialism', name:'Socialismo', cat:'Sociedad', cost:320, fx:{}, req:['political_agitation'], desc:'Desbloquea las leyes laborales.'},
- {id:'universal_suffrage', name:'Sufragio Universal', cat:'Sociedad', cost:340, fx:{}, req:['political_agitation'], desc:'Desbloquea el sufragio universal.'},
- {id:'percussion_cap', name:'Pistones de Percusión', cat:'Militar', cost:140, fx:{army:.12}, desc:'Mosquetes más fiables.'},
- {id:'rifled_muskets', name:'Mosquetes Rayados', cat:'Militar', cost:240, fx:{army:.15}, req:['percussion_cap'], desc:'Mayor alcance y precisión.'},
- {id:'breech_loaders', name:'Retrocarga', cat:'Militar', cost:360, fx:{army:.2}, req:['rifled_muskets'], desc:'Cadencia de fuego muy superior.'},
- {id:'medicine', name:'Medicina Moderna', cat:'Sociedad', cost:300, fx:{grow:.003}, req:['sanitation'], desc:'Menor mortalidad.'}
+/* ===== ÁRBOL TECNOLÓGICO (3 eras, ramas excluyentes y mejoras que caducan) ===== */
+const ERAS = [
+  null,
+  {n: 1, name: 'Era de la Revolución Industrial', from: 1836, base: 650},
+  {n: 2, name: 'Era de la Expansión', from: 1855, base: 1750, needPrev: 11, needYear: 1855},
+  {n: 3, name: 'Era de las Masas', from: 1880, base: 3600, needPrev: 13, needYear: 1880}
 ];
+// [id, nombre, rama, era, multiplicador de coste, requisitos, efectos, descripción, extra]
+// extra: {ex: grupo excluyente, until: año límite (después se pierde), after: año mínimo}
+const TECH_RAW = [
+ // ---- PRODUCCIÓN: agricultura ----
+ ['crop_rotation','Rotación de Cultivos','Producción',1,.8,[],{agriOut:.08},'Mejora el rendimiento agrícola.'],
+ ['iron_plow','Arado de Hierro','Producción',1,.9,['crop_rotation'],{agriOut:.07},'Roturación de suelos duros.'],
+ ['guano','Fertilizantes de Guano','Producción',1,1.0,['iron_plow'],{agriOut:.06,grow:.0005},'Abonos importados que elevan las cosechas.',{after:1840}],
+ ['reaper','Segadora Mecánica','Producción',1,1.0,['iron_plow'],{agriOut:.06,constr:.02},'Reduce la mano de obra necesaria en la cosecha.'],
+ ['chemical_fert','Abonos Químicos','Producción',2,1.0,['guano'],{agriOut:.10},'Fertilizantes sintéticos.'],
+ ['refrigeration','Refrigeración','Producción',2,1.1,['chemical_fert'],{agriOut:.04,grow:.001},'Conservación y transporte de alimentos frescos.'],
+ ['mech_farming','Agricultura Mecanizada','Producción',3,1.2,['reaper','refrigeration'],{agriOut:.12,grow:.001},'Tractores y cosechadoras.'],
+ // ---- PRODUCCIÓN: industria y minería ----
+ ['mechanical_loom','Telar Mecánico','Producción',1,.8,[],{indOut:.06},'Mayor eficiencia en la industria textil.'],
+ ['steam_engine','Máquina de Vapor','Producción',1,1.0,['mechanical_loom'],{mineOut:.08,indOut:.04},'Bombea las minas y mueve las fábricas.'],
+ ['deep_mining','Minería en Profundidad','Producción',1,1.1,['steam_engine'],{mineOut:.08},'Galerías profundas y ventilación.'],
+ ['blast_furnace','Alto Horno','Producción',1,1.2,['steam_engine'],{mineOut:.04,steelOut:.05},'Desbloquea las acerías.'],
+ ['interchangeable','Piezas Intercambiables','Producción',1,1.1,['steam_engine'],{indOut:.05,constr:.04},'Producción estandarizada.',{after:1842}],
+ ['bessemer','Convertidor Bessemer','Producción',2,1.2,['blast_furnace'],{indOut:.07,steelOut:.12,mineOut:.04},'Acero barato en masa.'],
+ ['machine_tools','Máquinas-Herramienta','Producción',2,1.1,['interchangeable'],{indOut:.06,constr:.06},'Tornos y fresadoras de precisión.'],
+ ['dynamite','Dinamita','Producción',2,1.0,['deep_mining'],{mineOut:.10,constr:.03},'Voladuras controladas.'],
+ ['electricity','Electricidad','Producción',3,1.2,['machine_tools','bessemer'],{indOut:.10,infra:.03},'Dinamos y motores eléctricos.'],
+ ['assembly_line','Cadena de Montaje','Producción',3,1.3,['electricity'],{indOut:.12,milCost:-.03},'Producción en serie.'],
+ ['organic_chem','Química Industrial','Producción',3,1.2,['chemical_fert','electricity'],{indOut:.06,agriOut:.05},'Tintes, explosivos y fertilizantes.'],
+ // ---- PRODUCCIÓN: infraestructura ----
+ ['canals','Canalización','Producción',1,.9,[],{infra:.02,constr:.04},'Era de los canales: caduca con la llegada del ferrocarril.',{until:1856}],
+ ['railways','Ferrocarriles','Producción',1,1.3,['steam_engine'],{constr:.08,infra:.03},'Desbloquea los ferrocarriles.'],
+ ['telegraph','Telégrafo','Sociedad',1,1.1,['railways'],{bur:.10,logistics:.05},'Comunicaciones instantáneas.'],
+ ['steamships','Buques de Vapor','Producción',2,1.1,['railways'],{infra:.03,logistics:.06,constr:.02},'Rutas marítimas regulares.'],
+ ['railway_gauge','Red Ferroviaria Nacional','Producción',2,1.2,['railways'],{infra:.05,constr:.06,logistics:.06},'Planificación estatal de la red.'],
+ ['telephony','Telefonía','Sociedad',3,1.1,['telegraph','electricity'],{bur:.12,innov:.05},'Comunicación de voz a distancia.'],
+ // ---- SOCIEDAD: administración y estado ----
+ ['civil_service','Administración Civil','Sociedad',1,1.0,[],{bur:.10,tax:.03},'Funcionarios profesionales.'],
+ ['statistics','Estadística Oficial','Sociedad',1,1.0,['civil_service'],{tax:.04,bur:.05},'Censos y registros fiscales.'],
+ ['income_tax','Impuesto sobre la Renta','Sociedad',1,1.1,['statistics'],{tax:.05},'Desbloquea el impuesto progresivo.'],
+ ['ministries','Ministerios Especializados','Sociedad',2,1.2,['statistics'],{bur:.18,stab:1},'Departamentos de Estado con competencias claras.'],
+ ['police','Policía Profesional','Sociedad',2,1.1,['civil_service'],{rad:-1.5,stab:2},'Reduce el desorden y los radicales.'],
+ ['central_bank','Banco Central','Sociedad',2,1.3,['income_tax'],{crisis:.20,invest:.04},'Prestamista de última instancia: amortigua crisis.'],
+ ['welfare','Seguros Sociales','Sociedad',3,1.3,['central_bank','police'],{grow:.002,rad:-2,tax:-.03},'Pensiones y seguros de accidentes.'],
+ ['mixed_economy','Economía Mixta','Sociedad',3,1.4,['central_bank','ministries'],{crisis:.30,tax:.06,invest:.04},'Intervención estatal anticíclica.'],
+ // ---- SOCIEDAD: educación y pensamiento ----
+ ['academia','Academia Científica','Sociedad',1,.9,[],{innov:.10},'Más puntos de innovación.'],
+ ['public_schools','Escuelas Públicas','Sociedad',1,1.1,['academia'],{lit:.10},'Desbloquea la educación pública.'],
+ ['sanitation','Saneamiento','Sociedad',1,1.2,['academia'],{grow:.002},'Ciudades más saludables. Desbloquea inspecciones de fábricas.'],
+ ['scientific_method','Método Científico','Sociedad',2,1.1,['academia'],{innov:.12},'Laboratorios y revistas especializadas.'],
+ ['medicine','Medicina Moderna','Sociedad',2,1.2,['sanitation'],{grow:.003},'Vacunas y cirugía antiséptica.'],
+ ['mass_education','Educación Obligatoria','Sociedad',2,1.3,['public_schools'],{lit:.15,innov:.05},'Escuela obligatoria hasta los 12 años.'],
+ ['universities_res','Universidades de Investigación','Sociedad',3,1.3,['scientific_method','mass_education'],{innov:.18,lit:.05},'Ciencia aplicada a la industria.'],
+ ['mass_media','Prensa de Masas','Sociedad',3,1.1,['mass_education'],{lit:.05,stab:1,rad:.5},'Los periódicos moldean la opinión pública.'],
+ // ---- SOCIEDAD: política (doctrinas excluyentes + ideas) ----
+ ['liberalism','Liberalismo','Sociedad',1,1.0,[],{invest:.03,rad:.5},'Desbloquea el voto censitario, el laissez-faire y el Estado laico.'],
+ ['nationalism','Nacionalismo','Sociedad',1,1.0,[],{army:.03,stab:1},'Desbloquea la conscripción nacional.'],
+ ['political_agitation','Agitación Política','Sociedad',1,1.2,['liberalism'],{rad:1},'Desbloquea la prensa libre.'],
+ ['doc_absolutism','Doctrina Absolutista','Sociedad',1,1.3,[],{stab:3,rad:-1,invest:-.03,bur:.05},'Orden y jerarquía. Excluye otras doctrinas políticas.',{ex:'doc_pol',until:1870}],
+ ['doc_liberal','Doctrina Liberal','Sociedad',1,1.3,['liberalism'],{invest:.07,innov:.05,rad:.8,stab:-1},'Libertad individual y mercado. Excluye otras doctrinas políticas.',{ex:'doc_pol',until:1870}],
+ ['doc_social','Doctrina Social','Sociedad',1,1.3,['political_agitation'],{lit:.08,rad:-.5,tax:.03,invest:-.02},'Solidaridad y reforma. Excluye otras doctrinas políticas.',{ex:'doc_pol',until:1870,after:1840}],
+ ['joint_stock','Sociedades Anónimas','Sociedad',2,1.2,['liberalism'],{invest:.08},'Capital repartido en acciones.'],
+ ['socialism','Socialismo','Sociedad',2,1.2,['political_agitation'],{rad:1.5},'Desbloquea las leyes laborales.'],
+ ['universal_suffrage','Sufragio Universal','Sociedad',2,1.3,['political_agitation'],{stab:-1},'Desbloquea el sufragio universal.'],
+ ['labor_law','Legislación Laboral','Sociedad',2,1.2,['socialism'],{rad:-1,stab:1},'Jornada máxima y descanso semanal.'],
+ ['imperialism','Imperialismo','Sociedad',3,1.2,['steamships','nationalism'],{army:.05,logistics:.05},'Doctrina de la expansión colonial.'],
+ ['total_state','Estado Total','Sociedad',3,1.4,['mass_media','police'],{bur:.15,army:.06,stab:2,rad:-1},'Movilización de toda la sociedad.'],
+ // ---- MILITAR ----
+ ['percussion_cap','Pistón de Percusión','Militar',1,.8,[],{army:.08},'Mosquetes más fiables.'],
+ ['drill_regs','Reglamento de Instrucción','Militar',1,.9,['percussion_cap'],{army:.05,milCost:-.04},'Ejércitos mejor entrenados y baratos.'],
+ ['rifled_muskets','Mosquetes Rayados','Militar',1,1.1,['percussion_cap'],{army:.10},'Mayor alcance y precisión.'],
+ ['fortifications','Fortificaciones Modernas','Militar',1,1.0,['drill_regs'],{defense:.10},'Fuertes y líneas defensivas.'],
+ ['doc_line','Doctrina de Línea','Militar',1,1.2,['drill_regs'],{army:.07,defense:.03,milCost:.03},'Combate en formaciones cerradas. Excluye otras doctrinas militares.',{ex:'doc_mil',until:1866}],
+ ['doc_column','Doctrina de Columnas','Militar',1,1.2,['drill_regs'],{army:.05,logistics:.10},'Maniobra y velocidad. Excluye otras doctrinas militares.',{ex:'doc_mil',until:1866}],
+ ['doc_guerrilla','Guerra Irregular','Militar',1,1.2,['percussion_cap'],{defense:.15,milCost:-.06,army:-.02},'Resistencia popular. Excluye otras doctrinas militares.',{ex:'doc_mil',until:1866}],
+ ['military_academy','Academia Militar','Militar',1,1.1,['drill_regs'],{army:.04,innov:.04},'Formación de oficiales.'],
+ ['breech_loaders','Retrocarga','Militar',2,1.2,['rifled_muskets'],{army:.12},'Cadencia de fuego muy superior.'],
+ ['steel_artillery','Artillería de Acero','Militar',2,1.3,['breech_loaders','bessemer'],{army:.10},'Cañones rayados de largo alcance.'],
+ ['rail_logistics','Logística Ferroviaria','Militar',2,1.2,['railways','drill_regs'],{logistics:.15},'Movilización por ferrocarril.'],
+ ['general_staff','Estado Mayor General','Militar',2,1.3,['military_academy','telegraph'],{army:.08,logistics:.10},'Planificación centralizada de campañas.'],
+ ['machine_guns','Ametralladoras','Militar',2,1.2,['breech_loaders'],{defense:.12,army:.04},'Potencia de fuego defensiva.'],
+ ['quick_firing','Artillería de Tiro Rápido','Militar',3,1.3,['steel_artillery'],{army:.12},'Retroceso hidráulico.'],
+ ['trench_warfare','Guerra de Trincheras','Militar',3,1.2,['machine_guns'],{defense:.20},'Líneas fortificadas continuas.'],
+ ['motorization','Motorización','Militar',3,1.4,['internal_comb','rail_logistics'],{army:.12,logistics:.15},'Camiones y vehículos blindados.'],
+ ['mass_mobilization','Movilización de Masas','Militar',3,1.4,['general_staff','nationalism'],{army:.18,rad:.8,milCost:.08},'Ejércitos de millones de reservistas.'],
+ ['internal_comb','Motor de Combustión','Producción',3,1.2,['electricity'],{infra:.04,army:.04,constr:.05},'Motores de gasolina y diésel.']
+];
+const TECHS = TECH_RAW.map(t => {
+  const x = t[8] || {};
+  return {id: t[0], name: t[1], cat: t[2], era: t[3], cost: Math.round(ERAS[t[3]].base * t[4] / 10) * 10, req: t[5], fx: t[6], desc: t[7], ex: x.ex, until: x.until, after: x.after};
+});
 const TECH = {}; TECHS.forEach(t => TECH[t.id] = t);
+// Efecto de cada rama en la interfaz
+const TECH_CATS = ['Producción', 'Sociedad', 'Militar'];
 
 const JOURNAL = [
  {id:'industrial', name:'La Revolución Industrial', desc:'Duplica tus niveles de industria manufacturera.', goal:2, prog: c => c.stats.indLevels / Math.max(1, c.start.ind), reward:{prestige:60, innov:150}},

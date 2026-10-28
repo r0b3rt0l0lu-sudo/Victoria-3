@@ -5,7 +5,7 @@ root = os.path.dirname(os.path.abspath(__file__))
 def rd(p): return open(os.path.join(root, p), encoding='utf-8').read()
 three = rd('vendor/three.min.js')
 css = rd('src/style.css')
-order = ['geo.js', 'data.js', 'mapgen.js', 'sim.js', 'render.js', 'ui.js', 'main.js']
+order = ['geo.js', 'data.js', 'mapgen.js', 'sim.js', 'crisis.js', 'diplo.js', 'render.js', 'ui.js', 'manual.js', 'main.js']
 js = '\n'.join(rd('src/' + f) for f in order)
 html = f'''<!DOCTYPE html>
 <html lang="es">
@@ -24,6 +24,8 @@ html = f'''<!DOCTYPE html>
 <div id="toasts"></div>
 <div id="event"></div>
 <div id="tooltip"></div>
+<div id="wardlg"></div>
+<div id="search"></div>
 <div id="start"></div>
 <div id="loading"><h1>VICTORIA</h1><div class="lb"><i></i></div><p id="loadtxt">Cargando…</p></div>
 <script>{three.replace("</script>", "<\\/script>")}</script>

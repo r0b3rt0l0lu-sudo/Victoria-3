@@ -1,5 +1,5 @@
 /* ===== RENDER 3D DEL MAPA (three.js) ===== */
-const R = {mode: 'political', hover: -1, sel: -1, dirty: true, labelsDirty: true, cam: {tx: 12, tz: -52, dist: 120, tilt: 0.78, yaw: 0}, exag: 0.55};
+const R = {occ: {}, mode: 'political', hover: -1, sel: -1, dirty: true, labelsDirty: true, cam: {tx: 12, tz: -52, dist: 120, tilt: 0.78, yaw: 0}, exag: 0.55};
 const MAP_MODES = [
   {id: 'political', name: 'Político', icon: '🏴'},
   {id: 'terrain', name: 'Terreno', icon: '⛰️'},
@@ -8,7 +8,8 @@ const MAP_MODES = [
   {id: 'literacy', name: 'Alfabetización', icon: '📖'},
   {id: 'prosperity', name: 'Prosperidad', icon: '📈'},
   {id: 'radicals', name: 'Malestar', icon: '🔥'},
-  {id: 'diplomacy', name: 'Relaciones', icon: '🤝'}
+  {id: 'diplomacy', name: 'Relaciones', icon: '🤝'},
+  {id: 'blocs', name: 'Bloques y alianzas', icon: '🏳️'}
 ];
 
 function hex2rgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
@@ -33,10 +34,21 @@ function stateFill(s) {
     case 'literacy': { const l = c.lit * (0.7 + 0.6 * clamp(G.C[s.owner].ind * 2, 0, 1)) ; return [...ramp(RAMP_BLUE, l / 90), 0.8]; }
     case 'prosperity': { const g = s.gdp / Math.max(1, popTotal(s)); return [...ramp(RAMP_BLUE, (g - 0.6) / 2.2), 0.82]; }
     case 'radicals': return [...ramp(RAMP_RAD, c.radicals / 0.4), s.owner === NONE ? 0.2 : 0.82];
+    case 'blocs': {
+      if (s.owner === NONE) return [...hex2rgb(NEUTRAL_COLOR), 0.18];
+      const b = blocOf(s.owner);
+      if (b) return [...(b._rgb || (b._rgb = hex2rgb(b.color))), 0.86];
+      return [150, 150, 150, 0.35];
+    }
     case 'diplomacy': {
       const me = G.C[G.player];
       if (s.owner === G.player) return [90, 140, 200, 0.85];
       if (s.owner === NONE) return [...hex2rgb(NEUTRAL_COLOR), 0.2];
+      if (me.overlord === s.owner || G.C[s.owner].overlord === G.player) return [150, 90, 200, 0.85];
+      if (pactBetween('alliance', G.player, s.owner)) return [60, 130, 220, 0.9];
+      if (pactBetween('guarantee', G.player, s.owner) || pactBetween('guarantee', s.owner, G.player)) return [60, 190, 200, 0.85];
+      if (pactBetween('embargo', G.player, s.owner) || pactBetween('embargo', s.owner, G.player)) return [140, 60, 140, 0.85];
+      if (pactBetween('rival', G.player, s.owner)) return [230, 120, 40, 0.85];
       const rel = me.relations[s.owner] ?? 0;
       const war = G.wars.some(w => (w.att === G.player && w.def === s.owner) || (w.def === G.player && w.att === s.owner));
       if (war) return [190, 40, 40, 0.9];
@@ -223,11 +235,20 @@ function focusLonLat(lon, lat, dist) { R.cam.tx = lon; R.cam.tz = -lat; if (dist
 function paintPixel(i, fill, hov, sel) {
   const tc = MAP.terrainCol, d = R.img.data, o = i * 4;
   let r = tc[o], g = tc[o + 1], b = tc[o + 2];
+  const oc = R.occ[MAP.stateOf[i]];
   if (fill[3] > 0) {
     const a = fill[3];
     // modula con la luminancia del terreno para conservar el relieve
     const lum = 0.55 + 0.9 * ((r * 0.3 + g * 0.59 + b * 0.11) / 255);
     r = r * (1 - a) + fill[0] * lum * a; g = g * (1 - a) + fill[1] * lum * a; b = b * (1 - a) + fill[2] * lum * a;
+  }
+  if (oc) {
+    const rk = MAP.pxRank[i];
+    if (rk >= 0) {
+      const x = i % MAP_W, y = (i / MAP_W) | 0, st = ((x + y) >> 1) & 1;
+      if (Math.abs(rk - oc.frac) < oc.fw) { if (st) { r = 255; g = 232; b = 130; } else { r = 150; g = 22; b = 22; } }
+      else if (rk < oc.frac) { const k = st ? 0.78 : 0.45; r = r * (1 - k) + oc.rgb[0] * k; g = g * (1 - k) + oc.rgb[1] * k; b = b * (1 - k) + oc.rgb[2] * k; }
+    }
   }
   const e = MAP.edge[i];
   if (e === 2) { r = r * 0.35 + 18; g = g * 0.35 + 18; b = b * 0.35 + 22; }
@@ -238,12 +259,12 @@ function paintPixel(i, fill, hov, sel) {
 }
 
 function fullRepaint() {
-  const S = G.S, so = MAP.stateOf, land = MAP.land, d = R.img.data, tc = MAP.terrainCol;
-  const fills = S.map(stateFill);
-  for (let i = 0; i < land.length; i++) {
-    if (!land[i]) { const o = i * 4; d[o] = tc[o]; d[o + 1] = tc[o + 1]; d[o + 2] = tc[o + 2]; d[o + 3] = 255; continue; }
-    const s = so[i];
-    paintPixel(i, fills[s], s === R.hover, s === R.sel);
+  const S = G.S, land = MAP.land, d = R.img.data, tc = MAP.terrainCol;
+  if (!R.oceanInit) { for (let i = 0; i < land.length; i++) if (!land[i]) { const o = i * 4; d[o] = tc[o]; d[o + 1] = tc[o + 1]; d[o + 2] = tc[o + 2]; d[o + 3] = 255; } R.oceanInit = true; }
+  const off = MAP.pixOff, ord = MAP.pixOrder;
+  for (let s = 0; s < S.length; s++) {
+    const fill = stateFill(S[s]), hov = s === R.hover, sel = s === R.sel;
+    for (let k = off[s], e = off[s + 1]; k < e; k++) paintPixel(ord[k], fill, hov, sel);
   }
   R.ctx.putImageData(R.img, 0, 0);
   R.tex.needsUpdate = true; R.dirty = true; R.minimapDirty = true;
@@ -260,7 +281,18 @@ function repaintState(id) {
   R.ctx.putImageData(R.img, 0, 0, x0, y0, w, h);
   R.tex.needsUpdate = true; R.dirty = true;
 }
-function setHover(id) { if (id === R.hover) return; const old = R.hover; R.hover = id; repaintState(old); repaintState(id); }
+function setHover(id) {
+  if (id === R.hover) return; R.hoverWant = id;
+  if (R.hoverTimer) return;
+  R.hoverTimer = setTimeout(() => { R.hoverTimer = null; const nw = R.hoverWant; if (nw === R.hover) return; const old = R.hover; R.hover = nw; repaintState(old); repaintState(nw); }, 45);
+}
+function onFrontChanged(ids) {
+  ids.forEach(sid => {
+    const s = G.S[sid]; if (!s) return;
+    if ((s.occ || 0) > 0 && s.occBy) R.occ[sid] = {frac: s.occ, rgb: hex2rgb(G.C[s.occBy].color), fw: clamp(1.8 / Math.sqrt(Math.max(1, MAP.stats[sid].area)), 0.012, 0.15)}; else delete R.occ[sid];
+    repaintState(sid);
+  });
+}
 function setSelected(id) { const old = R.sel; R.sel = id; repaintState(old); repaintState(id); }
 function setMapMode(m) { R.mode = m; fullRepaint(); }
 
@@ -367,4 +399,10 @@ function frame_(t) {
   }
   if (window.onFrame) window.onFrame(t);
   requestAnimationFrame(frame_);
+}
+
+function focusCountry(tag, dist) {
+  const c = G.C[tag]; if (!c || !c.states.length) return;
+  const id = c.capital >= 0 && G.S[c.capital].owner === tag ? c.capital : c.states[0];
+  focusState(id, dist || 60);
 }

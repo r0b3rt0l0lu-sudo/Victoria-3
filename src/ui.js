@@ -75,6 +75,8 @@ function buildHud() {
       <div class="chip" id="ch-leg" data-tip="Legitimidad del gobierno"><b>🏛️</b><span></span></div>
       <div class="chip" id="ch-pop" data-tip="Población"><b>👥</b><span></span></div>
       <div class="chip" id="ch-sol" data-tip="Nivel de vida medio"><b>🍞</b><span></span></div>
+      <div class="chip clk" id="ch-crisis" data-act="goCrisis" data-tip="Crisis económicas activas"><b>📉</b><span></span></div>
+      <div class="chip clk" id="ch-mail" data-act="goMail" data-tip="Propuestas diplomáticas pendientes"><b>✉️</b><span></span></div>
     </div>
   </div>
   <div id="datebox">
@@ -83,10 +85,11 @@ function buildHud() {
     <div class="speeds">${[1, 2, 3, 4, 5].map(i => `<button class="spd s" data-act="speed" data-n="${i}" title="Velocidad ${i}"><i></i></button>`).join('')}</div>
   </div>
   <div id="topright">
+    <button class="rbtn" data-act="search" title="Buscar país o estado (Ctrl+K)">🔍</button>
     <button class="rbtn" data-act="save" title="Guardar partida">💾</button>
     <button class="rbtn" data-act="load" title="Cargar partida">📂</button>
     <button class="rbtn" data-act="win" data-w="journal" title="Diario">📜</button>
-    <button class="rbtn" data-act="win" data-w="help" title="Ayuda y controles">❔</button>
+    <button class="rbtn" data-act="win" data-w="manual" title="Manual del juego (F1)">📖</button>
   </div>
   <div id="menu">
     ${[['budget', '💷', 'Presupuesto'], ['production', '🏭', 'Producción y mercado'], ['pops', '👥', 'Población'], ['politics', '🏛️', 'Política'], ['tech', '💡', 'Tecnología'], ['diplomacy', '🤝', 'Diplomacia'], ['military', '⚔️', 'Ejército y guerra'], ['construction', '🏗️', 'Construcción']]
@@ -123,6 +126,11 @@ function updateHud(force) {
   set('ch-leg', Math.round(c.legitimacy) + '%', '<b>Legitimidad</b><br>Por debajo del 40% crecen los disturbios.');
   set('ch-pop', fmtN(st.pop, 1), '<b>Población</b>');
   set('ch-sol', f1(st.sol), '<b>Nivel de vida medio</b><br>En una escala de 0 a 25.');
+  const ncr = G.crises.filter(x => x.scope === 'global' || x.scope === G.player).length;
+  set('ch-crisis', ncr, ncr ? '<b>Crisis activas</b><br>' + G.crises.filter(x => x.scope === 'global' || x.scope === G.player).map(x => x.icon + ' ' + x.name + ' (' + x.left + ' m)').join('<br>') : '<b>Sin crisis activas</b>');
+  $('#ch-crisis').classList.toggle('neg', ncr > 0);
+  set('ch-mail', G.proposals.length, '<b>Propuestas diplomáticas</b><br>' + (G.proposals.length ? 'Tienes propuestas pendientes' : 'Sin propuestas'));
+  $('#ch-mail').classList.toggle('alert', G.proposals.length > 0);
   $('#datetxt').textContent = dateStr();
   $('#btn-pause').textContent = G.paused ? '▶' : '⏸';
   $$('#datebox .speeds .s').forEach((b, i) => b.classList.toggle('on', i < UI.speed));
@@ -222,6 +230,8 @@ WINDOWS.production = {title: 'Producción y mercado', icon: '🏭', render() {
         const p = G.price[g.id], rel = p / g.base - 1; const bal = G.prod[g.id] / Math.max(1, G.dem[g.id]) - 1;
         return `<tr><td><span class="gi" style="background:${g.color}">${g.icon}</span> ${g.name}</td><td class="r"><b>£${f1(p)}</b> <small class="${rel > 0.03 ? 'bad' : rel < -0.03 ? 'good' : ''}">${sgn(rel * 100, 0)}%</small></td><td>${spark(G.hist[g.id].slice(-70), 90, 22, rel > 0 ? '#d98a6a' : '#8cc07a', g.base)}</td><td class="r">${fmtN(G.prod[g.id], 1)}</td><td class="r">${fmtN(G.dem[g.id], 1)}</td><td>${Math.abs(bal) < 0.03 ? '<span class="tag">Equilibrio</span>' : bal > 0 ? '<span class="tag good">Excedente</span>' : '<span class="tag bad">Déficit</span>'}</td></tr>`;
       }).join('')).join('') + `</tbody></table></div>`;
+  } else if (t === 'crisis') {
+    body = crisisTab();
   } else {
     const rows = BUILDINGS.map(b => {
       let lv = 0, cap = 0, jobs = 0, va = 0, n = 0;
@@ -231,7 +241,7 @@ WINDOWS.production = {title: 'Producción y mercado', icon: '🏭', render() {
     }).join('');
     body = `<div class="scrollable tall"><table class="tbl"><thead><tr><th>Edificio</th><th>Tipo</th><th class="r">Niveles</th><th class="r">Capacidad</th><th class="r">Valor añadido/nivel</th></tr></thead><tbody>${rows}</tbody></table></div><p class="hint">Selecciona un estado en el mapa para construir nuevos niveles. Los inversores privados también construyen donde hay más beneficio.</p>`;
   }
-  return tabs('prod', [['market', 'Mercado mundial'], ['buildings', 'Edificios del país']]) + body;
+  return tabs('prod', [['market', 'Mercado mundial'], ['buildings', 'Edificios del país'], ['crisis', `Crisis y ciclo${G.crises.filter(x => x.scope === 'global' || x.scope === G.player).length ? ' ⚠️' : ''}`]]) + body;
 }};
 
 /* --- Población --- */
@@ -271,6 +281,8 @@ WINDOWS.politics = {title: 'Política', icon: '🏛️', render() {
       <div class="ig ${g.gov ? 'gov' : ''}" data-tip="<b>${d.name}</b><br>${d.desc}"><div class="igh"><span class="igi" style="background:${d.color}">${d.icon}</span><div><b>${d.name}</b><small>${g.gov ? 'En el gobierno' : 'Oposición'}</small></div><span class="face">${faceFor(g.approval)}</span></div>
       <div class="kv"><span>Influencia</span><b>${pctS(g.share, 1)}</b></div>${bar(g.share, 0.5, '', '')}
       <div class="kv"><span>Aprobación</span><b class="${g.approval < -1 ? 'bad' : g.approval > 1 ? 'good' : ''}">${sgn(g.approval)}</b></div></div>`; }).join('')}</div></div></div></div>`;
+  } else if (t === 'ideo') {
+    body = ideoTab();
   } else {
     const sel = UI.lawSel && LAW[UI.lawSel] ? LAW[UI.lawSel] : null;
     body = `<div class="laws scrollable tall">${LAW_CATS.map(cat => `<div class="lawcat"><h4>${cat.icon} ${cat.name}</h4><div class="lawopts">${cat.opts.map(o => {
@@ -284,77 +296,262 @@ WINDOWS.politics = {title: 'Política', icon: '🏛️', render() {
         ${cur ? '<div class="notice">Esta ley está en vigor.</div>' : `<div class="kv"><span>Probabilidad de aprobación</span><b>${pctS(chance)}</b></div><button class="primary" data-act="enact" data-id="${sel.id}" ${c.lawChange || (sel.tech && !c.techs.has(sel.tech)) ? 'disabled' : ''}>Promulgar reforma (50 influencia)</button>${sel.tech && !c.techs.has(sel.tech) ? `<small class="bad">Requiere: ${TECH[sel.tech].name}</small>` : ''}`}`;
       })() : '<p class="hint">Selecciona una ley para ver sus efectos y las posturas de los grupos de interés.</p>'}</div>`;
   }
-  return tabs('pol', [['igs', 'Gobierno y grupos de interés'], ['laws', 'Leyes']]) + body;
+  return tabs('pol', [['igs', 'Gobierno y grupos de interés'], ['ideo', 'Ideologías y cambio de régimen'], ['laws', 'Leyes']]) + body;
 }};
 const MODNAME = {tax: 'Recaudación', bur: 'Burocracia', invest: 'Inversión privada', lit: 'Alfabetización', grow: 'Crecimiento', army: 'Ejército', rad: 'Radicalismo', out: 'Producción', lab: 'Cuota salarial', stab: 'Estabilidad'};
 const MODGOOD = {rad: -1};
 
 /* --- Tecnología --- */
+const TECHFX = {agriOut: 'Prod. agrícola', mineOut: 'Prod. minera', indOut: 'Prod. industrial', steelOut: 'Prod. de acero', constr: 'Construcción', innov: 'Innovación', bur: 'Burocracia', tax: 'Recaudación', invest: 'Inversión privada', grow: 'Crecimiento', army: 'Potencia militar', lit: 'Alfabetización', infra: 'Infraestructura', milCost: 'Coste militar', defense: 'Defensa', logistics: 'Logística', crisis: 'Resistencia a crisis', stab: 'Legitimidad', rad: 'Radicalismo'};
+const TECHFX_PTS = {stab: 1, rad: 1};
+const TECHFX_BADPOS = {rad: 1, milCost: 1};
+function fxText(fx) {
+  return Object.keys(fx).map(k => {
+    const v = fx[k], pts = TECHFX_PTS[k]; const good = TECHFX_BADPOS[k] ? v < 0 : v > 0;
+    return `<span class="${good ? 'good' : 'bad'}">${TECHFX[k] || k} ${pts ? sgn(v, 1) : sgn(v * 100, 0) + '%'}</span>`;
+  }).join(' · ');
+}
 WINDOWS.tech = {title: 'Tecnología', icon: '💡', render() {
   const c = me(), st = c.stats;
   const cur = c.research ? TECH[c.research] : null;
-  const cats = ['Producción', 'Sociedad', 'Militar'];
+  const eras = [1, 2, 3].map(e => {
+    const E = ERAS[e], un = eraUnlocked(c, e), cnt = eraCount(c, e), tot = TECHS.filter(t => t.era === e).length;
+    return `<div class="era ${un ? 'open' : ''}"><b>Era ${e}: ${E.name}</b><small>${un ? `${cnt} de ${tot} investigadas` : `🔒 Año ${E.needYear} y ${E.needPrev} tecnologías de la era ${e - 1} (${eraCount(c, e - 1)}/${E.needPrev})`}</small>${bar(cnt, tot, 'gold')}</div>`;
+  }).join('');
+  const total = TECHS.length, done = c.techs.size;
   return `<div class="card"><div class="kv"><span>Puntos de innovación</span><b>${Math.floor(c.innovStock)} <small>(+${f1(st.innovRate)}/semana)</small></b></div>
-   ${cur ? `<div class="kv"><span>Investigando: <b>${cur.name}</b></span><b>${Math.min(100, Math.floor(c.innovStock / cur.cost * 100))}%</b></div>${bar(c.innovStock, cur.cost, 'gold')}` : '<div class="notice">No estás investigando nada. Elige una tecnología.</div>'}
-   <p class="hint">Construye <b>Universidades</b> y mejora la alfabetización para acelerar la innovación.</p></div>
-  <div class="techcols">${cats.map(cat => `<div class="techcol"><h3>${cat}</h3>${TECHS.filter(t => t.cat === cat).map(t => {
-    const done = c.techs.has(t.id), avail = techAvailable(c, t), now = c.research === t.id;
-    const reqs = (t.req || []).map(r => TECH[r].name).join(', ');
-    const fx = Object.keys(t.fx).map(k => `${TECHFX[k] || k} ${sgn(t.fx[k] * 100, 0)}%`).join(' · ');
-    return `<div class="tech ${done ? 'done' : ''} ${now ? 'now' : ''} ${!avail && !done ? 'lock' : ''}" ${avail && !now ? `data-act="research" data-id="${t.id}"` : ''}><b>${done ? '✔ ' : ''}${t.name}</b><small>${t.desc}</small>${fx ? `<small class="good">${fx}</small>` : ''}<span class="cost">${done ? 'Completada' : now ? 'En curso' : `💡 ${t.cost}`}</span>${!avail && !done ? `<small class="dim">Requiere: ${reqs}</small>` : ''}</div>`;
+   ${cur ? `<div class="kv"><span>Investigando: <b>${cur.name}</b></span><b>${Math.min(100, Math.floor(c.innovStock / techCost(c, cur) * 100))}% · coste ${techCost(c, cur)}</b></div>${bar(c.innovStock, techCost(c, cur), 'gold')}<button data-act="cancelresearch">Cambiar de investigación</button>` : '<div class="notice">No estás investigando nada. Elige una tecnología disponible.</div>'}
+   <div class="kv"><span>Tecnologías completadas</span><b>${done} / ${total}</b></div>
+   <p class="hint">Cada tecnología cuesta un 1,5% más por cada tecnología ya investigada. Las eras avanzadas exigen año y progreso previo; las <b>doctrinas</b> (⚖) son excluyentes y las marcadas con ⏳ caducan si no se investigan a tiempo.</p></div>
+  <div class="eras">${eras}</div>
+  <div class="techcols">${TECH_CATS.map(cat => `<div class="techcol"><h3>${cat}</h3>${[1, 2, 3].map(e => {
+    const list = TECHS.filter(t => t.cat === cat && t.era === e); if (!list.length) return '';
+    return `<h5>Era ${e}</h5>` + list.map(t => {
+      const stt = techStatus(c, t), now = c.research === t.id;
+      const cls = stt.k === 'done' ? 'done' : now ? 'now' : stt.k === 'avail' ? '' : 'lock';
+      return `<div class="tech ${cls} ${stt.k === 'obsolete' ? 'obs' : ''}" ${stt.k === 'avail' && !now ? `data-act="research" data-id="${t.id}"` : ''}><b>${stt.k === 'done' ? '✔ ' : ''}${t.ex ? '⚖ ' : ''}${t.until && stt.k !== 'done' ? '⏳ ' : ''}${t.name}</b><small>${t.desc}</small><small>${fxText(t.fx)}</small><span class="cost">${stt.k === 'done' ? 'Completada' : now ? 'En curso' : `💡 ${techCost(c, t)}`}</span>${stt.why ? `<small class="dim">${stt.why}</small>` : ''}${t.until && stt.k === 'avail' ? `<small class="warn">Caduca tras ${t.until}</small>` : ''}</div>`;
+    }).join('');
   }).join('')}</div>`).join('')}</div>`;
 }};
-const TECHFX = {agriOut: 'Prod. agrícola', mineOut: 'Prod. minera', indOut: 'Prod. industrial', constr: 'Construcción', innov: 'Innovación', bur: 'Burocracia', tax: 'Recaudación', invest: 'Inversión', grow: 'Crecimiento', army: 'Ejército', lit: 'Alfabetización', infra: 'Infraestructura'};
 
 /* --- Diplomacia --- */
+const norm = t => (t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+function relBadge(r) { return `<span class="${r < -20 ? 'bad' : r > 20 ? 'good' : ''}">${sgn(r, 0)}</span>`; }
+function pactLabel(p, from) { const d = PACTS[p.type]; return `${d.icon} ${d.name}`; }
 WINDOWS.diplomacy = {title: 'Diplomacia', icon: '🤝', render() {
-  const c = me(); const t = curTab('dip', 'world');
-  let body = '';
+  const c = me(); const t = curTab('dip', 'world'); let body = '';
+  const mail = G.proposals.length;
   if (t === 'world') {
-    const sel = UI.dipSel && G.C[UI.dipSel] && UI.dipSel !== NONE ? UI.dipSel : G.rankList.find(x => x !== G.player);
+    const q = norm(UI.dipQ);
+    const sel = UI.dipSel && G.C[UI.dipSel] && UI.dipSel !== NONE && alive(UI.dipSel) ? UI.dipSel : G.rankList.find(x => x !== G.player && alive(x));
     const o = G.C[sel];
-    const rel = c.relations[sel] ?? 0; const reach = canReach(G.player, sel); const atWar = G.wars.some(w => (w.att === G.player && w.def === sel) || (w.def === G.player && w.att === sel));
-    body = `<div class="cols"><div class="col wide"><div class="scrollable tall"><table class="tbl clickable"><thead><tr><th>#</th><th>País</th><th class="r">Prestigio</th><th class="r">Población</th><th class="r">PIB</th><th class="r">Relación</th></tr></thead><tbody>${G.rankList.map(tag => { const k = G.C[tag]; if (!k.states.length) return ''; const r = k.relations[G.player] ?? 0; return `<tr class="${tag === sel ? 'sel' : ''} ${tag === G.player ? 'me' : ''}" data-act="dipsel" data-tag="${tag}"><td>${k.rank}</td><td>${flag(tag, 'sm')} ${k.name}</td><td class="r">${Math.round(k.prestige)}</td><td class="r">${fmtN(k.stats.pop, 1)}</td><td class="r">${fmtN(k.stats.gdp, 1)}</td><td class="r ${r < -20 ? 'bad' : r > 20 ? 'good' : ''}">${tag === G.player ? '—' : sgn(r, 0)}</td></tr>`; }).join('')}</tbody></table></div></div>
+    const list = G.rankList.filter(tag => alive(tag) && (!q || norm(G.C[tag].name).includes(q) || norm(tag).includes(q)));
+    const rel = c.relations[sel] ?? 0, atWar = atWarWith(G.player, sel);
+    const myPacts = pactsOf(G.player).filter(p => p.a === sel || p.b === sel);
+    let actions = '';
+    if (sel !== G.player) {
+      const types = ['alliance', 'guarantee', 'nonagg', 'trade', 'subsidy', 'embargo', 'rival'];
+      const btns = types.map(tp => {
+        const def = PACTS[tp]; const ex = G.pacts.find(p => p.type === tp && ((p.a === G.player && p.b === sel) || (def.mutual && p.a === sel && p.b === G.player)));
+        if (ex) return `<button class="pactbtn on" data-act="breakpact" data-id="${ex.id}" data-tip="<b>${def.name}</b><br>Pulsa para romperlo (−25 de relación).">${def.icon} ${def.name} ✔ <small>romper</small></button>`;
+        const ch = acceptChance(tp, G.player, sel); const tip = `<b>${def.name}</b><br>${def.desc}<br><br>Probabilidad de aceptar: <b>${Math.round(ch.p * 100)}%</b><br>${ch.reasons.join('<br>')}`;
+        return `<button class="pactbtn" data-act="pact" data-t="${tp}" data-tag="${sel}" ${c.influence < def.cost || atWar ? 'disabled' : ''} data-tip="${tip}">${def.icon} ${def.name} <small>${def.cost} infl.${tp === 'alliance' || tp === 'guarantee' || tp === 'nonagg' || tp === 'trade' ? ' · ' + Math.round(ch.p * 100) + '%' : ''}</small></button>`;
+      }).join('');
+      const warBlock = warBlockers(G.player, sel);
+      actions = `<div class="btnrow"><button data-act="improve" data-tag="${sel}" ${c.influence < 20 ? 'disabled' : ''}>🕊️ Mejorar relaciones <small>20</small></button><button data-act="gift" data-tag="${sel}">🎁 Regalo <small>${money(c.stats.income * 1.5)}</small></button><button data-act="insult" data-tag="${sel}" ${c.influence < 10 ? 'disabled' : ''}>😠 Insultar <small>10</small></button></div>
+      <h4 class="sub">Acuerdos</h4><div class="pactgrid">${btns}</div>
+      <h4 class="sub">Injerencia</h4><div class="igpick">${IG_ORDER.map(k => `<button data-act="abroad" data-tag="${sel}" data-ig="${k}" ${c.influence < 50 ? 'disabled' : ''} data-tip="<b>Patrocinar a ${IGS[k].name}</b> en ${o.name}<br>+50% de influencia durante 12 meses (50 infl.). Riesgo de ser descubierto.">${IGS[k].icon}</button>`).join('')}</div>
+      <div class="btnrow">${atWar ? '<span class="tag bad">⚔️ En guerra</span>' : `<button class="danger" data-act="wardlg" data-tag="${sel}" ${warBlock ? 'disabled' : ''}>⚔️ Declarar la guerra…</button>`}</div>
+      <small class="dim">${warBlock && !atWar ? warBlock : 'Elegirás el casus belli y los territorios que exiges.'}</small>`;
+    }
+    body = `<div class="cols"><div class="col wide"><input id="dipq" class="search" placeholder="🔍 Buscar país…" value="${(UI.dipQ || '').replace(/"/g, '&quot;')}" autocomplete="off"><div class="scrollable tall"><table class="tbl clickable"><thead><tr><th>#</th><th>País</th><th class="r">Prestigio</th><th class="r">Población</th><th class="r">PIB</th><th class="r">Rel.</th></tr></thead><tbody>${list.map(tag => { const k = G.C[tag]; const r = k.relations[G.player] ?? 0; const bl = blocOf(tag); return `<tr class="${tag === sel ? 'sel' : ''} ${tag === G.player ? 'me' : ''}" data-act="dipsel" data-tag="${tag}"><td>${k.rank}</td><td>${flag(tag, 'sm')} ${k.name}${bl ? ` <small class="dim" style="color:${bl.color}">●</small>` : ''}${k.overlord ? ' <small class="dim">(vasallo)</small>' : ''}</td><td class="r">${Math.round(k.prestige)}</td><td class="r">${fmtN(k.stats.pop, 1)}</td><td class="r">${fmtN(k.stats.gdp, 1)}</td><td class="r">${tag === G.player ? '—' : relBadge(r)}</td></tr>`; }).join('') || '<tr><td colspan="6" class="dim">Ningún país coincide.</td></tr>'}</tbody></table></div></div>
     <div class="col"><div class="card"><div class="dipcard">${flag(sel, 'big')}<div><h3>${o.name}</h3><small>${o.gov}</small></div></div>
-     <div class="kv"><span>Rango</span><b>#${o.rank}</b></div><div class="kv"><span>Prestigio</span><b>${Math.round(o.prestige)}</b></div>
-     <div class="kv"><span>Población</span><b>${fmtN(o.stats.pop, 1)}</b></div><div class="kv"><span>Ejército</span><b>${fmtN(o.stats.soldiers, 1)}</b></div>
-     <div class="kv"><span>Estados</span><b>${o.states.length}</b></div>
-     ${sel !== G.player ? `<div class="kv"><span>Relaciones</span><b class="${rel < -20 ? 'bad' : rel > 20 ? 'good' : ''}">${sgn(rel, 0)}</b></div>${bar(rel + 100, 200, rel < 0 ? 'bad' : 'good')}
-     <div class="btnrow"><button data-act="improve" data-tag="${sel}" ${c.influence < 20 ? 'disabled' : ''}>🕊️ Mejorar relaciones <small>20 infl.</small></button>
-     <button class="danger" data-act="war" data-tag="${sel}" ${atWar || !reach || c.influence < 40 ? 'disabled' : ''}>⚔️ Declarar la guerra <small>40 infl.</small></button></div>
-     <small class="dim">${atWar ? 'Ya estáis en guerra.' : !reach ? 'No tienes un frente alcanzable contra este país.' : 'Atacarás el estado fronterizo más cercano.'}</small>` : ''}</div></div></div>`;
+     <div class="kv"><span>Rango · Prestigio</span><b>#${o.rank} · ${Math.round(o.prestige)}</b></div><div class="kv"><span>Población · Ejército</span><b>${fmtN(o.stats.pop, 1)} · ${fmtN(o.stats.soldiers, 1)}</b></div>
+     <div class="kv"><span>Estados · Infamia</span><b>${o.states.length} · ${Math.round(o.infamy)}</b></div>
+     ${o.bloc ? `<div class="kv"><span>Bloque</span><b style="color:${blocOf(sel).color}">${blocOf(sel).name}</b></div>` : ''}${o.overlord ? `<div class="kv"><span>Soberano</span><b>${G.C[o.overlord].name}</b></div>` : ''}
+     ${sel !== G.player ? `<div class="kv"><span>Relaciones</span><b>${sgn(rel, 0)}</b></div>${bar(rel + 100, 200, rel < 0 ? 'bad' : 'good')}` : ''}
+     ${myPacts.length ? `<div class="chips2">${myPacts.map(p => `<span class="tag">${pactLabel(p)}</span>`).join('')}</div>` : ''}
+     ${actions}</div></div></div>`;
+  } else if (t === 'pacts') {
+    const mine = pactsOf(G.player);
+    body = `${G.proposals.length ? `<div class="card"><h3>Propuestas recibidas</h3>${G.proposals.map(pp => `<div class="kv"><span>${flag(pp.from, 'sm')} <b>${G.C[pp.from].name}</b> propone ${pp.type === 'bloc' ? 'que ingreses en su bloque' : PACTS[pp.type].icon + ' ' + PACTS[pp.type].name.toLowerCase()}</span><span><button data-act="propyes" data-id="${pp.id}">Aceptar</button> <button data-act="propno" data-id="${pp.id}">Rechazar</button></span></div>`).join('')}</div>` : ''}
+    <div class="card"><h3>Mis acuerdos</h3>${mine.length ? `<table class="tbl"><thead><tr><th>Acuerdo</th><th>Con</th><th>Desde</th><th>Caduca</th><th></th></tr></thead><tbody>${mine.map(p => { const o2 = p.a === G.player ? p.b : p.a; const dir = PACTS[p.type].mutual ? '' : (p.a === G.player ? ' (tú → ellos)' : ' (ellos → tú)'); return `<tr><td>${pactLabel(p)}${dir}</td><td>${flag(o2, 'sm')} ${G.C[o2].name}</td><td>${MONTHS_CAP[p.since.m].slice(0, 3)} ${p.since.y}</td><td>${p.until ? p.until.y : '—'}</td><td class="r"><button data-act="breakpact" data-id="${p.id}">Romper</button></td></tr>`; }).join('')}</tbody></table>` : '<p class="hint">No tienes ningún acuerdo. Selecciona un país en la pestaña Potencias para proponer alianzas, garantías, tratados comerciales…</p>'}</div>
+    <div class="card"><h3>Tipos de acuerdo</h3>${Object.keys(PACTS).map(k => `<div class="kv sm"><span><b>${PACTS[k].icon} ${PACTS[k].name}</b> — ${PACTS[k].desc}</span><b>${PACTS[k].cost} infl.</b></div>`).join('')}</div>`;
+  } else if (t === 'blocs') {
+    const mb = blocOf(G.player);
+    let mine = '';
+    if (mb) {
+      const lead = mb.leader === G.player; const bt = BLOC_TYPES[mb.type];
+      const cand = lead ? G.rankList.filter(x => alive(x) && x !== G.player && !G.C[x].bloc && !G.C[x].overlord).map(x => ({x, ch: blocInviteChance(mb, x)})).filter(z => z.ch.p > 0).sort((a, b) => b.ch.p - a.ch.p).slice(0, 12) : [];
+      mine = `<div class="card bloc" style="--bc:${mb.color}"><h3>${bt.icon} ${mb.name}</h3><p class="hint">${bt.desc}</p>
+        <div class="kv"><span>Líder</span><b>${flag(mb.leader, 'sm')} ${G.C[mb.leader].name}</b></div><div class="kv"><span>Miembros</span><b>${mb.members.length} / ${blocMax(G.C[mb.leader])}</b></div>
+        <table class="tbl"><tbody>${mb.members.map(m => `<tr><td>${flag(m, 'sm')} ${G.C[m].name}${m === mb.leader ? ' 👑' : ''}</td><td class="r">${m === G.player ? '' : relBadge(relOf(G.player, m))}</td><td class="r">${lead && m !== G.player ? `<button data-act="kickbloc" data-tag="${m}">Expulsar</button>` : ''}</td></tr>`).join('')}</tbody></table>
+        <div class="btnrow"><button data-act="leavebloc">🚪 ${lead ? 'Abandonar (cede el liderazgo)' : 'Abandonar bloque'}</button>${lead ? '<button class="danger" data-act="dissolvebloc">Disolver bloque</button>' : ''}</div></div>
+        ${lead ? `<div class="card"><h3>Invitar países (20 de influencia)</h3><table class="tbl clickable"><tbody>${cand.map(z => `<tr><td>${flag(z.x, 'sm')} ${G.C[z.x].name}</td><td class="r">${Math.round(z.ch.p * 100)}%</td><td class="r"><button data-act="invitebloc" data-tag="${z.x}" ${me().influence < 20 ? 'disabled' : ''}>Invitar</button></td></tr>`).join('') || '<tr><td class="dim">No hay candidatos.</td></tr>'}</tbody></table></div>` : ''}`;
+    } else {
+      mine = `<div class="card"><h3>Fundar un bloque</h3><p class="hint">Necesitas 30 de prestigio y 60 de influencia. El tamaño máximo depende de tu prestigio.</p>
+        <div class="seg">${Object.keys(BLOC_TYPES).map(k => `<button class="${(UI.blocType || 'military') === k ? 'on' : ''}" data-act="blocType" data-t="${k}">${BLOC_TYPES[k].icon} ${BLOC_TYPES[k].name}</button>`).join('')}</div>
+        <p class="hint">${BLOC_TYPES[UI.blocType || 'military'].desc}</p><input id="blocname" class="search" placeholder="Nombre del bloque (opcional)" value="${(UI.blocName || '').replace(/"/g, '&quot;')}"><button class="primary" data-act="createbloc" ${me().prestige < 30 || me().influence < 60 || me().overlord ? 'disabled' : ''}>Fundar bloque</button></div>`;
+    }
+    const others = G.blocs.filter(b => b !== mb);
+    body = mine + `<div class="card"><h3>Bloques del mundo</h3>${others.length ? others.map(b => { const ch = blocInviteChance(b, G.player); return `<div class="blocrow" style="--bc:${b.color}"><div><b>${BLOC_TYPES[b.type].icon} ${b.name}</b><small>${BLOC_TYPES[b.type].name} · líder ${G.C[b.leader].name}</small><div class="chips2">${b.members.map(m => `<span class="tag">${flag(m, 'sm')} ${G.C[m].name}</span>`).join('')}</div></div>${!mb ? `<button data-act="joinbloc" data-id="${b.id}" ${ch.p === 0 || me().influence < 20 ? 'disabled' : ''} data-tip="${ch.why}">Solicitar ingreso<small>${Math.round(ch.p * 100)}%</small></button>` : ''}</div>`; }).join('') : '<p class="hint">Aún no existe ningún otro bloque.</p>'}</div>`;
+  } else if (t === 'claims') {
+    const cl = c.claims.map(x => G.S[x.state]).filter(s => s && s.owner !== G.player);
+    const sel = UI.dipSel && alive(UI.dipSel) && UI.dipSel !== G.player ? UI.dipSel : null;
+    const rs = sel ? reachableStates(G.player, sel).slice(0, 10) : [];
+    body = `<div class="cols"><div class="col"><div class="card"><h3>Mis reclamaciones</h3>${cl.length ? `<table class="tbl"><tbody>${cl.map(s => `<tr><td>${s.name}</td><td>${s.owner === NONE ? 'Sin dueño' : flag(s.owner, 'sm') + ' ' + G.C[s.owner].name}</td><td class="r">${s.owner !== NONE ? `<button data-act="wardlg" data-tag="${s.owner}" data-cb="claim" data-st="${s.id}">⚔️ Reclamar</button>` : ''}</td></tr>`).join('')}</tbody></table>` : '<p class="hint">No tienes reclamaciones. Fabrícalas sobre territorios alcanzables o pierde territorios para obtener derechos históricos.</p>'}
+      ${c.fabricating ? `<div class="notice">📜 Fabricando reclamación sobre <b>${G.S[c.fabricating.state].name}</b>: ${c.fabricating.months} meses.</div>` : ''}</div>
+      <div class="card"><h3>Fabricar reclamaciones</h3><p class="hint">Selecciona un país en Potencias (${sel ? G.C[sel].name : 'ninguno'}) y elige un estado alcanzable. Cuesta 30 de influencia y 6 meses.</p><table class="tbl"><tbody>${rs.map(x => `<tr><td>${G.S[x.id].name}</td><td class="r">${fmtN(popTotal(G.S[x.id]), 1)}</td><td class="r">${hasClaim(c, x.id) ? '<span class="tag good">Reclamado</span>' : `<button data-act="fabricate" data-id="${x.id}" ${c.fabricating || c.influence < 30 ? 'disabled' : ''}>Fabricar</button>`}</td></tr>`).join('') || '<tr><td class="dim">Elige un país primero.</td></tr>'}</tbody></table></div></div>
+    <div class="col wide"><div class="card"><h3>Casus belli disponibles</h3>${Object.keys(CBS).filter(k => !CBS[k].hidden).map(k => `<div class="cbrow"><span class="cbi">${CBS[k].icon}</span><div><b>${CBS[k].name}</b> <small class="dim">${CBS[k].cost} infl. base${CBS[k].perState ? ' + ' + CBS[k].perState + ' por territorio' : ''}</small><p class="hint">${CBS[k].desc}</p></div></div>`).join('')}</div></div></div>`;
+  } else if (t === 'vassals') {
+    const sub = c.subjects || [];
+    body = `${c.overlord ? `<div class="notice">👑 Eres vasallo de <b>${G.C[c.overlord].name}</b>: pagas el 12% de tus ingresos y no puedes declarar guerras.</div>` : ''}
+    <div class="card"><h3>Mis vasallos</h3>${sub.length ? `<table class="tbl"><tbody>${sub.map(x => `<tr><td>${flag(x, 'sm')} ${G.C[x].name}</td><td class="r">${fmtN(G.C[x].stats.pop, 1)}</td><td class="r"><button data-act="annex" data-tag="${x}" ${c.influence < 80 ? 'disabled' : ''}>Anexionar <small>80</small></button> <button data-act="release" data-tag="${x}">Liberar</button></td></tr>`).join('')}</tbody></table>` : '<p class="hint">No tienes vasallos. Usa el casus belli «Vasallaje» para someter a un país débil: te pagará un 12% de sus ingresos y seguirá tu política exterior.</p>'}</div>`;
   } else {
     const tg = colonizeTargets(c).slice(0, 14);
     body = `<div class="card"><h3>Colonización</h3>${c.colonizing ? `<div class="notice">⚓ Colonizando <b>${G.S[c.colonizing.state].name}</b> — ${c.colonizing.months} meses restantes.</div>` : '<p class="hint">Reclama tierras sin dueño al alcance de tus territorios. Cuesta 80 de influencia y tarda 6 meses.</p>'}
-     <table class="tbl clickable"><thead><tr><th>Estado</th><th class="r">Población</th><th class="r">Distancia</th><th></th></tr></thead><tbody>${tg.map(x => { const s = G.S[x.id]; return `<tr data-act="focus" data-id="${s.id}"><td>${s.name}</td><td class="r">${fmtN(popTotal(s), 1)}</td><td class="r">${Math.round(x.d)}°</td><td class="r"><button data-act="colonize" data-id="${s.id}" ${c.colonizing || c.influence < 80 ? 'disabled' : ''}>Colonizar</button></td></tr>`; }).join('') || '<tr><td colspan="4" class="dim">No hay territorios sin reclamar a tu alcance.</td></tr>'}</tbody></table></div>`;
+     <table class="tbl clickable"><thead><tr><th>Estado</th><th class="r">Población</th><th class="r">Distancia</th><th></th></tr></thead><tbody>${tg.map(x => { const s2 = G.S[x.id]; return `<tr data-act="focus" data-id="${s2.id}"><td>${s2.name}</td><td class="r">${fmtN(popTotal(s2), 1)}</td><td class="r">${Math.round(x.d)}°</td><td class="r"><button data-act="colonize" data-id="${s2.id}" ${c.colonizing || c.influence < 80 ? 'disabled' : ''}>Colonizar</button></td></tr>`; }).join('') || '<tr><td colspan="4" class="dim">No hay territorios sin reclamar a tu alcance.</td></tr>'}</tbody></table></div>`;
   }
-  return tabs('dip', [['world', 'Potencias'], ['colony', 'Colonización']]) + body;
+  return tabs('dip', [['world', 'Potencias'], ['pacts', 'Acuerdos' + (mail ? ` (${mail})` : '')], ['blocs', 'Bloques'], ['claims', 'Casus belli'], ['vassals', 'Vasallos'], ['colony', 'Colonización']]) + body;
 }};
 
 /* --- Ejército y guerra --- */
 WINDOWS.military = {title: 'Ejército y guerra', icon: '⚔️', render() {
   const c = me(), st = c.stats;
-  const myWars = G.wars.filter(w => w.att === G.player || w.def === G.player);
+  const myWars = G.wars.filter(w => w.attAll.includes(G.player) || w.defAll.includes(G.player));
   const pw = armyPower(c);
   let barr = 0; c.states.forEach(i => barr += G.S[i].b.barracks || 0);
+  const sideHtml = (list, lead) => list.map(t => `${flag(t, 'sm')} ${G.C[t].name}${t === lead ? ' 👑' : ''}`).join(', ');
   return `<div class="cols"><div class="col"><div class="card"><h3>Fuerzas armadas</h3>
    <div class="kv"><span>Soldados</span><b>${fmtN(st.soldiers, 1)}</b></div>
    <div class="kv"><span>Niveles de cuarteles</span><b>${Math.round(barr)}</b></div>
    <div class="kv"><span>Potencia militar</span><b>${fmtN(pw, 1)}</b></div>
    <div class="kv"><span>Modelo de ejército</span><b>${LAW[c.laws.army].name}</b></div>
-   <div class="kv"><span>Bonificación tecnológica</span><b>${sgn(c.mods.army * 100, 0)}%</b></div>
-   <p class="hint">Construye <b>Cuarteles</b> para reclutar más soldados. Los soldados se pagan con el presupuesto público.</p>
+   <div class="kv"><span>Bonificación de ejército</span><b>${sgn(c.mods.army * 100, 0)}%</b></div>
+   <div class="kv"><span>Defensa · Logística</span><b>${sgn(c.mods.defense * 100, 0)}% · ${sgn(c.mods.logistics * 100, 0)}%</b></div>
+   <div class="kv"><span>Coste militar</span><b>${sgn(c.mods.milCost * 100, 0)}%</b></div>
+   <div class="kv"><span>Infamia</span><b class="${c.infamy > 30 ? 'bad' : ''}">${Math.round(c.infamy)}</b></div>
+   <p class="hint">Construye <b>Cuarteles</b> para reclutar más soldados. En guerra, el esfuerzo bélico cuesta un 5% de tus ingresos por semana.</p>
   </div></div>
   <div class="col wide"><div class="card"><h3>Guerras en curso</h3>${myWars.length ? myWars.map(w => {
-    const A = G.C[w.att], D = G.C[w.def]; const mine = w.att === G.player; const score = mine ? w.score : -w.score;
-    return `<div class="war"><div class="warh">${flag(w.att, 'sm')} <b>${A.name}</b> <span>contra</span> ${flag(w.def, 'sm')} <b>${D.name}</b></div>
-      <div class="kv"><span>Objetivo: ${G.S[w.target] ? G.S[w.target].name : '—'}</span><span>${w.months} meses</span></div>
-      <div class="wbar"><i style="left:${(w.score + 100) / 2}%"></i><b style="width:${(w.score + 100) / 2}%"></b></div>
-      <div class="kv"><span>Potencia: ${fmtN(w.pa || armyPower(A), 1)} vs ${fmtN(w.pd || armyPower(D), 1)}</span><b class="${score >= 0 ? 'good' : 'bad'}">${sgn(score, 0)}</b></div>
-      <div class="btnrow"><button data-act="peace" data-id="${w.id}">🕊️ ${score > 30 ? 'Imponer la paz' : score < -30 ? 'Pedir la paz' : 'Paz blanca'}</button><button data-act="focus" data-id="${w.target}">Ver en el mapa</button></div></div>`;
-  }).join('') : '<p class="hint">Tu país está en paz. Declara una guerra desde la pestaña de Diplomacia.</p>'}</div>
-  <div class="card"><h3>Otras guerras en el mundo</h3>${G.wars.filter(w => w.att !== G.player && w.def !== G.player).map(w => `<div class="kv"><span>${flag(w.att, 'sm')} ${G.C[w.att].name} → ${flag(w.def, 'sm')} ${G.C[w.def].name}</span><b>${sgn(w.score, 0)}</b></div>`).join('') || '<p class="hint">No hay otras guerras.</p>'}</div></div></div>`;
+    const A = G.C[w.att], D = G.C[w.def]; const mine = w.attAll.includes(G.player); const score = mine ? w.score : -w.score; const po = peaceOptions(w, G.player);
+    return `<div class="war"><div class="warh">${CBS[w.cb].icon} <b>${CBS[w.cb].name}</b> <small class="dim">· ${w.weeks} semanas</small></div>
+      <div class="sides"><div><small>Atacantes</small>${sideHtml(w.attAll, w.att)}</div><div><small>Defensores</small>${sideHtml(w.defAll, w.def)}</div></div>
+      ${w.targets.length ? `<div class="warst"><small>Territorios exigidos</small>${w.targets.map(sid => { const s = G.S[sid]; return `<div class="kv sm"><span>${s.name}</span><span class="occ"><i style="width:${(s.occ || 0) * 100}%"></i><em>${Math.round((s.occ || 0) * 100)}% ocupado</em></span></div>`; }).join('')}</div>` : ''}
+      ${w.cTargets.length ? `<div class="warst"><small>Contraofensiva del defensor</small>${w.cTargets.map(sid => { const s = G.S[sid]; return `<div class="kv sm"><span>${s.name}</span><span class="occ cb"><i style="width:${(s.occ || 0) * 100}%"></i><em>${Math.round((s.occ || 0) * 100)}%</em></span></div>`; }).join('')}</div>` : ''}
+      <div class="wbar"><b style="width:${(w.score + 100) / 2}%"></b></div>
+      <div class="kv"><span>Potencia: ${fmtN(w.pa || 0, 1)} vs ${fmtN(w.pd || 0, 1)}</span><b class="${score >= 0 ? 'good' : 'bad'}">Puntuación ${sgn(score, 0)}</b></div>
+      <div class="btnrow"><button data-act="peace" data-id="${w.id}">🕊️ ${po.label}</button><button data-act="focus" data-id="${w.targets[0] ?? w.cTargets[0] ?? G.C[w.def].capital}">📍 Ver el frente</button></div></div>`;
+  }).join('') : '<p class="hint">Tu país está en paz. Declara una guerra desde Diplomacia → Potencias. Los frentes se dibujan sobre el mapa conforme avanzan las tropas.</p>'}</div>
+  <div class="card"><h3>Otras guerras en el mundo</h3>${G.wars.filter(w => !myWars.includes(w)).map(w => `<div class="kv"><span>${CBS[w.cb].icon} ${flag(w.att, 'sm')} ${G.C[w.att].name} → ${flag(w.def, 'sm')} ${G.C[w.def].name}</span><span><b>${sgn(w.score, 0)}</b> <button data-act="focus" data-id="${w.targets[0] ?? G.C[w.def].capital}">📍</button></span></div>`).join('') || '<p class="hint">No hay otras guerras.</p>'}</div></div></div>`;
 }};
+
+
+function crisisTab() {
+  const c = me(), inc = Math.max(1, c.stats.income); const ratio = c.debt / inc;
+  const mine = G.crises.filter(x => x.scope === 'global' || x.scope === G.player);
+  const cyc = G.cycle; const phase = cyc > 0.35 ? 'Expansión' : cyc < -0.35 ? 'Recesión' : 'Estabilidad';
+  const fxT = fx => Object.keys(fx).map(k => ({demand: 'Consumo', agri: 'Agricultura', ind: 'Industria', mine: 'Minería', invest: 'Inversión', credit: 'Coste del crédito'}[k] + ' ' + sgn((fx[k] - 1) * 100, 0) + '%')).join(' · ');
+  const risk = ratio > 50 ? ['Riesgo de bancarrota', 'bad'] : ratio > 26 ? ['Deuda peligrosa', 'bad'] : ratio > 10 ? ['Deuda elevada', 'warn'] : ['Finanzas sanas', 'good'];
+  return `<div class="cols"><div class="col"><div class="card"><h3>Ciclo económico</h3>
+   <div class="cycle"><i style="left:${(cyc + 1) * 50}%"></i></div><div class="kv"><span>Fase</span><b class="${cyc < -0.35 ? 'bad' : cyc > 0.35 ? 'good' : ''}">${phase}</b></div>
+   <p class="hint">El consumo mundial oscila ±5% en un ciclo de unos 9 años. Las recesiones favorecen la aparición de crisis.</p>
+   <div class="kv"><span>Dificultad</span><b>${DIFF[G.diff].name}</b></div>
+   <div class="kv"><span>Deuda / ingresos semanales</span><b class="${risk[1]}">${f1(ratio)}×</b></div><div class="kv"><span>Estado</span><b class="${risk[1]}">${risk[0]}</b></div>
+   <div class="kv"><span>Resistencia a crisis</span><b>${pctS(c.mods.crisis || 0)}</b></div>
+  </div>
+  <div class="card"><h3>Respuestas del gobierno</h3>
+   <button class="block" data-act="crisisr" data-k="bailout" ${c.treasury < inc * 5 ? 'disabled' : ''}>🏦 Rescate bancario <small>${money(inc * 5)}</small></button>
+   <button class="block" data-act="crisisr" data-k="stimulus" ${c.treasury < inc * 3 ? 'disabled' : ''}>💊 Plan de estímulo <small>${money(inc * 3)}</small></button>
+   <button class="block" data-act="crisisr" data-k="austerity">✂️ Austeridad <small>+2 sem. de ingresos, más malestar</small></button>
+   <p class="hint">El rescate acorta las crisis financieras; el estímulo aumenta el consumo y la inversión durante 8 meses.</p></div></div>
+  <div class="col wide"><div class="card"><h3>Crisis activas</h3>${mine.length ? mine.map(cr => `<div class="crisis"><div class="kv"><b>${cr.icon} ${cr.name}</b><span>${cr.scope === 'global' ? '🌍 Mundial' : '🏳️ Nacional'} · ${cr.left} meses</span></div><small>${cr.desc}</small><small class="bad">${fxT(cr.fx)}</small>${bar(cr.left, cr.months, 'warn')}</div>`).join('') : '<p class="hint">No hay crisis activas. Mantén las finanzas sanas y reformas para resistir las próximas.</p>'}</div>
+  <div class="card"><h3>Posibles crisis</h3><ul class="plain">${Object.keys(CRISIS_TYPES).filter(k => !CRISIS_TYPES[k].hidden).map(k => `<li><b>${CRISIS_TYPES[k].icon} ${CRISIS_TYPES[k].name}</b> (${CRISIS_TYPES[k].scope === 'global' ? 'mundial' : 'nacional'}): ${CRISIS_TYPES[k].desc}</li>`).join('')}</ul></div></div></div>`;
+}
+
+function ideoTab() {
+  const c = me();
+  const tab = ideologyTable(c);
+  const sel = UI.ideoSel && IGS[UI.ideoSel] ? UI.ideoSel : IG_ORDER.slice().sort((a, b) => c.ig[b].share - c.ig[a].share)[0];
+  const g = c.ig[sel], d = IGS[sel];
+  const prog = IG_PROGRAMS[sel];
+  const tr = transitionOptions(c, sel);
+  const bs = c.boosts.filter(b => b.kind === 'ig');
+  const profRows = PROF_ORDER.filter(p => ['aristocrats', 'capitalists', 'clergy', 'officers', 'bureaucrats', 'shopkeepers', 'clerks', 'machinists', 'laborers', 'peasants'].includes(p)).map(p => {
+    const pb = c.pboosts[p];
+    return `<tr><td>${PROFS[p].name}</td><td><small class="dim">${Object.keys(PROFS[p].ig).map(k => IGS[k].icon).join(' ')}</small></td><td class="r">${pb ? `<span class="tag ${pb.mode === 'boost' ? 'good' : 'bad'}">${pb.mode === 'boost' ? '▲' : '▼'} ${pb.months} m</span>` : ''}</td><td class="r"><button data-act="sprof" data-p="${p}" data-m="boost" ${pb || c.influence < 25 ? 'disabled' : ''}>▲ Impulsar</button> <button data-act="sprof" data-p="${p}" data-m="suppress" ${pb || c.influence < 25 ? 'disabled' : ''}>▼ Reprimir</button></td></tr>`;
+  }).join('');
+  return `<div class="cols"><div class="col"><div class="card"><h3>Ideologías en la sociedad</h3>${tab.map(t => `<div class="kv"><span>${t.name}</span><b>${pctS(t.share, 1)}</b></div>${bar(t.share, 0.5, '')}`).join('')}<p class="hint">Cada grupo de interés encarna una ideología. El régimen cambia cuando una de ellas domina el poder político.</p></div>
+   <div class="card"><h3>Grupos de interés</h3>${IG_ORDER.map(k => { const gg = c.ig[k], b = bs.find(x => x.key === k); return `<div class="igsel ${k === sel ? 'sel' : ''}" data-act="igsel" data-k="${k}"><span class="igi" style="background:${IGS[k].color}">${IGS[k].icon}</span><div><b>${IGS[k].name}</b><small>${pctS(gg.share, 1)} · ${gg.gov ? 'gobierno' : 'oposición'}</small></div>${b ? `<span class="tag ${b.mode === 'boost' ? 'good' : 'bad'}">${b.mode === 'boost' ? '▲' : '▼'} ${b.months} m</span>` : ''}</div>`; }).join('')}</div></div>
+  <div class="col wide"><div class="card"><div class="igh"><span class="igi big" style="background:${d.color}">${d.icon}</span><div><h3 style="margin:0">${d.name}</h3><small class="dim">${d.ideo} · influencia ${pctS(g.share, 1)} · aprobación ${sgn(g.approval)}</small></div></div><p class="hint">${d.desc}</p>
+    <div class="btnrow"><button data-act="sig" data-k="${sel}" data-m="boost" ${c.influence < 35 || bs.length >= 3 ? 'disabled' : ''}>▲ Impulsar (+45% influencia · 12 m) <small>35 infl. + 2 sem.</small></button><button data-act="sig" data-k="${sel}" data-m="suppress" ${c.influence < 35 || bs.length >= 3 ? 'disabled' : ''}>▼ Reprimir (−45%) <small>35 infl. + 2 sem.</small></button></div>
+    <h4 class="sub">Programa político</h4><div class="prog">${Object.keys(prog).map(cat => { const o = LAW[prog[cat]]; const cur = c.laws[cat] === o.id; return `<span class="tag ${cur ? 'good' : ''}">${cur ? '✔ ' : ''}${o.name}</span>`; }).join(' ')}</div>
+    <h4 class="sub">Cambiar de régimen a favor de este grupo</h4>
+    ${tr.map(o => `<div class="trans"><div><b>${o.name}</b><small>${o.desc}</small>${o.ok ? '' : `<small class="bad">${o.why}</small>`}</div><div class="tright"><span>${Math.round(o.p * 100)}%</span><button class="${o.kind === 'revolution' ? 'danger' : ''}" data-act="gov" data-k="${sel}" data-t="${o.kind}" ${o.ok && c.influence >= o.cost ? '' : 'disabled'}>${o.cost} infl.</button></div></div>`).join('')}
+    <p class="hint">Impulsar a un grupo aumenta sus probabilidades de éxito. Un fracaso reduce la legitimidad y aumenta el malestar. Una revolución triunfante impone todo su programa y puede provocar una guerra civil.</p></div>
+  <div class="card"><h3>Grupos de población</h3><table class="tbl"><thead><tr><th>Profesión</th><th>Grupos</th><th class="r">Estado</th><th class="r">Acción (25 infl.)</th></tr></thead><tbody>${profRows}</tbody></table></div>
+  ${c.govHist.length ? `<div class="card"><h3>Historial de regímenes</h3>${c.govHist.map(h => `<div class="kv sm"><span>${h.y}: ${h.from} → <b>${h.to}</b></span><span>${{election: 'Elecciones', coup: 'Golpe', revolution: 'Revolución'}[h.kind]}</span></div>`).join('')}</div>` : ''}</div></div>`;
+}
+
+/* ---------- diálogo de declaración de guerra ---------- */
+function openWarDialog(defTag, cbPre, statePre) {
+  const block = warBlockers(G.player, defTag);
+  if (block) { toast('⚠️', block); return; }
+  const cbs = Object.keys(CBS).filter(k => !CBS[k].hidden);
+  const first = cbPre && cbAvailable(G.player, defTag, cbPre).ok ? cbPre : cbs.find(k => cbAvailable(G.player, defTag, k).ok) || 'humiliate';
+  UI.war = {def: defTag, cb: first, targets: new Set(statePre != null ? [statePre] : []), law: {cat: 'agrarian', opt: 'tenant'}};
+  if (CBS[first].terr && !UI.war.targets.size) { const rs = reachableStates(G.player, defTag).filter(x => first !== 'claim' || hasClaim(me(), x.id)); if (rs.length) UI.war.targets.add(rs[0].id); }
+  renderWarDialog();
+}
+function renderWarDialog() {
+  const W = UI.war, root = $('#wardlg');
+  if (!W) { root.classList.remove('open'); root.innerHTML = ''; return; }
+  const c = me(), D = G.C[W.def];
+  const sc = root.querySelector('.wd-body') ? root.querySelector('.wd-body').scrollTop : 0;
+  const cb = CBS[W.cb];
+  const rs = reachableStates(G.player, W.def);
+  if (!cb.terr) W.targets.clear();
+  const tg = [...W.targets].filter(id => rs.some(x => x.id === id));
+  const max = cb.terr ? cb.max(c) : 0;
+  const cost = warCost(G.player, tg, W.cb);
+  const A = sidePower([G.player].concat(allies(G.player)).filter(t => alive(t))), Dp = sidePower([W.def].concat(allies(W.def), guaranteedBy(W.def)).filter(t => alive(t)));
+  const ally = allies(G.player).map(t => G.C[t].name), enemyAl = allies(W.def).concat(guaranteedBy(W.def)).map(t => G.C[t].name);
+  const okGo = cbAvailable(G.player, W.def, W.cb).ok && (!cb.terr || tg.length) && c.influence >= cost;
+  root.classList.add('open');
+  root.innerHTML = `<div class="wd"><div class="whead"><span class="wicon">⚔️</span><h2>Declarar la guerra a ${D.name}</h2><button class="x" data-act="wclose">✕</button></div>
+  <div class="wd-body"><div class="cols"><div class="col"><h4 class="sub">1. Casus belli</h4>
+   ${Object.keys(CBS).filter(k => !CBS[k].hidden).map(k => { const av = cbAvailable(G.player, W.def, k); const sel = W.cb === k; return `<div class="cbopt ${sel ? 'sel' : ''} ${av.ok ? '' : 'na'}" ${av.ok ? `data-act="wcb" data-k="${k}"` : ''}><span class="cbi">${CBS[k].icon}</span><div><b>${CBS[k].name}</b><small>${av.ok ? CBS[k].desc : '🚫 ' + av.why}</small></div><span class="tag">${CBS[k].cost}${CBS[k].perState ? '+' : ''}</span></div>`; }).join('')}
+   ${cb.law ? `<h4 class="sub">Ley que impones</h4><select id="wlawcat" data-act="wlawcat">${LAW_CATS.map(cat => `<option value="${cat.id}" ${W.law.cat === cat.id ? 'selected' : ''}>${cat.name}</option>`).join('')}</select><select id="wlawopt" data-act="wlawopt">${LAW_CATS.find(x => x.id === W.law.cat).opts.map(o => `<option value="${o.id}" ${W.law.opt === o.id ? 'selected' : ''}>${o.name}</option>`).join('')}</select>` : ''}
+  </div>
+  <div class="col wide">${cb.terr ? `<h4 class="sub">2. Territorios exigidos <small class="dim">(máx. ${max})</small></h4><div class="scrollable mid"><table class="tbl"><thead><tr><th></th><th>Estado</th><th class="r">Población</th><th class="r">Coste</th></tr></thead><tbody>${rs.map(x => { const s = G.S[x.id]; const claim = hasClaim(c, x.id); const dis = W.cb === 'claim' && !claim; const on = W.targets.has(x.id); return `<tr class="${dis ? 'locked' : ''}"><td><input type="checkbox" data-act="wst" data-id="${x.id}" ${on ? 'checked' : ''} ${dis || (!on && W.targets.size >= max) ? 'disabled' : ''}></td><td>${s.name}${claim ? ' 📜' : ''}${x.border ? '' : ' <small class="dim">(por mar)</small>'}${G.C[W.def].capital === x.id ? ' ★' : ''}</td><td class="r">${fmtN(popTotal(s), 1)}</td><td class="r">${Math.round(cb.perState * stateWeight(x.id))}</td></tr>`; }).join('')}</tbody></table></div>` : `<h4 class="sub">2. Resultado si vences</h4><p class="hint">${W.cb === 'humiliate' ? 'El rival paga una indemnización de hasta 8 semanas de ingresos y pierde 12 de prestigio.' : W.cb === 'regime' ? 'El rival adopta la ley elegida: sufrirá inestabilidad (−12 de legitimidad).' : W.cb === 'trade' ? 'El rival pierde un 6% de recaudación, paga reparaciones y firma un tratado comercial forzoso.' : 'El rival se convierte en tu vasallo y te paga el 12% de sus ingresos.'}</p>`}
+   <h4 class="sub">3. Fuerzas implicadas</h4>
+   <div class="kv"><span>Tu potencia militar (con aliados actuales)</span><b>${fmtN(A.p, 1)}</b></div><div class="kv"><span>Potencia del rival (con aliados y garantes)</span><b>${fmtN(Dp.p, 1)}</b></div>
+   <div class="wbar"><b style="width:${clamp(A.p / Math.max(1, A.p + Dp.p), 0, 1) * 100}%"></b></div>
+   <small class="dim">Aliados que te seguirán: ${ally.join(', ') || 'ninguno'}. Defensores probables: ${enemyAl.join(', ') || 'ninguno'}.</small>
+   <div class="notice">Coste: <b>${cost}</b> de influencia (tienes ${Math.floor(c.influence)}). Infamia: +${Math.round(cb.infamy * (1 + tg.length * 0.3))}.</div>
+   <div class="btnrow"><button class="primary" data-act="wgo" ${okGo ? '' : 'disabled'}>⚔️ Declarar la guerra</button><button data-act="wclose">Cancelar</button></div></div></div></div></div>`;
+  const nb = root.querySelector('.wd-body'); if (nb) nb.scrollTop = sc;
+}
+
+/* ---------- búsqueda global ---------- */
+function openSearch() {
+  const r = $('#search'); r.classList.add('open');
+  r.innerHTML = `<div class="sbox"><input id="sq" class="search big" placeholder="Buscar país o estado… (Esc para cerrar)" autocomplete="off"><div id="sres" class="sres"></div></div>`;
+  const inp = $('#sq'); inp.focus();
+  const upd = () => {
+    const q = norm(inp.value); let html = '';
+    if (!q) { html = '<p class="hint">Escribe el nombre de un país o de un estado para ir a él en el mapa.</p>'; }
+    else {
+      const cs = G.tags.filter(t => t !== NONE && alive(t) && (norm(G.C[t].name).includes(q) || norm(t).includes(q))).slice(0, 8);
+      const ss = G.S.filter(s => norm(s.name).includes(q)).slice(0, 10);
+      html = (cs.length ? '<h5>Países</h5>' + cs.map(t => `<div class="srow" data-act="sgoc" data-tag="${t}">${flag(t, 'sm')} <b>${G.C[t].name}</b><small>${G.C[t].gov} · rango ${G.C[t].rank}</small></div>`).join('') : '') +
+             (ss.length ? '<h5>Estados</h5>' + ss.map(s => `<div class="srow" data-act="sgos" data-id="${s.id}">${s.owner === NONE ? '🏳️' : flag(s.owner, 'sm')} <b>${s.name}</b><small>${s.owner === NONE ? 'Sin reclamar' : G.C[s.owner].name}</small></div>`).join('') : '') || '<p class="hint">Sin resultados.</p>';
+    }
+    $('#sres').innerHTML = html;
+  };
+  inp.addEventListener('input', upd); upd();
+}
+function closeSearch() { const r = $('#search'); r.classList.remove('open'); r.innerHTML = ''; }
 
 /* --- Construcción --- */
 WINDOWS.construction = {title: 'Construcción', icon: '🏗️', render() {
@@ -373,14 +570,6 @@ WINDOWS.journal = {title: 'Diario', icon: '📜', render() {
   const c = me();
   return `<div class="cols"><div class="col wide"><div class="card"><h3>Objetivos</h3>${JOURNAL.map(j => { const done = c.journalDone[j.id]; const v = j.prog(c); return `<div class="obj ${done ? 'done' : ''}"><div class="kv"><b>${done ? '✔ ' : ''}${j.name}</b><span>${done ? 'Completado en ' + done : '+' + j.reward.prestige + ' prestigio'}</span></div><small>${j.desc}</small>${bar(Math.max(0, Math.min(v, j.goal)), j.goal, 'gold', done ? '100%' : Math.floor(clamp(v / j.goal, 0, 1) * 100) + '%')}</div>`; }).join('')}</div></div>
   <div class="col"><div class="card"><h3>Crónica</h3><div class="scrollable tall log">${G.log.slice(0, 60).map(l => `<div class="logl"><small>${l.date.d} ${MONTHS[l.date.m].slice(0, 3)} ${l.date.y}</small> ${l.text}</div>`).join('')}</div></div></div></div>`;
-}};
-
-/* --- Ayuda --- */
-WINDOWS.help = {title: 'Ayuda y controles', icon: '❔', render() {
-  return `<div class="cols"><div class="col"><div class="card"><h3>Mapa</h3><ul class="plain"><li><b>Arrastrar</b> con el botón izquierdo: desplazar el mapa</li><li><b>Rueda</b>: acercar / alejar</li><li><b>Botón derecho + arrastrar</b> (o Mayús): girar e inclinar</li><li><b>W A S D / flechas</b>: moverse · <b>Q E</b> girar · <b>R F</b> inclinar</li><li><b>Clic</b> sobre un estado: ver detalles y construir</li><li><b>Minimapa</b>: clic para saltar</li></ul></div>
-  <div class="card"><h3>Tiempo</h3><ul class="plain"><li><b>Espacio</b>: pausa</li><li><b>, / .</b>: velocidad menor / mayor</li><li><b>Esc</b>: cerrar ventana</li></ul></div></div>
-  <div class="col"><div class="card"><h3>Cómo jugar</h3><ul class="plain"><li>La <b>economía</b> es un mercado mundial: cada bien tiene un precio que sube con la escasez.</li><li>Los edificios emplean a la población, generan valor añadido y pagan salarios y beneficios.</li><li>Construye <b>Administración</b> para recaudar impuestos, <b>Universidades</b> para innovar y <b>Cuarteles</b> para el ejército.</li><li>En <b>Política</b>, cada reforma divide a los grupos de interés: la legitimidad depende de que los poderosos estén contentos.</li><li>Con <b>influencia</b> puedes promulgar reformas, mejorar relaciones, colonizar y declarar la guerra.</li></ul></div>
-  <div class="card"><h3>Sobre esta réplica</h3><p class="hint">Proyecto de fans inspirado en <i>Victoria 3</i>. El mapa es una aproximación procedural del mundo de 1836 y la simulación está simplificada. No tiene ninguna relación con Paradox Interactive.</p></div></div></div>`;
 }};
 
 /* ---------- panel de estado ---------- */
@@ -444,9 +633,6 @@ const ACT = {
   lawsel: d => { UI.lawSel = d.id; renderWindow(); },
   enact: d => { const r = startLawChange(me(), d.id); if (!r.ok) toast('⚠️', r.msg); else toast('📜', 'La reforma ha entrado en debate parlamentario.'); renderWindow(); },
   dipsel: d => { UI.dipSel = d.tag; renderWindow(); },
-  improve: d => { improveRelations(me(), d.tag); renderWindow(); },
-  war: d => { const r = declareWar(G.player, d.tag); if (!r.ok) toast('⚠️', r.msg); renderWindow(); fullRepaint(); },
-  peace: d => { const w = G.wars.find(x => x.id === +d.id); if (!w) return; makePeace(w); renderWindow(); },
   focus: d => { focusState(+d.id, 55); },
   colonize: d => { if (startColonize(me(), +d.id)) toast('⚓', 'Comienza la colonización.'); renderWindow(); renderStatePanel(); },
   build: d => { if (queueBuild(me(), +d.id, d.b)) toast('🏗️', `${BLD[d.b].name} añadido a la cola de construcción.`); else toast('⚠️', 'No se puede construir ahí.'); renderStatePanel(); },
@@ -454,22 +640,65 @@ const ACT = {
   desel: () => { UI.sel = null; setSelected(-1); renderStatePanel(); },
   evt: d => { resolveEvent(+d.i); $('#event').classList.remove('open'); G.paused = false; updateHud(); },
   start: () => startGame(),
+  cancelresearch: () => { me().research = null; renderWindow(); },
+  improve: d => { const ok = improveRelations(me(), d.tag); toast(ok ? '🕊️' : '⚠️', ok ? 'Las relaciones mejoran (+25).' : 'Necesitas 20 de influencia.'); renderWindow(); refreshDiploMap(); },
+  gift: d => { const r = giftMoney(me(), d.tag); toast(r.ok ? '🎁' : '⚠️', r.msg); renderWindow(); refreshDiploMap(); },
+  insult: d => { const r = insultCountry(me(), d.tag); toast(r.ok ? '😠' : '⚠️', r.msg); renderWindow(); refreshDiploMap(); },
+  pact: d => { const r = playerProposePact(d.t, d.tag, 1); toast(r.ok ? '🤝' : '⚠️', r.msg); renderWindow(); refreshDiploMap(); },
+  breakpact: d => { breakPact(+d.id, G.player); renderWindow(); refreshDiploMap(); },
+  abroad: d => { const r = sponsorAbroad(me(), d.tag, d.ig); toast(r.ok ? '🕵️' : '⚠️', r.msg); renderWindow(); },
+  wardlg: d => openWarDialog(d.tag, d.cb, d.st !== undefined ? +d.st : null),
+  wclose: () => { UI.war = null; renderWarDialog(); },
+  wcb: d => {
+    const W = UI.war; W.cb = d.k; const cb = CBS[d.k]; W.targets.clear();
+    if (cb.terr) { const rs = reachableStates(G.player, W.def).filter(x => d.k !== 'claim' || hasClaim(me(), x.id)); if (rs.length) W.targets.add(rs[0].id); }
+    renderWarDialog();
+  },
+  wst: (d, el) => { const W = UI.war; if (el.checked) W.targets.add(+d.id); else W.targets.delete(+d.id); renderWarDialog(); },
+  wlawcat: (d, el) => { UI.war.law = {cat: el.value, opt: LAW_CATS.find(x => x.id === el.value).opts[0].id}; renderWarDialog(); },
+  wlawopt: (d, el) => { UI.war.law.opt = el.value; renderWarDialog(); },
+  wgo: () => {
+    const W = UI.war; const r = declareWar(G.player, W.def, W.cb, [...W.targets], {law: W.law});
+    if (!r.ok) { toast('⚠️', r.msg); return; }
+    UI.war = null; renderWarDialog(); G.paused = false; renderWindow(); fullRepaint();
+    if (r.war.targets.length) focusState(r.war.targets[0], 55);
+  },
+  peace: d => { const w = G.wars.find(x => x.id === +d.id); if (!w) return; makePeace(w); renderWindow(); },
+  propyes: d => { respondProposal(+d.id, true); renderWindow(); refreshDiploMap(); },
+  propno: d => { respondProposal(+d.id, false); renderWindow(); },
+  kickbloc: d => { const b = blocOf(G.player); if (b && b.leader === G.player) { leaveBloc(d.tag, true); addRel(G.player, d.tag, -30); toast('🚪', G.C[d.tag].name + ' expulsado del bloque.'); } renderWindow(); },
+  leavebloc: () => { leaveBloc(G.player); renderWindow(); refreshDiploMap(); },
+  dissolvebloc: () => { const b = blocOf(G.player); if (b) dissolveBloc(b); renderWindow(); refreshDiploMap(); },
+  invitebloc: d => { const r = playerInviteBloc(d.tag); toast(r.ok ? '🤝' : '⚠️', r.msg); renderWindow(); refreshDiploMap(); },
+  joinbloc: d => { const b = G.blocs.find(x => x.id === +d.id); const c = me(); if (!b || c.influence < 20) return; c.influence -= 20; const ch = blocInviteChance(b, G.player); if (Math.random() < ch.p) { joinBloc(G.player, b); toast('🤝', `Ingresas en «${b.name}».`); } else toast('⚠️', `${G.C[b.leader].name} rechaza tu solicitud.`); renderWindow(); refreshDiploMap(); },
+  blocType: d => { UI.blocType = d.t; renderWindow(); },
+  createbloc: () => { const nm = ($('#blocname') || {}).value; const r = createBloc(G.player, UI.blocType || 'military', nm); toast(r.ok ? '🏳️' : '⚠️', r.ok ? `Bloque «${r.bloc.name}» fundado.` : r.msg); renderWindow(); refreshDiploMap(); },
+  fabricate: d => { const r = startFabricate(me(), +d.id); toast(r.ok ? '📜' : '⚠️', r.ok ? 'Comienza la fabricación de la reclamación.' : r.msg); renderWindow(); },
+  annex: d => { const r = annexSubject(G.player, d.tag); toast(r.ok ? '👑' : '⚠️', r.ok ? 'Vasallo anexionado.' : r.msg); renderWindow(); },
+  release: d => { releaseSubject(G.player, d.tag); renderWindow(); },
+  igsel: d => { UI.ideoSel = d.k; renderWindow(); },
+  sig: d => { const r = sponsorIG(me(), d.k, d.m); toast(r.ok ? '📢' : '⚠️', r.msg); renderWindow(); },
+  sprof: d => { const r = sponsorProf(me(), d.p, d.m); toast(r.ok ? '📢' : '⚠️', r.msg); renderWindow(); },
+  gov: d => { const r = govTransition(me(), d.k, d.t); toast(r.ok ? '🏛️' : '⚠️', r.msg); renderWindow(true); fullRepaint(); updateHud(); },
+  crisisr: d => { const r = respondCrisis(d.k); toast(r.ok ? '🏦' : '⚠️', r.msg); renderWindow(); },
+  search: () => openSearch(),
+  sgoc: d => { closeSearch(); focusCountry(d.tag, 60); },
+  sgos: d => { closeSearch(); focusState(+d.id, 50); onMapClick(+d.id); },
+  goCrisis: () => { UI.winTab.prod = 'crisis'; UI.win = null; openWindow('production'); },
+  goMail: () => { UI.winTab.dip = 'pacts'; UI.win = null; openWindow('diplomacy'); },
+  msec: d => { UI.manualSec = d.id; renderWindow(true); },
+  diff: d => { G.diff = +d.n; $$('#st-diff button').forEach(b => b.classList.toggle('on', b.dataset.n === d.n)); },
   save: () => doSave(),
   load: () => doLoad(),
   cont: () => doLoad(true),
   pickc: d => selectStartCountry(d.tag),
   filterc: () => {}
 };
-function makePeace(w) {
-  const mine = w.att === G.player; const score = mine ? w.score : -w.score;
-  if (score > 30) endWar(w, G.player);
-  else if (score < -30) { endWar(w, mine ? w.def : w.att); }
-  else { endWar(w, null); }
-}
+function refreshDiploMap() { if (R.mode === 'diplomacy' || R.mode === 'blocs') fullRepaint(); }
 
 document.addEventListener('click', e => {
-  const el = e.target.closest('[data-act]'); if (!el || el.disabled) return;
-  const f = ACT[el.dataset.act]; if (f) { f(el.dataset, el); e.stopPropagation(); }
+  const el = e.target.closest('[data-act]'); if (!el || el.disabled || el.tagName === 'SELECT' || el.tagName === 'OPTION') return;
+  const f = ACT[el.dataset.act]; if (f) { f(el.dataset, el); if (el.type !== 'checkbox') e.stopPropagation(); }
 });
 document.addEventListener('mouseover', e => {
   const el = e.target.closest('[data-tip]');
@@ -480,8 +709,20 @@ document.addEventListener('mousemove', e => {
   if (el && el.dataset.tip) { const t = $('#tooltip'); if (t.style.display === 'block') { t.style.left = Math.min(window.innerWidth - t.offsetWidth - 8, e.clientX + 16) + 'px'; t.style.top = Math.min(window.innerHeight - t.offsetHeight - 8, e.clientY + 18) + 'px'; } }
 });
 document.addEventListener('mouseout', e => { if (e.target.closest && e.target.closest('[data-tip]') && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('[data-tip]'))) hideTip(); });
+document.addEventListener('change', e => { const el = e.target; if (el.tagName === 'SELECT' && el.dataset.act && ACT[el.dataset.act]) ACT[el.dataset.act](el.dataset, el); });
+document.addEventListener('input', e => {
+  const el = e.target;
+  if (el.id === 'dipq') { UI.dipQ = el.value; const pos = el.selectionStart; renderWindow(true); const n = $('#dipq'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }
+  else if (el.id === 'blocname') UI.blocName = el.value;
+  else if (el.id === 'stq') { const q = norm(el.value); $$('#st-list .st-card').forEach(c => { c.style.display = !q || norm(c.textContent).includes(q) ? '' : 'none'; }); }
+});
 window.addEventListener('keydown', e => {
-  if (!UI.started || /input/i.test(e.target.tagName)) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && UI.started) { e.preventDefault(); openSearch(); return; }
+  if (e.key === 'Escape' && $('#search').classList.contains('open')) { closeSearch(); return; }
+  if (e.key === 'Escape' && UI.war) { UI.war = null; renderWarDialog(); return; }
+  if (!UI.started || /input|select|textarea/i.test(e.target.tagName)) return;
+  if (e.key === 'F1') { e.preventDefault(); openWindow('manual'); return; }
+  if (e.key === '/') { e.preventDefault(); openSearch(); return; }
   if (e.code === 'Space') { e.preventDefault(); ACT.pause(); }
   else if (e.key === 'Escape') { if (UI.win) closeWindow(); else ACT.desel(); }
   else if (e.key === '.') { UI.speed = Math.min(5, UI.speed + 1); updateHud(); }
@@ -498,11 +739,11 @@ function toast(icon, text, state) {
   setTimeout(() => { el.classList.remove('in'); setTimeout(() => el.remove(), 400); }, 9000);
   while ($("#toasts").children.length > 5) $('#toasts').firstChild.remove();
 }
-const NOTIF_ICON = {build: '🏗️', tech: '💡', law: '📜', journal: '🏆', war: '⚔️', colony: '⚓', event: '📰'};
+const NOTIF_ICON = {build: '🏗️', tech: '💡', law: '📜', journal: '🏆', war: '⚔️', colony: '⚓', event: '📰', diplo: '🤝', crisis: '📉', politics: '🏛️'};
 function drainNotifs() {
   while (G.notifs.length) {
     const n = G.notifs.shift();
-    const relevant = ['build', 'tech', 'law', 'journal', 'colony', 'event'].includes(n.type) || n.type === 'war';
+    const relevant = true;
     if (relevant) toast(NOTIF_ICON[n.type] || '•', n.text, n.state);
   }
 }
@@ -539,6 +780,7 @@ function buildStart() {
   <div class="st-inner">
     <div class="st-left">
       <div class="st-logo"><small>UNA RÉPLICA DE FANS</small><h1>VICTORIA</h1><div class="orn"></div><h3>Una era de revolución</h3></div>
+      <input id="stq" class="search" placeholder="🔍 Buscar país…" autocomplete="off">
       <div class="st-list" id="st-list">${picks.map(t => { const c = G.C[t]; const d = difficulty(t); return `<div class="st-card" data-act="pickc" data-tag="${t}">${flag(t, 'md')}<div><b>${c.name}</b><small>${c.gov}</small></div><span class="diff ${d[1]}">${d[0]}</span></div>`; }).join('')}</div>
     </div>
     <div class="st-right" id="st-info"></div>
@@ -552,6 +794,7 @@ function selectStartCountry(tag) {
   $('#st-info').innerHTML = `<div class="st-crest">${flag(tag, 'huge')}</div><h2>${c.name}</h2><div class="st-gov">${c.gov} · Rango ${c.rank} · <span class="${d[1]}">${d[0]}</span></div>
    <p class="st-intro">${INTRO[tag] || `Gobierna ${c.name} en el año 1836 y llévala hacia la era industrial.`}</p>
    <div class="st-stats"><div><small>Población</small><b>${fmtN(c.stats.pop, 1)}</b></div><div><small>Alfabetización</small><b>${Math.round(c.lit)}%</b></div><div><small>Estados</small><b>${c.states.length}</b></div><div><small>Ejército</small><b>${fmtN(c.stats.soldiers, 0)}</b></div></div>
+   <div class="st-diffrow"><small>Dificultad económica</small><div class="seg" id="st-diff">${[1, 2, 3, 4].map(n => `<button data-act="diff" data-n="${n}" class="${(G.diff || 2) === n ? 'on' : ''}" data-tip="${['Pocas crisis, costes bajos', 'Crisis ocasionales y costes realistas', 'Crisis frecuentes, intereses y costes altos', 'Crisis constantes: economía muy hostil'][n - 1]}">${DIFF[n].name}</button>`).join('')}</div></div>
    <button class="primary big" data-act="start">Comenzar partida</button>${hasSave() ? '<button class="cont" data-act="cont">📂 Continuar partida guardada</button>' : ''}`;
   const ci = c.capital >= 0 ? c.capital : c.states[0];
   if (ci !== undefined) focusState(ci, 70);
@@ -611,6 +854,6 @@ window.onFrame = function (t) {
   if (R.needPaint) { R.needPaint = false; fullRepaint(); }
   if (G.notifs.length) drainNotifs();
   if (t - UI.lastHud > 250) { UI.lastHud = t; updateHud(); if (UI.sel !== null && UI.sel >= 0 && t - UI.lastWin > 1500) renderStatePanel(); }
-  if (UI.win && t - UI.lastWin > 1500 && !G.paused) { UI.lastWin = t; renderWindow(); }
+  if (UI.win && t - UI.lastWin > 1500 && !G.paused && !(document.activeElement && /input|select/i.test(document.activeElement.tagName))) { UI.lastWin = t; renderWindow(); }
   if (R.minimapDirty) R.dirty = true;
 };

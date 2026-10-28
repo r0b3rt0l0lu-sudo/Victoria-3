@@ -27,6 +27,18 @@ Abre **`index.html`** en un navegador moderno (Chrome, Edge o Firefox con WebGL)
 | Pausa / velocidad | `Espacio` / `,` `.` |
 | Cerrar ventana | `Esc` |
 
+## Novedades de esta versión
+
+* **Manual completo** dentro del juego (📖 o `F1`): 22 secciones con todas las mecánicas.
+* **Casus belli** (conquista, reclamación, humillación, cambio de régimen, apertura comercial, vasallaje) con **elección de territorios**, costes e infamia; reclamaciones fabricadas e históricas.
+* **Diplomacia ampliada**: alianzas, garantías, no agresión, tratados comerciales, embargos, subsidios, rivalidades, regalos, insultos, injerencia, vasallos y **bloques** (militares, económicos, ideológicos) con líder; propuestas de la IA con probabilidad de aceptación visible.
+* **Árbol tecnológico de 70 tecnologías** en 3 eras, mucho más caro, con doctrinas excluyentes, tecnologías que caducan y efectos reales en economía, Estado y ejército.
+* **Frentes de guerra** dibujados sobre el mapa y que avanzan con la puntuación; ocupación que reduce producción y recaudación.
+* **Patrocinio de grupos de interés y de población** y **cambio de gobierno** (elecciones, golpe, revolución).
+* **Buscador** de países y estados (🔍, `Ctrl+K`), también en Diplomacia y en la pantalla de inicio.
+* **Economía continua** (cálculo repartido por días), **ciclo económico**, **crisis** mundiales y nacionales y **4 niveles de dificultad**.
+* **Rendimiento**: repintado parcial del mapa, redibujado más rápido y tick económico repartido en etapas.
+
 ## Qué se simula
 
 * **Mapa**: contornos procedurales del mundo de 1836 (272 estados), relieve y biomas generados, malla 3D con three.js.
@@ -44,8 +56,11 @@ Abre **`index.html`** en un navegador moderno (Chrome, Edge o Firefox con WebGL)
 ```
 src/geo.js      contornos, cordilleras, biomas y listado de estados/países
 src/data.js     bienes, edificios, profesiones, grupos de interés, leyes, tecnologías, objetivos
-src/mapgen.js   relieve, biomas, asignación de estados (Dijkstra) y bordes
-src/sim.js      simulación económica, política, IA, guerra, eventos, guardado
+src/mapgen.js   relieve, biomas, asignación de estados (Dijkstra), bordes y rango de frente
+src/sim.js      simulación económica por etapas, política, IA, tecnología, guardado
+src/crisis.js   crisis económicas, patrocinio de grupos, cambios de gobierno
+src/diplo.js    pactos, bloques, casus belli, vasallos, guerras y frentes, IA diplomática
+src/manual.js   manual del juego
 src/render.js   escena three.js, cámara, pintado del mapa, etiquetas y minimapa
 src/ui.js       HUD, ventanas, panel de estado, pantalla de inicio
 src/style.css   estilo visual

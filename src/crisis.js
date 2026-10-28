@@ -87,9 +87,12 @@ function crisisMonth() {
     c.lowLeg = c.legitimacy < 32 ? (c.lowLeg || 0) + 1 : Math.max(0, (c.lowLeg || 0) - 1);
     if (ratio > 26 * (c.mods.crisis ? 1 + c.mods.crisis : 1) && Math.random() < 0.2) addCrisis('currency', t);
     if (ratio > 70 && !G.crises.some(x => x.type === 'bankruptcy' && x.scope === t)) { addCrisis('bankruptcy', t); c.treasury = 0; c.debt = 0; c.prestige = Math.max(0, c.prestige - 15); c.investPool = 0; }
-    if (c.radicals > 0.22 && c.stats.indLevels > 10 && Math.random() < 0.03 * dp.crisis) addCrisis('strike', t);
+    if (c.radicals > 0.22 && c.stats.indLevels > 10 && Math.random() < 0.016 * dp.crisis) addCrisis('strike', t);
     if (c.stats.pop > 8e5 && Math.random() < 0.0014 * dp.crisis * (1 - Math.min(0.7, c.mods.grow * 80))) addCrisis('epidemic', t);
-    if (c.stats.sol < 6 && Math.random() < 0.006 * dp.crisis) addCrisis('local_famine', t);
+    if (c.stats.sol < 5 && Math.random() < 0.004 * dp.crisis) {
+      let tp = 0, g = 0; c.states.forEach(id => { const s = G.S[id], P = popTotal(s); tp += P; g += grainFulfil(s) * P; });
+      if (tp && g / tp < 0.6) addCrisis('local_famine', t);
+    }
     // ciclo recesivo: la inversión de los capitalistas se evapora en las depresiones
     if (G.crises.some(x => x.type === 'depression')) c.investPool *= 0.9;
   });
@@ -113,7 +116,20 @@ function respondCrisis(kind) {
 
 /* ---------- patrocinio de grupos (boosts) ---------- */
 function boostMult(c, ig) { let m = 1; c.boosts.forEach(b => { if (b.kind === 'ig' && b.key === ig) m *= b.mult; }); return m; }
-function profBoost(c, p) { return c.pboosts[p] ? c.pboosts[p].mult : 1; }
+function profBoost(c, p) { let m = c.pboosts[p] ? c.pboosts[p].mult : 1; if (c.propa && c.propa[PROFS[p].strat]) m *= 1.5; return m; }
+/* propaganda por estrato: muy cara, refuerza el peso político del estrato entero y calma a la población */
+const STRATA_NAMES = {upper: 'Clases altas', middle: 'Clases medias', lower: 'Clases bajas'};
+const propaCost = c => ({money: Math.round(Math.max(c.stats.income * 14, 1e5)), inf: 60});
+function buyPropaganda(c, strat) {
+  c.propa = c.propa || {};
+  const k = propaCost(c);
+  if (c.propa[strat]) return {ok: false, msg: 'Ya hay una campaña en curso para ese estrato.'};
+  if (c.influence < k.inf) return {ok: false, msg: `Necesitas ${k.inf} de influencia.`};
+  if (c.treasury < k.money) return {ok: false, msg: 'Fondos insuficientes: la propaganda es carísima.'};
+  c.influence -= k.inf; c.treasury -= k.money; c.propa[strat] = {months: 18};
+  return {ok: true, msg: `Campaña de propaganda entre las ${STRATA_NAMES[strat].toLowerCase()} durante 18 meses.`};
+}
+function propagandaMonth(c) { for (const k in (c.propa || {})) { c.radicals = Math.max(0, c.radicals - 0.004); c.legitimacy = Math.min(100, c.legitimacy + 0.5); } }
 function sponsorIG(c, ig, mode) {
   const cost = 35, money_ = c.stats.income * 2;
   if (!c.ai && c.influence < cost) return {ok: false, msg: `Necesitas ${cost} de influencia.`};
@@ -147,6 +163,9 @@ function sponsorAbroad(c, tag, ig) {
   return {ok: true, msg: caught ? `${IGS[ig].name} en ${T.name} gana peso, pero tu injerencia ha sido descubierta.` : `${IGS[ig].name} en ${T.name} gana peso político durante 12 meses.`};
 }
 function decayBoosts(c) {
+  if (typeof mobilizationMonth === 'function') mobilizationMonth(c);
+  propagandaMonth(c);
+  for (const k in (c.propa || {})) if (--c.propa[k].months <= 0) delete c.propa[k];
   c.boosts = c.boosts.filter(b => --b.months > 0);
   for (const p in c.pboosts) if (--c.pboosts[p].months <= 0) delete c.pboosts[p];
 }

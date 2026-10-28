@@ -21,7 +21,7 @@ html = f'''<!DOCTYPE html>
 <div id="labels"></div><div id="markers"></div>
 <div id="hud"></div>
 <div id="statepanel"></div>
-<div id="armypanel"></div>
+<div id="armypanel"></div><div id="battlepanel"></div>
 <div id="windows"></div>
 <div id="toasts"></div>
 <div id="event"></div>

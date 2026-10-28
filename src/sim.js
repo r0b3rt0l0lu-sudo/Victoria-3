@@ -32,7 +32,7 @@ function mkCountry(tag) {
     lawChange: null, journalDone: {}, wars: [], investPool: 0, queue: [], projects: [], cpUsed: 0, cpTotal: 0,
     stats: {pop: 0, gdp: 0, soldiers: 0, literacy: 0, sol: 0, indLevels: 0, bur: 0, burNeed: 1, income: 0, expense: 0, taxEff: 1, avgWage: 3.5, constr: 0, innovRate: 0, army: 0},
     budget: {income: {}, expense: {}}, hist: {gdp: [], pop: [], treasury: [], sol: [], prestige: []},
-    ai: true, traits: [], ach: {}, cnt: {}, claims: [], boosts: [], pboosts: {}, bloc: null, overlord: null, infamy: 0, monarchy: !!(d && /Monarqu|Imperio|Shogun|Despotismo/.test(d[4])), tradeLoss: 0, fx: {}, pressure: 0, lowLeg: 0, govHist: [], fabricating: null, states: [], capital: -1, startPop: 1, rank: 99, power: 0, gdpPrev: 0, lawMods: {}, colonizing: null
+    ai: true, traits: [], ach: {}, cnt: {}, claims: [], boosts: [], pboosts: {}, propa: {}, mob: 0, bloc: null, overlord: null, infamy: 0, monarchy: !!(d && /Monarqu|Imperio|Shogun|Despotismo/.test(d[4])), tradeLoss: 0, fx: {}, pressure: 0, lowLeg: 0, govHist: [], fabricating: null, states: [], capital: -1, startPop: 1, rank: 99, power: 0, gdpPrev: 0, lawMods: {}, colonizing: null
   };
   c.laws = Object.assign({}, LAW_PROFILES[c.profile], LAW_OVERRIDES[tag] || {});
   return c;
@@ -363,7 +363,7 @@ function econB(i0, i1) {
     const radPen = 1 - 0.12 * c.radicals;
     const infraM = 1 + Math.min(0.3, (s.b.railway || 0) * 0.05) + m.infra;
     const labShare = clamp(0.65 + (m.lab || 0), 0.4, 0.85);
-    const fxA = G.fx.agri * c.fx.agri * (s.occ ? 1 - 0.6 * s.occ : 1), fxM = G.fx.mine * c.fx.mine * (s.occ ? 1 - 0.6 * s.occ : 1), fxI = G.fx.ind * c.fx.ind * (s.occ ? 1 - 0.6 * s.occ : 1);
+    const mk = mobK(c), fxA = mk * G.fx.agri * c.fx.agri * (s.occ ? 1 - 0.6 * s.occ : 1), fxM = mk * G.fx.mine * c.fx.mine * (s.occ ? 1 - 0.6 * s.occ : 1), fxI = mk * G.fx.ind * c.fx.ind * (s.occ ? 1 - 0.6 * s.occ : 1);
     BUILDINGS.forEach(b => {
       const L = s.b[b.id]; if (!L) return;
       const utb = b.out ? (s.ut[b.id] ?? 1) : 1;
@@ -505,7 +505,9 @@ function econEnd() {
     c.budget.expense.constr = spentCon;
     const subs = warm ? 0 : pactMoneyFlows(c);
     c.budget.expense.subs = subs;
-    const free = income - expense - spentCon - subs;
+    const upkeep = warm ? 0 : armyUpkeep(c);
+    c.budget.expense.army = upkeep;
+    const free = income - expense - spentCon - subs - upkeep;
     const pub = warm ? Math.max(0, free) : (free > 0 && c.treasury > -c.stats.income * 8 ? free * 0.85 : 0);
     c.budget.expense.pub = pub;
     spreadPublic(c, pub);
@@ -715,8 +717,8 @@ function monthlyTick(init) {
   G.S.forEach(s => {
     const c = G.C[s.owner];
     const gr = grainFulfil(s);
-    let ga = 0.007 + 0.00065 * (s.solAvg - 8) + (c.mods.grow || 0);
-    if (gr < 0.85) ga -= (0.85 - gr) * 0.12;
+    let ga = 0.0095 + 0.00065 * (s.solAvg - 8) + (c.mods.grow || 0);
+    if (gr < 0.7) ga -= (0.7 - gr) * 0.1;
     ga = clamp(ga, -0.03, 0.02);
     const g = ga / 12;
     for (const p in s.pops) s.pops[p] *= (1 + g);

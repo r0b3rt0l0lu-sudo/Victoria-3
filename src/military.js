@@ -27,7 +27,27 @@ function armyStr(a) { let t = 0; a.divs.forEach(d => t += d.s); return a.divs.le
 function armyOrg(a) { let t = 0; a.divs.forEach(d => t += d.o / DIVS[d.t].org); return a.divs.length ? t / a.divs.length : 0; }
 function armyMen(a) { let t = 0; a.divs.forEach(d => t += d.s * MEN_PER_DIV); return Math.round(t); }
 function countDivs(tag) { let n = 0; G.armies.forEach(a => { if (a.tag === tag) n += a.divs.length; }); G.recruits.forEach(r => { if (r.tag === tag) n++; }); return n; }
-function divLimit(c) { return Math.max(0, Math.floor(c.stats.soldiers / MEN_PER_DIV)); }
+const MOB_LEVELS = [
+  {name: 'Solo soldados profesionales', pct: 0, desc: 'Solo se recluta con la población de soldados de los cuarteles.'},
+  {name: 'Voluntarios', pct: 0.01, desc: 'Movilizas un 1% de la población. Efecto económico leve.'},
+  {name: 'Servicio limitado', pct: 0.025, desc: 'Un 2,5% de la población. Menos mano de obra y algo de malestar.'},
+  {name: 'Conscripción', pct: 0.05, desc: 'Un 5% de la población. La producción y la legitimidad sufren.'},
+  {name: 'Movilización total', pct: 0.10, desc: 'Un 10% de la población. Economía de guerra total: producción muy reducida y mucho malestar.'}
+];
+function divLimit(c) { return Math.max(0, Math.floor((c.stats.soldiers + c.stats.pop * MOB_LEVELS[c.mob || 0].pct) / MEN_PER_DIV)); }
+const mobK = c => 1 - 0.04 * (c.mob || 0);
+function setMobilization(c, lvl) {
+  lvl = clamp(lvl | 0, 0, 4); if (lvl === (c.mob || 0)) return {ok: false, msg: ''};
+  if (lvl > (c.mob || 0)) { const cost = c.stats.income * 0.5 * (lvl - (c.mob || 0)); if (!c.ai && c.treasury < cost) return {ok: false, msg: 'No tienes fondos para movilizar.'}; if (!c.ai) c.treasury -= cost; c.legitimacy -= 1.5 * (lvl - (c.mob || 0)); }
+  c.mob = lvl; return {ok: true, msg: `Movilización: ${MOB_LEVELS[lvl].name}.`};
+}
+// efectos mensuales de la movilización
+function mobilizationMonth(c) {
+  const m = c.mob || 0; if (!m) return;
+  c.radicals = Math.min(0.9, c.radicals + 0.0025 * m); c.legitimacy -= 0.25 * m;
+  if (!c.ai) c.treasury -= c.stats.income * 0.12 * m;
+  if (c.ai && !c.wars.length && Math.random() < 0.35) c.mob = Math.max(0, m - 1);       // la IA desmoviliza en paz
+}
 function armiesPower(tag) { let p = 0; armiesOf(tag).forEach(a => a.divs.forEach(d => p += d.s * (DIVS[d.t].att + DIVS[d.t].def))); return p; }
 
 
@@ -38,7 +58,7 @@ const provName = pid => { const p = MAP.provs[pid]; return G.S[p.s].name + (MAP.
 function hopDays(a, fromId, toId) {
   const B = MAP.provs[toId]; const c = G.C[a.tag];
   let spd = 9; a.divs.forEach(d => { spd = Math.min(spd, DIVS[d.t].spd); }); if (spd === 9) spd = 1;
-  const lg = 1 + 0.1 * (a.gen.log - 1) + (c.mods.logistics || 0) + (typeof docMod === 'function' ? docMod(a.tag, 'spd') : 0);
+  const lg = 1 + 0.1 * (a.gen.log - 1) + (typeof docMod === 'function' ? docMod(a.tag, 'spd') : 0);   // la velocidad es igual para todos los países
   const so = G.S[B.s]; const rail = (so.owner === a.tag || sameSide(a.tag, so.owner)) ? 1 - Math.min(0.35, (so.infra || 0) * 0.05) : 1;
   return clamp(Math.round(provDist(fromId, toId) * 1.9 * B.terr.move * rail / spd / lg), 1, 16);
 }
@@ -67,7 +87,7 @@ function orderMove(a, dest, keepPlan) {
   if (a.battle) return {ok: false, msg: 'El ejército está en combate.'};
   const p = findPath(a, dest);
   if (p === null) return {ok: false, msg: 'No hay un camino terrestre permitido hasta esa provincia.'};
-  a.path = p; a.dest = dest; a.hop = p.length ? hopDays(a, a.loc, p[0]) : 0; if (!keepPlan) { a.front = null; a.plan = null; }
+  a.path = p; a.dest = dest; a.hop = p.length ? hopDays(a, a.loc, p[0]) : 0; a.hopMax = a.hop; if (!keepPlan) { a.front = null; a.plan = null; a.chase = null; }
   return {ok: true, eta: p.reduce((t, s, i) => t + hopDays(a, i ? p[i - 1] : a.loc, s), 0)};
 }
 function armyEta(a) {
@@ -82,7 +102,14 @@ function stepMove(a) {
   if (!canEnter(a.tag, next)) { a.path = []; return; }
   a.from = a.loc; a.loc = next; a.arrived = G.date.t; a.path.shift();
   a.rest = 0; a.dig = 0;
-  if (a.path.length) a.hop = hopDays(a, a.loc, a.path[0]); else a.dest = null;
+  if (a.path.length) { a.hop = hopDays(a, a.loc, a.path[0]); a.hopMax = a.hop; } else a.dest = null;
+}
+// persecución: se reajusta el camino hacia el ejército enemigo perseguido
+function chaseDay(a) {
+  if (!a.chase || a.battle) return;
+  const t = armyById(a.chase);
+  if (!t || !hostileTags(a.tag, t.tag)) { a.chase = null; return; }
+  if (a.dest !== t.loc && (G.date.t + a.id) % 2 === 0) { const p = findPath(a, t.loc); if (p && p.length) { const keep = a.hop; a.path = p; a.dest = t.loc; if (a.hop <= 0 || !a.hopMax) { a.hop = hopDays(a, a.loc, p[0]); a.hopMax = a.hop; } else a.hop = keep; } }
 }
 
 /* ---------- batallas ---------- */
@@ -102,7 +129,7 @@ function createBattles(byProv) {
       let b = foe.battle ? G.battles.find(x => x.id === foe.battle) : null;
       if (!b) {
         const attacker = a.arrived >= foe.arrived ? a : foe, defender = attacker === a ? foe : a;   // ataca quien llegó último
-        b = {id: G.nextBattleId++, prov: pid, state: provState(pid), A: [attacker.id], B: [defender.id], day: 0, att: 'A'};
+        b = {id: G.nextBattleId++, prov: pid, state: provState(pid), A: [attacker.id], B: [defender.id], A0: attacker.tag, B0: defender.tag, day: 0, att: 'A', hist: []};
         G.battles.push(b);
         attacker.battle = b.id; defender.battle = b.id; attacker.path = []; defender.path = [];
         const msg = `¡Batalla en ${provName(pid)}! ${G.C[attacker.tag].name} ataca a ${G.C[defender.tag].name}.`;
@@ -167,7 +194,8 @@ function battleDay(b) {
   const lostB = apply(B, dmg(rAB)), lostA = apply(A, dmg(rBA));
   b.lostA = (b.lostA || 0) + lostA; b.lostB = (b.lostB || 0) + lostB;
   A.forEach(a => bleed(a.tag, lostA / Math.max(1, A.length))); B.forEach(a => bleed(a.tag, lostB / Math.max(1, B.length)));
-  b.rA = rBA; b.rB = rAB; b.orgA = sa.org; b.orgB = sb.org;
+  b.rA = rBA; b.rB = rAB; b.orgA = sa.org; b.orgB = sb.org; b.sa = {F: sa.F, T: sa.T, n: sa.n}; b.sb = {F: sb.F, T: sb.T, n: sb.n};
+  b.hist = b.hist || []; b.hist.push([+sa.org.toFixed(3), +sb.org.toFixed(3)]); if (b.hist.length > 40) b.hist.shift();
   G.armies = G.armies.filter(a => !a._dead);
   const A2 = b.A.map(armyById).filter(Boolean), B2 = b.B.map(armyById).filter(Boolean);
   const oA = A2.length ? sideStats(b, b.A, true).org : 0, oB = B2.length ? sideStats(b, b.B, true).org : 0;
@@ -185,6 +213,9 @@ function bleed(tag, men) {
 }
 function endBattle(b, winner) {
   G.battles = G.battles.filter(x => x !== b);
+  const fa = (armyById(b.A[0]) || {}).tag, fb = (armyById(b.B[0]) || {}).tag;
+  G.battleLog = G.battleLog || []; G.battleLog.unshift({id: b.id, prov: b.prov, state: b.state, A: b.A0 || fa, B: b.B0 || fb, winner: winner === 'A' ? (b.A0 || fa) : (b.B0 || fb), days: b.day, lostA: Math.round(b.lostA || 0), lostB: Math.round(b.lostB || 0), date: dateStr ? dateStr() : ''}); if (G.battleLog.length > 25) G.battleLog.length = 25;
+  b.ended = true; G.lastEnded = b;
   const win = (winner === 'A' ? b.A : b.B).map(armyById).filter(Boolean), lose = (winner === 'A' ? b.B : b.A).map(armyById).filter(Boolean);
   win.forEach(a => { a.battle = null; a.rest = 0; a.gen.xp += 8; gainXp(a.tag, 1.5); if (a.gen.xp >= a.gen.lvl * 30 && a.gen.lvl < 5) { a.gen.xp = 0; a.gen.lvl++; const k = pick(['atk', 'def', 'log']); a.gen[k] = Math.min(5, a.gen[k] + 1); if (a.tag === G.player) notify('war', `${a.gen.name} sube a nivel ${a.gen.lvl}.`); } });
   lose.forEach(a => { a.battle = null; gainXp(a.tag, 0.5); retreatArmy(a, b); generalFate(a, b); });
@@ -227,7 +258,7 @@ function militaryDay() {
   if (!G.hostile) recalcHostile();
   recalcHostileIfNeeded();
   if (G.armies.length) {
-    G.armies.forEach(stepMove);
+    G.armies.forEach(chaseDay); G.armies.forEach(stepMove);
     const byProv = new Map();
     G.armies.forEach(a => { (byProv.get(a.loc) || byProv.set(a.loc, []).get(a.loc)).push(a); });
     createBattles(byProv);
@@ -376,6 +407,8 @@ function enemyProvList(t, enemies) {
   return out;
 }
 function aiMilitary() {
+  const byP = new Map(); G.armies.forEach(a => { (byP.get(a.loc) || byP.set(a.loc, []).get(a.loc)).push(a); });
+  const armiesAt = pid => byP.get(pid) || [];
   G.tags.forEach(t => {
     if (t === NONE) return; const c = G.C[t];
     if (!c.ai || !c.wars.length) return;
@@ -425,10 +458,23 @@ function aiRecruitCountry(t) {
   const sts = c.states.filter(id => G.S[id].b.barracks >= 1); if (!sts.length) return;
   const r = Math.random(); recruit(c, pick(sts), r < 0.65 ? 'inf' : r < 0.8 ? 'cav' : 'art');
 }
+// mantenimiento semanal de las divisiones (más caro en guerra y con alta movilización)
+function armyUpkeep(c) {
+  let t = 0; const k = moneyPerPoint(c);
+  G.armies.forEach(a => { if (a.tag === c.tag) a.divs.forEach(d => t += DIVS[d.t].cost); });
+  return t * k * 0.006 * (1 + (c.mods.milCost || 0)) * (c.milFund || 1) * (c.wars.length ? 1.4 : 1) * (1 + 0.1 * (c.mob || 0));
+}
+function aiDisbandExcess(c) {
+  if (c.wars.length || countDivs(c.tag) <= divLimit(c) * 0.9) return;
+  const a = armiesOf(c.tag).filter(x => !x.battle && !x.path.length && provOwner(x.loc) === c.tag)[0]; if (!a) return;
+  a.divs.pop(); if (!a.divs.length) G.armies = G.armies.filter(x => x !== a);
+}
 function aiRecruitWeek() {
   G.tags.forEach(t => {
     if (t === NONE) return; const c = G.C[t]; if (!c.ai || !c.states.length) return;
-    if (!c.wars.length && Math.random() > 0.03) return;
+    if (c.wars.length && (c.mob || 0) < (c.legitimacy < 40 ? 2 : 3)) setMobilization(c, (c.mob || 0) + 1);
+    aiDisbandExcess(c);
+    if (!c.wars.length && (Math.random() > 0.03 || countDivs(t) >= divLimit(c) * 0.6)) return;
     let n = c.wars.length ? 2 : 1;
     const sts = c.states.filter(id => G.S[id].b.barracks >= 1);
     while (n-- > 0 && sts.length) { const r = Math.random(); const type = r < 0.65 ? 'inf' : r < 0.8 ? 'cav' : 'art'; recruit(c, pick(sts), type); }
@@ -451,5 +497,5 @@ function cleanupArmies() {
 /* ---------- guardado de datos militares ---------- */
 function provSave() { const o = []; G.P.forEach((p, i) => { if (p.by || p.prog || p.fort) o.push([i, p.by, p.prog, p.pby || null, p.fort || 0]); }); return o; }
 function provLoad(list) { initProvinceState(); (list || []).forEach(([i, by, prog, pby, fort]) => { const p = G.P[i]; if (p) { p.by = by; p.prog = prog; p.pby = pby; p.fort = fort; } }); G.occList = (list || []).map(x => x[0]); G.S.forEach(s => refreshStateOcc(s.id)); }
-function saveExtra() { return {}; }
-function loadExtra(x) { void x; }
+function saveExtra() { return {battleLog: G.battleLog || []}; }
+function loadExtra(x) { G.battleLog = (x && x.battleLog) || []; }

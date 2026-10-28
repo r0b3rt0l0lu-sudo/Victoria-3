@@ -33,3 +33,13 @@
   experiencia militar y cansancio de guerra (datos), guardado v2.
 - HECHO: **iconos SVG** (`src/icons.js`) en HUD, menú, cámara, modos de mapa y ventanas + pulido visual general (CSS).
 - PENDIENTE: suministro, producción de equipo, doctrinas, aviación, marina, frentes/planes, árbol nacional, ventanas nuevas.
+
+## Cambios de la última sesión
+- Movimiento: modo «🎯 Mover» (clic izquierdo), Mayús+clic, grupos con Ctrl/Mayús+clic en fichas, **persecución** de ejércitos enemigos
+  (clic derecho sobre ellos o botón), fichas con desplazamiento suave y rutas enemigas en rojo. Velocidad idéntica para todos los países.
+- Reclutamiento por **movilización** (0 / 1 / 2,5 / 5 / 10 % de la población) con coste económico, malestar y mantenimiento semanal de divisiones.
+- **Panel de batalla en tiempo real** (clic en ⚔ del mapa o «Ver batalla») + historial de batallas.
+- **Propaganda por estrato** (clases altas/medias/bajas), carísima.
+- **Equilibrado** (simulaciones de 20 años, 3 dificultades): población ya no se desploma (hambre exagerada: umbral 0,85→0,7 y hambrunas locales
+  más raras), huelgas a la mitad, crecimiento base 0,95 %/año, IA sin inflar ejércitos (tope en paz, desmovilización, mantenimiento).
+  Resultado: pob. +14 % en 20 años, NdV 7→12, ~1 guerra/año y ~55 batallas/año.

@@ -219,8 +219,8 @@ function setupControls() {
   const end = e => {
     pts.delete(e.pointerId); if (pts.size < 2) pinch = null;
     if (drag && !drag.moved && drag.btn === 0 && e.type === 'pointerup') {
-      const id = stateAtWorld(screenToWorld(e.clientX, e.clientY));
-      if (window.onMapClick) window.onMapClick(id, e);
+      const wp = screenToWorld(e.clientX, e.clientY), id = stateAtWorld(wp);
+      if (window.onMapClick) window.onMapClick(id, e, provAtWorld(wp));
     }
     if (drag && !drag.moved && drag.btn === 2 && e.type === 'pointerup') {
       const wp = screenToWorld(e.clientX, e.clientY), id = stateAtWorld(wp);
@@ -423,14 +423,16 @@ function updateArmyTokens() {
   wanted.forEach(([a, i, n]) => {
     let el = R.ak[a.id];
     if (!el) { el = document.createElement('div'); el.className = 'atoken'; el.dataset.aid = a.id; el.dataset.act = 'seltoken'; el.dataset.id = a.id; R.markerRoot.appendChild(el); R.ak[a.id] = el; }
-    const pv = MAP.provs[a.loc]; const p = worldToScreen(pv.lon, 0.5, -pv.lat);
+    const pv = MAP.provs[a.loc]; let plon = pv.lon, plat = pv.lat;
+    if (a.path.length && a.hopMax > 0 && !a.battle) { const nx = MAP.provs[a.path[0]], f = clamp(1 - a.hop / a.hopMax, 0, 1); plon += (nx.lon - plon) * f; plat += (nx.lat - plat) * f; }
+    const p = worldToScreen(plon, 0.5, -plat);
     const off = (i - (n - 1) / 2) * 30;
     const x = p[0] + off, y = p[1] + (a.tag === G.player ? 0 : 0);
     if (x < -40 || x > cw + 40 || y < -40 || y > ch + 40) { el.style.display = 'none'; return; }
     el.style.display = 'flex';
-    const key = G.player + a.tag + a.divs.length + (a.battle ? 'b' : '') + (a.id === sel ? 's' : '') + (a.path.length ? 'm' : '') + Math.round(armyStr(a) * 10);
+    const key = G.player + a.tag + a.divs.length + (a.battle ? 'b' : '') + (a.id === sel ? 's' : '') + (a.path.length ? 'm' : '') + (window.UI && UI.selSet && UI.selSet.has(a.id) ? 'g' : '') + Math.round(armyStr(a) * 10);
     if (el._k !== key) {
-      el._k = key; el.className = 'atoken' + (a.tag === G.player ? ' mine' : '') + (a.id === sel ? ' sel' : '') + (a.battle ? ' fight' : '') + (a.path.length ? ' moving' : '');
+      el._k = key; el.className = 'atoken' + (UI.selSet && UI.selSet.has(a.id) ? ' sel2' : '') + (a.tag === G.player ? ' mine' : '') + (a.id === sel ? ' sel' : '') + (a.battle ? ' fight' : '') + (a.path.length ? ' moving' : '');
       el.innerHTML = flag(a.tag, 'sm') + `<b>${a.divs.length}</b>` + `<i style="width:${Math.round(armyStr(a) * 100)}%"></i>` + (a.battle ? '<u>⚔</u>' : '');
     }
     el.style.transform = `translate(-50%,-50%) translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
@@ -442,10 +444,12 @@ function drawOrders() {
   if (!svg) { svg = R.ordSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('class', 'orders'); R.markerRoot.insertBefore(svg, R.markerRoot.firstChild); }
   const sel = window.UI && UI.selArmy; let h = '';
   G.armies.forEach(a => {
-    if (!a.path.length || !(a.tag === G.player || a.id === sel)) return;
+    const foe = a.tag !== G.player && hostileTags(G.player, a.tag);
+    if (!a.path.length || !(a.tag === G.player || a.id === sel || foe)) return;
     const pts = [a.loc].concat(a.path).map(pid => { const pv = MAP.provs[pid]; const p = worldToScreen(pv.lon, 0.5, -pv.lat); return p[0].toFixed(1) + ',' + p[1].toFixed(1); });
     const last = pts[pts.length - 1].split(',');
-    h += `<polyline points="${pts.join(' ')}" class="${a.id === sel ? 'sel' : ''}"/><circle cx="${last[0]}" cy="${last[1]}" r="5" class="${a.id === sel ? 'sel' : ''}"/>`;
+    const cl = (a.id === sel ? 'sel' : '') + (foe ? ' foe' : '') + (a.chase ? ' chase' : '');
+    h += `<polyline points="${pts.join(' ')}" class="${cl}"/><circle cx="${last[0]}" cy="${last[1]}" r="5" class="${cl}"/>`;
   });
   svg.innerHTML = h;
 }
@@ -462,7 +466,7 @@ function updateMarkers() {
   updateArmyTokens();
   for (const k in R.mk) if (!ids.has(k)) { R.mk[k].remove(); delete R.mk[k]; }
   want.forEach(w => {
-    let el = R.mk[w.id]; if (!el) { el = document.createElement('div'); el.className = 'marker ' + w.cls; el.textContent = w.ch; R.markerRoot.appendChild(el); R.mk[w.id] = el; }
+    let el = R.mk[w.id]; if (!el) { el = document.createElement('div'); el.className = 'marker ' + w.cls; el.textContent = w.ch; if (w.id.startsWith('bt')) { el.dataset.act = 'selbattle'; el.dataset.id = w.id.slice(2); } R.markerRoot.appendChild(el); R.mk[w.id] = el; }
     const c = w.prov !== undefined ? [MAP.provs[w.prov].lon, MAP.provs[w.prov].lat] : stateCenter(G.S[w.state]); const p = worldToScreen(c[0], 0.6, -c[1]);
     el.style.transform = `translate(-50%,-100%) translate(${p[0].toFixed(1)}px,${p[1].toFixed(1)}px)`;
   });

@@ -431,11 +431,6 @@ WINDOWS.diplomacy = {title: 'Diplomacia', icon: '🤝', render() {
 
 /* --- Ejército y guerra --- */
 const stars = n => '★'.repeat(n) + '<span class="dim">' + '★'.repeat(5 - n) + '</span>';
-function armyRowHtml(a) {
-  const eta = armyEta(a);
-  const stat = a.battle ? '<span class="tag bad">⚔ En combate</span>' : a.path.length ? `<span class="tag">➜ ${provName(a.dest != null ? a.dest : a.path[a.path.length - 1])} · ${eta} d</span>` : '<span class="tag good">En posición</span>';
-  return `<tr data-act="selarmy" data-id="${a.id}" class="${UI.selArmy === a.id ? 'sel' : ''}"><td><b>${a.name}</b><br><small class="dim">${a.gen.name} (nv. ${a.gen.lvl})</small></td><td>${armyStateName(a)}</td><td class="r">${a.divs.length}</td><td class="r">${fmtN(armyMen(a) / 1000, 1)}</td><td class="r">${Math.round(armyStr(a) * 100)}%</td><td class="r">${Math.round(armyOrg(a) * 100)}%</td><td>${stat}</td></tr>`;
-}
 WINDOWS.military = {title: 'Ejército y guerra', icon: '⚔️', render() {
   const c = me(), st = c.stats, tab = curTab('mil', 'armies');
   const myWars = G.wars.filter(w => w.attAll.includes(G.player) || w.defAll.includes(G.player));
@@ -443,11 +438,15 @@ WINDOWS.military = {title: 'Ejército y guerra', icon: '⚔️', render() {
   let barr = 0; c.states.forEach(i => barr += G.S[i].b.barracks || 0);
   const ndiv = countDivs(G.player), lim = divLimit(c);
   const sideHtml = (list, lead) => list.map(t => `${flag(t, 'sm')} ${G.C[t].name}${t === lead ? ' 👑' : ''}`).join(', ');
-  const head = tabs('mil', [['armies', `Ejércitos (${mine.length})`], ['recruit', 'Reclutamiento'], ['wars', `Guerras${myWars.length ? ' (' + myWars.length + ')' : ''}`], ['stats', 'Fuerzas armadas']]);
+  const head = tabs('mil', [['armies', `Ejércitos (${mine.length})`], ['fronts', `Frentes${frontsOf(G.player).length ? ' (' + frontsOf(G.player).length + ')' : ''}`], ['generals', 'Generales'], ['recruit', 'Reclutamiento'], ['wars', `Guerras${myWars.length ? ' (' + myWars.length + ')' : ''}`], ['stats', 'Fuerzas armadas']]);
   let body = '';
   if (tab === 'armies') {
     body = `<div class="card"><h3>Tus ejércitos</h3>${mine.length ? `<table class="tbl clickable"><thead><tr><th>Ejército · general</th><th>Ubicación</th><th class="r">Div.</th><th class="r">Hombres (mil)</th><th class="r">Fuerza</th><th class="r">Organ.</th><th>Orden</th></tr></thead><tbody>${mine.map(armyRowHtml).join('')}</tbody></table>` : '<p class="hint">No tienes ejércitos. Recluta divisiones en la pestaña Reclutamiento (se necesitan Cuarteles).</p>'}
      <p class="hint">Haz clic en una ficha del mapa o en una fila para seleccionar un ejército; después <b>clic derecho</b> sobre un estado vecino para ordenar el movimiento. Las divisiones recién reclutadas aparecen en el estado donde se entrenaron.</p></div>`;
+  } else if (tab === 'fronts') {
+    body = frontsTabHtml();
+  } else if (tab === 'generals') {
+    body = generalsTabHtml();
   } else if (tab === 'recruit') {
     const states = c.states.filter(id => G.S[id].b.barracks >= 1).sort((a, b) => G.S[b].b.barracks - G.S[a].b.barracks);
     const mine = G.recruits.filter(r => r.tag === G.player);
@@ -498,90 +497,12 @@ function selectArmy(id, add) {
   else { UI.selSet = new Set(); UI.selArmy = id; UI.moveMode = false; document.body.classList.remove('movemode'); }
   renderArmyPanel(); R.labelsDirty = true;
 }
-function orderArmies(pid) {
-  const lead = armyById(UI.selArmy); if (!lead || lead.tag !== G.player) return;
-  const list = [lead].concat([...(UI.selSet || [])].map(armyById).filter(a => a && a.tag === G.player));
-  const foe = armiesAt(pid).find(o => hostileTags(G.player, o.tag));
-  let n = 0, eta = 0, err = '';
-  list.forEach(a => {
-    if (pid === a.loc) { a.path = []; a.chase = null; return; }
-    const r = orderMove(a, pid); if (!r.ok) { err = r.msg; return; }
-    n++; eta = Math.max(eta, r.eta); if (foe) a.chase = foe.id;
-  });
-  if (err && !n) toast('⚠️', err);
-  else if (n) toast(foe ? '🎯' : '➜', foe ? `${list.length > 1 ? 'Los ejércitos persiguen' : lead.name + ' persigue'} a ${foe.name} de ${G.C[foe.tag].name} (${eta} días).` : `${list.length > 1 ? list.length + ' ejércitos marchan' : lead.name + ' marcha'} hacia ${provName(pid)} (${eta} días).`);
-  UI.moveMode = false; document.body.classList.remove('movemode');
-  renderArmyPanel(); R.labelsDirty = true;
-}
-function renderBattlePanel() {
-  const root = $('#battlepanel'); if (!root) return;
-  let b = UI.battle ? G.battles.find(x => x.id === UI.battle) : null;
-  if (!b && UI.battle && G.lastEnded && G.lastEnded.id === UI.battle) b = G.lastEnded;
-  if (!b) { root.classList.remove('open'); root.innerHTML = ''; UI.battle = null; return; }
-  const done = !!b.ended;
-  const side = (ids, isAtt, tag0) => {
-    const as = ids.map(armyById).filter(Boolean); let men = 0, nd = 0, str = 0, org = 0, no = 0; const types = {};
-    as.forEach(a => { men += armyMen(a); a.divs.forEach(d => { nd++; str += d.s; org += d.o / DIVS[d.t].org; types[d.t] = (types[d.t] || 0) + 1; }); });
-    no = nd;
-    const tag = as.length ? as[0].tag : tag0;
-    const st = as.length ? sideStats(b, ids, isAtt) : {F: 0, T: 0, n: 0, org: 0};
-    return {as, men, nd, str: nd ? str / nd : 0, org: no ? org / no : 0, types, tag, st, gens: as.map(a => a.gen)};
-  };
-  const A = side(b.A, b.att === 'A', b.A0), B = side(b.B, b.att === 'B', b.B0);
-  const pv = MAP.provs[b.prov], terr = pv.terr;
-  const bs = (S, cls, title, isAtt) => `<div class="bside ${cls}"><h4>${S.tag ? flag(S.tag, 'sm') : ''} ${S.tag ? G.C[S.tag].name : '—'} <small class="dim">${title}</small></h4>
-    <div class="kv sm"><span>Divisiones</span><b>${S.nd} ${Object.keys(S.types).map(k => DIVS[k].icon + S.types[k]).join(' ')}</b></div>
-    <div class="kv sm"><span>Hombres</span><b>${fmtN(S.men, 0)}</b></div>
-    <div class="kv sm"><span>Fuerza media</span><b>${Math.round(S.str * 100)}%</b></div>${bar(S.str, 1, '')}
-    <div class="kv sm"><span>Organización</span><b>${Math.round(S.org * 100)}%</b></div>${bar(S.org, 1, 'warn')}
-    <div class="kv sm"><span>Poder de ataque</span><b>${f1(S.st.F)}</b></div><div class="kv sm"><span>Poder de defensa</span><b>${f1(S.st.T)}</b></div>
-    <div class="kv sm"><span>Combaten / reserva</span><b>${S.st.n} / ${Math.max(0, S.nd - S.st.n)}</b></div>
-    <div class="kv sm"><span>Generales</span><b>${S.gens.map(g => `${g.name} (${g.atk}/${g.def})`).join(', ') || '—'}</b></div>
-    <div class="kv sm"><span>Atrincheramiento</span><b>${isAtt ? '—' : '+' + Math.round(Math.min(5, Math.max(0, ...S.as.map(a => a.dig || 0), 0)) * 4) + '%'}</b></div>
-    <div class="kv sm"><span>Suministro</span><b>${S.as.length ? Math.round(S.as.reduce((x, a) => x + (a.sup === undefined ? 1 : a.sup), 0) / S.as.length * 100) + '%' : '—'}</b></div>
-    <div class="kv sm"><span>Bajas</span><b class="bad">${fmtN(isAtt ? (b.att === 'A' ? b.lostA : b.lostB) : (b.att === 'A' ? b.lostB : b.lostA) || 0, 0)}</b></div></div>`;
-  const ha = b.att === 'A' ? A : B, hd = b.att === 'A' ? B : A;
-  const hist = (b.hist || []).map(h => b.att === 'A' ? h : [h[1], h[0]]);
-  const W = 520, Hh = 60;
-  const line = (i, col) => hist.length > 1 ? `<polyline fill="none" stroke="${col}" stroke-width="2" points="${hist.map((h, k) => (k / (hist.length - 1) * W).toFixed(1) + ',' + (Hh - h[i] * Hh).toFixed(1)).join(' ')}"/>` : '';
-  const rAtt = b.att === 'A' ? b.rA : b.rB, rDef = b.att === 'A' ? b.rB : b.rA;
-  root.classList.add('open');
-  root.innerHTML = `<div class="sp-head"><div><h2>⚔ Batalla de ${provName(b.prov)}</h2><small>${done ? 'Batalla finalizada' : 'Día ' + b.day} · ${BIOME_NAMES[pv.biome] || ''} · defensa del terreno ×${terr.def.toFixed(2)} · movilidad ×${terr.move.toFixed(2)}</small></div><button class="x" data-act="closebattle">✕</button></div>
-  <div class="bsides">${bs(ha, 'att', 'Atacante', true)}${bs(hd, 'def', 'Defensor', false)}</div>
-  <svg class="bhist" viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none">${line(0, '#e8644f')}${line(1, '#6aa8e8')}</svg>
-  <small class="dim">Evolución de la organización: <span style="color:#e8644f">atacante</span> · <span style="color:#6aa8e8">defensor</span></small>
-  <div class="kv"><span>Daño por día (org.) al defensor / al atacante</span><b>${f1(clamp(5.5 * (rDef === undefined ? 0 : (b.att === 'A' ? b.rB : b.rA)), 0.6, 13))}% / ${f1(clamp(5.5 * (rAtt || 0), 0.6, 13))}%</b></div>`;
-}
 const BIOME_NAMES = ['Mar', 'Llanura', 'Bosque', 'Desierto', 'Estepa', 'Tundra', 'Selva', 'Montaña', 'Nieve'];
-function renderArmyPanel() {
-  const root = $('#armypanel'); if (!root) return;
-  const a = UI.selArmy ? armyById(UI.selArmy) : null;
-  if (!a) { UI.selArmy = null; root.classList.remove('open'); root.innerHTML = ''; return; }
-  const own = a.tag === G.player;
-  const others = own ? armiesAt(a.loc).filter(o => o !== a && o.tag === a.tag && !o.battle) : [];
-  const cnt = {}; a.divs.forEach(d => cnt[d.t] = (cnt[d.t] || 0) + 1);
-  const b = a.battle ? G.battles.find(x => x.id === a.battle) : null;
-  root.classList.add('open');
-  root.innerHTML = `<div class="sp-head">${flag(a.tag, 'md')}<div><h2>${a.name}</h2><small>${G.C[a.tag].name} · ${armyStateName(a)}</small></div><button class="x" data-act="armyclose">✕</button></div>
-  <div class="gen"><b>🎖️ ${a.gen.name}</b> <small>nivel ${a.gen.lvl}</small>
-    <div class="kv sm"><span>Ataque</span><span class="gs">${stars(a.gen.atk)}</span></div><div class="kv sm"><span>Defensa</span><span class="gs">${stars(a.gen.def)}</span></div><div class="kv sm"><span>Logística</span><span class="gs">${stars(a.gen.log)}</span></div></div>
-  <div class="kv"><span>Fuerza</span><b>${Math.round(armyStr(a) * 100)}%</b></div>${bar(armyStr(a), 1, '')}
-  <div class="kv"><span>Organización</span><b>${Math.round(armyOrg(a) * 100)}%</b></div>${bar(armyOrg(a), 1, 'warn')}
-  <div class="kv"><span>Hombres</span><b>${fmtN(armyMen(a), 0)}</b></div>
-  <div class="kv"><span>Composición</span><b>${Object.keys(cnt).map(k => DIVS[k].icon + ' ' + cnt[k]).join(' · ')}</b></div>
-  <div class="kv"><span>Orden</span><b>${a.battle ? '⚔ En combate' + (b ? ` (día ${b.day})` : '') : a.path.length ? `➜ ${provName(a.dest != null ? a.dest : a.path[a.path.length - 1])} · ${armyEta(a)} d` : 'Esperando órdenes'}</b></div>
-  <div class="divl">${a.divs.map(d => `<div class="dv" data-tip="${DIVS[d.t].name}: fuerza ${Math.round(d.s * 100)}%, organización ${Math.round(d.o / DIVS[d.t].org * 100)}%">${DIVS[d.t].icon}<i style="height:${Math.round(d.s * 100)}%"></i><u style="height:${Math.round(d.o / DIVS[d.t].org * 100)}%"></u></div>`).join('')}</div>
-  ${own ? `<p class="hint">🖱️ <b>Clic derecho</b> en una provincia mueve el ejército (sobre un ejército enemigo lo <b>persigue</b>). También: botón <b>🎯 Mover</b> + clic izquierdo, o <b>Mayús + clic</b>. <b>Ctrl/Mayús + clic en otra ficha</b> añade ejércitos al grupo${UI.selSet && UI.selSet.size ? ` (<b>${UI.selSet.size + 1} seleccionados</b>)` : ''}.</p>
-  <div class="btnrow"><button data-act="movemode" class="${UI.moveMode ? 'on' : ''}">🎯 Mover${UI.moveMode ? ' (activo)' : ''}</button>${b ? `<button data-act="selbattle" data-id="${b.id}">⚔ Ver batalla</button>` : ''}</div>
-  ${(() => { const foes = G.armies.filter(o => hostileTags(a.tag, o.tag)).map(o => ({o, d: provDist(a.loc, o.loc)})).sort((x, y) => x.d - y.d).slice(0, 4); return foes.length ? `<div class="foes"><small class="dim">Enemigos cercanos</small>${foes.map(({o, d}) => `<div class="kv sm"><span>${flag(o.tag, 'sm')} ${o.divs.length} div. · ${provName(o.loc)}${o.path.length ? ' ➜' : ''}</span><button data-act="chase" data-id="${o.id}">🎯 Perseguir</button></div>`).join('')}</div>` : ''; })()}
-  <div class="btnrow"><button data-act="armystop" ${a.path.length ? '' : 'disabled'}>✋ Detener</button><button data-act="armycap" ${a.battle ? 'disabled' : ''}>★ A la capital</button><button data-act="armysplit" ${a.divs.length < 2 || a.battle ? 'disabled' : ''}>✂ Dividir</button><button data-act="armydisband" ${a.battle ? 'disabled' : ''}>✖ Disolver</button></div>
-  ${others.length ? `<div class="btnrow">${others.map(o => `<button data-act="armymerge" data-id="${o.id}" ${a.divs.length + o.divs.length > MAX_DIVS_ARMY ? 'disabled' : ''}>⛓ Fusionar con ${o.name} (${o.divs.length})</button>`).join('')}</div>` : ''}` : '<p class="hint">Ejército extranjero.</p>'}
-  <div class="btnrow"><button data-act="focusprov" data-id="${a.loc}">📍 Centrar</button></div>`;
-}
 window.onMapRightClick = (sid, e, pid) => {
+  if (UI.draw) { drawUndo(); return; }
   const a = UI.selArmy ? armyById(UI.selArmy) : null;
   if (!a || a.tag !== G.player || pid === undefined || pid < 0) return;
-  orderArmies(pid);
+  orderArmies(pid, e && e.shiftKey ? 'wp' : 'move');
 };
 document.addEventListener('contextmenu', e => {
   const t = e.target.closest && e.target.closest('.atoken');
@@ -758,7 +679,8 @@ window.onMapHover = (id, e) => {
    <div class="kv sm"><span>Población</span><b>${fmtN(popTotal(s), 1)}</b></div><div class="kv sm"><span>Nivel de vida</span><b>${f1(s.solAvg)}</b></div><div class="kv sm"><span>PIB semanal</span><b>${fmtN(s.gdp, 1)}</b></div>`, e.clientX, e.clientY);
 };
 window.onMapClick = (id, e, pid) => {
-  if (UI.selArmy && pid !== undefined && pid >= 0 && (UI.moveMode || (e && e.shiftKey))) { orderArmies(pid); return; }
+  if (UI.draw && pid !== undefined && pid >= 0) { drawClick(pid); return; }
+  if (UI.selArmy && pid !== undefined && pid >= 0 && (UI.moveMode || UI.patrolNext || (e && e.shiftKey))) { orderArmies(pid, UI.patrolNext ? 'patrol' : 'move'); return; }
   UI.sel = id >= 0 ? id : null; setSelected(id >= 0 ? id : -1); renderStatePanel();
 };
 

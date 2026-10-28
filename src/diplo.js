@@ -213,7 +213,7 @@ function warWeek() {
     else if (!humans && w.weeks > 110) endWar(w, null);
     else if (humans && w.weeks > 150 && Math.abs(w.score) < 25) endWar(w, null);
   }
-  aiRecruitWeek();
+  aiRecruitWeek(); aiTrainWeek();
 }
 
 /* ---------- paz y resultado ---------- */

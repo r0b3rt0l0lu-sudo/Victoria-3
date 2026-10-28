@@ -325,3 +325,24 @@ body.movemode canvas#gl{cursor:crosshair}
 .bsides{display:grid;grid-template-columns:1fr 1fr;gap:12px}.bside{background:rgba(0,0,0,.25);border-radius:6px;padding:8px}.bside h4{margin:0 0 6px;display:flex;align-items:center;gap:6px;font-size:14px}
 .bside.att{border-top:3px solid #e8644f}.bside.def{border-top:3px solid #6aa8e8}
 .bhist{display:block;width:100%;height:60px;background:rgba(0,0,0,.3);border-radius:4px;margin:8px 0}
+
+/* ===== frentes, órdenes y batalla táctica ===== */
+.ordgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:5px;margin:8px 0}
+.ordgrid button{padding:5px 6px;font-size:12px;background:#232e37;border:1px solid var(--goldd);border-radius:5px;cursor:pointer}.ordgrid button.on{background:#6a5524;border-color:var(--gold2);color:#fff6d6}
+.foes{border-top:1px solid rgba(201,166,87,.2);margin-top:8px;padding-top:6px}.foes button{padding:3px 8px;font-size:11.5px}
+.traits{margin-left:4px}.tchip{display:inline-block;padding:1px 6px;border-radius:10px;font-size:13px;margin-right:3px;background:rgba(255,255,255,.08)}
+.dv em{position:absolute;left:5px;bottom:0;width:3px;background:#6aa8e8}
+.bar.blue>i{background:linear-gradient(180deg,#7fb8f0,#3e73b0)}
+svg.orders polyline.front{fill:none;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;opacity:.55}
+svg.orders polyline.front.def{stroke:#6aa8e8}svg.orders polyline.front.att{stroke:#e8644f}svg.orders polyline.front.draw{stroke:#ffe28a;stroke-dasharray:2 6;opacity:.9}
+svg.orders polyline.front.act{opacity:.9;stroke-dasharray:10 6;animation:dash 1.2s linear infinite}
+svg.orders circle.front{stroke:#000;stroke-width:1}svg.orders circle.front.def{fill:#6aa8e8}svg.orders circle.front.att{fill:#e8644f}svg.orders circle.front.draw{fill:#ffe28a}
+svg.orders line.arrow{stroke:#e8644f;stroke-width:3;opacity:.8}svg.orders line.arrow.act{stroke-dasharray:8 5;animation:dash 1s linear infinite}
+@keyframes dash{to{stroke-dashoffset:-32}}
+#drawbar{position:fixed;left:50%;top:70px;transform:translateX(-50%);display:none;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;padding:8px 14px;background:linear-gradient(180deg,rgba(60,48,20,.97),rgba(30,26,16,.97));border:1px solid var(--gold);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.7);z-index:40;max-width:calc(100vw - 20px)}
+#drawbar.open{display:flex}#drawbar select,#drawbar button{padding:4px 9px;font-size:12.5px;background:#232e37;color:var(--text,#e8e0c8);border:1px solid var(--goldd);border-radius:5px;cursor:pointer}#drawbar button.primary{background:linear-gradient(#e8cf85,#a6832f);color:#1d1606}
+.card.front.attack{border-left:3px solid #e8644f}.card.front.defend{border-left:3px solid #6aa8e8}
+.chk{display:flex;gap:6px;align-items:center;font-size:12.5px;color:var(--dim)}.tag.warn{background:rgba(224,176,74,.2);border-color:rgba(224,176,74,.4)}
+#bmap{display:block;width:100%;height:auto;border-radius:6px;border:1px solid #6b5a2f;margin:8px 0;background:#222}
+.blog{margin-top:6px;max-height:120px;overflow:auto}.blog .ev{font-size:12.5px;padding:3px 6px;border-left:3px solid #6b5a2f;margin:3px 0;background:rgba(0,0,0,.2)}.blog .ev.charge{border-color:#e8644f}.blog .ev.barrage{border-color:#f0a03c}.blog .ev.cav{border-color:#e0d070}.blog .ev.flank{border-color:#9fd37a}
+#battlepanel{max-height:calc(100vh - 130px);overflow-y:auto}

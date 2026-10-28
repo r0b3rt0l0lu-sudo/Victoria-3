@@ -9,14 +9,55 @@ const MAX_DIVS_ARMY = 12;
 const BATTLE_WIDTH = 10;       // divisiones que combaten a la vez por bando
 const GEN_SURNAMES = ['Wellesley', 'Moltke', 'Radetzky', 'Kutúzov', 'Ney', 'Soult', 'Bernadotte', 'Espartero', 'Narváez', 'Garibaldi', 'Cadorna', 'Pélissier', 'MacMahon', 'Scott', 'Taylor', 'Jackson', 'Lee', 'Ypsilanti', 'Ibrahim', 'Shimazu', 'Saigō', 'Zeng', 'Zuo', 'Xu', 'Nogi', 'Bolívar', 'Sucre', 'Santa Anna', 'Chassé', 'Dufour', 'Haynau', 'Wrangel', 'Roon', 'Steinmetz', 'Paskévich', 'Todleben', 'Napier', 'Havelock', 'Canrobert', 'Bosquet', 'Lamoricière', 'Zumalacárregui', 'Cabrera', 'Hoche', 'Kléber', 'Blücher', 'Gneisenau', 'Windischgrätz', 'Jellačić', 'Benedek'];
 
-function newGeneral() {
+/* ---------- generales y rasgos ---------- */
+const GEN_TRAITS = {
+  offensive: {name: 'Ofensivo', icon: '⚔️', desc: '+12% de ataque', att: 0.12},
+  defensive: {name: 'Defensivo', icon: '🛡️', desc: '+12% de defensa', def: 0.12},
+  logistician: {name: 'Logístico', icon: '📦', desc: '+15% de velocidad y +10% de suministro', spd: 0.15, sup: 0.1},
+  cavalry: {name: 'Maestro de caballería', icon: '🐎', desc: '+25% de ataque de la caballería', cav: 0.25},
+  gunner: {name: 'Artillero', icon: '💣', desc: '+25% de ataque de la artillería y cañoneos más potentes', art: 0.25},
+  trencher: {name: 'Fortificador', icon: '⛏️', desc: 'Se atrinchera el doble de rápido', dig: 1},
+  march: {name: 'Marcha forzada', icon: '🥾', desc: 'La marcha forzada cuesta la mitad de organización', march: 0.5},
+  charismatic: {name: 'Carismático', icon: '🎖️', desc: '+15% de organización y recuperación', org: 0.15},
+  brave: {name: 'Temerario', icon: '🔥', desc: 'Más cargas desesperadas, con +10% de ataque', att: 0.1, brave: 1},
+  trainer: {name: 'Instructor', icon: '🎓', desc: 'Las tropas se entrenan un 50% más rápido', train: 0.5}
+};
+const TRAIT_KEYS = Object.keys(GEN_TRAITS);
+function newGeneral(lvl) {
   const r = () => 1 + Math.floor(Math.random() * 3) + (Math.random() < 0.15 ? 1 : 0);
-  return {name: pick(GEN_SURNAMES), atk: Math.min(5, r()), def: Math.min(5, r()), log: Math.min(5, r()), xp: 0, lvl: 1};
+  const g = {name: pick(GEN_SURNAMES), atk: Math.min(5, r()), def: Math.min(5, r()), log: Math.min(5, r()), xp: 0, lvl: 1, traits: []};
+  if (Math.random() < 0.45) g.traits.push(pick(TRAIT_KEYS));
+  if (lvl > 1) { g.lvl = lvl; g.atk = Math.min(5, g.atk + 1); if (Math.random() < 0.7) { const t = pick(TRAIT_KEYS); if (!g.traits.includes(t)) g.traits.push(t); } }
+  return g;
 }
+function genMods(g) {
+  const m = {att: 0, def: 0, spd: 0, sup: 0, cav: 0, art: 0, dig: 0, march: 1, org: 0, brave: 0, train: 0};
+  (g.traits || []).forEach(k => { const t = GEN_TRAITS[k]; if (!t) return; ['att', 'def', 'spd', 'sup', 'cav', 'art', 'dig', 'org', 'brave', 'train'].forEach(x => { if (t[x]) m[x] += t[x]; }); if (t.march) m.march = t.march; });
+  return m;
+}
+// generales de reserva del país (sin ejército)
+function genPool(c) { c.gens = c.gens || []; return c.gens; }
+function recruitGeneralCost(c) { return Math.round(moneyPerPoint(c) * 500); }
+function recruitGeneral(c) {
+  const cost = recruitGeneralCost(c);
+  if (c.treasury < cost) return {ok: false, msg: 'No tienes fondos para reclutar un general.'};
+  if (c.influence < 15) return {ok: false, msg: 'Necesitas 15 de influencia.'};
+  if (genPool(c).length >= 8) return {ok: false, msg: 'Ya tienes 8 generales en reserva.'};
+  c.treasury -= cost; c.influence -= 15; const g = newGeneral(Math.random() < 0.3 ? 2 : 1); genPool(c).push(g);
+  return {ok: true, msg: `${g.name} se incorpora a la reserva de generales.`};
+}
+function assignGeneral(a, idx) {
+  const c = G.C[a.tag], pool = genPool(c); if (idx < 0 || idx >= pool.length || a.battle) return false;
+  const nw = pool.splice(idx, 1)[0]; pool.push(a.gen); a.gen = nw; return true;
+}
+function trainMod(d) { return 0.75 + 0.5 * (d.tr === undefined ? 0.5 : d.tr); }
+const TRAIN_LEVELS = [[0.25, 'Recluta'], [0.5, 'Regular'], [0.75, 'Veterano'], [1.01, 'Élite']];
+const trainName = tr => (TRAIN_LEVELS.find(l => tr < l[0]) || TRAIN_LEVELS[3])[1];
+function armyTrain(a) { let t = 0; a.divs.forEach(d => t += d.tr === undefined ? 0.5 : d.tr); return a.divs.length ? t / a.divs.length : 0; }
 function nextArmyId() { G.nextArmyId = (G.nextArmyId || 1); return G.nextArmyId++; }
-function mkDivision(type) { return {t: type, s: 1, o: DIVS[type].org}; }
+function mkDivision(type, tr) { return {t: type, s: 1, o: DIVS[type].org, tr: tr === undefined ? 0.15 : tr}; }
 function mkArmy(tag, loc, divs, name) {
-  const a = {id: nextArmyId(), tag, loc, divs: divs || [], gen: newGeneral(), path: [], hop: 0, battle: null, from: null, arrived: G.date.t, rest: 0, dig: 0, sup: 1, front: null, plan: null, name: name || ''};
+  const a = {id: nextArmyId(), tag, loc, divs: divs || [], gen: newGeneral(), path: [], hop: 0, battle: null, from: null, arrived: G.date.t, rest: 0, dig: 0, sup: 1, front: null, plan: null, mode: null, fm: false, rail: false, patrol: null, joinTo: null, name: name || ''};
   if (!a.name) a.name = `${armyOrdinal(tag)}.º Ejército`;
   G.armies.push(a); return a;
 }
@@ -58,9 +99,10 @@ const provName = pid => { const p = MAP.provs[pid]; return G.S[p.s].name + (MAP.
 function hopDays(a, fromId, toId) {
   const B = MAP.provs[toId]; const c = G.C[a.tag];
   let spd = 9; a.divs.forEach(d => { spd = Math.min(spd, DIVS[d.t].spd); }); if (spd === 9) spd = 1;
-  const lg = 1 + 0.1 * (a.gen.log - 1) + (typeof docMod === 'function' ? docMod(a.tag, 'spd') : 0);   // la velocidad es igual para todos los países
+  const lg = 1 + 0.1 * (a.gen.log - 1) + genMods(a.gen).spd + (typeof docMod === 'function' ? docMod(a.tag, 'spd') : 0);   // la velocidad es igual para todos los países
   const so = G.S[B.s]; const rail = (so.owner === a.tag || sameSide(a.tag, so.owner)) ? 1 - Math.min(0.35, (so.infra || 0) * 0.05) : 1;
-  return clamp(Math.round(provDist(fromId, toId) * 1.9 * B.terr.move * rail / spd / lg), 1, 16);
+  const mode = (a.fm ? 0.68 : 1) * (a.rail && so.owner !== NONE && (so.owner === a.tag || sameSide(a.tag, so.owner)) ? 0.35 : 1);
+  return clamp(Math.round(provDist(fromId, toId) * 1.9 * B.terr.move * rail * mode / spd / lg), 1, 16);
 }
 function sameSide(ta, tb) {
   if (ta === tb) return true;
@@ -83,10 +125,18 @@ function findPath(a, dest) {
   if (dest === a.loc) return [];
   return pathProvs(a.loc, dest, (u, v) => canEnter(a.tag, v), (u, v) => hopDays(a, u, v), 6000);
 }
-function orderMove(a, dest, keepPlan) {
+function orderMove(a, dest, keepPlan, opts) {
   if (a.battle) return {ok: false, msg: 'El ejército está en combate.'};
+  opts = opts || {};
+  a.fm = !!opts.fm; a.rail = false;
   const p = findPath(a, dest);
   if (p === null) return {ok: false, msg: 'No hay un camino terrestre permitido hasta esa provincia.'};
+  if (opts.rail) {
+    const own = pid => { const o = provOwner(pid); return o === a.tag || sameSide(a.tag, o); };
+    if (!own(a.loc) || !p.every(own)) return {ok: false, msg: 'El redespliegue ferroviario solo funciona por territorio propio o aliado.'};
+    a.rail = true; a.divs.forEach(d => { d.o *= 0.85; });
+  }
+  a.mode = null; a.joinTo = null;
   a.path = p; a.dest = dest; a.hop = p.length ? hopDays(a, a.loc, p[0]) : 0; a.hopMax = a.hop; if (!keepPlan) { a.front = null; a.plan = null; a.chase = null; }
   return {ok: true, eta: p.reduce((t, s, i) => t + hopDays(a, i ? p[i - 1] : a.loc, s), 0)};
 }
@@ -102,7 +152,7 @@ function stepMove(a) {
   if (!canEnter(a.tag, next)) { a.path = []; return; }
   a.from = a.loc; a.loc = next; a.arrived = G.date.t; a.path.shift();
   a.rest = 0; a.dig = 0;
-  if (a.path.length) { a.hop = hopDays(a, a.loc, a.path[0]); a.hopMax = a.hop; } else a.dest = null;
+  if (a.path.length) { a.hop = hopDays(a, a.loc, a.path[0]); a.hopMax = a.hop; } else { a.dest = null; a.fm = false; a.rail = false; }
 }
 // persecución: se reajusta el camino hacia el ejército enemigo perseguido
 function chaseDay(a) {
@@ -143,47 +193,88 @@ function createBattles(byProv) {
   });
 }
 function sideStats(b, ids, isAttacker) {
-  let F = 0, T = 0, n = 0, org = 0, orgN = 0;
+  let F = 0, T = 0, n = 0, org = 0, orgN = 0, art = 0, cav = 0, gun = 0, brave = 0, tr = 0;
   const pv = MAP.provs[b.prov]; const terr = pv.terr;
   ids.forEach(id => {
     const a = armyById(id); if (!a) return;
-    const c = G.C[a.tag];
+    const c = G.C[a.tag], gm = genMods(a.gen);
     const dm0 = typeof docMod === 'function' ? docMod : () => 0;
     const air = typeof airBonus === 'function' ? airBonus(a.tag, b.state) : 0;
     const plan = a.plan && a.plan.ready ? 0.15 * Math.min(1, a.plan.days / 15) : 0;
     const sup = typeof supplyMod === 'function' ? supplyMod(a) : 1;
-    const dig = isAttacker ? 0 : Math.min(5, a.dig || 0) * 0.04;
-    const am = (1 + c.mods.army + (a.gen.atk - 1) * 0.05 + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup;
-    const dm = (1 + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + dm0(a.tag, 'def') + air + dig) * sup;
+    const dig = isAttacker ? 0 : Math.min(6, a.dig || 0) * 0.04 * (a.mode === 'hold' || a.mode === 'dig' ? 1.25 : 1);
+    const am = (1 + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup;
+    const dm = (1 + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + gm.def + dm0(a.tag, 'def') + air + dig) * sup;
+    brave += gm.brave; gun += gm.art;
     a.divs.forEach(d => {
       const info = DIVS[d.t];
       if (n < BATTLE_WIDTH + (terr.mnt > 0.4 ? -2 : 0)) {
-        const str = d.s * (0.55 + 0.45 * d.o / info.org) * (typeof equipMod === 'function' ? equipMod(a.tag, d.t) : 1);
-        F += info.att * str * am; T += info.def * str * dm * (isAttacker ? 1 : terr.def);
-        n++;
+        const tm = trainMod(d);
+        const str = d.s * (0.55 + 0.45 * d.o / info.org) * tm * (typeof equipMod === 'function' ? equipMod(a.tag, d.t) : 1);
+        const um = 1 + (d.t === 'cav' ? gm.cav : d.t === 'art' ? gm.art : 0);
+        F += info.att * str * am * um; T += info.def * str * dm * (isAttacker ? 1 : terr.def);
+        n++; tr += tm; if (d.t === 'art') art++; if (d.t === 'cav') cav++;
       }
       org += d.o / info.org; orgN++;
     });
   });
-  return {F, T, n, org: orgN ? org / orgN : 0};
+  return {F, T, n, org: orgN ? org / orgN : 0, art, cav, gun, brave, tr: n ? tr / n : 1};
+}
+// sucesos aleatorios de la batalla: cañoneo, cargas de caballería, cargas desesperadas, flanqueos…
+function battleEvents(b, sa, sb) {
+  const ev = {fA: 1, fB: 1, xA: 0, xB: 0, cA: 1, cB: 1};
+  b.log = b.log || [];
+  const say = (side, kind, text) => { b.log.push({d: b.day, k: kind, s: side, t: text}); if (b.log.length > 14) b.log.shift(); b.flash = {k: kind, s: side, d: b.day}; };
+  const nm = side => G.C[(side === 'A' ? armyById(b.A[0]) : armyById(b.B[0]))?.tag || (side === 'A' ? b.A0 : b.B0)].name;
+  const S = {A: sa, B: sb}, opp = s => s === 'A' ? 'B' : 'A';
+  const add = (s, key, v) => { ev[key + s] = key === 'x' ? ev[key + s] + v : ev[key + s] * v; };
+  if (b.day === 1) {          // cañoneo preparatorio del atacante
+    const sd = b.att; if (S[sd].art > 0) { const x = Math.min(9, 2.2 * S[sd].art * (1 + S[sd].gun)); add(opp(sd), 'x', x); say(sd, 'barrage', `Cañoneo preparatorio de ${nm(sd)}: ${S[sd].art} baterías castigan las líneas enemigas.`); }
+  }
+  if (Math.random() > 0.3) return ev;
+  const opts = [];
+  ['A', 'B'].forEach(s => {
+    const me = S[s], ot = S[opp(s)];
+    if (me.org < 0.5 || me.brave > 0) opts.push([(me.org < 0.4 ? 3 : 1) + me.brave * 2, 'charge', s]);
+    if (me.cav > 0) opts.push([2 + me.cav, 'cav', s]);
+    if (me.art > 0) opts.push([2 + me.art, 'barrage', s]);
+    opts.push([1.2, 'flank', s]);
+    if (me.org < 0.45) opts.push([2, 'panic', s]);
+    opts.push([1, 'reinf', s]);
+    void ot;
+  });
+  opts.push([1.2, 'rain', 'A']);
+  let tot = 0; opts.forEach(o => tot += o[0]); let r = Math.random() * tot, pickd = opts[0];
+  for (const o of opts) { r -= o[0]; if (r <= 0) { pickd = o; break; } }
+  const [, kind, s] = pickd, o = opp(s);
+  if (kind === 'charge') { add(s, 'f', 1.7); add(s, 'c', 2.0); say(s, 'charge', `¡Carga desesperada de ${nm(s)}! Ataque brutal a costa de muchas bajas.`); }
+  else if (kind === 'cav') { add(s, 'f', 1.3); add(o, 'x', 2.5 + (S[o].art > 0 ? 3 : 0)); say(s, 'cav', `La caballería de ${nm(s)} carga sobre el flanco${S[o].art > 0 ? ' y arrolla a la artillería' : ''}.`); }
+  else if (kind === 'barrage') { add(o, 'x', Math.min(8, 1.6 * S[s].art * (1 + S[s].gun))); say(s, 'barrage', `Cañoneo de ${nm(s)}: la artillería castiga a ${nm(o)}.`); }
+  else if (kind === 'flank') { add(s, 'f', 1.25); add(o, 'x', 3); say(s, 'flank', `${nm(s)} logra un flanqueo y desordena al enemigo.`); }
+  else if (kind === 'panic') { add(s, 'x', 5); say(s, 'panic', `El pánico cunde en las filas de ${nm(s)}.`); }
+  else if (kind === 'reinf') { add(s, 'x', -3); say(s, 'reinf', `Llegan refuerzos y levantan la moral de ${nm(s)}.`); }
+  else if (kind === 'rain') { add('A', 'f', 0.85); add('B', 'f', 0.85); say('A', 'rain', 'Lluvia torrencial: el barro frena a ambos ejércitos.'); }
+  return ev;
 }
 function battleDay(b) {
   b.day++;
   const A = b.A.map(armyById).filter(Boolean), B = b.B.map(armyById).filter(Boolean);
   if (!A.length || !B.length) { endBattle(b, A.length ? 'A' : 'B'); return; }
   const sa = sideStats(b, b.A, b.att === 'A'), sb = sideStats(b, b.B, b.att === 'B');
+  const ev = battleEvents(b, sa, sb);
   const rnd1 = () => 0.85 + Math.random() * 0.3;
-  const rAB = sa.F * rnd1() / Math.max(1, sb.T), rBA = sb.F * rnd1() / Math.max(1, sa.T);
+  const rAB = sa.F * ev.fA * rnd1() / Math.max(1, sb.T), rBA = sb.F * ev.fB * rnd1() / Math.max(1, sa.T);
   const dmg = (r) => clamp(5.5 * r, 0.6, 13);       // % de organización perdida por día
-  const apply = (armies, orgLoss) => {
+  const apply = (armies, orgLoss, extra, cas) => {
     let lost = 0;
     armies.forEach(a => {
       a.divs.forEach((d, i) => {
         if (i >= BATTLE_WIDTH) return;
         const info = DIVS[d.t];
-        d.o = Math.max(0, d.o - info.org * orgLoss / 100 * (0.8 + Math.random() * 0.4));
-        const sl = (orgLoss / 100) * 0.38 * (0.6 + 0.8 * (1 - d.o / info.org));
+        d.o = Math.max(0, d.o - info.org * (orgLoss + extra) / 100 * (0.8 + Math.random() * 0.4));
+        const sl = (orgLoss / 100) * 0.38 * (0.6 + 0.8 * (1 - d.o / info.org)) * cas;
         d.s = Math.max(0, d.s - sl); lost += sl * MEN_PER_DIV;
+        d.tr = Math.min(1, (d.tr === undefined ? 0.5 : d.tr) + 0.004);      // la experiencia de combate entrena
       });
       a.divs = a.divs.filter(d => d.s > 0.04);
       if (a.divs.length === 0) a._dead = true;
@@ -191,16 +282,18 @@ function battleDay(b) {
     });
     return lost;
   };
-  const lostB = apply(B, dmg(rAB)), lostA = apply(A, dmg(rBA));
+  const lostB = apply(B, dmg(rAB), ev.xB, ev.cB), lostA = apply(A, dmg(rBA), ev.xA, ev.cA);
   b.lostA = (b.lostA || 0) + lostA; b.lostB = (b.lostB || 0) + lostB;
   A.forEach(a => bleed(a.tag, lostA / Math.max(1, A.length))); B.forEach(a => bleed(a.tag, lostB / Math.max(1, B.length)));
-  b.rA = rBA; b.rB = rAB; b.orgA = sa.org; b.orgB = sb.org; b.sa = {F: sa.F, T: sa.T, n: sa.n}; b.sb = {F: sb.F, T: sb.T, n: sb.n};
+  b.rA = rBA; b.rB = rAB; b.orgA = sa.org; b.orgB = sb.org; b.sa = {F: sa.F, T: sa.T, n: sa.n, tr: sa.tr}; b.sb = {F: sb.F, T: sb.T, n: sb.n, tr: sb.tr};
+  b.adv = clamp((b.adv || 0) + (rAB - rBA) * 0.09, -1, 1);
   b.hist = b.hist || []; b.hist.push([+sa.org.toFixed(3), +sb.org.toFixed(3)]); if (b.hist.length > 40) b.hist.shift();
   G.armies = G.armies.filter(a => !a._dead);
   const A2 = b.A.map(armyById).filter(Boolean), B2 = b.B.map(armyById).filter(Boolean);
   const oA = A2.length ? sideStats(b, b.A, true).org : 0, oB = B2.length ? sideStats(b, b.B, true).org : 0;
   if (!A2.length || !B2.length) { endBattle(b, A2.length ? 'A' : 'B'); return; }
-  if (b.day >= 3 && (oA < 0.18 || oB < 0.18)) endBattle(b, oA < oB ? 'B' : 'A');
+  const th = list => list.some(a => a.mode === 'hold') ? 0.08 : 0.18;       // «mantener posición» resiste hasta el final
+  if (b.day >= 3 && (oA < th(A2) || oB < th(B2))) endBattle(b, oA < oB ? 'B' : 'A');
 }
 // Bajas: se restan de la población de reclutamiento del país y suben el cansancio de guerra
 function bleed(tag, men) {
@@ -258,7 +351,7 @@ function militaryDay() {
   if (!G.hostile) recalcHostile();
   recalcHostileIfNeeded();
   if (G.armies.length) {
-    G.armies.forEach(chaseDay); G.armies.forEach(stepMove);
+    G.armies.forEach(chaseDay); G.armies.forEach(joinDay); G.armies.forEach(patrolDay); G.armies.forEach(stepMove);
     const byProv = new Map();
     G.armies.forEach(a => { (byProv.get(a.loc) || byProv.set(a.loc, []).get(a.loc)).push(a); });
     createBattles(byProv);
@@ -267,7 +360,9 @@ function militaryDay() {
     G.armies.forEach(a => {
       if (a.battle) return;
       const owner = provOwner(a.loc), own = owner === a.tag || sameSide(a.tag, owner);
-      a.rest++; if (!a.path.length && a.rest % 4 === 0) a.dig = Math.min(5, (a.dig || 0) + 1);
+      a.rest++; { const gm = genMods(a.gen); const per = a.mode === 'dig' || gm.dig ? 2 : 4; if (!a.path.length && a.rest % per === 0) a.dig = Math.min(6, (a.dig || 0) + 1); }
+      trainDay(a);
+      if (a.fm && a.path.length) { const gm = genMods(a.gen); a.divs.forEach(d => { d.o = Math.max(0, d.o - DIVS[d.t].org * 0.012 * gm.march); }); if (armyOrg(a) < 0.35) { a.fm = false; if (a.tag === G.player) notify('war', `${a.name} cancela la marcha forzada por agotamiento.`, provState(a.loc)); } }
       const supK = Math.max(0.2, a.sup === undefined ? 1 : a.sup);
       a.divs.forEach(d => {
         const info = DIVS[d.t];
@@ -393,7 +488,7 @@ function initArmies() {
     let hi = 0;
     while (n > 0) {
       const k = Math.min(n, 6 + Math.floor(Math.random() * 3)); const divs = [];
-      for (let i = 0; i < k; i++) { const r = Math.random(); divs.push(mkDivision(r < 0.7 ? 'inf' : r < 0.85 ? 'cav' : 'art')); }
+      for (let i = 0; i < k; i++) { const r = Math.random(); divs.push(mkDivision(r < 0.7 ? 'inf' : r < 0.85 ? 'cav' : 'art', 0.4 + Math.random() * 0.3)); }
       mkArmy(t, homes[hi++ % homes.length], divs); n -= k;
     }
   });
@@ -461,7 +556,7 @@ function aiRecruitCountry(t) {
 // mantenimiento semanal de las divisiones (más caro en guerra y con alta movilización)
 function armyUpkeep(c) {
   let t = 0; const k = moneyPerPoint(c);
-  G.armies.forEach(a => { if (a.tag === c.tag) a.divs.forEach(d => t += DIVS[d.t].cost); });
+  G.armies.forEach(a => { if (a.tag === c.tag) a.divs.forEach(d => t += DIVS[d.t].cost * (a.mode === 'train' ? 1.4 : 1)); });
   return t * k * 0.006 * (1 + (c.mods.milCost || 0)) * (c.milFund || 1) * (c.wars.length ? 1.4 : 1) * (1 + 0.1 * (c.mob || 0));
 }
 function aiDisbandExcess(c) {
@@ -497,5 +592,174 @@ function cleanupArmies() {
 /* ---------- guardado de datos militares ---------- */
 function provSave() { const o = []; G.P.forEach((p, i) => { if (p.by || p.prog || p.fort) o.push([i, p.by, p.prog, p.pby || null, p.fort || 0]); }); return o; }
 function provLoad(list) { initProvinceState(); (list || []).forEach(([i, by, prog, pby, fort]) => { const p = G.P[i]; if (p) { p.by = by; p.prog = prog; p.pby = pby; p.fort = fort; } }); G.occList = (list || []).map(x => x[0]); G.S.forEach(s => refreshStateOcc(s.id)); }
-function saveExtra() { return {battleLog: G.battleLog || []}; }
-function loadExtra(x) { G.battleLog = (x && x.battleLog) || []; }
+function saveExtra() { return {battleLog: G.battleLog || [], fronts: G.fronts || [], nextFront: G.nextFront || 1}; }
+function loadExtra(x) { G.battleLog = (x && x.battleLog) || []; G.fronts = (x && x.fronts) || []; G.nextFront = (x && x.nextFront) || 1; }
+
+/* ---------- órdenes de movilidad al estilo HoI4 ---------- */
+// juntar: el ejército va hacia otro propio y se fusiona al llegar
+function orderJoin(a, target) {
+  if (a === target || a.tag !== target.tag) return {ok: false, msg: 'No se puede juntar con ese ejército.'};
+  const r = a.loc === target.loc ? {ok: true, eta: 0} : orderMove(a, target.loc);
+  if (r.ok) { a.joinTo = target.id; a.front = null; a.plan = null; }
+  return r;
+}
+function joinDay(a) {
+  if (!a.joinTo || a.battle) return;
+  const t = armyById(a.joinTo);
+  if (!t || t.tag !== a.tag) { a.joinTo = null; return; }
+  if (t.loc === a.loc && !t.battle) { if (!mergeArmies(t, a)) { a.joinTo = null; if (a.tag === G.player) notify('war', `${a.name} no cabe en ${t.name} (máx. ${MAX_DIVS_ARMY} divisiones).`, provState(a.loc)); } else if (a.tag === G.player) toastLater(`${a.name} se ha fusionado con ${t.name}.`); return; }
+  if (a.dest !== t.loc && (G.date.t + a.id) % 2 === 0) { const p = findPath(a, t.loc); if (p && p.length) { a.path = p; a.dest = t.loc; if (a.hop <= 0) { a.hop = hopDays(a, a.loc, p[0]); a.hopMax = a.hop; } } }
+}
+function toastLater(msg) { if (typeof notify === 'function') notify('war', msg); }
+function orderPatrol(a, dest) {
+  const r = orderMove(a, dest); if (!r.ok) return r;
+  a.patrol = [a.loc, dest]; return r;
+}
+function patrolDay(a) {
+  if (!a.patrol || a.battle || a.path.length) return;
+  const t = a.loc === a.patrol[0] ? a.patrol[1] : a.patrol[0];
+  if (a.loc !== a.patrol[0] && a.loc !== a.patrol[1]) { a.patrol = null; return; }
+  const keep = a.patrol; const r = orderMove(a, t, true); a.patrol = r.ok ? keep : null;
+}
+function orderStop(a) { a.path = []; a.dest = null; a.chase = null; a.joinTo = null; a.patrol = null; a.fm = false; a.rail = false; }
+function setMode(a, mode) {          // 'hold' mantener posición · 'dig' atrincherar · 'train' entrenar · null
+  if (a.battle) return;
+  orderStop(a); a.mode = a.mode === mode ? null : mode; a.front = null;
+}
+function orderRetreat(a) {
+  const h = nearestOwnProv(a.tag, a.loc); if (h === null) return {ok: false, msg: 'No hay territorio propio al que replegarse.'};
+  const r = orderMove(a, h, false, {fm: true}); return r;
+}
+// ruta con puntos intermedios (Mayús + clic derecho añade un punto)
+function addWaypoint(a, pid) {
+  const last = a.path.length ? a.path[a.path.length - 1] : a.loc;
+  const tmp = {tag: a.tag, divs: a.divs, gen: a.gen, loc: last, fm: a.fm, rail: false};
+  const p = pathProvs(last, pid, (u, v) => canEnter(a.tag, v), (u, v) => hopDays(tmp, u, v), 6000);
+  if (p === null) return {ok: false, msg: 'No hay camino hasta ese punto.'};
+  const wasEmpty = !a.path.length; a.path = a.path.concat(p); a.dest = pid; a.mode = null; a.joinTo = null;
+  if (wasEmpty && p.length) { a.hop = hopDays(a, a.loc, p[0]); a.hopMax = a.hop; }
+  return {ok: true, eta: armyEta(a)};
+}
+
+/* ---------- entrenamiento ---------- */
+function trainDay(a) {
+  if (a.mode !== 'train' || a.path.length || a.battle) { if (a.mode === 'train' && a.battle) a.mode = null; return; }
+  const own = provOwner(a.loc) === a.tag; if (!own) return;
+  const s = G.S[provState(a.loc)], gm = genMods(a.gen), c = G.C[a.tag];
+  const rate = 0.006 * (1 + gm.train) * (1 + 0.08 * Math.min(5, s.b.barracks || 0)) * (1 + (c.mods.army || 0));
+  let any = false; a.divs.forEach(d => { if ((d.tr || 0) < 1) { d.tr = Math.min(1, (d.tr || 0) + rate); any = true; } });
+  if (!any) { a.mode = null; if (a.tag === G.player) notify('war', `${a.name} ha completado su entrenamiento (${trainName(1)}).`, provState(a.loc)); }
+}
+// en paz, la IA entrena a los ejércitos que están quietos en casa
+function aiTrainWeek() {
+  G.armies.forEach(a => { const c = G.C[a.tag]; if (!c.ai || c.wars.length || a.battle || a.path.length || a.mode || a.front) return; if (provOwner(a.loc) === a.tag && armyTrain(a) < 0.9) a.mode = 'train'; });
+}
+
+/* ---------- frentes y planes de defensa / ataque ---------- */
+// un frente es una línea de provincias a la que se asignan ejércitos; «defend» los reparte y atrinchera,
+// «attack» los concentra (el plan gana hasta +15% de ataque con los días de preparación) y al ejecutarse avanza sobre los objetivos
+function frontsOf(tag) { return (G.fronts || []).filter(f => f.tag === tag); }
+function createFront(tag, line, mode, armyIds, targets) {
+  G.fronts = G.fronts || []; G.nextFront = G.nextFront || 1;
+  const f = {id: G.nextFront++, tag, name: `${mode === 'attack' ? 'Ofensiva' : 'Defensa'} ${G.nextFront - 1}`, line: line.slice(), mode, armies: armyIds.slice(), targets: (targets || []).slice(), active: false, phase: 'prep', prep: 0, asg: {}};
+  G.fronts.push(f); armyIds.forEach(id => { const a = armyById(id); if (a) { a.front = f.id; a.joinTo = null; } });
+  return f;
+}
+function deleteFront(f) {
+  f.armies.forEach(id => { const a = armyById(id); if (a && a.front === f.id) { a.front = null; a.plan = null; if (a.mode === 'hold' || a.mode === 'dig') a.mode = null; } });
+  G.fronts = G.fronts.filter(x => x !== f);
+}
+function frontArmies(f) { return f.armies.map(armyById).filter(a => a && a.tag === f.tag); }
+function addToFront(f, a) { if (a.tag !== f.tag) return; if (!f.armies.includes(a.id)) f.armies.push(a.id); a.front = f.id; a.joinTo = null; a.patrol = null; f.dirty = true; }
+function removeFromFront(f, a) { f.armies = f.armies.filter(id => id !== a.id); if (a.front === f.id) { a.front = null; a.plan = null; } f.dirty = true; }
+// línea automática frente a un país: provincias propias adyacentes a provincias suyas y objetivos enemigos adyacentes
+function autoFront(tag, enemy) {
+  const line = [], targets = [];
+  const mineSide = pid => { const o = provOwner(pid); return o === tag || sameSide(tag, o); };
+  const seenT = new Set();
+  G.C[tag].states.forEach(sid => MAP.stats[sid].provs.forEach(pid => {
+    let edge = false; MAP.provs[pid].nb.forEach(q => { if (provOwner(q) === enemy && !mineSide(q)) { edge = true; if (!seenT.has(q)) { seenT.add(q); targets.push(q); } } });
+    if (edge) line.push(pid);
+  }));
+  // ordenar la línea por proximidad para que se dibuje como una polilínea continua
+  if (line.length > 2) { const out = [line.shift()]; while (line.length) { const l = out[out.length - 1]; let bi = 0, bd = 1e9; line.forEach((p, i) => { const d = provDist(l, p); if (d < bd) { bd = d; bi = i; } }); out.push(line.splice(bi, 1)[0]); } return {line: out, targets}; }
+  return {line, targets};
+}
+function frontNeed(f, pid) {
+  let need = 1; MAP.provs[pid].nb.forEach(q => { const o = provOwner(q); if (hostileTags(f.tag, o)) need += 1.2; armiesAt(q).forEach(e => { if (hostileTags(f.tag, e.tag)) need += 2 * e.divs.length / 4; }); });
+  armiesAt(pid).forEach(e => { if (hostileTags(f.tag, e.tag)) need += 4; });
+  return need;
+}
+function distributeFront(f) {
+  const arms = frontArmies(f).filter(a => !a.battle); if (!arms.length || !f.line.length) return;
+  const cover = {}; f.line.forEach(p => cover[p] = 0);
+  const sorted = arms.slice().sort((x, y) => y.divs.length - x.divs.length);
+  f.asg = {};
+  sorted.forEach(a => {
+    let best = f.line[0], bv = -1;
+    f.line.forEach(p => { const v = frontNeed(f, p) / (1 + cover[p]) - provDist(a.loc, p) * 0.04; if (v > bv) { bv = v; best = p; } });
+    cover[best] += a.divs.length; f.asg[a.id] = best;
+  });
+  f.dirty = false;
+}
+function frontTargets(f) {
+  const ours = pid => { const o = provOwner(pid); const by = G.P[pid].by; return (o === f.tag || sameSide(f.tag, o)) && !(by && !sameSide(f.tag, by)) || (by && sameSide(f.tag, by)); };
+  const out = [], seen = new Set();
+  const base = new Set(f.line); G.P.forEach((p, pid) => { if (p.by && sameSide(f.tag, p.by)) base.add(pid); });
+  base.forEach(pid => MAP.provs[pid].nb.forEach(q => { if (seen.has(q) || ours(q)) return; const o = provOwner(q); if (o !== NONE && hostileTags(f.tag, o)) { seen.add(q); out.push(q); } }));
+  return out;
+}
+function frontsDay() {
+  if (!G.fronts || !G.fronts.length) return;
+  G.fronts.slice().forEach(f => {
+    f.armies = f.armies.filter(id => { const a = armyById(id); return a && a.tag === f.tag; });
+    const c = G.C[f.tag]; if (!c || !c.states.length) { G.fronts = G.fronts.filter(x => x !== f); return; }
+    if (!f.active) return;
+    const arms = frontArmies(f); if (!arms.length) return;
+    if (f.mode === 'defend' || f.phase === 'prep') {
+      if (f.dirty || (G.date.t + f.id) % 6 === 0) distributeFront(f);
+      arms.forEach(a => {
+        if (a.battle) return; const tgt = f.asg[a.id]; if (tgt === undefined) return;
+        if (a.loc !== tgt) { if (!a.path.length || a.dest !== tgt) { const r = orderMove(a, tgt, true); if (!r.ok) { delete f.asg[a.id]; } else a.mode = null; a.front = f.id; } }
+        else if (!a.path.length && a.mode !== 'dig') a.mode = f.mode === 'attack' ? 'dig' : 'hold';
+      });
+      if (f.mode === 'attack') {
+        const ready = arms.filter(a => a.loc === f.asg[a.id]).length;
+        if (ready) f.prep = Math.min(30, f.prep + 1);
+        arms.forEach(a => { a.plan = {ready: a.loc === f.asg[a.id], days: f.prep}; });
+        if (f.auto && f.prep >= 12 && ready >= arms.length * 0.7) { f.phase = 'attack'; }
+      }
+      return;
+    }
+    // fase de ataque
+    let tg = f.targets.filter(p => { const o = provOwner(p); return o !== NONE && hostileTags(f.tag, o) && !(G.P[p].by && sameSide(f.tag, G.P[p].by)); });
+    if (!tg.length) tg = frontTargets(f);
+    f.targets = tg;
+    if (!tg.length) { f.active = false; f.phase = 'prep'; f.prep = 0; arms.forEach(a => { a.plan = null; a.mode = null; }); if (f.tag === G.player) notify('war', `${f.name}: ofensiva completada, no quedan objetivos.`); return; }
+    const taken = {};
+    arms.forEach(a => { if (a.battle) return; if (a.path.length && a.dest !== undefined && tg.includes(a.dest)) { taken[a.dest] = (taken[a.dest] || 0) + 1; } });
+    arms.forEach(a => {
+      if (a.battle || a.path.length) return;
+      let best = null, bv = 1e9;
+      tg.forEach(p => { const v = provDist(a.loc, p) + (taken[p] || 0) * 6; if (v < bv) { bv = v; best = p; } });
+      if (best !== null) { const r = orderMove(a, best, true); if (r.ok) { taken[best] = (taken[best] || 0) + 1; a.front = f.id; a.plan = {ready: true, days: f.prep}; } }
+    });
+    // la línea avanza con las provincias conquistadas
+    if ((G.date.t + f.id) % 5 === 0) {
+      const newLine = []; G.P.forEach((p, pid) => { if (p.by && sameSide(f.tag, p.by) && MAP.provs[pid].nb.some(q => hostileTags(f.tag, provOwner(q)) && !(G.P[q].by && sameSide(f.tag, G.P[q].by)))) newLine.push(pid); });
+      if (newLine.length) f.line = f.line.filter(p => !(G.P[p].by && sameSide(f.tag, G.P[p].by))).concat(newLine).slice(0, 40);
+    }
+  });
+}
+function activateFront(f, on) {
+  f.active = on; f.dirty = true;
+  if (!on) frontArmies(f).forEach(a => { a.plan = null; if (a.mode === 'hold' || a.mode === 'dig') a.mode = null; });
+}
+function executeAttack(f) {
+  if (f.mode !== 'attack') return {ok: false, msg: 'Este plan es de defensa.'};
+  const tg = f.targets.length ? f.targets : frontTargets(f);
+  if (!tg.length) return {ok: false, msg: 'No hay provincias enemigas junto a la línea (¿estás en guerra con ese país?).'};
+  f.targets = tg; f.active = true; f.phase = 'attack';
+  frontArmies(f).forEach(a => { if (a.mode === 'dig' || a.mode === 'hold') a.mode = null; });
+  return {ok: true};
+}

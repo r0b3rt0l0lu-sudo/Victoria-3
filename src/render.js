@@ -451,7 +451,7 @@ function drawOrders() {
     const cl = (a.id === sel ? 'sel' : '') + (foe ? ' foe' : '') + (a.chase ? ' chase' : '');
     h += `<polyline points="${pts.join(' ')}" class="${cl}"/><circle cx="${last[0]}" cy="${last[1]}" r="5" class="${cl}"/>`;
   });
-  svg.innerHTML = h;
+  svg.innerHTML = (typeof frontsSvg === 'function' ? frontsSvg() : '') + h;
 }
 
 function updateMarkers() {

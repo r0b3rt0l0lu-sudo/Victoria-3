@@ -6,7 +6,7 @@ root = os.path.dirname(os.path.abspath(__file__))
 def rd(p): return open(os.path.join(root, p), encoding='utf-8').read()
 three = rd('vendor/three.min.js')
 css = rd('src/style.css')
-order = ['icons.js', 'geo.js', 'data.js', 'mapgen.js', 'provinces.js', 'sim.js', 'crisis.js', 'diplo.js', 'military.js', 'render.js', 'ui.js', 'content.js', 'manual.js', 'main.js']
+order = ['icons.js', 'geo.js', 'data.js', 'mapgen.js', 'provinces.js', 'sim.js', 'crisis.js', 'diplo.js', 'military.js', 'render.js', 'ui.js', 'ui_mil.js', 'content.js', 'manual.js', 'main.js']
 js = '\n'.join(rd('src/' + f) for f in order)
 html = f'''<!DOCTYPE html>
 <html lang="es">
@@ -21,7 +21,7 @@ html = f'''<!DOCTYPE html>
 <div id="labels"></div><div id="markers"></div>
 <div id="hud"></div>
 <div id="statepanel"></div>
-<div id="armypanel"></div><div id="battlepanel"></div>
+<div id="armypanel"></div><div id="battlepanel"></div><div id="drawbar"></div>
 <div id="windows"></div>
 <div id="toasts"></div>
 <div id="event"></div>

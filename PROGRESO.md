@@ -43,3 +43,12 @@
 - **Equilibrado** (simulaciones de 20 años, 3 dificultades): población ya no se desploma (hambre exagerada: umbral 0,85→0,7 y hambrunas locales
   más raras), huelgas a la mitad, crecimiento base 0,95 %/año, IA sin inflar ejércitos (tope en paz, desmovilización, mantenimiento).
   Resultado: pob. +14 % en 20 años, NdV 7→12, ~1 guerra/año y ~55 batallas/año.
+
+## Sesión: frentes, órdenes HoI4, generales, entrenamiento y batalla táctica
+- Frentes: dibujar línea sobre la frontera (clic en provincias o línea automática), planes de defensa/ataque con flechas, activar/pausar,
+  preparación (+15 %), ejecutar ataque, avance de la línea (`src/military.js` frontsDay, `src/ui_mil.js`).
+- Órdenes: marcha forzada, ferrocarril, patrulla, mantener posición, atrincherar, retirada, puntos de ruta, juntar/fusionar, grupos.
+- Generales con 10 rasgos que bufean, reserva de generales, reclutar y asignar; muerte de generales.
+- Entrenamiento (recluta→élite, ×0,75–×1,25), entrenar en casa, IA entrena en paz.
+- Batalla: minimapa táctico con divisiones y frente que avanza + sucesos (cañoneo, carga de caballería, carga desesperada, flanqueo, pánico, lluvia).
+- Sigue PENDIENTE de la Parte 2: suministro/cercos, producción de equipo, doctrinas, aviación, marina, árbol nacional.

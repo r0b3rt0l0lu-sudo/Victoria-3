@@ -259,6 +259,29 @@ button.primary:disabled{background:linear-gradient(#6a6248,#4a4430);color:#9a947
 .ach.pre{opacity:.45}
 
 body.starting #labels{opacity:.18}
+
+/* ===== ejércitos ===== */
+.atoken{position:absolute;left:0;top:0;display:flex;align-items:center;gap:3px;padding:2px 5px 4px 2px;background:rgba(18,24,30,.92);border:1px solid #6b5a2f;border-radius:4px;pointer-events:auto;cursor:pointer;will-change:transform;box-shadow:0 2px 5px rgba(0,0,0,.7);font-size:12px;color:#f3e7c0;overflow:hidden}
+.atoken.mine{border-color:var(--gold)}
+.atoken.sel{border-color:#fff;box-shadow:0 0 0 2px var(--gold),0 2px 8px #000;z-index:5}
+.atoken.fight{border-color:#e0553c;animation:pulse 1s infinite}
+.atoken.moving::before{content:"➜";font-size:10px;color:#9fd37a;margin-right:-1px}
+.atoken b{min-width:12px;text-align:center}
+.atoken i{position:absolute;left:0;bottom:0;height:3px;background:#79c35a}
+.atoken u{text-decoration:none;color:#ff8d73}
+svg.orders{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+svg.orders polyline{fill:none;stroke:rgba(159,211,122,.75);stroke-width:2;stroke-dasharray:6 4}
+svg.orders polyline.sel{stroke:#fff;stroke-width:2.5}
+svg.orders circle{fill:#9fd37a;stroke:#000}svg.orders circle.sel{fill:#fff}
+#armypanel{position:fixed;right:10px;bottom:150px;width:310px;max-height:calc(100vh - 330px);overflow-y:auto;background:linear-gradient(180deg,rgba(36,46,55,.97),rgba(22,29,36,.97));border:1px solid var(--goldd);border-radius:8px;box-shadow:0 4px 18px rgba(0,0,0,.65);display:none;padding:12px;z-index:30}
+#armypanel.open{display:block}
+#armypanel .gen{background:rgba(255,255,255,.05);border-radius:5px;padding:6px 8px;margin-bottom:8px}
+#armypanel .gs{color:var(--gold2);letter-spacing:1px}
+.divl{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}
+.dv{position:relative;width:34px;height:34px;border:1px solid var(--goldd);border-radius:4px;background:#161d23;display:flex;align-items:center;justify-content:center;font-size:16px;overflow:hidden}
+.dv i{position:absolute;left:0;bottom:0;width:4px;background:#79c35a}.dv u{position:absolute;right:0;bottom:0;width:4px;background:#e0b04a}
+.divt{margin-bottom:8px}.divt small{display:block;color:var(--dim)}
+tr.sel td{background:rgba(201,166,87,.18)}
 </style>
 </head>
 <body>
@@ -266,6 +289,7 @@ body.starting #labels{opacity:.18}
 <div id="labels"></div><div id="markers"></div>
 <div id="hud"></div>
 <div id="statepanel"></div>
+<div id="armypanel"></div>
 <div id="windows"></div>
 <div id="toasts"></div>
 <div id="event"></div>
@@ -1485,6 +1509,7 @@ function createWorld(playerTag) {
   G.date = {y: START_YEAR, m: 0, d: 1, t: 0};
   G.player = playerTag; G.paused = true; G.speed = 2; G.week = 0; G.notifs = []; G.pendingEvent = null;
   G.log = []; G.wars = []; G.nextWarId = 1; G.eventCool = {};
+  G.armies = []; G.battles = []; G.recruits = []; G.nextArmyId = 1; G.nextBattleId = 1; G.hostile = new Set();
   G.crises = []; G.diff = G.diff || 2; G.pacts = []; G.blocs = []; G.proposals = []; G.nextId = 1; G.pt = {}; G.fx = {}; G.cycle = 0;
   G.C = {};
   Object.keys(COUNTRY_DATA).forEach(t => G.C[t] = mkCountry(t));
@@ -1509,7 +1534,7 @@ function initGame(playerTag) {
   G.tags.forEach(t => { const c = G.C[t]; c.techs = new Set(); c.research = null; c.innovStock = 0; recalcMods(c); c.treasury = t === NONE ? 0 : Math.round(c.stats.income * (6 + (COUNTRY_DATA[t] ? COUNTRY_DATA[t][9] / 300000 : 1) * 1.5)); c.startPop = Math.max(1, c.stats.pop); c.hist = {gdp: [], pop: [], treasury: [], sol: [], prestige: []}; });
   updateRanks();
   G.tags.forEach(t => { const c = G.C[t]; c.prestige = Math.round(10 + (c.power ? Math.sqrt(c.power) * 3 : 0)); c.start = {ind: c.stats.indLevels, lit: c.lit, soldiers: c.stats.soldiers, prestige: c.prestige, rank: c.rank}; });
-  assignTraits(); initClaims(); seedDiplomacy(); G.notifs.length = 0; G.log.length = 0; G.week = 0;
+  assignTraits(); initClaims(); seedDiplomacy(); initArmies(); G.notifs.length = 0; G.log.length = 0; G.week = 0;
   logMsg('Comienza la partida en enero de ' + START_YEAR + '.');
 }
 
@@ -1617,13 +1642,14 @@ function saveData() {
   const S = G.S.map(s => { const o = {}; SK.forEach(k => o[k] = s[k]); return o; });
   const C = {};
   G.tags.forEach(t => { const c = G.C[t]; C[t] = JSON.parse(JSON.stringify(c, (k, v) => v instanceof Set ? {__set: [...v]} : v)); });
-  return JSON.stringify({v: 1, date: G.date, player: G.player, week: G.week, S, C, price: G.price, avail: G.avail, prod: G.prod, dem: G.dem, ratio: G.ratio, stock: G.stock, hist: G.hist, wars: G.wars, nextWarId: G.nextWarId, log: G.log.slice(0, 80), eventCool: G.eventCool, pacts: G.pacts, blocs: G.blocs, proposals: G.proposals, crises: G.crises, diff: G.diff, nextId: G.nextId, pt: G.pt, afterPanic: G.afterPanic, potato: G.potato});
+  return JSON.stringify({v: 1, date: G.date, player: G.player, week: G.week, S, C, price: G.price, avail: G.avail, prod: G.prod, dem: G.dem, ratio: G.ratio, stock: G.stock, hist: G.hist, wars: G.wars, nextWarId: G.nextWarId, log: G.log.slice(0, 80), eventCool: G.eventCool, armies: G.armies, battles: G.battles, recruits: G.recruits, nextArmyId: G.nextArmyId, nextBattleId: G.nextBattleId, pacts: G.pacts, blocs: G.blocs, proposals: G.proposals, crises: G.crises, diff: G.diff, nextId: G.nextId, pt: G.pt, afterPanic: G.afterPanic, potato: G.potato});
 }
 function loadData(text) {
   const d = JSON.parse(text, (k, v) => v && v.__set ? new Set(v.__set) : v);
   createWorld(d.player);
   d.S.forEach((o, i) => Object.assign(G.S[i], o));
   G.tags.forEach(t => { if (d.C[t]) Object.assign(G.C[t], d.C[t]); });
+  G.armies = d.armies || []; G.battles = d.battles || []; G.recruits = d.recruits || []; G.nextArmyId = d.nextArmyId || 1000; G.nextBattleId = d.nextBattleId || 1000; G.hostile = new Set();
   G.pacts = d.pacts || []; G.blocs = d.blocs || []; G.proposals = d.proposals || []; G.crises = d.crises || []; G.diff = d.diff || 2; G.nextId = d.nextId || 1000; G.pt = d.pt || {}; G.afterPanic = d.afterPanic; G.potato = d.potato;
   G.date = d.date; G.week = d.week; G.wars = d.wars; G.nextWarId = d.nextWarId; G.log = d.log; G.eventCool = d.eventCool || {};
   Object.assign(G.price, d.price); Object.assign(G.avail, d.avail); Object.assign(G.prod, d.prod); Object.assign(G.dem, d.dem); Object.assign(G.ratio, d.ratio); Object.assign(G.stock, d.stock);
@@ -1632,6 +1658,7 @@ function loadData(text) {
   G.tags.forEach(t => { G.C[t].ai = t !== d.player; G.C[t].states = []; });
   G.S.forEach(s => G.C[s.owner].states.push(s.id));
   refreshOwnerOf();
+  if (!d.armies) initArmies();
   G.paused = true;
   return d;
 }
@@ -1644,6 +1671,8 @@ function advanceDay() {
   let monthly = false;
   if (d.d > dim) { d.d = 1; d.m++; monthly = true; if (d.m > 11) { d.m = 0; d.y++; } }
   econDay();
+  militaryDay();
+  if (d.t % 2 === 0) aiMilitary();
   if (monthly) monthlyTick();
   dailyEvents();
 }
@@ -2791,6 +2820,8 @@ function declareWar(attTag, defTag, cbId, targets, opts) {
   addRel(attTag, defTag, -100);
   recruitSides(w);
   prepareFronts(w);
+  recalcHostile();
+  [w.att, w.def].concat(w.attAll, w.defAll).forEach(t => { if (G.C[t].ai) { for (let k = 0; k < 2; k++) aiRecruitCountry(t); } });
   const base = `¡${A.name} declara la guerra a ${D.name}! (${cb.name})`;
   notify('war', base, targets[0] ?? G.C[defTag].capital);
   return {ok: true, war: w};
@@ -2834,48 +2865,31 @@ function setOcc(sid, frac, by, changed) {
   const f = Math.round(frac * 100) / 100;
   if ((s.occ || 0) !== f || s.occBy !== by) { s.occ = f; s.occBy = f > 0 ? by : null; changed.add(sid); }
 }
-function updateOccupation(w, changed) {
-  const n = w.targets.length || 1, p = Math.max(0, w.score) / 100;
-  w.targets.forEach((sid, i) => setOcc(sid, clamp(p * n - i, 0, 1), w.att, changed));
-  const m = w.cTargets.length || 1, q = Math.max(0, -w.score) / 100;
-  w.cTargets.forEach((sid, i) => setOcc(sid, clamp(q * m - i, 0, 1), w.def, changed));
-}
-function clearOccupation(w) {
-  const ch = new Set();
-  w.targets.concat(w.cTargets).forEach(sid => setOcc(sid, 0, null, ch));
-  if (typeof onFrontChanged === 'function') onFrontChanged(ch);
-}
+function clearOccupation(w) { clearOccupationKeep(w); }
 function sidePower(list, def) {
   let p = 0, lg = 0, df = 0;
   list.forEach(t => { const c = G.C[t]; p += armyPower(c); lg += c.mods.logistics; df += c.mods.defense; });
   const n = Math.max(1, list.length);
   return {p, lg: lg / n, df: df / n};
 }
-// Avance semanal de todas las guerras
+// Avance semanal de las guerras: la puntuación sale de los ejércitos reales (ocupación y batallas)
 function warWeek() {
-  const changed = new Set();
   for (let i = G.wars.length - 1; i >= 0; i--) {
     const w = G.wars[i];
-    const A = sidePower(w.attAll), D = sidePower(w.defAll);
-    const pa = A.p * (1 + A.lg * 0.5), pd = D.p * 1.1 * (1 + D.df);
-    w.pa = Math.round(pa); w.pd = Math.round(pd);
-    const diff = (pa - pd) / Math.max(1, pa + pd);
-    w.score = clamp(w.score + diff * 4.4 + rnd(-1.4, 1.4), -100, 100);
+    w.pa = sideStrength(w.attAll); w.pd = sideStrength(w.defAll);
+    w.score = computeWarScore(w);
     w.weeks++;
-    // desgaste: bajas y cansancio de guerra
     w.attAll.concat(w.defAll).forEach(t => { const c = G.C[t]; c.radicals = Math.min(0.9, c.radicals + 0.0012); });
-    w.defAll.concat(w.attAll).forEach(t => { const c = G.C[t]; const s = G.S[c.states[0]]; if (s && s.pops.soldiers) s.pops.soldiers *= 0.9994; });
-    updateOccupation(w, changed);
     const humans = [w.att, w.def].some(t => !G.C[t].ai);
     const dead = !alive(w.att) || !alive(w.def);
     if (dead) { endWar(w, alive(w.att) ? w.att : w.def); continue; }
     if (Math.abs(w.score) >= 100 && !humans) endWar(w, w.score > 0 ? w.att : w.def);
-    else if (Math.abs(w.score) >= 100 && humans) { /* los humanos deciden la paz */ }
-    else if (!humans && w.weeks > 30 && Math.abs(w.score) > 55) endWar(w, w.score > 0 ? w.att : w.def);
-    else if (!humans && w.weeks > 90) endWar(w, null);
-    else if (humans && w.weeks > 120 && Math.abs(w.score) < 25) endWar(w, null);
+    else if (!humans && w.weeks > 30 && Math.abs(w.score) > 45) endWar(w, w.score > 0 ? w.att : w.def);
+    else if (!humans && w.weeks > 70 && Math.abs(w.score) < 25) endWar(w, null);
+    else if (!humans && w.weeks > 110) endWar(w, null);
+    else if (humans && w.weeks > 150 && Math.abs(w.score) < 25) endWar(w, null);
   }
-  if (changed.size && typeof onFrontChanged === 'function') onFrontChanged(changed);
+  aiRecruitWeek();
 }
 
 /* ---------- paz y resultado ---------- */
@@ -2929,15 +2943,16 @@ function endWar(w, winner) {
     const ind = Math.min(Math.max(0, A.treasury), A.stats.income * 4); A.treasury -= ind; D.treasury += ind;
     D.prestige += 8; A.prestige = Math.max(0, A.prestige - 10); A.legitimacy -= 5;
     const regained = [];
-    w.cTargets.forEach(sid => { const s = G.S[sid]; if (s && s.owner === w.att && ((s.occ || 0) >= 0.5 || w.score <= -70)) { transferState(s, w.def); regained.push(s.name); } });
+    G.S.filter(s => s.owner === w.att && (s.occ || 0) >= 0.5 && w.defAll.includes(s.occBy)).sort((x, y) => y.popBase - x.popBase).slice(0, 3).forEach(s => { transferState(s, w.def); regained.push(s.name); });
     notify('war', `${D.name} ha repelido la invasión de ${A.name}${regained.length ? ' y se anexiona ' + regained.join(', ') : ''}.`, w.cTargets[0] ?? w.targets[0]);
     addRel(w.att, w.def, 10); cnt(D, 'defended'); cnt(D, 'warsWon'); cnt(D, 'statesGained', regained.length);
   }
   G.tags.forEach(t => { if (t !== NONE) G.C[t].legitimacy = clamp(G.C[t].legitimacy, 0, 100); });
+  recalcHostile(); evacuateForeignArmies();
 }
 function clearOccupationKeep(w) {
   const ch = new Set();
-  w.targets.concat(w.cTargets).forEach(sid => { const s = G.S[sid]; if (s && (s.occ || 0) > 0) setOcc(sid, 0, null, ch); });
+  G.S.forEach(s => { if ((s.occ || 0) > 0 && s.occBy && ((w.attAll.includes(s.occBy) && w.defAll.includes(s.owner)) || (w.defAll.includes(s.occBy) && w.attAll.includes(s.owner)))) { s.occ = 0; s.occBy = null; s._occNotified = false; ch.add(s.id); } });
   if (ch.size && typeof onFrontChanged === 'function') onFrontChanged(ch);
 }
 
@@ -3227,6 +3242,439 @@ function insultCountry(c, tag) {
   c.influence -= 10; addRel(c.tag, tag, -25); c.prestige += 0.5; return {ok: true, msg: 'El insulto ha sido recibido: −25 de relación.'};
 }
 
+/* ===== SISTEMA MILITAR (Parte 1): divisiones, ejércitos, movimiento, batallas, ocupación e IA ===== */
+const MEN_PER_DIV = 8000;
+const DIVS = {
+  inf: {name: 'Infantería de línea', icon: '🪖', att: 6, def: 9, spd: 1.0, org: 40, cost: 200, days: 14, desc: 'Barata y resistente. Fuerte en defensa.'},
+  cav: {name: 'Caballería', icon: '🐎', att: 7, def: 5, spd: 1.6, org: 36, cost: 320, days: 20, desc: 'Muy rápida. Débil frente a posiciones defendidas.'},
+  art: {name: 'Artillería', icon: '💣', att: 11, def: 4, spd: 0.8, org: 28, cost: 420, days: 25, desc: 'Gran poder de ataque, pero lenta y frágil.'}
+};
+const MAX_DIVS_ARMY = 12;
+const BATTLE_WIDTH = 10;       // divisiones que combaten a la vez por bando
+const GEN_SURNAMES = ['Wellesley', 'Moltke', 'Radetzky', 'Kutúzov', 'Ney', 'Soult', 'Bernadotte', 'Espartero', 'Narváez', 'Garibaldi', 'Cadorna', 'Pélissier', 'MacMahon', 'Scott', 'Taylor', 'Jackson', 'Lee', 'Ypsilanti', 'Ibrahim', 'Shimazu', 'Saigō', 'Zeng', 'Zuo', 'Xu', 'Nogi', 'Bolívar', 'Sucre', 'Santa Anna', 'Chassé', 'Dufour', 'Haynau', 'Wrangel', 'Roon', 'Steinmetz', 'Paskévich', 'Todleben', 'Napier', 'Havelock', 'Canrobert', 'Bosquet', 'Lamoricière', 'Zumalacárregui', 'Cabrera', 'Hoche', 'Kléber', 'Blücher', 'Gneisenau', 'Windischgrätz', 'Jellačić', 'Benedek'];
+
+function newGeneral() {
+  const r = () => 1 + Math.floor(Math.random() * 3) + (Math.random() < 0.15 ? 1 : 0);
+  return {name: pick(GEN_SURNAMES), atk: Math.min(5, r()), def: Math.min(5, r()), log: Math.min(5, r()), xp: 0, lvl: 1};
+}
+function nextArmyId() { G.nextArmyId = (G.nextArmyId || 1); return G.nextArmyId++; }
+function mkDivision(type) { return {t: type, s: 1, o: DIVS[type].org}; }
+function mkArmy(tag, loc, divs, name) {
+  const a = {id: nextArmyId(), tag, loc, divs: divs || [], gen: newGeneral(), path: [], hop: 0, battle: null, from: null, arrived: G.date.t, rest: 0, name: name || ''};
+  if (!a.name) a.name = `${armyOrdinal(tag)}.º Ejército`;
+  G.armies.push(a); return a;
+}
+function armyOrdinal(tag) { return G.armies.filter(x => x.tag === tag).length + 1; }
+const armiesOf = tag => G.armies.filter(a => a.tag === tag);
+const armyById = id => G.armies.find(a => a.id === id);
+function armyStr(a) { let t = 0; a.divs.forEach(d => t += d.s); return a.divs.length ? t / a.divs.length : 0; }
+function armyOrg(a) { let t = 0; a.divs.forEach(d => t += d.o / DIVS[d.t].org); return a.divs.length ? t / a.divs.length : 0; }
+function armyMen(a) { let t = 0; a.divs.forEach(d => t += d.s * MEN_PER_DIV); return Math.round(t); }
+function countDivs(tag) { let n = 0; G.armies.forEach(a => { if (a.tag === tag) n += a.divs.length; }); G.recruits.forEach(r => { if (r.tag === tag) n++; }); return n; }
+function divLimit(c) { return Math.max(0, Math.floor(c.stats.soldiers / MEN_PER_DIV)); }
+function armiesPower(tag) { let p = 0; armiesOf(tag).forEach(a => a.divs.forEach(d => p += d.s * (DIVS[d.t].att + DIVS[d.t].def))); return p; }
+
+/* ---------- terreno y movimiento ---------- */
+function terrainInfo(s) {
+  if (s._terr) return s._terr;
+  const b = MAP.stats[s.id].biomes, tot = Math.max(1, b.reduce((x, y) => x + y, 0));
+  const mnt = (b[BIOME.MOUNTAIN] + b[BIOME.SNOW]) / tot, frs = b[BIOME.FOREST] / tot, jun = b[BIOME.JUNGLE] / tot, des = b[BIOME.DESERT] / tot;
+  s._terr = {move: 1 + 1.4 * mnt + 0.5 * frs + 0.8 * jun + 0.4 * des, def: 1 + 0.35 * mnt + 0.12 * frs + 0.2 * jun, mnt};
+  return s._terr;
+}
+function hopDays(a, fromId, toId) {
+  const A = G.S[fromId], B = G.S[toId]; const c = G.C[a.tag];
+  let spd = 9; a.divs.forEach(d => { spd = Math.min(spd, DIVS[d.t].spd); }); if (spd === 9) spd = 1;
+  const lg = 1 + 0.1 * (a.gen.log - 1) + (c.mods.logistics || 0);
+  return clamp(Math.round(distStates(A, B) * 1.8 * terrainInfo(B).move / spd / lg), 2, 45);
+}
+function sameSide(ta, tb) {
+  if (ta === tb) return true;
+  return G.wars.some(w => (w.attAll.includes(ta) && w.attAll.includes(tb)) || (w.defAll.includes(ta) && w.defAll.includes(tb))) || !!pactBetween('alliance', ta, tb);
+}
+function hostileTags(ta, tb) { return G.hostile && G.hostile.has(ta + '|' + tb); }
+function canEnter(tag, sid) {
+  const o = G.S[sid].owner;
+  if (o === tag || o === NONE || sameSide(tag, o) || hostileTags(tag, o)) return true;
+  // en guerra se puede atravesar territorio neutral, salvo el de países con pacto de no agresión, garantía o alianza con nosotros
+  return G.C[tag].wars.length > 0 && !anyPactBetween(tag, o, ['nonagg', 'guarantee', 'alliance']) && !G.C[o].overlord && G.C[o].bloc !== G.C[tag].bloc;
+}
+function recalcHostile() {
+  const h = new Set();
+  G.wars.forEach(w => w.attAll.forEach(x => w.defAll.forEach(y => { h.add(x + '|' + y); h.add(y + '|' + x); })));
+  G.hostile = h;
+}
+// Dijkstra por días de marcha entre estados (solo estados permitidos)
+function findPath(a, dest) {
+  if (dest === a.loc) return [];
+  const dist = new Map([[a.loc, 0]]), prev = new Map(); const open = [[0, a.loc]]; const done = new Set();
+  while (open.length) {
+    open.sort((x, y) => x[0] - y[0]); const [d, u] = open.shift();
+    if (done.has(u)) continue; done.add(u);
+    if (u === dest) break;
+    for (const v of G.S[u].neigh) {
+      if (done.has(v) || !canEnter(a.tag, v)) continue;
+      const nd = d + hopDays(a, u, v);
+      if (nd < (dist.get(v) ?? 1e9)) { dist.set(v, nd); prev.set(v, u); open.push([nd, v]); }
+    }
+  }
+  if (!prev.has(dest)) return null;
+  const path = []; let cur = dest; while (cur !== a.loc) { path.unshift(cur); cur = prev.get(cur); }
+  return path;
+}
+function orderMove(a, dest) {
+  if (a.battle) return {ok: false, msg: 'El ejército está en combate.'};
+  const p = findPath(a, dest);
+  if (p === null) return {ok: false, msg: 'No hay un camino terrestre permitido hasta ese estado.'};
+  a.path = p; a.dest = dest; a.hop = p.length ? hopDays(a, a.loc, p[0]) : 0;
+  return {ok: true, eta: p.reduce((t, s, i) => t + hopDays(a, i ? p[i - 1] : a.loc, s), 0)};
+}
+function armyEta(a) {
+  if (!a.path.length) return 0; let t = a.hop; for (let i = 1; i < a.path.length; i++) t += hopDays(a, a.path[i - 1], a.path[i]); return t;
+}
+function stepMove(a) {
+  if (a.battle || !a.path.length) return;
+  a.hop--;
+  if (a.hop > 0) return;
+  const next = a.path[0];
+  if (!canEnter(a.tag, next)) { a.path = []; return; }
+  a.from = a.loc; a.loc = next; a.arrived = G.date.t; a.path.shift();
+  a.rest = 0;
+  if (a.path.length) a.hop = hopDays(a, a.loc, a.path[0]); else a.dest = null;
+}
+
+/* ---------- batallas ---------- */
+function sideOfBattle(b, army) {
+  const hostileTo = list => list.some(id => { const o = armyById(id); return o && hostileTags(army.tag, o.tag); });
+  if (hostileTo(b.A)) return 'B';
+  if (hostileTo(b.B)) return 'A';
+  return null;
+}
+function createBattles(byState) {
+  byState.forEach((list, sid) => {
+    if (list.length < 2) return;
+    list.forEach(a => {
+      if (a.battle) return;
+      const foe = list.find(o => hostileTags(a.tag, o.tag));
+      if (!foe) return;
+      let b = foe.battle ? G.battles.find(x => x.id === foe.battle) : null;
+      if (!b) {
+        const attacker = a.arrived >= foe.arrived ? a : foe, defender = attacker === a ? foe : a;   // ataca quien llegó último
+        b = {id: G.nextBattleId++, state: sid, A: [attacker.id], B: [defender.id], day: 0, att: 'A'};
+        G.battles.push(b);
+        attacker.battle = b.id; defender.battle = b.id; attacker.path = []; defender.path = [];
+        const msg = `¡Batalla en ${G.S[sid].name}! ${G.C[attacker.tag].name} ataca a ${G.C[defender.tag].name}.`;
+        if (attacker.tag === G.player || defender.tag === G.player) notify('war', msg, sid); else logMsg(msg);
+      } else {
+        const side = sideOfBattle(b, a);
+        if (side) { b[side].push(a.id); a.battle = b.id; a.path = []; }
+      }
+    });
+    // incorporar el resto de ejércitos presentes
+    list.forEach(a => { if (a.battle) return; const b = G.battles.find(x => x.state === sid); if (b) { const side = sideOfBattle(b, a); if (side) { b[side].push(a.id); a.battle = b.id; a.path = []; } } });
+  });
+}
+function sideStats(b, ids, isAttacker) {
+  let F = 0, T = 0, n = 0, org = 0, orgN = 0;
+  const s = G.S[b.state]; const terr = terrainInfo(s);
+  ids.forEach(id => {
+    const a = armyById(id); if (!a) return;
+    const c = G.C[a.tag];
+    const am = 1 + c.mods.army + (a.gen.atk - 1) * 0.05 + blocArmyBonus(c), dm = 1 + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05;
+    a.divs.forEach(d => {
+      const info = DIVS[d.t];
+      if (n < BATTLE_WIDTH) {
+        const str = d.s * (0.55 + 0.45 * d.o / info.org);
+        F += info.att * str * am; T += info.def * str * dm * (isAttacker ? 1 : terr.def);
+        n++;
+      }
+      org += d.o / info.org; orgN++;
+    });
+  });
+  return {F, T, n, org: orgN ? org / orgN : 0};
+}
+function battleDay(b) {
+  b.day++;
+  const A = b.A.map(armyById).filter(Boolean), B = b.B.map(armyById).filter(Boolean);
+  if (!A.length || !B.length) { endBattle(b, A.length ? 'A' : 'B'); return; }
+  const sa = sideStats(b, b.A, b.att === 'A'), sb = sideStats(b, b.B, b.att === 'B');
+  const rnd1 = () => 0.85 + Math.random() * 0.3;
+  const rAB = sa.F * rnd1() / Math.max(1, sb.T), rBA = sb.F * rnd1() / Math.max(1, sa.T);
+  const dmg = (r) => clamp(5.5 * r, 0.6, 13);       // % de organización perdida por día
+  const apply = (armies, orgLoss) => {
+    let lost = 0;
+    armies.forEach(a => {
+      const c = G.C[a.tag];
+      let w = 0;
+      a.divs.forEach((d, i) => {
+        if (i >= BATTLE_WIDTH) return;
+        const info = DIVS[d.t];
+        d.o = Math.max(0, d.o - info.org * orgLoss / 100 * (0.8 + Math.random() * 0.4));
+        const sl = (orgLoss / 100) * 0.38 * (0.6 + 0.8 * (1 - d.o / info.org));
+        d.s = Math.max(0, d.s - sl); lost += sl * MEN_PER_DIV;
+      });
+      // las divisiones destruidas desaparecen
+      a.divs = a.divs.filter(d => d.s > 0.04);
+      if (a.divs.length === 0) { a._dead = true; }
+      void c; void w;
+    });
+    return lost;
+  };
+  const lostB = apply(B, dmg(rAB)), lostA = apply(A, dmg(rBA));
+  b.lostA = (b.lostA || 0) + lostA; b.lostB = (b.lostB || 0) + lostB;
+  A.forEach(a => bleed(a.tag, lostA / Math.max(1, A.length))); B.forEach(a => bleed(a.tag, lostB / Math.max(1, B.length)));
+  b.rA = rBA; b.rB = rAB; b.orgA = sa.org; b.orgB = sb.org;
+  // fin del combate
+  G.armies = G.armies.filter(a => !a._dead);
+  const A2 = b.A.map(armyById).filter(Boolean), B2 = b.B.map(armyById).filter(Boolean);
+  const oA = A2.length ? sideStats(b, b.A, true).org : 0, oB = B2.length ? sideStats(b, b.B, true).org : 0;
+  if (!A2.length || !B2.length) { endBattle(b, A2.length ? 'A' : 'B'); return; }
+  if (b.day >= 3 && (oA < 0.18 || oB < 0.18)) endBattle(b, oA < oB ? 'B' : 'A');
+}
+// Bajas: se restan de la población de reclutamiento del país
+function bleed(tag, men) {
+  if (men <= 0) return;
+  const c = G.C[tag]; if (!c || !c.states.length) return;
+  c.cnt = c.cnt || {}; c.cnt.casualties = (c.cnt.casualties || 0) + men;
+  let left = men;
+  for (let k = 0; k < 4 && left > 0; k++) { const s = G.S[pick(c.states)]; const take = Math.min(left, (s.pops.peasants || 0) * 0.02); s.pops.peasants -= take; left -= take; }
+}
+function endBattle(b, winner) {
+  G.battles = G.battles.filter(x => x !== b);
+  const win = (winner === 'A' ? b.A : b.B).map(armyById).filter(Boolean), lose = (winner === 'A' ? b.B : b.A).map(armyById).filter(Boolean);
+  win.forEach(a => { a.battle = null; a.rest = 0; a.gen.xp += 8; if (a.gen.xp >= a.gen.lvl * 30 && a.gen.lvl < 5) { a.gen.xp = 0; a.gen.lvl++; const k = pick(['atk', 'def', 'log']); a.gen[k] = Math.min(5, a.gen[k] + 1); if (a.tag === G.player) notify('war', `${a.gen.name} sube a nivel ${a.gen.lvl}.`); } });
+  lose.forEach(a => { a.battle = null; retreatArmy(a, b); });
+  // puntuación de batallas en las guerras implicadas
+  const wt = win[0] ? win[0].tag : null, lt = lose[0] ? lose[0].tag : null;
+  if (wt && lt) G.wars.forEach(w => { const wa = w.attAll.includes(wt) && w.defAll.includes(lt), wd = w.defAll.includes(wt) && w.attAll.includes(lt); if (wa || wd) { w.bw = w.bw || {att: 0, def: 0}; if (wa) w.bw.att++; else w.bw.def++; } });
+  if (win[0] && (win[0].tag === G.player || (lose[0] && lose[0].tag === G.player))) notify('war', `Batalla de ${G.S[b.state].name}: victoria de ${G.C[wt].name}.`, b.state);
+}
+function retreatArmy(a, b) {
+  const sidesOwn = tag => sameSide(a.tag, tag);
+  const nb = G.S[a.loc].neigh.filter(n => canEnter(a.tag, n) && !armiesAt(n).some(o => hostileTags(a.tag, o.tag)));
+  let dest = nb.find(n => n === a.from) ?? null;
+  if (dest === null) dest = nb.sort((x, y) => (sidesOwn(G.S[y].owner) ? 1 : 0) - (sidesOwn(G.S[x].owner) ? 1 : 0))[0] ?? null;
+  a.path = [];
+  if (dest === null) {      // rodeado: pierde parte de la fuerza y se reorganiza en el estado propio más cercano
+    a.divs.forEach(d => { d.s *= 0.75; d.o *= 0.5; });
+    const home = nearestOwnState(a.tag, a.loc); if (home !== null) a.loc = home;
+    return;
+  }
+  a.loc = dest; a.from = null; a.arrived = G.date.t; a.divs.forEach(d => { d.o = Math.min(d.o, DIVS[d.t].org * 0.3); });
+}
+function armiesAt(sid) { return G.armies.filter(a => a.loc === sid); }
+function nearestOwnState(tag, from) {
+  const c = G.C[tag]; let best = null, bd = 1e9;
+  c.states.forEach(id => { if (armiesAt(id).some(o => hostileTags(tag, o.tag))) return; const d = distStates(G.S[from], G.S[id]); if (d < bd) { bd = d; best = id; } });
+  return best;
+}
+
+/* ---------- jornada militar ---------- */
+function militaryDay() {
+  if (!G.armies) return;
+  if (!G.hostile) recalcHostile();
+  recalcHostileIfNeeded();
+  if (G.armies.length) {
+    G.armies.forEach(stepMove);
+    const byState = new Map();
+    G.armies.forEach(a => { (byState.get(a.loc) || byState.set(a.loc, []).get(a.loc)).push(a); });
+    createBattles(byState);
+    G.battles.slice().forEach(battleDay);
+    G.armies.forEach(a => {
+      if (a.battle) return;
+      const own = G.S[a.loc].owner === a.tag || sameSide(a.tag, G.S[a.loc].owner);
+      a.rest++;
+      a.divs.forEach(d => {
+        const info = DIVS[d.t];
+        d.o = Math.min(info.org, d.o + info.org * (own ? 0.06 : 0.025) * (a.path.length ? 0.4 : 1));
+        if (own && d.s < 1 && !a.path.length) { const g = Math.min(1 - d.s, 0.006); const men = g * MEN_PER_DIV; const s = G.S[a.loc]; if ((s.pops.peasants || 0) > men * 4 && G.C[a.tag].treasury > -1e12) { d.s += g; s.pops.peasants -= men; } }
+      });
+    });
+    occupationDay();
+  }
+  // reclutamiento en curso
+  for (let i = G.recruits.length - 1; i >= 0; i--) {
+    const r = G.recruits[i]; r.days--;
+    if (r.days > 0) continue;
+    G.recruits.splice(i, 1);
+    const c = G.C[r.tag]; if (!c || !c.states.length) continue;
+    const loc = G.S[r.state].owner === r.tag ? r.state : c.capital;
+    let a = G.armies.find(x => x.tag === r.tag && x.loc === loc && !x.battle && x.divs.length < MAX_DIVS_ARMY && !x.path.length);
+    if (!a) a = mkArmy(r.tag, loc, []);
+    a.divs.push(mkDivision(r.type));
+    if (r.tag === G.player) notify('war', `Nueva división de ${DIVS[r.type].name.toLowerCase()} en ${G.S[loc].name}.`, loc);
+  }
+  G.wars.forEach(w => { w.score = computeWarScore(w); });
+}
+let _hostileSig = '';
+function recalcHostileIfNeeded() {
+  const sig = G.wars.map(w => w.id + ':' + w.attAll.join('') + '>' + w.defAll.join('')).join(';');
+  if (sig !== _hostileSig) { _hostileSig = sig; recalcHostile(); }
+}
+
+/* ---------- ocupación ---------- */
+function occupationDay() {
+  const changed = new Set();
+  const byState = new Map();
+  G.armies.forEach(a => { if (!a.battle) (byState.get(a.loc) || byState.set(a.loc, []).get(a.loc)).push(a); });
+  G.S.forEach(s => {
+    const owner = s.owner; if (owner === NONE) { if (s.occ) { s.occ = 0; s.occBy = null; changed.add(s.id); } return; }
+    const here = byState.get(s.id) || [];
+    const enemy = here.find(a => hostileTags(a.tag, owner)), friend = here.some(a => a.tag === owner || sameSide(a.tag, owner) && !hostileTags(a.tag, owner));
+    let occ = s.occ || 0, by = s.occBy;
+    if (enemy && !friend) {
+      if (!by || by === enemy.tag || !sameSide(by, enemy.tag)) { by = enemy.tag; }
+      if (occ === 0 && typeof computeFrontRank === 'function') { const w = G.wars.find(x => (x.attAll.includes(enemy.tag) && x.defAll.includes(owner)) || (x.defAll.includes(enemy.tag) && x.attAll.includes(owner))); const side = new Set(w ? (w.attAll.includes(enemy.tag) ? w.attAll : w.defAll) : [enemy.tag]); computeFrontRank(s.id, side); }
+      occ = Math.min(1, occ + 0.1);
+    } else if (friend && occ > 0) occ = Math.max(0, occ - 0.2);
+    else if (!enemy && occ > 0 && occ < 1) occ = Math.max(0, occ - 0.1);
+    occ = Math.round(occ * 100) / 100;
+    if (occ !== (s.occ || 0) || (occ > 0 && by !== s.occBy)) { s.occ = occ; s.occBy = occ > 0 ? by : null; changed.add(s.id); if (occ >= 1 && !s._occNotified) { s._occNotified = true; if (owner === G.player || by === G.player) notify('war', `${G.S[s.id].name} ha sido ocupada por ${G.C[by].name}.`, s.id); } if (occ === 0) s._occNotified = false; }
+  });
+  if (changed.size && typeof onFrontChanged === 'function') onFrontChanged(changed);
+}
+
+/* ---------- puntuación de guerra a partir de hechos ---------- */
+function computeWarScore(w) {
+  const frac = (ownersList, occList) => {
+    let occ = 0, tot = 0;
+    ownersList.forEach(t => G.C[t].states.forEach(id => { const s = G.S[id]; tot += s.popBase + 1; if (s.occ > 0 && s.occBy && occList.includes(s.occBy)) occ += (s.popBase + 1) * s.occ; }));
+    return tot ? occ / tot : 0;
+  };
+  const oDef = frac(w.defAll, w.attAll), oAtt = frac(w.attAll, w.defAll);
+  let sc = 120 * (oDef - oAtt);
+  const cap = (leader, by) => { const c = G.C[leader]; const s = G.S[c.capital]; return s && s.owner === leader && s.occ >= 1 && by.includes(s.occBy); };
+  if (cap(w.def, w.attAll)) sc += 25; if (cap(w.att, w.defAll)) sc -= 25;
+  w.targets.forEach(sid => { const s = G.S[sid]; if (s.owner === w.def && s.occ >= 1) sc += 10; });
+  const bw = w.bw || {att: 0, def: 0}; sc += clamp((bw.att - bw.def) * 1.5, -15, 15);
+  return clamp(Math.round(sc), -100, 100);
+}
+function sideStrength(list) { let t = 0; list.forEach(tag => armiesOf(tag).forEach(a => a.divs.forEach(d => t += d.s * DIVS[d.t].att))); return Math.round(t); }
+
+/* ---------- reclutamiento ---------- */
+function recruitCost(c, type) { return Math.round(DIVS[type].cost * moneyPerPoint(c)); }
+function canRecruit(c, sid, type) {
+  const s = G.S[sid];
+  if (!s || s.owner !== c.tag) return 'Ese estado no es tuyo.';
+  if (!(s.b.barracks >= 1)) return 'El estado necesita Cuarteles.';
+  if (countDivs(c.tag) >= divLimit(c)) return `Has alcanzado el máximo de divisiones (${divLimit(c)}). Construye más cuarteles.`;
+  if ((s.pops.peasants || 0) < MEN_PER_DIV * 6) return 'No hay suficiente población en el estado.';
+  if (c.treasury < recruitCost(c, type)) return 'No tienes fondos suficientes.';
+  return null;
+}
+function recruit(c, sid, type) {
+  const err = canRecruit(c, sid, type); if (err) return {ok: false, msg: err};
+  const s = G.S[sid]; c.treasury -= recruitCost(c, type); s.pops.peasants -= MEN_PER_DIV;
+  G.recruits.push({tag: c.tag, state: sid, type, days: DIVS[type].days});
+  return {ok: true};
+}
+function disbandArmy(a) {
+  if (a.battle) return;
+  const men = armyMen(a), s = G.S[a.loc]; if (s && s.owner === a.tag) s.pops.peasants += men * 0.8;
+  G.armies = G.armies.filter(x => x !== a);
+}
+function splitArmy(a) {
+  if (a.divs.length < 2 || a.battle) return null;
+  const half = a.divs.splice(Math.ceil(a.divs.length / 2));
+  const n = mkArmy(a.tag, a.loc, half); n.gen = newGeneral(); return n;
+}
+function mergeArmies(a, b) {
+  if (a === b || a.loc !== b.loc || a.tag !== b.tag || a.battle || b.battle) return false;
+  if (a.divs.length + b.divs.length > MAX_DIVS_ARMY) return false;
+  a.divs = a.divs.concat(b.divs); G.armies = G.armies.filter(x => x !== b); return true;
+}
+
+/* ---------- ejércitos iniciales ---------- */
+function initArmies() {
+  G.armies = []; G.battles = []; G.recruits = []; G.nextArmyId = 1; G.nextBattleId = 1;
+  G.tags.forEach(t => {
+    if (t === NONE) return; const c = G.C[t]; if (!c.states.length) return;
+    const lim = divLimit(c); let n = Math.min(Math.floor(lim * 0.7), 160); if (n < 1 && lim >= 1) n = 1; if (!n || lim < 1) return;
+    const barr = c.states.filter(id => G.S[id].b.barracks >= 1);
+    const homes = barr.length ? barr : [c.capital >= 0 ? c.capital : c.states[0]];
+    let hi = 0;
+    while (n > 0) {
+      const k = Math.min(n, 6 + Math.floor(Math.random() * 3)); const divs = [];
+      for (let i = 0; i < k; i++) { const r = Math.random(); divs.push(mkDivision(r < 0.7 ? 'inf' : r < 0.85 ? 'cav' : 'art')); }
+      mkArmy(t, homes[hi++ % homes.length], divs); n -= k;
+    }
+  });
+  recalcHostile();
+}
+
+/* ---------- IA militar ---------- */
+function aiMilitary() {
+  G.tags.forEach(t => {
+    if (t === NONE) return; const c = G.C[t];
+    if (!c.ai || !c.wars.length) return;
+    const enemies = G.tags.filter(o => hostileTags(t, o));
+    if (!enemies.length) return;
+    const mine = armiesOf(t).filter(a => !a.battle);
+    const capital = c.capital;
+    // 1) defender la capital si hay enemigos cerca
+    const threat = capital >= 0 && G.S[capital].neigh.concat([capital]).some(n => armiesAt(n).some(o => hostileTags(t, o.tag)));
+    mine.forEach(a => {
+      if (a.path.length && !threat) return;
+      if (threat && capital >= 0 && a.loc !== capital) { const near = distStates(G.S[a.loc], G.S[capital]) < 14; if (near || mine.length < 3) { orderMove(a, capital); return; } }
+      if (a.path.length) return;
+      // 2) atacar el estado enemigo vecino más débil / objetivo de guerra
+      const strA = armyStr(a) * a.divs.length;
+      if (armyOrg(a) < 0.55 && G.S[a.loc].owner === t) return;                  // se reorganiza
+      const cands = [];
+      const consider = sid => {
+        if (!canEnter(t, sid)) return;
+        const foes = armiesAt(sid).filter(o => hostileTags(t, o.tag)); const fs = foes.reduce((x, o) => x + armyStr(o) * o.divs.length, 0);
+        const owner = G.S[sid].owner; const enemyOwned = owner !== NONE && hostileTags(t, owner);
+        if (!enemyOwned && !foes.length) return;
+        if (fs > strA * 1.3) return;
+        let score = 10 - fs * 2 + (enemyOwned ? 4 : 0) + (G.S[sid].occ >= 1 && G.S[sid].occBy === t ? -8 : 0) + (G.S[sid].occ < 1 ? 2 : 0);
+        G.wars.forEach(w => { if (w.targets.includes(sid) && w.attAll.includes(t)) score += 6; });
+        if (enemies.some(e => G.C[e].capital === sid)) score += 5;
+        cands.push({sid, score});
+      };
+      G.S[a.loc].neigh.forEach(consider);
+      // enemigos dentro de nuestro territorio: ir a por ellos
+      if (!cands.length) {
+        let tgt = null, td = 1e9;
+        G.armies.forEach(o => { if (!hostileTags(t, o.tag) || o.battle) return; const os = G.S[o.loc].owner; if (os !== t && !sameSide(t, os)) return; const d = distStates(G.S[a.loc], G.S[o.loc]); if (d < td && armyStr(o) * o.divs.length < strA * 1.4) { td = d; tgt = o.loc; } });
+        if (tgt !== null && tgt !== a.loc) { orderMove(a, tgt); return; }
+      }
+      if (cands.length) { cands.sort((x, y) => y.score - x.score); orderMove(a, cands[0].sid); return; }
+      // 3) marchar hacia la frontera enemiga más cercana
+      let best = null, bd = 1e9;
+      enemies.forEach(e => G.C[e].states.forEach(id => { if (G.S[id].occ >= 1 && G.S[id].occBy && sameSide(t, G.S[id].occBy)) return; const d = distStates(G.S[a.loc], G.S[id]) - (G.wars.some(w => w.targets.includes(id)) ? 5 : 0); if (d < bd) { bd = d; best = id; } }));
+      if (best !== null && best !== a.loc) { const p = findPath(a, best); if (p && p.length) { a.path = p.slice(0, 40); a.dest = best; a.hop = hopDays(a, a.loc, p[0]); } }
+    });
+  });
+}
+function aiRecruitCountry(t) {
+  const c = G.C[t]; if (!c || !c.ai || !c.states.length) return;
+  const sts = c.states.filter(id => G.S[id].b.barracks >= 1); if (!sts.length) return;
+  const r = Math.random(); recruit(c, pick(sts), r < 0.65 ? 'inf' : r < 0.8 ? 'cav' : 'art');
+}
+function aiRecruitWeek() {
+  G.tags.forEach(t => {
+    if (t === NONE) return; const c = G.C[t]; if (!c.ai || !c.states.length) return;
+    if (!c.wars.length && Math.random() > 0.03) return;
+    let n = c.wars.length ? 2 : 1;
+    const sts = c.states.filter(id => G.S[id].b.barracks >= 1);
+    while (n-- > 0 && sts.length) { const r = Math.random(); const type = r < 0.65 ? 'inf' : r < 0.8 ? 'cav' : 'art'; recruit(c, pick(sts), type); }
+  });
+}
+function evacuateForeignArmies() {
+  G.armies.forEach(a => {
+    const o = G.S[a.loc].owner;
+    if (!(o === a.tag || o === NONE || sameSide(a.tag, o) || hostileTags(a.tag, o)) && !a.battle) {
+      const home = nearestOwnState(a.tag, a.loc); if (home !== null) { a.loc = home; a.path = []; a.from = null; }
+    }
+  });
+}
+function cleanupArmies() {
+  G.armies = G.armies.filter(a => G.C[a.tag] && G.C[a.tag].states.length);
+  G.battles = G.battles.filter(b => b.A.some(id => armyById(id)) && b.B.some(id => armyById(id)));
+  G.armies.forEach(a => { if (a.battle && !G.battles.some(b => b.id === a.battle)) a.battle = null; });
+}
+
 /* ===== RENDER 3D DEL MAPA (three.js) ===== */
 const R = {occ: {}, mode: 'political', hover: -1, sel: -1, dirty: true, labelsDirty: true, cam: {tx: 12, tz: -52, dist: 120, tilt: 0.78, yaw: 0}, exag: 0.55};
 const MAP_MODES = [
@@ -3451,6 +3899,10 @@ function setupControls() {
       const id = stateAtWorld(screenToWorld(e.clientX, e.clientY));
       if (window.onMapClick) window.onMapClick(id, e);
     }
+    if (drag && !drag.moved && drag.btn === 2 && e.type === 'pointerup') {
+      const id = stateAtWorld(screenToWorld(e.clientX, e.clientY));
+      if (window.onMapRightClick) window.onMapRightClick(id, e);
+    }
     if (pts.size === 0) { drag = null; document.body.classList.remove('dragging'); }
   };
   cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
@@ -3633,15 +4085,60 @@ function updateLabels() {
   updateMarkers();
 }
 
+function updateArmyTokens() {
+  if (!G.armies) return;
+  R.ak = R.ak || {};
+  const px = R.pxPerDeg || 10, zoomIn = px >= 16;
+  const sel = window.UI && UI.selArmy;
+  const wanted = new Map(), perState = {};
+  G.armies.forEach(a => {
+    const mine = a.tag === G.player, atWar = !mine && hostileTags(G.player, a.tag);
+    if (!(mine || a.battle || a.id === sel || atWar || zoomIn)) return;
+    (perState[a.loc] = perState[a.loc] || []).push(a);
+  });
+  for (const sid in perState) perState[sid].forEach((a, i) => wanted.set(a.id, [a, i, perState[sid].length]));
+  for (const k in R.ak) if (!wanted.has(+k)) { R.ak[k].remove(); delete R.ak[k]; }
+  const cw = R.canvas.clientWidth, ch = R.canvas.clientHeight;
+  wanted.forEach(([a, i, n]) => {
+    let el = R.ak[a.id];
+    if (!el) { el = document.createElement('div'); el.className = 'atoken'; el.dataset.aid = a.id; el.dataset.act = 'seltoken'; el.dataset.id = a.id; R.markerRoot.appendChild(el); R.ak[a.id] = el; }
+    const c = stateCenter(G.S[a.loc]); const p = worldToScreen(c[0], 0.5, -c[1]);
+    const off = (i - (n - 1) / 2) * 30;
+    const x = p[0] + off, y = p[1] + (a.tag === G.player ? 0 : 0);
+    if (x < -40 || x > cw + 40 || y < -40 || y > ch + 40) { el.style.display = 'none'; return; }
+    el.style.display = 'flex';
+    const key = G.player + a.tag + a.divs.length + (a.battle ? 'b' : '') + (a.id === sel ? 's' : '') + (a.path.length ? 'm' : '') + Math.round(armyStr(a) * 10);
+    if (el._k !== key) {
+      el._k = key; el.className = 'atoken' + (a.tag === G.player ? ' mine' : '') + (a.id === sel ? ' sel' : '') + (a.battle ? ' fight' : '') + (a.path.length ? ' moving' : '');
+      el.innerHTML = flag(a.tag, 'sm') + `<b>${a.divs.length}</b>` + `<i style="width:${Math.round(armyStr(a) * 100)}%"></i>` + (a.battle ? '<u>⚔</u>' : '');
+    }
+    el.style.transform = `translate(-50%,-50%) translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
+  });
+  drawOrders();
+}
+function drawOrders() {
+  let svg = R.ordSvg;
+  if (!svg) { svg = R.ordSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('class', 'orders'); R.markerRoot.insertBefore(svg, R.markerRoot.firstChild); }
+  const sel = window.UI && UI.selArmy; let h = '';
+  G.armies.forEach(a => {
+    if (!a.path.length || !(a.tag === G.player || a.id === sel)) return;
+    const pts = [a.loc].concat(a.path).map(sid => { const c = stateCenter(G.S[sid]); const p = worldToScreen(c[0], 0.5, -c[1]); return p[0].toFixed(1) + ',' + p[1].toFixed(1); });
+    const last = pts[pts.length - 1].split(',');
+    h += `<polyline points="${pts.join(' ')}" class="${a.id === sel ? 'sel' : ''}"/><circle cx="${last[0]}" cy="${last[1]}" r="5" class="${a.id === sel ? 'sel' : ''}"/>`;
+  });
+  svg.innerHTML = h;
+}
+
 function updateMarkers() {
   if (!R.markerRoot) return;
   const want = [];
-  G.wars.forEach(w => { const t = G.S[w.target]; if (t) want.push({id: 'w' + w.id, state: w.target, ch: '⚔️', cls: 'war'}); });
+  G.battles.forEach(b => { if (G.S[b.state]) want.push({id: 'bt' + b.id, state: b.state, ch: '⚔️', cls: 'war'}); });
   const me = G.C[G.player];
   if (me && me.capital >= 0) want.push({id: 'cap', state: me.capital, ch: '★', cls: 'cap'});
   if (me && me.colonizing) want.push({id: 'col', state: me.colonizing.state, ch: '⚓', cls: 'col'});
   R.mk = R.mk || {};
   const ids = new Set(want.map(w => w.id));
+  updateArmyTokens();
   for (const k in R.mk) if (!ids.has(k)) { R.mk[k].remove(); delete R.mk[k]; }
   want.forEach(w => {
     let el = R.mk[w.id]; if (!el) { el = document.createElement('div'); el.className = 'marker ' + w.cls; el.textContent = w.ch; R.markerRoot.appendChild(el); R.mk[w.id] = el; }
@@ -4117,36 +4614,104 @@ WINDOWS.diplomacy = {title: 'Diplomacia', icon: '🤝', render() {
 }};
 
 /* --- Ejército y guerra --- */
+const stars = n => '★'.repeat(n) + '<span class="dim">' + '★'.repeat(5 - n) + '</span>';
+function armyRowHtml(a) {
+  const s = G.S[a.loc], eta = armyEta(a);
+  const stat = a.battle ? '<span class="tag bad">⚔ En combate</span>' : a.path.length ? `<span class="tag">➜ ${G.S[a.dest != null ? a.dest : a.path[a.path.length - 1]].name} · ${eta} d</span>` : '<span class="tag good">En posición</span>';
+  return `<tr data-act="selarmy" data-id="${a.id}" class="${UI.selArmy === a.id ? 'sel' : ''}"><td><b>${a.name}</b><br><small class="dim">${a.gen.name} (nv. ${a.gen.lvl})</small></td><td>${s.name}</td><td class="r">${a.divs.length}</td><td class="r">${fmtN(armyMen(a) / 1000, 1)}</td><td class="r">${Math.round(armyStr(a) * 100)}%</td><td class="r">${Math.round(armyOrg(a) * 100)}%</td><td>${stat}</td></tr>`;
+}
 WINDOWS.military = {title: 'Ejército y guerra', icon: '⚔️', render() {
-  const c = me(), st = c.stats;
+  const c = me(), st = c.stats, tab = curTab('mil', 'armies');
   const myWars = G.wars.filter(w => w.attAll.includes(G.player) || w.defAll.includes(G.player));
-  const pw = armyPower(c);
+  const mine = armiesOf(G.player);
   let barr = 0; c.states.forEach(i => barr += G.S[i].b.barracks || 0);
+  const ndiv = countDivs(G.player), lim = divLimit(c);
   const sideHtml = (list, lead) => list.map(t => `${flag(t, 'sm')} ${G.C[t].name}${t === lead ? ' 👑' : ''}`).join(', ');
-  return `<div class="cols"><div class="col"><div class="card"><h3>Fuerzas armadas</h3>
-   <div class="kv"><span>Soldados</span><b>${fmtN(st.soldiers, 1)}</b></div>
+  const head = tabs('mil', [['armies', `Ejércitos (${mine.length})`], ['recruit', 'Reclutamiento'], ['wars', `Guerras${myWars.length ? ' (' + myWars.length + ')' : ''}`], ['stats', 'Fuerzas armadas']]);
+  let body = '';
+  if (tab === 'armies') {
+    body = `<div class="card"><h3>Tus ejércitos</h3>${mine.length ? `<table class="tbl clickable"><thead><tr><th>Ejército · general</th><th>Ubicación</th><th class="r">Div.</th><th class="r">Hombres (mil)</th><th class="r">Fuerza</th><th class="r">Organ.</th><th>Orden</th></tr></thead><tbody>${mine.map(armyRowHtml).join('')}</tbody></table>` : '<p class="hint">No tienes ejércitos. Recluta divisiones en la pestaña Reclutamiento (se necesitan Cuarteles).</p>'}
+     <p class="hint">Haz clic en una ficha del mapa o en una fila para seleccionar un ejército; después <b>clic derecho</b> sobre un estado vecino para ordenar el movimiento. Las divisiones recién reclutadas aparecen en el estado donde se entrenaron.</p></div>`;
+  } else if (tab === 'recruit') {
+    const states = c.states.filter(id => G.S[id].b.barracks >= 1).sort((a, b) => G.S[b].b.barracks - G.S[a].b.barracks);
+    const mine = G.recruits.filter(r => r.tag === G.player);
+    body = `<div class="cols"><div class="col wide"><div class="card"><h3>Reclutar divisiones</h3>
+      <div class="kv"><span>Divisiones (incl. en instrucción)</span><b class="${ndiv >= lim ? 'bad' : ''}">${ndiv} / ${lim}</b></div>
+      <p class="hint">Cada división moviliza ${fmtN(MEN_PER_DIV, 0)} soldados de la población campesina del estado y cuesta dinero. Se necesitan Cuarteles en el estado y capacidad militar suficiente.</p>
+      ${states.length ? `<table class="tbl"><thead><tr><th>Estado</th><th class="r">Cuarteles</th><th class="r">Campesinos</th>${Object.keys(DIVS).map(k => `<th class="r">${DIVS[k].icon} ${DIVS[k].name}<br><small>${money(recruitCost(c, k))} · ${DIVS[k].days} d</small></th>`).join('')}</tr></thead><tbody>${states.map(id => { const s = G.S[id]; return `<tr><td data-act="focus" data-id="${id}"><b>${s.name}</b></td><td class="r">${s.b.barracks}</td><td class="r">${fmtN(s.pops.peasants || 0, 1)}</td>${Object.keys(DIVS).map(k => { const e = canRecruit(c, id, k); return `<td class="r"><button data-act="recruit" data-id="${id}" data-t="${k}" ${e ? 'disabled' : ''} ${e ? `data-tip="${escA(e)}"` : ''}>＋ Reclutar</button></td>`; }).join('')}</tr>`; }).join('')}</tbody></table>` : '<p class="hint bad">No tienes Cuarteles. Constrúyelos en el panel de un estado → Edificios.</p>'}</div></div>
+      <div class="col"><div class="card"><h3>En instrucción</h3>${mine.length ? mine.map(r => `<div class="kv sm"><span>${DIVS[r.type].icon} ${DIVS[r.type].name} · ${G.S[r.state].name}</span><b>${r.days} d</b></div>`).join('') : '<p class="hint">Nada en instrucción.</p>'}</div>
+      <div class="card"><h3>Tipos de división</h3>${Object.keys(DIVS).map(k => `<div class="divt"><b>${DIVS[k].icon} ${DIVS[k].name}</b><small>${DIVS[k].desc}</small><small>Ataque ${DIVS[k].att} · Defensa ${DIVS[k].def} · Velocidad ${DIVS[k].spd} · Organización ${DIVS[k].org}</small></div>`).join('')}</div></div></div>`;
+  } else if (tab === 'wars') {
+    body = `<div class="cols"><div class="col wide"><div class="card"><h3>Guerras en curso</h3>${myWars.length ? myWars.map(w => {
+      const mineSide = w.attAll.includes(G.player); const score = mineSide ? w.score : -w.score; const po = peaceOptions(w, G.player);
+      const ec = (mineSide ? w.defAll : w.attAll).reduce((n, t) => n + armiesOf(t).length, 0), fc = (mineSide ? w.attAll : w.defAll).reduce((n, t) => n + armiesOf(t).length, 0);
+      const bws = w.bw || {att: 0, def: 0};
+      return `<div class="war"><div class="warh">${CBS[w.cb].icon} <b>${CBS[w.cb].name}</b> <small class="dim">· ${w.weeks} semanas</small></div>
+      <div class="sides"><div><small>Atacantes</small>${sideHtml(w.attAll, w.att)}</div><div><small>Defensores</small>${sideHtml(w.defAll, w.def)}</div></div>
+      ${w.targets.length ? `<div class="warst"><small>Territorios exigidos</small>${w.targets.map(sid => { const s = G.S[sid]; return `<div class="kv sm"><span>${s.name}</span><span class="occ"><i style="width:${(s.occ || 0) * 100}%"></i><em>${Math.round((s.occ || 0) * 100)}% ocupado</em></span></div>`; }).join('')}</div>` : ''}
+      ${w.cTargets.length ? `<div class="warst"><small>Contraofensiva del defensor</small>${w.cTargets.map(sid => { const s = G.S[sid]; return `<div class="kv sm"><span>${s.name}</span><span class="occ cb"><i style="width:${(s.occ || 0) * 100}%"></i><em>${Math.round((s.occ || 0) * 100)}%</em></span></div>`; }).join('')}</div>` : ''}
+      <div class="wbar"><b style="width:${(w.score + 100) / 2}%"></b></div>
+      <div class="kv"><span>Fuerza: ${fmtN(w.pa || 0, 0)} vs ${fmtN(w.pd || 0, 0)} · Batallas ganadas ${bws.att}–${bws.def}</span><b class="${score >= 0 ? 'good' : 'bad'}">Puntuación ${sgn(score, 0)}</b></div>
+      <div class="kv sm"><span>Ejércitos propios / enemigos</span><b>${fc} / ${ec}</b></div>
+      <div class="btnrow"><button data-act="peace" data-id="${w.id}">🕊️ ${po.label}</button><button data-act="focus" data-id="${w.targets[0] ?? w.cTargets[0] ?? G.C[w.def].capital}">📍 Ver el frente</button></div></div>`;
+    }).join('') : '<p class="hint">Tu país está en paz. Declara una guerra desde Diplomacia → Potencias. La puntuación de guerra depende ahora de los estados <b>ocupados</b> por tus ejércitos y de las batallas ganadas.</p>'}</div></div>
+    <div class="col"><div class="card"><h3>Batallas en curso</h3>${G.battles.length ? G.battles.slice(0, 14).map(b => { const ta = (armyById(b.A[0]) || {}).tag, tb = (armyById(b.B[0]) || {}).tag; return ta && tb ? `<div class="kv sm clk" data-act="focus" data-id="${b.state}"><span>${flag(ta, 'sm')} vs ${flag(tb, 'sm')} ${G.S[b.state].name}</span><b>día ${b.day}</b></div>` : ''; }).join('') : '<p class="hint">No hay batallas.</p>'}</div>
+    <div class="card"><h3>Otras guerras</h3>${G.wars.filter(w => !myWars.includes(w)).map(w => `<div class="kv"><span>${CBS[w.cb].icon} ${flag(w.att, 'sm')} ${G.C[w.att].name} → ${flag(w.def, 'sm')} ${G.C[w.def].name}</span><span><b>${sgn(w.score, 0)}</b> <button data-act="focus" data-id="${w.targets[0] ?? G.C[w.def].capital}">📍</button></span></div>`).join('') || '<p class="hint">No hay otras guerras.</p>'}</div></div></div>`;
+  } else {
+    body = `<div class="cols"><div class="col"><div class="card"><h3>Fuerzas armadas</h3>
+   <div class="kv"><span>Soldados movilizables</span><b>${fmtN(st.soldiers, 1)}</b></div>
    <div class="kv"><span>Niveles de cuarteles</span><b>${Math.round(barr)}</b></div>
-   <div class="kv"><span>Potencia militar</span><b>${fmtN(pw, 1)}</b></div>
+   <div class="kv"><span>Divisiones / máximo</span><b>${ndiv} / ${lim}</b></div>
    <div class="kv"><span>Modelo de ejército</span><b>${LAW[c.laws.army].name}</b></div>
    <div class="kv"><span>Bonificación de ejército</span><b>${sgn(c.mods.army * 100, 0)}%</b></div>
    <div class="kv"><span>Defensa · Logística</span><b>${sgn(c.mods.defense * 100, 0)}% · ${sgn(c.mods.logistics * 100, 0)}%</b></div>
    <div class="kv"><span>Coste militar</span><b>${sgn(c.mods.milCost * 100, 0)}%</b></div>
    <div class="kv"><span>Infamia</span><b class="${c.infamy > 30 ? 'bad' : ''}">${Math.round(c.infamy)}</b></div>
-   <p class="hint">Construye <b>Cuarteles</b> para reclutar más soldados. En guerra, el esfuerzo bélico cuesta un 5% de tus ingresos por semana.</p>
-  </div></div>
-  <div class="col wide"><div class="card"><h3>Guerras en curso</h3>${myWars.length ? myWars.map(w => {
-    const A = G.C[w.att], D = G.C[w.def]; const mine = w.attAll.includes(G.player); const score = mine ? w.score : -w.score; const po = peaceOptions(w, G.player);
-    return `<div class="war"><div class="warh">${CBS[w.cb].icon} <b>${CBS[w.cb].name}</b> <small class="dim">· ${w.weeks} semanas</small></div>
-      <div class="sides"><div><small>Atacantes</small>${sideHtml(w.attAll, w.att)}</div><div><small>Defensores</small>${sideHtml(w.defAll, w.def)}</div></div>
-      ${w.targets.length ? `<div class="warst"><small>Territorios exigidos</small>${w.targets.map(sid => { const s = G.S[sid]; return `<div class="kv sm"><span>${s.name}</span><span class="occ"><i style="width:${(s.occ || 0) * 100}%"></i><em>${Math.round((s.occ || 0) * 100)}% ocupado</em></span></div>`; }).join('')}</div>` : ''}
-      ${w.cTargets.length ? `<div class="warst"><small>Contraofensiva del defensor</small>${w.cTargets.map(sid => { const s = G.S[sid]; return `<div class="kv sm"><span>${s.name}</span><span class="occ cb"><i style="width:${(s.occ || 0) * 100}%"></i><em>${Math.round((s.occ || 0) * 100)}%</em></span></div>`; }).join('')}</div>` : ''}
-      <div class="wbar"><b style="width:${(w.score + 100) / 2}%"></b></div>
-      <div class="kv"><span>Potencia: ${fmtN(w.pa || 0, 1)} vs ${fmtN(w.pd || 0, 1)}</span><b class="${score >= 0 ? 'good' : 'bad'}">Puntuación ${sgn(score, 0)}</b></div>
-      <div class="btnrow"><button data-act="peace" data-id="${w.id}">🕊️ ${po.label}</button><button data-act="focus" data-id="${w.targets[0] ?? w.cTargets[0] ?? G.C[w.def].capital}">📍 Ver el frente</button></div></div>`;
-  }).join('') : '<p class="hint">Tu país está en paz. Declara una guerra desde Diplomacia → Potencias. Los frentes se dibujan sobre el mapa conforme avanzan las tropas.</p>'}</div>
-  <div class="card"><h3>Otras guerras en el mundo</h3>${G.wars.filter(w => !myWars.includes(w)).map(w => `<div class="kv"><span>${CBS[w.cb].icon} ${flag(w.att, 'sm')} ${G.C[w.att].name} → ${flag(w.def, 'sm')} ${G.C[w.def].name}</span><span><b>${sgn(w.score, 0)}</b> <button data-act="focus" data-id="${w.targets[0] ?? G.C[w.def].capital}">📍</button></span></div>`).join('') || '<p class="hint">No hay otras guerras.</p>'}</div></div></div>`;
+   <p class="hint">El límite de divisiones depende de los soldados de tu país. Las bajas en combate reducen la población campesina de los estados de origen.</p></div></div></div>`;
+  }
+  return head + body;
 }};
 
+/* --- Panel de ejército y órdenes --- */
+function selectArmy(id) {
+  UI.selArmy = id; renderArmyPanel(); R.labelsDirty = true;
+}
+function renderArmyPanel() {
+  const root = $('#armypanel'); if (!root) return;
+  const a = UI.selArmy ? armyById(UI.selArmy) : null;
+  if (!a) { UI.selArmy = null; root.classList.remove('open'); root.innerHTML = ''; return; }
+  const own = a.tag === G.player, s = G.S[a.loc];
+  const others = own ? armiesAt(a.loc).filter(o => o !== a && o.tag === a.tag && !o.battle) : [];
+  const cnt = {}; a.divs.forEach(d => cnt[d.t] = (cnt[d.t] || 0) + 1);
+  const b = a.battle ? G.battles.find(x => x.id === a.battle) : null;
+  root.classList.add('open');
+  root.innerHTML = `<div class="sp-head">${flag(a.tag, 'md')}<div><h2>${a.name}</h2><small>${G.C[a.tag].name} · ${s.name}</small></div><button class="x" data-act="armyclose">✕</button></div>
+  <div class="gen"><b>🎖️ ${a.gen.name}</b> <small>nivel ${a.gen.lvl}</small>
+    <div class="kv sm"><span>Ataque</span><span class="gs">${stars(a.gen.atk)}</span></div><div class="kv sm"><span>Defensa</span><span class="gs">${stars(a.gen.def)}</span></div><div class="kv sm"><span>Logística</span><span class="gs">${stars(a.gen.log)}</span></div></div>
+  <div class="kv"><span>Fuerza</span><b>${Math.round(armyStr(a) * 100)}%</b></div>${bar(armyStr(a), 1, '')}
+  <div class="kv"><span>Organización</span><b>${Math.round(armyOrg(a) * 100)}%</b></div>${bar(armyOrg(a), 1, 'warn')}
+  <div class="kv"><span>Hombres</span><b>${fmtN(armyMen(a), 0)}</b></div>
+  <div class="kv"><span>Composición</span><b>${Object.keys(cnt).map(k => DIVS[k].icon + ' ' + cnt[k]).join(' · ')}</b></div>
+  <div class="kv"><span>Orden</span><b>${a.battle ? '⚔ En combate' + (b ? ` (día ${b.day})` : '') : a.path.length ? `➜ ${G.S[a.dest != null ? a.dest : a.path[a.path.length - 1]].name} · ${armyEta(a)} d` : 'Esperando órdenes'}</b></div>
+  <div class="divl">${a.divs.map(d => `<div class="dv" data-tip="${DIVS[d.t].name}: fuerza ${Math.round(d.s * 100)}%, organización ${Math.round(d.o / DIVS[d.t].org * 100)}%">${DIVS[d.t].icon}<i style="height:${Math.round(d.s * 100)}%"></i><u style="height:${Math.round(d.o / DIVS[d.t].org * 100)}%"></u></div>`).join('')}</div>
+  ${own ? `<p class="hint">🖱️ <b>Clic derecho</b> en un estado para mover este ejército.</p>
+  <div class="btnrow"><button data-act="armystop" ${a.path.length ? '' : 'disabled'}>✋ Detener</button><button data-act="armycap" ${a.battle ? 'disabled' : ''}>★ A la capital</button><button data-act="armysplit" ${a.divs.length < 2 || a.battle ? 'disabled' : ''}>✂ Dividir</button><button data-act="armydisband" ${a.battle ? 'disabled' : ''}>✖ Disolver</button></div>
+  ${others.length ? `<div class="btnrow">${others.map(o => `<button data-act="armymerge" data-id="${o.id}" ${a.divs.length + o.divs.length > MAX_DIVS_ARMY ? 'disabled' : ''}>⛓ Fusionar con ${o.name} (${o.divs.length})</button>`).join('')}</div>` : ''}` : '<p class="hint">Ejército extranjero.</p>'}
+  <div class="btnrow"><button data-act="focus" data-id="${a.loc}">📍 Centrar</button></div>`;
+}
+window.onMapRightClick = (id) => {
+  const a = UI.selArmy ? armyById(UI.selArmy) : null;
+  if (!a || a.tag !== G.player || id < 0) return;
+  if (id === a.loc) { a.path = []; renderArmyPanel(); return; }
+  const r = orderMove(a, id);
+  if (!r.ok) { toast('⚠️', r.msg); return; }
+  toast('➜', `${a.name} marcha hacia ${G.S[id].name} (${r.eta} días).`);
+  renderArmyPanel(); R.labelsDirty = true;
+};
+document.addEventListener('contextmenu', e => {
+  const t = e.target.closest && e.target.closest('.atoken');
+  if (t) { e.preventDefault(); const a = armyById(+t.dataset.aid); if (a && window.onMapRightClick) window.onMapRightClick(a.loc); }
+});
 
 function crisisTab() {
   const c = me(), inc = Math.max(1, c.stats.income); const ratio = c.debt / inc;
@@ -4397,7 +4962,16 @@ const ACT = {
   load: () => doLoad(),
   cont: () => doLoad(true),
   pickc: d => selectStartCountry(d.tag),
-  filterc: () => {}
+  filterc: () => {},
+  selarmy: d => { selectArmy(+d.id); const a = armyById(+d.id); if (a) focusState(a.loc, 45); renderWindow(); },
+  seltoken: d => { selectArmy(+d.id); if (UI.win === 'military') renderWindow(); },
+  armyclose: () => selectArmy(null),
+  armystop: () => { const a = armyById(UI.selArmy); if (a) { a.path = []; a.dest = null; renderArmyPanel(); R.labelsDirty = true; } },
+  armycap: () => { const a = armyById(UI.selArmy); if (!a) return; const r = orderMove(a, me().capital); if (!r.ok) toast('⚠️', r.msg); else toast('➜', `${a.name} regresa a la capital (${r.eta} días).`); renderArmyPanel(); R.labelsDirty = true; },
+  armysplit: () => { const a = armyById(UI.selArmy); const n = a && splitArmy(a); if (n) { selectArmy(n.id); toast('✂', 'Ejército dividido.'); R.labelsDirty = true; } },
+  armymerge: d => { const a = armyById(UI.selArmy), o = armyById(+d.id); if (a && o && mergeArmies(a, o)) { toast('⛓', 'Ejércitos fusionados.'); renderArmyPanel(); R.labelsDirty = true; } },
+  armydisband: () => { const a = armyById(UI.selArmy); if (a && confirm('¿Disolver este ejército? Los soldados volverán a la población.')) { disbandArmy(a); selectArmy(null); renderWindow(); } },
+  recruit: d => { const r = recruit(me(), +d.id, d.t); toast(r.ok ? '🪖' : '⚠️', r.ok ? `Reclutando ${DIVS[d.t].name} en ${G.S[+d.id].name}.` : r.msg); renderWindow(); }
 };
 function refreshDiploMap() { if (R.mode === 'diplomacy' || R.mode === 'blocs') fullRepaint(); }
 
@@ -4555,7 +5129,7 @@ window.onFrame = function (t) {
       if (G.date.m !== m0 && G.date.m === 0) doSave(true);
       if (G.pendingEvent) break;
     }
-    if (n) R.labelsDirty = R.labelsDirty || false;
+    if (n) { R.labelsDirty = true; if (UI.selArmy) renderArmyPanel(); }
   }
   if (G.pendingEvent && !$('#event').classList.contains('open')) showEvent();
   if (R.needPaint) { R.needPaint = false; fullRepaint(); }
@@ -5154,17 +5728,17 @@ const MANUAL = [
 <li>Algunos países tienen reclamaciones históricas al inicio (por ejemplo Prusia sobre los estados alemanes y Cerdeña-Piamonte sobre los italianos).</li></ul>
 <h4>Restricciones</h4><p>No puedes atacar a aliados, a quien tenga un pacto de no agresión contigo, a miembros de tu bloque, a tu soberano o vasallos. Un vasallo no puede declarar guerras. Si atacas a un país garantizado, sus garantes intervendrán.</p>`},
 
-{id: 'war', title: '16. La guerra', html: `
+{id: 'war', title: '16. La guerra y los ejércitos', html: `
 <h4>Participantes</h4><p>Al declarar la guerra, los <b>aliados</b> y los miembros de bloques militares de cada bando son llamados (aceptan con una probabilidad según relaciones). Los <b>garantes</b> del defensor y sus <b>vasallos</b> también se suman. Se informa de quién entra.</p>
-<h4>Puntuación de guerra</h4><p>Cada semana se comparan las potencias militares de ambos bandos (soldados × tecnología × financiación, con un bonus del defensor y su <i>Defensa</i>; la <i>Logística</i> acelera al atacante). La <b>puntuación</b> va de −100 a +100 con algo de azar. Más de 0 favorece al atacante.</p>
-<h4>Frentes y ocupación</h4>
-<ul><li>Los territorios exigidos se ocupan <b>de uno en uno</b> conforme sube la puntuación y se dibujan sobre el mapa con una línea de frente móvil.</li>
-<li>El defensor tiene su <b>contraofensiva</b>: si la puntuación es negativa, ocupa estados fronterizos del atacante.</li>
-<li>Un estado ocupado produce y recauda mucho menos (hasta −60%).</li></ul>
+<h4>Divisiones y reclutamiento</h4><p>Un ejército se compone de <b>divisiones</b> de 8.000 hombres: <b>infantería</b> (barata, fuerte en defensa), <b>caballería</b> (rápida) y <b>artillería</b> (mucho ataque, lenta y frágil). Se reclutan en <b>Ejército y guerra → Reclutamiento</b> en estados con <b>Cuarteles</b>: cuestan dinero y 8.000 campesinos del estado, y tardan 14–25 días en instruirse. El máximo de divisiones depende de los soldados de tu país (soldados ÷ 8.000). Hasta 12 divisiones forman un ejército, al mando de un <b>general</b> aleatorio con Ataque, Defensa y Logística que gana experiencia.</p>
+<h4>Mover ejércitos</h4><p>Cada ejército aparece como una ficha con bandera y nº de divisiones. <b>Clic</b> en la ficha (o en la lista) para seleccionarlo y abrir su panel; después <b>clic derecho</b> sobre un estado para ordenar el movimiento: el ejército sigue una ruta por los estados vecinos (se dibuja punteada) y tarda según el terreno, la velocidad de sus divisiones y la logística. Puedes detenerlo, enviarlo a la capital, dividirlo, fusionarlo con otro del mismo estado o disolverlo (devuelve parte de los soldados). No se puede cruzar el territorio de países con pacto de no agresión, garantía o alianza, ni de vasallos o bloque.</p>
+<h4>Batallas</h4><p>Cuando dos ejércitos hostiles coinciden en un estado empieza una <b>batalla automática de varios días</b>. Cada día se compara fuerza, ataque o defensa, el <b>terreno</b> (bosque, montaña y pantano favorecen al defensor), el <b>general</b> y la suerte. Las divisiones pierden fuerza y organización; si se quedan sin organización <b>se retiran</b> al estado propio más cercano. Las bajas reducen la población campesina del país.</p>
+<h4>Ocupación y puntuación de guerra</h4><p>Un estado enemigo sin defensores y con tus tropas durante <b>10 días</b> queda <b>ocupado</b> (se dibuja con rayas y línea de frente, produce y recauda mucho menos). La <b>puntuación de guerra</b> (−100 a +100) se calcula con los estados ocupados por cada bando (más si son capitales u objetivos de la guerra) y las batallas ganadas. Ya no depende de una comparación abstracta de potencias: <b>hay que ganar la guerra sobre el terreno</b>.</p>
+<h4>IA militar</h4><p>Los países de la IA reclutan al entrar en guerra, defienden su capital y atacan el estado enemigo más débil de su frontera.</p>
 <h4>Desgaste</h4><p>Las guerras cuestan un 5% de los ingresos por semana, suben los radicales y desgastan a los soldados.</p>
 <h4>Paz</h4>
 <p>En <b>Ejército y guerra</b> pulsa el botón de paz. Si la puntuación te favorece más de 30 puntos <b>impones la paz</b> (consigues los objetivos del casus belli: territorios ocupados al ≥50%, o todos si vences de forma aplastante); si la desfavorece más de 30 la <b>pides</b> y cedes; en un empate puedes proponer <b>paz blanca</b>, que el rival puede rechazar. La IA cierra las guerras entre ellas cuando hay un claro vencedor.</p>
-<h4>Resultados</h4><ul><li>El ganador obtiene prestigio y los aliados un pequeño premio; el perdedor pierde prestigio y legitimidad.</li><li>Si el <b>defensor gana</b>, el atacante paga indemnización y el defensor puede anexionar los estados enemigos que hubiera ocupado.</li></ul>`},
+<h4>Resultados</h4><ul><li>El ganador obtiene prestigio y los aliados un pequeño premio; el perdedor pierde prestigio y legitimidad.</li><li>Si el <b>defensor gana</b>, el atacante paga indemnización y el defensor puede anexionar hasta tres estados enemigos que hubiera ocupado.</li></ul>`},
 
 {id: 'vassals', title: '17. Vasallos', html: `
 <p>Un <b>vasallo</b> te paga el 12% de sus ingresos semanales, sigue tu política exterior (se une a tus guerras) y no puede declarar guerras ni fundar bloques. Se consigue con el casus belli <i>Vasallaje</i>.</p>

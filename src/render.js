@@ -222,6 +222,10 @@ function setupControls() {
       const id = stateAtWorld(screenToWorld(e.clientX, e.clientY));
       if (window.onMapClick) window.onMapClick(id, e);
     }
+    if (drag && !drag.moved && drag.btn === 2 && e.type === 'pointerup') {
+      const id = stateAtWorld(screenToWorld(e.clientX, e.clientY));
+      if (window.onMapRightClick) window.onMapRightClick(id, e);
+    }
     if (pts.size === 0) { drag = null; document.body.classList.remove('dragging'); }
   };
   cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
@@ -404,15 +408,60 @@ function updateLabels() {
   updateMarkers();
 }
 
+function updateArmyTokens() {
+  if (!G.armies) return;
+  R.ak = R.ak || {};
+  const px = R.pxPerDeg || 10, zoomIn = px >= 16;
+  const sel = window.UI && UI.selArmy;
+  const wanted = new Map(), perState = {};
+  G.armies.forEach(a => {
+    const mine = a.tag === G.player, atWar = !mine && hostileTags(G.player, a.tag);
+    if (!(mine || a.battle || a.id === sel || atWar || zoomIn)) return;
+    (perState[a.loc] = perState[a.loc] || []).push(a);
+  });
+  for (const sid in perState) perState[sid].forEach((a, i) => wanted.set(a.id, [a, i, perState[sid].length]));
+  for (const k in R.ak) if (!wanted.has(+k)) { R.ak[k].remove(); delete R.ak[k]; }
+  const cw = R.canvas.clientWidth, ch = R.canvas.clientHeight;
+  wanted.forEach(([a, i, n]) => {
+    let el = R.ak[a.id];
+    if (!el) { el = document.createElement('div'); el.className = 'atoken'; el.dataset.aid = a.id; el.dataset.act = 'seltoken'; el.dataset.id = a.id; R.markerRoot.appendChild(el); R.ak[a.id] = el; }
+    const c = stateCenter(G.S[a.loc]); const p = worldToScreen(c[0], 0.5, -c[1]);
+    const off = (i - (n - 1) / 2) * 30;
+    const x = p[0] + off, y = p[1] + (a.tag === G.player ? 0 : 0);
+    if (x < -40 || x > cw + 40 || y < -40 || y > ch + 40) { el.style.display = 'none'; return; }
+    el.style.display = 'flex';
+    const key = G.player + a.tag + a.divs.length + (a.battle ? 'b' : '') + (a.id === sel ? 's' : '') + (a.path.length ? 'm' : '') + Math.round(armyStr(a) * 10);
+    if (el._k !== key) {
+      el._k = key; el.className = 'atoken' + (a.tag === G.player ? ' mine' : '') + (a.id === sel ? ' sel' : '') + (a.battle ? ' fight' : '') + (a.path.length ? ' moving' : '');
+      el.innerHTML = flag(a.tag, 'sm') + `<b>${a.divs.length}</b>` + `<i style="width:${Math.round(armyStr(a) * 100)}%"></i>` + (a.battle ? '<u>⚔</u>' : '');
+    }
+    el.style.transform = `translate(-50%,-50%) translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
+  });
+  drawOrders();
+}
+function drawOrders() {
+  let svg = R.ordSvg;
+  if (!svg) { svg = R.ordSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('class', 'orders'); R.markerRoot.insertBefore(svg, R.markerRoot.firstChild); }
+  const sel = window.UI && UI.selArmy; let h = '';
+  G.armies.forEach(a => {
+    if (!a.path.length || !(a.tag === G.player || a.id === sel)) return;
+    const pts = [a.loc].concat(a.path).map(sid => { const c = stateCenter(G.S[sid]); const p = worldToScreen(c[0], 0.5, -c[1]); return p[0].toFixed(1) + ',' + p[1].toFixed(1); });
+    const last = pts[pts.length - 1].split(',');
+    h += `<polyline points="${pts.join(' ')}" class="${a.id === sel ? 'sel' : ''}"/><circle cx="${last[0]}" cy="${last[1]}" r="5" class="${a.id === sel ? 'sel' : ''}"/>`;
+  });
+  svg.innerHTML = h;
+}
+
 function updateMarkers() {
   if (!R.markerRoot) return;
   const want = [];
-  G.wars.forEach(w => { const t = G.S[w.target]; if (t) want.push({id: 'w' + w.id, state: w.target, ch: '⚔️', cls: 'war'}); });
+  G.battles.forEach(b => { if (G.S[b.state]) want.push({id: 'bt' + b.id, state: b.state, ch: '⚔️', cls: 'war'}); });
   const me = G.C[G.player];
   if (me && me.capital >= 0) want.push({id: 'cap', state: me.capital, ch: '★', cls: 'cap'});
   if (me && me.colonizing) want.push({id: 'col', state: me.colonizing.state, ch: '⚓', cls: 'col'});
   R.mk = R.mk || {};
   const ids = new Set(want.map(w => w.id));
+  updateArmyTokens();
   for (const k in R.mk) if (!ids.has(k)) { R.mk[k].remove(); delete R.mk[k]; }
   want.forEach(w => {
     let el = R.mk[w.id]; if (!el) { el = document.createElement('div'); el.className = 'marker ' + w.cls; el.textContent = w.ch; R.markerRoot.appendChild(el); R.mk[w.id] = el; }

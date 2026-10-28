@@ -430,36 +430,104 @@ WINDOWS.diplomacy = {title: 'Diplomacia', icon: '🤝', render() {
 }};
 
 /* --- Ejército y guerra --- */
+const stars = n => '★'.repeat(n) + '<span class="dim">' + '★'.repeat(5 - n) + '</span>';
+function armyRowHtml(a) {
+  const s = G.S[a.loc], eta = armyEta(a);
+  const stat = a.battle ? '<span class="tag bad">⚔ En combate</span>' : a.path.length ? `<span class="tag">➜ ${G.S[a.dest != null ? a.dest : a.path[a.path.length - 1]].name} · ${eta} d</span>` : '<span class="tag good">En posición</span>';
+  return `<tr data-act="selarmy" data-id="${a.id}" class="${UI.selArmy === a.id ? 'sel' : ''}"><td><b>${a.name}</b><br><small class="dim">${a.gen.name} (nv. ${a.gen.lvl})</small></td><td>${s.name}</td><td class="r">${a.divs.length}</td><td class="r">${fmtN(armyMen(a) / 1000, 1)}</td><td class="r">${Math.round(armyStr(a) * 100)}%</td><td class="r">${Math.round(armyOrg(a) * 100)}%</td><td>${stat}</td></tr>`;
+}
 WINDOWS.military = {title: 'Ejército y guerra', icon: '⚔️', render() {
-  const c = me(), st = c.stats;
+  const c = me(), st = c.stats, tab = curTab('mil', 'armies');
   const myWars = G.wars.filter(w => w.attAll.includes(G.player) || w.defAll.includes(G.player));
-  const pw = armyPower(c);
+  const mine = armiesOf(G.player);
   let barr = 0; c.states.forEach(i => barr += G.S[i].b.barracks || 0);
+  const ndiv = countDivs(G.player), lim = divLimit(c);
   const sideHtml = (list, lead) => list.map(t => `${flag(t, 'sm')} ${G.C[t].name}${t === lead ? ' 👑' : ''}`).join(', ');
-  return `<div class="cols"><div class="col"><div class="card"><h3>Fuerzas armadas</h3>
-   <div class="kv"><span>Soldados</span><b>${fmtN(st.soldiers, 1)}</b></div>
+  const head = tabs('mil', [['armies', `Ejércitos (${mine.length})`], ['recruit', 'Reclutamiento'], ['wars', `Guerras${myWars.length ? ' (' + myWars.length + ')' : ''}`], ['stats', 'Fuerzas armadas']]);
+  let body = '';
+  if (tab === 'armies') {
+    body = `<div class="card"><h3>Tus ejércitos</h3>${mine.length ? `<table class="tbl clickable"><thead><tr><th>Ejército · general</th><th>Ubicación</th><th class="r">Div.</th><th class="r">Hombres (mil)</th><th class="r">Fuerza</th><th class="r">Organ.</th><th>Orden</th></tr></thead><tbody>${mine.map(armyRowHtml).join('')}</tbody></table>` : '<p class="hint">No tienes ejércitos. Recluta divisiones en la pestaña Reclutamiento (se necesitan Cuarteles).</p>'}
+     <p class="hint">Haz clic en una ficha del mapa o en una fila para seleccionar un ejército; después <b>clic derecho</b> sobre un estado vecino para ordenar el movimiento. Las divisiones recién reclutadas aparecen en el estado donde se entrenaron.</p></div>`;
+  } else if (tab === 'recruit') {
+    const states = c.states.filter(id => G.S[id].b.barracks >= 1).sort((a, b) => G.S[b].b.barracks - G.S[a].b.barracks);
+    const mine = G.recruits.filter(r => r.tag === G.player);
+    body = `<div class="cols"><div class="col wide"><div class="card"><h3>Reclutar divisiones</h3>
+      <div class="kv"><span>Divisiones (incl. en instrucción)</span><b class="${ndiv >= lim ? 'bad' : ''}">${ndiv} / ${lim}</b></div>
+      <p class="hint">Cada división moviliza ${fmtN(MEN_PER_DIV, 0)} soldados de la población campesina del estado y cuesta dinero. Se necesitan Cuarteles en el estado y capacidad militar suficiente.</p>
+      ${states.length ? `<table class="tbl"><thead><tr><th>Estado</th><th class="r">Cuarteles</th><th class="r">Campesinos</th>${Object.keys(DIVS).map(k => `<th class="r">${DIVS[k].icon} ${DIVS[k].name}<br><small>${money(recruitCost(c, k))} · ${DIVS[k].days} d</small></th>`).join('')}</tr></thead><tbody>${states.map(id => { const s = G.S[id]; return `<tr><td data-act="focus" data-id="${id}"><b>${s.name}</b></td><td class="r">${s.b.barracks}</td><td class="r">${fmtN(s.pops.peasants || 0, 1)}</td>${Object.keys(DIVS).map(k => { const e = canRecruit(c, id, k); return `<td class="r"><button data-act="recruit" data-id="${id}" data-t="${k}" ${e ? 'disabled' : ''} ${e ? `data-tip="${escA(e)}"` : ''}>＋ Reclutar</button></td>`; }).join('')}</tr>`; }).join('')}</tbody></table>` : '<p class="hint bad">No tienes Cuarteles. Constrúyelos en el panel de un estado → Edificios.</p>'}</div></div>
+      <div class="col"><div class="card"><h3>En instrucción</h3>${mine.length ? mine.map(r => `<div class="kv sm"><span>${DIVS[r.type].icon} ${DIVS[r.type].name} · ${G.S[r.state].name}</span><b>${r.days} d</b></div>`).join('') : '<p class="hint">Nada en instrucción.</p>'}</div>
+      <div class="card"><h3>Tipos de división</h3>${Object.keys(DIVS).map(k => `<div class="divt"><b>${DIVS[k].icon} ${DIVS[k].name}</b><small>${DIVS[k].desc}</small><small>Ataque ${DIVS[k].att} · Defensa ${DIVS[k].def} · Velocidad ${DIVS[k].spd} · Organización ${DIVS[k].org}</small></div>`).join('')}</div></div></div>`;
+  } else if (tab === 'wars') {
+    body = `<div class="cols"><div class="col wide"><div class="card"><h3>Guerras en curso</h3>${myWars.length ? myWars.map(w => {
+      const mineSide = w.attAll.includes(G.player); const score = mineSide ? w.score : -w.score; const po = peaceOptions(w, G.player);
+      const ec = (mineSide ? w.defAll : w.attAll).reduce((n, t) => n + armiesOf(t).length, 0), fc = (mineSide ? w.attAll : w.defAll).reduce((n, t) => n + armiesOf(t).length, 0);
+      const bws = w.bw || {att: 0, def: 0};
+      return `<div class="war"><div class="warh">${CBS[w.cb].icon} <b>${CBS[w.cb].name}</b> <small class="dim">· ${w.weeks} semanas</small></div>
+      <div class="sides"><div><small>Atacantes</small>${sideHtml(w.attAll, w.att)}</div><div><small>Defensores</small>${sideHtml(w.defAll, w.def)}</div></div>
+      ${w.targets.length ? `<div class="warst"><small>Territorios exigidos</small>${w.targets.map(sid => { const s = G.S[sid]; return `<div class="kv sm"><span>${s.name}</span><span class="occ"><i style="width:${(s.occ || 0) * 100}%"></i><em>${Math.round((s.occ || 0) * 100)}% ocupado</em></span></div>`; }).join('')}</div>` : ''}
+      ${w.cTargets.length ? `<div class="warst"><small>Contraofensiva del defensor</small>${w.cTargets.map(sid => { const s = G.S[sid]; return `<div class="kv sm"><span>${s.name}</span><span class="occ cb"><i style="width:${(s.occ || 0) * 100}%"></i><em>${Math.round((s.occ || 0) * 100)}%</em></span></div>`; }).join('')}</div>` : ''}
+      <div class="wbar"><b style="width:${(w.score + 100) / 2}%"></b></div>
+      <div class="kv"><span>Fuerza: ${fmtN(w.pa || 0, 0)} vs ${fmtN(w.pd || 0, 0)} · Batallas ganadas ${bws.att}–${bws.def}</span><b class="${score >= 0 ? 'good' : 'bad'}">Puntuación ${sgn(score, 0)}</b></div>
+      <div class="kv sm"><span>Ejércitos propios / enemigos</span><b>${fc} / ${ec}</b></div>
+      <div class="btnrow"><button data-act="peace" data-id="${w.id}">🕊️ ${po.label}</button><button data-act="focus" data-id="${w.targets[0] ?? w.cTargets[0] ?? G.C[w.def].capital}">📍 Ver el frente</button></div></div>`;
+    }).join('') : '<p class="hint">Tu país está en paz. Declara una guerra desde Diplomacia → Potencias. La puntuación de guerra depende ahora de los estados <b>ocupados</b> por tus ejércitos y de las batallas ganadas.</p>'}</div></div>
+    <div class="col"><div class="card"><h3>Batallas en curso</h3>${G.battles.length ? G.battles.slice(0, 14).map(b => { const ta = (armyById(b.A[0]) || {}).tag, tb = (armyById(b.B[0]) || {}).tag; return ta && tb ? `<div class="kv sm clk" data-act="focus" data-id="${b.state}"><span>${flag(ta, 'sm')} vs ${flag(tb, 'sm')} ${G.S[b.state].name}</span><b>día ${b.day}</b></div>` : ''; }).join('') : '<p class="hint">No hay batallas.</p>'}</div>
+    <div class="card"><h3>Otras guerras</h3>${G.wars.filter(w => !myWars.includes(w)).map(w => `<div class="kv"><span>${CBS[w.cb].icon} ${flag(w.att, 'sm')} ${G.C[w.att].name} → ${flag(w.def, 'sm')} ${G.C[w.def].name}</span><span><b>${sgn(w.score, 0)}</b> <button data-act="focus" data-id="${w.targets[0] ?? G.C[w.def].capital}">📍</button></span></div>`).join('') || '<p class="hint">No hay otras guerras.</p>'}</div></div></div>`;
+  } else {
+    body = `<div class="cols"><div class="col"><div class="card"><h3>Fuerzas armadas</h3>
+   <div class="kv"><span>Soldados movilizables</span><b>${fmtN(st.soldiers, 1)}</b></div>
    <div class="kv"><span>Niveles de cuarteles</span><b>${Math.round(barr)}</b></div>
-   <div class="kv"><span>Potencia militar</span><b>${fmtN(pw, 1)}</b></div>
+   <div class="kv"><span>Divisiones / máximo</span><b>${ndiv} / ${lim}</b></div>
    <div class="kv"><span>Modelo de ejército</span><b>${LAW[c.laws.army].name}</b></div>
    <div class="kv"><span>Bonificación de ejército</span><b>${sgn(c.mods.army * 100, 0)}%</b></div>
    <div class="kv"><span>Defensa · Logística</span><b>${sgn(c.mods.defense * 100, 0)}% · ${sgn(c.mods.logistics * 100, 0)}%</b></div>
    <div class="kv"><span>Coste militar</span><b>${sgn(c.mods.milCost * 100, 0)}%</b></div>
    <div class="kv"><span>Infamia</span><b class="${c.infamy > 30 ? 'bad' : ''}">${Math.round(c.infamy)}</b></div>
-   <p class="hint">Construye <b>Cuarteles</b> para reclutar más soldados. En guerra, el esfuerzo bélico cuesta un 5% de tus ingresos por semana.</p>
-  </div></div>
-  <div class="col wide"><div class="card"><h3>Guerras en curso</h3>${myWars.length ? myWars.map(w => {
-    const A = G.C[w.att], D = G.C[w.def]; const mine = w.attAll.includes(G.player); const score = mine ? w.score : -w.score; const po = peaceOptions(w, G.player);
-    return `<div class="war"><div class="warh">${CBS[w.cb].icon} <b>${CBS[w.cb].name}</b> <small class="dim">· ${w.weeks} semanas</small></div>
-      <div class="sides"><div><small>Atacantes</small>${sideHtml(w.attAll, w.att)}</div><div><small>Defensores</small>${sideHtml(w.defAll, w.def)}</div></div>
-      ${w.targets.length ? `<div class="warst"><small>Territorios exigidos</small>${w.targets.map(sid => { const s = G.S[sid]; return `<div class="kv sm"><span>${s.name}</span><span class="occ"><i style="width:${(s.occ || 0) * 100}%"></i><em>${Math.round((s.occ || 0) * 100)}% ocupado</em></span></div>`; }).join('')}</div>` : ''}
-      ${w.cTargets.length ? `<div class="warst"><small>Contraofensiva del defensor</small>${w.cTargets.map(sid => { const s = G.S[sid]; return `<div class="kv sm"><span>${s.name}</span><span class="occ cb"><i style="width:${(s.occ || 0) * 100}%"></i><em>${Math.round((s.occ || 0) * 100)}%</em></span></div>`; }).join('')}</div>` : ''}
-      <div class="wbar"><b style="width:${(w.score + 100) / 2}%"></b></div>
-      <div class="kv"><span>Potencia: ${fmtN(w.pa || 0, 1)} vs ${fmtN(w.pd || 0, 1)}</span><b class="${score >= 0 ? 'good' : 'bad'}">Puntuación ${sgn(score, 0)}</b></div>
-      <div class="btnrow"><button data-act="peace" data-id="${w.id}">🕊️ ${po.label}</button><button data-act="focus" data-id="${w.targets[0] ?? w.cTargets[0] ?? G.C[w.def].capital}">📍 Ver el frente</button></div></div>`;
-  }).join('') : '<p class="hint">Tu país está en paz. Declara una guerra desde Diplomacia → Potencias. Los frentes se dibujan sobre el mapa conforme avanzan las tropas.</p>'}</div>
-  <div class="card"><h3>Otras guerras en el mundo</h3>${G.wars.filter(w => !myWars.includes(w)).map(w => `<div class="kv"><span>${CBS[w.cb].icon} ${flag(w.att, 'sm')} ${G.C[w.att].name} → ${flag(w.def, 'sm')} ${G.C[w.def].name}</span><span><b>${sgn(w.score, 0)}</b> <button data-act="focus" data-id="${w.targets[0] ?? G.C[w.def].capital}">📍</button></span></div>`).join('') || '<p class="hint">No hay otras guerras.</p>'}</div></div></div>`;
+   <p class="hint">El límite de divisiones depende de los soldados de tu país. Las bajas en combate reducen la población campesina de los estados de origen.</p></div></div></div>`;
+  }
+  return head + body;
 }};
 
+/* --- Panel de ejército y órdenes --- */
+function selectArmy(id) {
+  UI.selArmy = id; renderArmyPanel(); R.labelsDirty = true;
+}
+function renderArmyPanel() {
+  const root = $('#armypanel'); if (!root) return;
+  const a = UI.selArmy ? armyById(UI.selArmy) : null;
+  if (!a) { UI.selArmy = null; root.classList.remove('open'); root.innerHTML = ''; return; }
+  const own = a.tag === G.player, s = G.S[a.loc];
+  const others = own ? armiesAt(a.loc).filter(o => o !== a && o.tag === a.tag && !o.battle) : [];
+  const cnt = {}; a.divs.forEach(d => cnt[d.t] = (cnt[d.t] || 0) + 1);
+  const b = a.battle ? G.battles.find(x => x.id === a.battle) : null;
+  root.classList.add('open');
+  root.innerHTML = `<div class="sp-head">${flag(a.tag, 'md')}<div><h2>${a.name}</h2><small>${G.C[a.tag].name} · ${s.name}</small></div><button class="x" data-act="armyclose">✕</button></div>
+  <div class="gen"><b>🎖️ ${a.gen.name}</b> <small>nivel ${a.gen.lvl}</small>
+    <div class="kv sm"><span>Ataque</span><span class="gs">${stars(a.gen.atk)}</span></div><div class="kv sm"><span>Defensa</span><span class="gs">${stars(a.gen.def)}</span></div><div class="kv sm"><span>Logística</span><span class="gs">${stars(a.gen.log)}</span></div></div>
+  <div class="kv"><span>Fuerza</span><b>${Math.round(armyStr(a) * 100)}%</b></div>${bar(armyStr(a), 1, '')}
+  <div class="kv"><span>Organización</span><b>${Math.round(armyOrg(a) * 100)}%</b></div>${bar(armyOrg(a), 1, 'warn')}
+  <div class="kv"><span>Hombres</span><b>${fmtN(armyMen(a), 0)}</b></div>
+  <div class="kv"><span>Composición</span><b>${Object.keys(cnt).map(k => DIVS[k].icon + ' ' + cnt[k]).join(' · ')}</b></div>
+  <div class="kv"><span>Orden</span><b>${a.battle ? '⚔ En combate' + (b ? ` (día ${b.day})` : '') : a.path.length ? `➜ ${G.S[a.dest != null ? a.dest : a.path[a.path.length - 1]].name} · ${armyEta(a)} d` : 'Esperando órdenes'}</b></div>
+  <div class="divl">${a.divs.map(d => `<div class="dv" data-tip="${DIVS[d.t].name}: fuerza ${Math.round(d.s * 100)}%, organización ${Math.round(d.o / DIVS[d.t].org * 100)}%">${DIVS[d.t].icon}<i style="height:${Math.round(d.s * 100)}%"></i><u style="height:${Math.round(d.o / DIVS[d.t].org * 100)}%"></u></div>`).join('')}</div>
+  ${own ? `<p class="hint">🖱️ <b>Clic derecho</b> en un estado para mover este ejército.</p>
+  <div class="btnrow"><button data-act="armystop" ${a.path.length ? '' : 'disabled'}>✋ Detener</button><button data-act="armycap" ${a.battle ? 'disabled' : ''}>★ A la capital</button><button data-act="armysplit" ${a.divs.length < 2 || a.battle ? 'disabled' : ''}>✂ Dividir</button><button data-act="armydisband" ${a.battle ? 'disabled' : ''}>✖ Disolver</button></div>
+  ${others.length ? `<div class="btnrow">${others.map(o => `<button data-act="armymerge" data-id="${o.id}" ${a.divs.length + o.divs.length > MAX_DIVS_ARMY ? 'disabled' : ''}>⛓ Fusionar con ${o.name} (${o.divs.length})</button>`).join('')}</div>` : ''}` : '<p class="hint">Ejército extranjero.</p>'}
+  <div class="btnrow"><button data-act="focus" data-id="${a.loc}">📍 Centrar</button></div>`;
+}
+window.onMapRightClick = (id) => {
+  const a = UI.selArmy ? armyById(UI.selArmy) : null;
+  if (!a || a.tag !== G.player || id < 0) return;
+  if (id === a.loc) { a.path = []; renderArmyPanel(); return; }
+  const r = orderMove(a, id);
+  if (!r.ok) { toast('⚠️', r.msg); return; }
+  toast('➜', `${a.name} marcha hacia ${G.S[id].name} (${r.eta} días).`);
+  renderArmyPanel(); R.labelsDirty = true;
+};
+document.addEventListener('contextmenu', e => {
+  const t = e.target.closest && e.target.closest('.atoken');
+  if (t) { e.preventDefault(); const a = armyById(+t.dataset.aid); if (a && window.onMapRightClick) window.onMapRightClick(a.loc); }
+});
 
 function crisisTab() {
   const c = me(), inc = Math.max(1, c.stats.income); const ratio = c.debt / inc;
@@ -710,7 +778,16 @@ const ACT = {
   load: () => doLoad(),
   cont: () => doLoad(true),
   pickc: d => selectStartCountry(d.tag),
-  filterc: () => {}
+  filterc: () => {},
+  selarmy: d => { selectArmy(+d.id); const a = armyById(+d.id); if (a) focusState(a.loc, 45); renderWindow(); },
+  seltoken: d => { selectArmy(+d.id); if (UI.win === 'military') renderWindow(); },
+  armyclose: () => selectArmy(null),
+  armystop: () => { const a = armyById(UI.selArmy); if (a) { a.path = []; a.dest = null; renderArmyPanel(); R.labelsDirty = true; } },
+  armycap: () => { const a = armyById(UI.selArmy); if (!a) return; const r = orderMove(a, me().capital); if (!r.ok) toast('⚠️', r.msg); else toast('➜', `${a.name} regresa a la capital (${r.eta} días).`); renderArmyPanel(); R.labelsDirty = true; },
+  armysplit: () => { const a = armyById(UI.selArmy); const n = a && splitArmy(a); if (n) { selectArmy(n.id); toast('✂', 'Ejército dividido.'); R.labelsDirty = true; } },
+  armymerge: d => { const a = armyById(UI.selArmy), o = armyById(+d.id); if (a && o && mergeArmies(a, o)) { toast('⛓', 'Ejércitos fusionados.'); renderArmyPanel(); R.labelsDirty = true; } },
+  armydisband: () => { const a = armyById(UI.selArmy); if (a && confirm('¿Disolver este ejército? Los soldados volverán a la población.')) { disbandArmy(a); selectArmy(null); renderWindow(); } },
+  recruit: d => { const r = recruit(me(), +d.id, d.t); toast(r.ok ? '🪖' : '⚠️', r.ok ? `Reclutando ${DIVS[d.t].name} en ${G.S[+d.id].name}.` : r.msg); renderWindow(); }
 };
 function refreshDiploMap() { if (R.mode === 'diplomacy' || R.mode === 'blocs') fullRepaint(); }
 
@@ -868,7 +945,7 @@ window.onFrame = function (t) {
       if (G.date.m !== m0 && G.date.m === 0) doSave(true);
       if (G.pendingEvent) break;
     }
-    if (n) R.labelsDirty = R.labelsDirty || false;
+    if (n) { R.labelsDirty = true; if (UI.selArmy) renderArmyPanel(); }
   }
   if (G.pendingEvent && !$('#event').classList.contains('open')) showEvent();
   if (R.needPaint) { R.needPaint = false; fullRepaint(); }

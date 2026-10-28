@@ -56,7 +56,7 @@ Abre **`index.html`** en un navegador moderno (Chrome, Edge o Firefox con WebGL)
   legitimidad, radicales y leales, reformas por votación.
 * **Tecnología**: 23 tecnologías en tres ramas que desbloquean edificios, leyes y bonificaciones.
 * **Estado**: presupuesto, impuestos, deuda, burocracia, ejército, prestigio, rango, objetivos del diario, eventos con decisiones.
-* **Mundo**: ~70 países con IA (impuestos, construcción, reformas, colonización, guerras), diplomacia y guerras con puntuación.
+* **Mundo**: ~70 países con IA (impuestos, construcción, reformas, colonización, guerras), diplomacia y guerras con ejércitos reales (divisiones, batallas, ocupación).
 
 ## Estructura del proyecto
 
@@ -66,7 +66,8 @@ src/data.js     bienes, edificios, profesiones, grupos de interés, leyes, tecno
 src/mapgen.js   relieve, biomas, asignación de estados (Dijkstra), bordes y rango de frente
 src/sim.js      simulación económica por etapas, política, IA, tecnología, guardado
 src/crisis.js   crisis económicas, patrocinio de grupos, cambios de gobierno
-src/diplo.js    pactos, bloques, casus belli, vasallos, guerras y frentes, IA diplomática
+src/diplo.js    pactos, bloques, casus belli, vasallos, guerras, IA diplomática
+src/military.js divisiones, ejércitos, movimiento, batallas, ocupación, IA militar
 src/manual.js   manual del juego
 src/render.js   escena three.js, cámara, pintado del mapa, etiquetas y minimapa
 src/ui.js       HUD, ventanas, panel de estado, pantalla de inicio
@@ -75,7 +76,7 @@ vendor/three.min.js   three.js r152
 build.py        genera index.html a partir de src/ y vendor/
 ```
 
-Para regenerar el archivo tras editar el código: `python3 build.py`.
+Para regenerar el archivo tras editar el código: `python3 build.py` (genera `index.html`, autónomo) o `python3 build.py --light` (genera `juego-ligero.html`, ~0,4 MB, carga three.js desde un CDN y necesita Internet).
 
 ## Limitaciones conocidas
 

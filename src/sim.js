@@ -63,6 +63,7 @@ function createWorld(playerTag) {
   G.date = {y: START_YEAR, m: 0, d: 1, t: 0};
   G.player = playerTag; G.paused = true; G.speed = 2; G.week = 0; G.notifs = []; G.pendingEvent = null;
   G.log = []; G.wars = []; G.nextWarId = 1; G.eventCool = {};
+  G.armies = []; G.battles = []; G.recruits = []; G.nextArmyId = 1; G.nextBattleId = 1; G.hostile = new Set();
   G.crises = []; G.diff = G.diff || 2; G.pacts = []; G.blocs = []; G.proposals = []; G.nextId = 1; G.pt = {}; G.fx = {}; G.cycle = 0;
   G.C = {};
   Object.keys(COUNTRY_DATA).forEach(t => G.C[t] = mkCountry(t));
@@ -87,7 +88,7 @@ function initGame(playerTag) {
   G.tags.forEach(t => { const c = G.C[t]; c.techs = new Set(); c.research = null; c.innovStock = 0; recalcMods(c); c.treasury = t === NONE ? 0 : Math.round(c.stats.income * (6 + (COUNTRY_DATA[t] ? COUNTRY_DATA[t][9] / 300000 : 1) * 1.5)); c.startPop = Math.max(1, c.stats.pop); c.hist = {gdp: [], pop: [], treasury: [], sol: [], prestige: []}; });
   updateRanks();
   G.tags.forEach(t => { const c = G.C[t]; c.prestige = Math.round(10 + (c.power ? Math.sqrt(c.power) * 3 : 0)); c.start = {ind: c.stats.indLevels, lit: c.lit, soldiers: c.stats.soldiers, prestige: c.prestige, rank: c.rank}; });
-  assignTraits(); initClaims(); seedDiplomacy(); G.notifs.length = 0; G.log.length = 0; G.week = 0;
+  assignTraits(); initClaims(); seedDiplomacy(); initArmies(); G.notifs.length = 0; G.log.length = 0; G.week = 0;
   logMsg('Comienza la partida en enero de ' + START_YEAR + '.');
 }
 
@@ -195,13 +196,14 @@ function saveData() {
   const S = G.S.map(s => { const o = {}; SK.forEach(k => o[k] = s[k]); return o; });
   const C = {};
   G.tags.forEach(t => { const c = G.C[t]; C[t] = JSON.parse(JSON.stringify(c, (k, v) => v instanceof Set ? {__set: [...v]} : v)); });
-  return JSON.stringify({v: 1, date: G.date, player: G.player, week: G.week, S, C, price: G.price, avail: G.avail, prod: G.prod, dem: G.dem, ratio: G.ratio, stock: G.stock, hist: G.hist, wars: G.wars, nextWarId: G.nextWarId, log: G.log.slice(0, 80), eventCool: G.eventCool, pacts: G.pacts, blocs: G.blocs, proposals: G.proposals, crises: G.crises, diff: G.diff, nextId: G.nextId, pt: G.pt, afterPanic: G.afterPanic, potato: G.potato});
+  return JSON.stringify({v: 1, date: G.date, player: G.player, week: G.week, S, C, price: G.price, avail: G.avail, prod: G.prod, dem: G.dem, ratio: G.ratio, stock: G.stock, hist: G.hist, wars: G.wars, nextWarId: G.nextWarId, log: G.log.slice(0, 80), eventCool: G.eventCool, armies: G.armies, battles: G.battles, recruits: G.recruits, nextArmyId: G.nextArmyId, nextBattleId: G.nextBattleId, pacts: G.pacts, blocs: G.blocs, proposals: G.proposals, crises: G.crises, diff: G.diff, nextId: G.nextId, pt: G.pt, afterPanic: G.afterPanic, potato: G.potato});
 }
 function loadData(text) {
   const d = JSON.parse(text, (k, v) => v && v.__set ? new Set(v.__set) : v);
   createWorld(d.player);
   d.S.forEach((o, i) => Object.assign(G.S[i], o));
   G.tags.forEach(t => { if (d.C[t]) Object.assign(G.C[t], d.C[t]); });
+  G.armies = d.armies || []; G.battles = d.battles || []; G.recruits = d.recruits || []; G.nextArmyId = d.nextArmyId || 1000; G.nextBattleId = d.nextBattleId || 1000; G.hostile = new Set();
   G.pacts = d.pacts || []; G.blocs = d.blocs || []; G.proposals = d.proposals || []; G.crises = d.crises || []; G.diff = d.diff || 2; G.nextId = d.nextId || 1000; G.pt = d.pt || {}; G.afterPanic = d.afterPanic; G.potato = d.potato;
   G.date = d.date; G.week = d.week; G.wars = d.wars; G.nextWarId = d.nextWarId; G.log = d.log; G.eventCool = d.eventCool || {};
   Object.assign(G.price, d.price); Object.assign(G.avail, d.avail); Object.assign(G.prod, d.prod); Object.assign(G.dem, d.dem); Object.assign(G.ratio, d.ratio); Object.assign(G.stock, d.stock);
@@ -210,6 +212,7 @@ function loadData(text) {
   G.tags.forEach(t => { G.C[t].ai = t !== d.player; G.C[t].states = []; });
   G.S.forEach(s => G.C[s.owner].states.push(s.id));
   refreshOwnerOf();
+  if (!d.armies) initArmies();
   G.paused = true;
   return d;
 }
@@ -222,6 +225,8 @@ function advanceDay() {
   let monthly = false;
   if (d.d > dim) { d.d = 1; d.m++; monthly = true; if (d.m > 11) { d.m = 0; d.y++; } }
   econDay();
+  militaryDay();
+  if (d.t % 2 === 0) aiMilitary();
   if (monthly) monthlyTick();
   dailyEvents();
 }

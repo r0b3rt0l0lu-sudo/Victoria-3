@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Compila src/ en un único index.html (three.js incrustado)."""
-import os, re
+import os, re, sys
+light = '--light' in sys.argv
 root = os.path.dirname(os.path.abspath(__file__))
 def rd(p): return open(os.path.join(root, p), encoding='utf-8').read()
 three = rd('vendor/three.min.js')
 css = rd('src/style.css')
-order = ['geo.js', 'data.js', 'mapgen.js', 'sim.js', 'crisis.js', 'diplo.js', 'render.js', 'ui.js', 'content.js', 'manual.js', 'main.js']
+order = ['geo.js', 'data.js', 'mapgen.js', 'sim.js', 'crisis.js', 'diplo.js', 'military.js', 'render.js', 'ui.js', 'content.js', 'manual.js', 'main.js']
 js = '\n'.join(rd('src/' + f) for f in order)
 html = f'''<!DOCTYPE html>
 <html lang="es">
@@ -20,6 +21,7 @@ html = f'''<!DOCTYPE html>
 <div id="labels"></div><div id="markers"></div>
 <div id="hud"></div>
 <div id="statepanel"></div>
+<div id="armypanel"></div>
 <div id="windows"></div>
 <div id="toasts"></div>
 <div id="event"></div>
@@ -28,12 +30,13 @@ html = f'''<!DOCTYPE html>
 <div id="search"></div>
 <div id="start"></div>
 <div id="loading"><h1>VICTORIA</h1><div class="lb"><i></i></div><p id="loadtxt">Cargando…</p></div>
-<script>{three.replace("</script>", "<\\/script>")}</script>
+{'<script src="https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.min.js"></script>' if light else "<script>" + three.replace("</script>", "<\\/script>") + "</script>"}
 <script>
 {js.replace("</script>", "<\\/script>")}
 </script>
 </body>
 </html>
 '''
-open(os.path.join(root, 'index.html'), 'w', encoding='utf-8').write(html)
-print('index.html', len(html) // 1024, 'KB')
+out = 'juego-ligero.html' if light else 'index.html'
+open(os.path.join(root, out), 'w', encoding='utf-8').write(html)
+print(out, len(html) // 1024, 'KB')

@@ -145,6 +145,8 @@ function declareWar(attTag, defTag, cbId, targets, opts) {
   addRel(attTag, defTag, -100);
   recruitSides(w);
   prepareFronts(w);
+  recalcHostile();
+  [w.att, w.def].concat(w.attAll, w.defAll).forEach(t => { if (G.C[t].ai) { for (let k = 0; k < 2; k++) aiRecruitCountry(t); } });
   const base = `¡${A.name} declara la guerra a ${D.name}! (${cb.name})`;
   notify('war', base, targets[0] ?? G.C[defTag].capital);
   return {ok: true, war: w};
@@ -188,48 +190,31 @@ function setOcc(sid, frac, by, changed) {
   const f = Math.round(frac * 100) / 100;
   if ((s.occ || 0) !== f || s.occBy !== by) { s.occ = f; s.occBy = f > 0 ? by : null; changed.add(sid); }
 }
-function updateOccupation(w, changed) {
-  const n = w.targets.length || 1, p = Math.max(0, w.score) / 100;
-  w.targets.forEach((sid, i) => setOcc(sid, clamp(p * n - i, 0, 1), w.att, changed));
-  const m = w.cTargets.length || 1, q = Math.max(0, -w.score) / 100;
-  w.cTargets.forEach((sid, i) => setOcc(sid, clamp(q * m - i, 0, 1), w.def, changed));
-}
-function clearOccupation(w) {
-  const ch = new Set();
-  w.targets.concat(w.cTargets).forEach(sid => setOcc(sid, 0, null, ch));
-  if (typeof onFrontChanged === 'function') onFrontChanged(ch);
-}
+function clearOccupation(w) { clearOccupationKeep(w); }
 function sidePower(list, def) {
   let p = 0, lg = 0, df = 0;
   list.forEach(t => { const c = G.C[t]; p += armyPower(c); lg += c.mods.logistics; df += c.mods.defense; });
   const n = Math.max(1, list.length);
   return {p, lg: lg / n, df: df / n};
 }
-// Avance semanal de todas las guerras
+// Avance semanal de las guerras: la puntuación sale de los ejércitos reales (ocupación y batallas)
 function warWeek() {
-  const changed = new Set();
   for (let i = G.wars.length - 1; i >= 0; i--) {
     const w = G.wars[i];
-    const A = sidePower(w.attAll), D = sidePower(w.defAll);
-    const pa = A.p * (1 + A.lg * 0.5), pd = D.p * 1.1 * (1 + D.df);
-    w.pa = Math.round(pa); w.pd = Math.round(pd);
-    const diff = (pa - pd) / Math.max(1, pa + pd);
-    w.score = clamp(w.score + diff * 4.4 + rnd(-1.4, 1.4), -100, 100);
+    w.pa = sideStrength(w.attAll); w.pd = sideStrength(w.defAll);
+    w.score = computeWarScore(w);
     w.weeks++;
-    // desgaste: bajas y cansancio de guerra
     w.attAll.concat(w.defAll).forEach(t => { const c = G.C[t]; c.radicals = Math.min(0.9, c.radicals + 0.0012); });
-    w.defAll.concat(w.attAll).forEach(t => { const c = G.C[t]; const s = G.S[c.states[0]]; if (s && s.pops.soldiers) s.pops.soldiers *= 0.9994; });
-    updateOccupation(w, changed);
     const humans = [w.att, w.def].some(t => !G.C[t].ai);
     const dead = !alive(w.att) || !alive(w.def);
     if (dead) { endWar(w, alive(w.att) ? w.att : w.def); continue; }
     if (Math.abs(w.score) >= 100 && !humans) endWar(w, w.score > 0 ? w.att : w.def);
-    else if (Math.abs(w.score) >= 100 && humans) { /* los humanos deciden la paz */ }
-    else if (!humans && w.weeks > 30 && Math.abs(w.score) > 55) endWar(w, w.score > 0 ? w.att : w.def);
-    else if (!humans && w.weeks > 90) endWar(w, null);
-    else if (humans && w.weeks > 120 && Math.abs(w.score) < 25) endWar(w, null);
+    else if (!humans && w.weeks > 30 && Math.abs(w.score) > 45) endWar(w, w.score > 0 ? w.att : w.def);
+    else if (!humans && w.weeks > 70 && Math.abs(w.score) < 25) endWar(w, null);
+    else if (!humans && w.weeks > 110) endWar(w, null);
+    else if (humans && w.weeks > 150 && Math.abs(w.score) < 25) endWar(w, null);
   }
-  if (changed.size && typeof onFrontChanged === 'function') onFrontChanged(changed);
+  aiRecruitWeek();
 }
 
 /* ---------- paz y resultado ---------- */
@@ -283,15 +268,16 @@ function endWar(w, winner) {
     const ind = Math.min(Math.max(0, A.treasury), A.stats.income * 4); A.treasury -= ind; D.treasury += ind;
     D.prestige += 8; A.prestige = Math.max(0, A.prestige - 10); A.legitimacy -= 5;
     const regained = [];
-    w.cTargets.forEach(sid => { const s = G.S[sid]; if (s && s.owner === w.att && ((s.occ || 0) >= 0.5 || w.score <= -70)) { transferState(s, w.def); regained.push(s.name); } });
+    G.S.filter(s => s.owner === w.att && (s.occ || 0) >= 0.5 && w.defAll.includes(s.occBy)).sort((x, y) => y.popBase - x.popBase).slice(0, 3).forEach(s => { transferState(s, w.def); regained.push(s.name); });
     notify('war', `${D.name} ha repelido la invasión de ${A.name}${regained.length ? ' y se anexiona ' + regained.join(', ') : ''}.`, w.cTargets[0] ?? w.targets[0]);
     addRel(w.att, w.def, 10); cnt(D, 'defended'); cnt(D, 'warsWon'); cnt(D, 'statesGained', regained.length);
   }
   G.tags.forEach(t => { if (t !== NONE) G.C[t].legitimacy = clamp(G.C[t].legitimacy, 0, 100); });
+  recalcHostile(); evacuateForeignArmies();
 }
 function clearOccupationKeep(w) {
   const ch = new Set();
-  w.targets.concat(w.cTargets).forEach(sid => { const s = G.S[sid]; if (s && (s.occ || 0) > 0) setOcc(sid, 0, null, ch); });
+  G.S.forEach(s => { if ((s.occ || 0) > 0 && s.occBy && ((w.attAll.includes(s.occBy) && w.defAll.includes(s.owner)) || (w.defAll.includes(s.occBy) && w.attAll.includes(s.owner)))) { s.occ = 0; s.occBy = null; s._occNotified = false; ch.add(s.id); } });
   if (ch.size && typeof onFrontChanged === 'function') onFrontChanged(ch);
 }
 

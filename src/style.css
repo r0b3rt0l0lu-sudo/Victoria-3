@@ -253,3 +253,26 @@ button.primary:disabled{background:linear-gradient(#6a6248,#4a4430);color:#9a947
 .ach.pre{opacity:.45}
 
 body.starting #labels{opacity:.18}
+
+/* ===== ejércitos ===== */
+.atoken{position:absolute;left:0;top:0;display:flex;align-items:center;gap:3px;padding:2px 5px 4px 2px;background:rgba(18,24,30,.92);border:1px solid #6b5a2f;border-radius:4px;pointer-events:auto;cursor:pointer;will-change:transform;box-shadow:0 2px 5px rgba(0,0,0,.7);font-size:12px;color:#f3e7c0;overflow:hidden}
+.atoken.mine{border-color:var(--gold)}
+.atoken.sel{border-color:#fff;box-shadow:0 0 0 2px var(--gold),0 2px 8px #000;z-index:5}
+.atoken.fight{border-color:#e0553c;animation:pulse 1s infinite}
+.atoken.moving::before{content:"➜";font-size:10px;color:#9fd37a;margin-right:-1px}
+.atoken b{min-width:12px;text-align:center}
+.atoken i{position:absolute;left:0;bottom:0;height:3px;background:#79c35a}
+.atoken u{text-decoration:none;color:#ff8d73}
+svg.orders{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+svg.orders polyline{fill:none;stroke:rgba(159,211,122,.75);stroke-width:2;stroke-dasharray:6 4}
+svg.orders polyline.sel{stroke:#fff;stroke-width:2.5}
+svg.orders circle{fill:#9fd37a;stroke:#000}svg.orders circle.sel{fill:#fff}
+#armypanel{position:fixed;right:10px;bottom:150px;width:310px;max-height:calc(100vh - 330px);overflow-y:auto;background:linear-gradient(180deg,rgba(36,46,55,.97),rgba(22,29,36,.97));border:1px solid var(--goldd);border-radius:8px;box-shadow:0 4px 18px rgba(0,0,0,.65);display:none;padding:12px;z-index:30}
+#armypanel.open{display:block}
+#armypanel .gen{background:rgba(255,255,255,.05);border-radius:5px;padding:6px 8px;margin-bottom:8px}
+#armypanel .gs{color:var(--gold2);letter-spacing:1px}
+.divl{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}
+.dv{position:relative;width:34px;height:34px;border:1px solid var(--goldd);border-radius:4px;background:#161d23;display:flex;align-items:center;justify-content:center;font-size:16px;overflow:hidden}
+.dv i{position:absolute;left:0;bottom:0;width:4px;background:#79c35a}.dv u{position:absolute;right:0;bottom:0;width:4px;background:#e0b04a}
+.divt{margin-bottom:8px}.divt small{display:block;color:var(--dim)}
+tr.sel td{background:rgba(201,166,87,.18)}

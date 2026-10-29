@@ -69,6 +69,7 @@ function renderArmyPanel() {
   <div class="kv"><span>Orden</span><b>${armyOrderText(a)}</b></div>
   <div class="divl">${a.divs.map(d => `<div class="dv" data-tip="${DIVS[d.t].name}: fuerza ${Math.round(d.s * 100)}%, organización ${Math.round(d.o / DIVS[d.t].org * 100)}%, entrenamiento ${trainName(d.tr === undefined ? 0.5 : d.tr)}">${DIVS[d.t].icon}<i style="height:${Math.round(d.s * 100)}%"></i><u style="height:${Math.round(d.o / DIVS[d.t].org * 100)}%"></u><em style="height:${Math.round((d.tr === undefined ? 0.5 : d.tr) * 100)}%"></em></div>`).join('')}</div>
   ${own ? `<p class="hint"><b>Clic derecho</b>: mover (sobre un enemigo: perseguir). <b>Mayús + clic derecho</b>: añadir punto de ruta. <b>Ctrl/Mayús + clic en ficha</b>: grupo${group ? ` (<b>${sel.length} seleccionados</b>)` : ''}.</p>
+  <div class="strpick"><small>Estrategia en combate:</small> <button class="${a.strat ? '' : 'on'}" data-act="armystrat" data-s="">🤖 Auto</button>${Object.keys(STRATS).map(k => `<button class="${a.strat === k ? 'on' : ''}" data-act="armystrat" data-s="${k}" data-tip="${STRATS[k].desc}">${STRATS[k].icon}</button>`).join('')}</div>
   <div class="ordgrid">
     ${tg(UI.moveMode, 'movemode', '🎯 Mover')}${tg(UI.optFm || a.fm, 'optfm', '🥾 Marcha forzada')}${tg(UI.optRail || a.rail, 'optrail', '🚆 Ferrocarril')}${tg(UI.patrolNext, 'patrolmode', '🔁 Patrulla')}${tg(UI.landNext, 'landmode', '⚓ Desembarco')}
     ${tg(a.mode === 'hold', 'armymode', '🛡 Mantener', 'data-m="hold"')}${tg(a.mode === 'dig', 'armymode', '⛏ Atrincherar', 'data-m="dig"')}${tg(a.mode === 'train', 'armymode', '🎓 Entrenar', 'data-m="train"')}
@@ -182,7 +183,7 @@ function renderBattlePanel() {
   const root = $('#battlepanel'); if (!root) return;
   let b = UI.battle ? G.battles.find(x => x.id === UI.battle) : null;
   if (!b && UI.battle && G.lastEnded && G.lastEnded.id === UI.battle) b = G.lastEnded;
-  if (!b) { root.classList.remove('open'); root.innerHTML = ''; UI.battle = null; return; }
+  if (!b) { root.classList.remove('open'); root.innerHTML = ''; root.dataset.bid = ''; UI.battle = null; return; }
   const done = !!b.ended;
   const side = (ids, isAtt, tag0) => {
     const as = ids.map(armyById).filter(Boolean); let men = 0, nd = 0, str = 0, org = 0; const types = {};
@@ -209,13 +210,27 @@ function renderBattlePanel() {
   const line = (i, col) => hist.length > 1 ? `<polyline fill="none" stroke="${col}" stroke-width="2" points="${hist.map((h, k) => (k / (hist.length - 1) * W).toFixed(1) + ',' + (Hh - h[i] * Hh).toFixed(1)).join(' ')}"/>` : '';
   const log = (b.log || []).slice(-6).reverse();
   root.classList.add('open');
-  root.innerHTML = `<div class="sp-head"><div><h2>⚔ Batalla de ${provName(b.prov)}</h2><small>${done ? 'Batalla finalizada' : 'Día ' + b.day} · ${BIOME_NAMES[pv.biome] || ''} · defensa ×${terr.def.toFixed(2)} · movilidad ×${terr.move.toFixed(2)}</small></div><button class="x" data-act="closebattle">✕</button></div>
-  <canvas id="bmap" width="520" height="200"></canvas>
-  <div class="bsides">${bs(A, 'att', 'Atacante', true, b.lostA)}${bs(B, 'def', 'Defensor', false, b.lostB)}</div>
-  <svg class="bhist" viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none">${line(0, '#e8644f')}${line(1, '#6aa8e8')}</svg>
-  <small class="dim">Organización: <span style="color:#e8644f">atacante</span> · <span style="color:#6aa8e8">defensor</span> · frente: ${b.adv > 0.15 ? 'avanza el atacante' : b.adv < -0.15 ? 'avanza el defensor' : 'equilibrado'}</small>
-  <div class="blog">${log.length ? log.map(e => `<div class="ev ${e.k}">${EV_ICON[e.k] || '•'} <small>día ${e.d}</small> ${e.t}</div>`).join('') : '<small class="dim">Aún no ha ocurrido nada destacable…</small>'}</div>`;
-  drawBattleMap($('#bmap'), b, A, B);
+  if (root.dataset.bid !== String(b.id)) {
+    root.dataset.bid = b.id; root._sb = '';
+    root.innerHTML = `<div class="sp-head"><div><h2 id="bt-title"></h2><small id="bt-sub"></small></div><button class="x" data-act="closebattle">✕</button></div>
+    <canvas id="bmap" width="${BV_W}" height="${BV_H}"></canvas><div id="bt-strat"></div><div id="bt-stats"></div><div id="bt-hist"></div><div id="bt-log" class="blog"></div>`;
+    R.bviz = null;
+  }
+  $('#bt-title').textContent = '⚔ Batalla de ' + provName(b.prov);
+  $('#bt-sub').textContent = `${done ? 'Batalla finalizada' : 'Día ' + b.day} · ${BIOME_NAMES[pv.biome] || ''} · defensa ×${terr.def.toFixed(2)} · movilidad ×${terr.move.toFixed(2)}`;
+  const mySide = [['A', A], ['B', B]].find(([k, S]) => S.tag === G.player), sn = k => STRATS[b['str' + k]] || STRATS.frontal;
+  const sTag = (k, S) => `<span class="stc ${k === 'A' ? 'att' : 'def'}">${S.tag ? flag(S.tag, 'sm') : ''} ${sn(k).icon} <b>${sn(k).name}</b></span>`;
+  let sh = `<div class="strbar">${sTag('A', A)}<span class="dim">contra</span>${sTag('B', B)}</div>`;
+  if (mySide && !done) {
+    const ma = (mySide[0] === 'A' ? b.A : b.B).map(armyById).filter(Boolean), cur = (ma.find(a => a.strat) || {}).strat || '';
+    sh += `<div class="strpick"><small>Tu estrategia:</small> <button class="${cur === '' ? 'on' : ''}" data-act="battlestrat" data-s="">🤖 Automática</button>${Object.keys(STRATS).map(k => `<button class="${cur === k ? 'on' : ''}" data-act="battlestrat" data-s="${k}" data-tip="${STRATS[k].desc}">${STRATS[k].icon} ${STRATS[k].name}</button>`).join('')}</div>`;
+  }
+  if (root._sb !== sh) { root._sb = sh; $('#bt-strat').innerHTML = sh; }
+  $('#bt-stats').innerHTML = `<div class="bsides">${bs(A, 'att', 'Atacante', true, b.lostA)}${bs(B, 'def', 'Defensor', false, b.lostB)}</div>`;
+  $('#bt-hist').innerHTML = `<svg class="bhist" viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none">${line(0, '#e8644f')}${line(1, '#6aa8e8')}</svg>
+  <small class="dim">Organización: <span style="color:#e8644f">atacante</span> · <span style="color:#6aa8e8">defensor</span> · frente: ${b.adv > 0.15 ? 'avanza el atacante' : b.adv < -0.15 ? 'avanza el defensor' : 'equilibrado'}</small>`;
+  $('#bt-log').innerHTML = log.length ? log.map(e => `<div class="ev ${e.k}">${EV_ICON[e.k] || '•'} <small>día ${e.d}</small> ${e.t}</div>`).join('') : '<small class="dim">Aún no ha ocurrido nada destacable…</small>';
+  bvStart();
 }
 function drawBattleMap(cv, b, A, B) {
   if (!cv) return; const g = cv.getContext('2d'), W = cv.width, H = cv.height, pv = MAP.provs[b.prov];
@@ -273,6 +288,8 @@ function drawBattleMap(cv, b, A, B) {
 
 /* ---------- acciones ---------- */
 Object.assign(ACT, {
+  battlestrat: d => { const b = G.battles.find(x => x.id === UI.battle); if (!b) return; [...b.A, ...b.B].map(armyById).filter(a => a && a.tag === G.player).forEach(a => { a.strat = d.s || null; }); updateStrategies(b); renderBattlePanel(); },
+  armystrat: d => { selectedArmies().forEach(a => { a.strat = d.s || null; }); renderArmyPanel(); },
   optfm: () => { UI.optFm = !UI.optFm; const l = selectedArmies(); l.forEach(a => { if (a.path.length) a.fm = UI.optFm; }); renderArmyPanel(); },
   optrail: () => { UI.optRail = !UI.optRail; renderArmyPanel(); },
   patrolmode: () => { UI.patrolNext = !UI.patrolNext; UI.moveMode = false; document.body.classList.toggle('movemode', UI.patrolNext); if (UI.patrolNext) toast('🔁', 'Modo patrulla: haz clic en el otro extremo de la ruta.'); renderArmyPanel(); },

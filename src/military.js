@@ -23,6 +23,35 @@ const GEN_TRAITS = {
   trainer: {name: 'Instructor', icon: '🎓', desc: 'Las tropas se entrenan un 50% más rápido', train: 0.5}
 };
 const TRAIT_KEYS = Object.keys(GEN_TRAITS);
+/* ---------- estrategias de combate ---------- */
+const STRATS = {
+  frontal: {name: 'Asalto frontal', icon: '⚔️', att: 0.10, def: -0.05, cas: 1.12, desc: 'Ataque directo: +10% ataque, −5% defensa y más bajas.'},
+  flank: {name: 'Flanqueo', icon: '↪️', att: 0, def: -0.08, cas: 1, cavAtt: 0.2, desc: 'La caballería rodea al enemigo: +20% de ataque de caballería y más probabilidad de flanqueo. Sin caballería rinde peor (−6% ataque).'},
+  hold: {name: 'Aguardar en los altos', icon: '⛰️', att: -0.2, def: 0.18, cas: 0.88, terr: 0.14, desc: 'Posición defensiva: +18% defensa (hasta +14% extra en terreno accidentado), −20% ataque y menos bajas.'},
+  barrage: {name: 'Cañoneo y asalto', icon: '💣', att: 0, def: 0, cas: 1, artAtt: 0.35, desc: 'La artillería castiga primero (daño extra los primeros días) y +35% de ataque de artillería. Necesita artillería.'},
+  skirmish: {name: 'Hostigamiento', icon: '🏹', att: -0.1, def: 0.06, cas: 0.7, desc: 'Combate disperso: −30% de bajas propias y −10% de ataque; alarga el combate.'},
+  charge: {name: 'Carga masiva', icon: '🔥', att: 0.25, def: -0.18, cas: 1.38, cavAtt: 0.15, desc: 'Todo al ataque: +25% ataque (+15% caballería), −18% defensa y muchísimas bajas.'}
+};
+function chooseStrategy(b, s) {
+  const ids = s === 'A' ? b.A : b.B, oids = s === 'A' ? b.B : b.A, isDef = b.att !== s;
+  const me = sideStats(b, ids, !isDef), op = sideStats(b, oids, isDef), terr = MAP.provs[b.prov].terr, hill = terr.def - 1 > 0.15;
+  if (me.org < 0.33) return isDef ? 'hold' : 'skirmish';
+  if (isDef) { if (hill) return 'hold'; if (me.F < op.F * 0.75) return 'skirmish'; if (me.cav >= 2 && Math.random() < 0.35) return 'flank'; return Math.random() < 0.7 ? 'hold' : 'frontal'; }
+  if (me.art >= 2 && b.day <= 5 && Math.random() < 0.7) return 'barrage';
+  if (me.cav >= 2 && !hill && Math.random() < 0.55) return 'flank';
+  if (me.brave > 0 && Math.random() < 0.5) return 'charge';
+  if (me.F > op.T * 1.35) return 'frontal';
+  if (hill) return Math.random() < 0.5 ? 'skirmish' : 'flank';
+  return Math.random() < 0.8 ? 'frontal' : 'charge';
+}
+function updateStrategies(b) {
+  ['A', 'B'].forEach(s => {
+    const manual = (s === 'A' ? b.A : b.B).map(armyById).filter(Boolean).find(a => a.strat);
+    let st = manual ? manual.strat : b['auto' + s];
+    if (!manual && (!b['auto' + s] || (b.day - (b['autoT' + s] || 0)) >= 4)) { st = chooseStrategy(b, s); b['auto' + s] = st; b['autoT' + s] = b.day; }
+    if (b['str' + s] !== st) { b['str' + s] = st; b['ss' + s] = b.day; b.stratSeq = (b.stratSeq || 0) + 1; }
+  });
+}
 function newGeneral(lvl) {
   const r = () => 1 + Math.floor(Math.random() * 3) + (Math.random() < 0.15 ? 1 : 0);
   const g = {name: pick(GEN_SURNAMES), atk: Math.min(5, r()), def: Math.min(5, r()), log: Math.min(5, r()), xp: 0, lvl: 1, traits: []};
@@ -198,6 +227,10 @@ function createBattles(byProv) {
   });
 }
 function sideStats(b, ids, isAttacker) {
+  const sideKey = ids === b.A ? 'A' : ids === b.B ? 'B' : null, ST = STRATS[(sideKey && b['str' + sideKey]) || 'frontal'];
+  let hasCav = false; ids.forEach(id => { const a0 = armyById(id); if (a0 && a0.divs.some(d => d.t === 'cav')) hasCav = true; });
+  const stAtt = ST.att + (ST === STRATS.flank && !hasCav ? -0.06 : 0);
+  const stDef = ST.def + (ST.terr ? ST.terr * clamp((MAP.provs[b.prov].terr.def - 1) / 0.25, 0, 1) : 0);
   let F = 0, T = 0, n = 0, org = 0, orgN = 0, art = 0, cav = 0, gun = 0, brave = 0, tr = 0;
   const pv = MAP.provs[b.prov]; const terr = pv.terr;
   ids.forEach(id => {
@@ -209,31 +242,32 @@ function sideStats(b, ids, isAttacker) {
     const sup = typeof supplyMod === 'function' ? supplyMod(a) : 1;
     const landPen = a.landed && G.date.t - a.landed < 6 ? 0.75 : 1;
     const dig = isAttacker ? 0 : Math.min(6, a.dig || 0) * 0.04 * (a.mode === 'hold' || a.mode === 'dig' ? 1.25 : 1);
-    const am = (1 + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup * landPen;
-    const dm = (1 + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + gm.def + dm0(a.tag, 'def') + air + dig) * sup;
+    const am = (1 + stAtt + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup * landPen;
+    const dm = (1 + stDef + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + gm.def + dm0(a.tag, 'def') + air + dig) * sup;
     brave += gm.brave; gun += gm.art;
     a.divs.forEach(d => {
       const info = DIVS[d.t];
       if (n < BATTLE_WIDTH + (terr.mnt > 0.4 ? -2 : 0)) {
         const tm = trainMod(d);
         const str = d.s * (0.55 + 0.45 * d.o / info.org) * tm * (typeof equipMod === 'function' ? equipMod(a.tag, d.t) : 1);
-        const um = 1 + (d.t === 'cav' ? gm.cav : d.t === 'art' ? gm.art : 0);
+        const um = 1 + (d.t === 'cav' ? gm.cav + (ST.cavAtt || 0) : d.t === 'art' ? gm.art + (ST.artAtt || 0) : 0);
         F += info.att * str * am * um; T += info.def * str * dm * (isAttacker ? 1 : terr.def);
         n++; tr += tm; if (d.t === 'art') art++; if (d.t === 'cav') cav++;
       }
       org += d.o / info.org; orgN++;
     });
   });
-  return {F, T, n, org: orgN ? org / orgN : 0, art, cav, gun, brave, tr: n ? tr / n : 1};
+  return {F, T, n, org: orgN ? org / orgN : 0, art, cav, gun, brave, tr: n ? tr / n : 1, cas: ST.cas, strat: sideKey && b['str' + sideKey]};
 }
 // sucesos aleatorios de la batalla: cañoneo, cargas de caballería, cargas desesperadas, flanqueos…
 function battleEvents(b, sa, sb) {
   const ev = {fA: 1, fB: 1, xA: 0, xB: 0, cA: 1, cB: 1};
   b.log = b.log || [];
-  const say = (side, kind, text) => { b.log.push({d: b.day, k: kind, s: side, t: text}); if (b.log.length > 14) b.log.shift(); b.flash = {k: kind, s: side, d: b.day}; };
+  const say = (side, kind, text) => { b.log.push({d: b.day, k: kind, s: side, t: text}); if (b.log.length > 14) b.log.shift(); b.flash = {k: kind, s: side, d: b.day}; b.evSeq = (b.evSeq || 0) + 1; b.evK = kind; b.evS = side; };
   const nm = side => G.C[(side === 'A' ? armyById(b.A[0]) : armyById(b.B[0]))?.tag || (side === 'A' ? b.A0 : b.B0)].name;
   const S = {A: sa, B: sb}, opp = s => s === 'A' ? 'B' : 'A';
   const add = (s, key, v) => { ev[key + s] = key === 'x' ? ev[key + s] + v : ev[key + s] * v; };
+  ['A', 'B'].forEach(s0 => { if ((s0 === 'A' ? b.strA : b.strB) === 'barrage' && S[s0].art > 0 && b.day <= 4 && b.day > 1) add(opp(s0), 'x', Math.min(5, 1.1 * S[s0].art)); });
   if (b.day === 1) {          // cañoneo preparatorio del atacante
     const sd = b.att; if (S[sd].art > 0) { const x = Math.min(9, 2.2 * S[sd].art * (1 + S[sd].gun)); add(opp(sd), 'x', x); say(sd, 'barrage', `Cañoneo preparatorio de ${nm(sd)}: ${S[sd].art} baterías castigan las líneas enemigas.`); }
   }
@@ -241,10 +275,11 @@ function battleEvents(b, sa, sb) {
   const opts = [];
   ['A', 'B'].forEach(s => {
     const me = S[s], ot = S[opp(s)];
-    if (me.org < 0.5 || me.brave > 0) opts.push([(me.org < 0.4 ? 3 : 1) + me.brave * 2, 'charge', s]);
-    if (me.cav > 0) opts.push([2 + me.cav, 'cav', s]);
-    if (me.art > 0) opts.push([2 + me.art, 'barrage', s]);
-    opts.push([1.2, 'flank', s]);
+    const stg = s === 'A' ? b.strA : b.strB;
+    if (me.org < 0.5 || me.brave > 0 || stg === 'charge') opts.push([((me.org < 0.4 ? 3 : 1) + me.brave * 2) * (stg === 'charge' ? 3.5 : stg === 'hold' ? 0.3 : 1), 'charge', s]);
+    if (me.cav > 0) opts.push([(2 + me.cav) * (stg === 'flank' ? 2 : 1), 'cav', s]);
+    if (me.art > 0) opts.push([(2 + me.art) * (stg === 'barrage' ? 3 : 1), 'barrage', s]);
+    opts.push([1.2 * (stg === 'flank' ? 3.5 : 1) * (me.cav > 0 || stg !== 'flank' ? 1 : 0.4), 'flank', s]);
     if (me.org < 0.45) opts.push([2, 'panic', s]);
     opts.push([1, 'reinf', s]);
     void ot;
@@ -267,6 +302,7 @@ function battleDay(b) {
   const A = b.A.map(armyById).filter(Boolean), B = b.B.map(armyById).filter(Boolean);
   if (!A.length || !B.length) { endBattle(b, A.length ? 'A' : 'B'); return; }
   const sa = sideStats(b, b.A, b.att === 'A'), sb = sideStats(b, b.B, b.att === 'B');
+  updateStrategies(b);
   const ev = battleEvents(b, sa, sb);
   const rnd1 = () => 0.85 + Math.random() * 0.3;
   const rAB = sa.F * ev.fA * rnd1() / Math.max(1, sb.T), rBA = sb.F * ev.fB * rnd1() / Math.max(1, sa.T);
@@ -288,7 +324,7 @@ function battleDay(b) {
     });
     return lost;
   };
-  const lostB = apply(B, dmg(rAB), ev.xB, ev.cB), lostA = apply(A, dmg(rBA), ev.xA, ev.cA);
+  const lostB = apply(B, dmg(rAB), ev.xB, ev.cB * sb.cas), lostA = apply(A, dmg(rBA), ev.xA, ev.cA * sa.cas);
   b.lostA = (b.lostA || 0) + lostA; b.lostB = (b.lostB || 0) + lostB;
   A.forEach(a => bleed(a.tag, lostA / Math.max(1, A.length))); B.forEach(a => bleed(a.tag, lostB / Math.max(1, B.length)));
   b.rA = rBA; b.rB = rAB; b.orgA = sa.org; b.orgB = sb.org; b.sa = {F: sa.F, T: sa.T, n: sa.n, tr: sa.tr}; b.sb = {F: sb.F, T: sb.T, n: sb.n, tr: sb.tr};

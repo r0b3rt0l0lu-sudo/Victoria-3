@@ -409,3 +409,11 @@ svg.orders line.arrow.sea{stroke:#6aa8e8;stroke-width:3.5}.atoken.sea{background
 .citylabel.i3{font-size:15px;font-weight:700}.citylabel.i3 i{width:9px;height:9px}.citylabel.i2{font-size:13px}.citylabel.i1{font-size:11px;opacity:.9}
 .citylabel.cap{color:#ffe28a}.citylabel.cap i{border-radius:2px;transform:rotate(45deg);background:#fff}
 .citylabel{font-size:13px;letter-spacing:.06em}.citylabel.i1{font-size:12px}.citylabel.i2{font-size:14px}.citylabel.i3{font-size:16px}
+#battlepanel{width:min(760px,calc(100vw - 20px))}
+#bmap{image-rendering:auto}
+.strbar{display:flex;align-items:center;justify-content:center;gap:10px;margin:4px 0;font-size:13px}
+.strbar .stc{padding:3px 8px;border-radius:12px;background:#1a1d22;border:1px solid #444}
+.strbar .stc.att{border-color:#e8644f}.strbar .stc.def{border-color:#6aa8e8}
+.strpick{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:4px 0}
+.strpick button{background:#2a2e35;color:#eee;border:1px solid #555;border-radius:5px;padding:3px 7px;cursor:pointer;font-size:12px}
+.strpick button.on{background:#7a5a1f;border-color:#e0b04a}

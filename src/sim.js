@@ -634,7 +634,7 @@ function pickInvestment(c) {
   for (let k = 0; k < 14; k++) {
     if (!c.states.length) return null;
     const s = G.S[pick(c.states)];
-    const cands = BUILDINGS.filter(b => b.out && canBuild(s, b, c) && buildRoom(s, b.id) >= 1);
+    const cands = BUILDINGS.filter(b => b.out && (s.cap[b.id] || 0) - (s.b[b.id] || 0) >= 1 && canBuild(s, b, c) && buildRoom(s, b.id) >= 1);
     if (!cands.length) continue;
     cands.forEach(b => {
       let iv = 0; for (const g in b.inputs) iv += b.inputs[g] * G.price[g];

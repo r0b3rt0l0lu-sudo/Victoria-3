@@ -1,7 +1,7 @@
 /* ===== PROVINCIAS: subdivisión de cada estado para mover tropas ===== */
 // Datos estáticos en MAP.provs / MAP.provOf; datos dinámicos (ocupación, fortificación) en G.P.
 const NOPROV = 65535;
-const OCC_DAYS = 5;            // días que debe mantenerse una provincia sin defensores para ocuparla
+const OCC_DAYS = 8;            // días que debe mantenerse una provincia sin defensores para ocuparla
 
 function buildProvinces() {
   const t0 = performance.now();

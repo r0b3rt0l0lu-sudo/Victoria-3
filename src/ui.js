@@ -941,7 +941,7 @@ function doLoad(fromStart) {
 }
 
 /* ---------- bucle principal ---------- */
-const SPEED_MS = [0, 900, 450, 200, 80, 25];
+const SPEED_MS = [0, 1300, 750, 380, 170, 60];
 let _gt = 0;
 window.onFrame = function (t) {
   if (!UI.started) return;

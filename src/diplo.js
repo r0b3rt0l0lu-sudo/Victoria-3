@@ -209,10 +209,10 @@ function warWeek() {
     if (dead) { endWar(w, alive(w.att) ? w.att : w.def); continue; }
     if (capitulationCheck(w)) continue;
     if (Math.abs(w.score) >= 100 && !humans) endWar(w, w.score > 0 ? w.att : w.def);
-    else if (!humans && w.weeks > 30 && Math.abs(w.score) > 45) endWar(w, w.score > 0 ? w.att : w.def);
-    else if (!humans && w.weeks > 70 && Math.abs(w.score) < 25) endWar(w, null);
-    else if (!humans && w.weeks > 110) endWar(w, null);
-    else if (humans && w.weeks > 150 && Math.abs(w.score) < 25) endWar(w, null);
+    else if (!humans && w.weeks > 48 && Math.abs(w.score) > 45) endWar(w, w.score > 0 ? w.att : w.def);
+    else if (!humans && w.weeks > 112 && Math.abs(w.score) < 25) endWar(w, null);
+    else if (!humans && w.weeks > 176) endWar(w, null);
+    else if (humans && w.weeks > 240 && Math.abs(w.score) < 25) endWar(w, null);
   }
   milEconWeek(); aiRecruitWeek(); aiTrainWeek(); aiLandingWeek();
 }

@@ -1,5 +1,5 @@
 /* ===== TRANSPORTES Y PLANES DE DESEMBARCO (sin flota de guerra) ===== */
-const TRANSPORT_CAP = 2, TRANSPORT_DAYS = 25, LAND_PREP = 8, LAND_RANGE = 75;
+const TRANSPORT_CAP = 2, TRANSPORT_DAYS = 40, LAND_PREP = 14, LAND_RANGE = 75;
 const shipsOf = c => (c.ships = c.ships || {transport: 0, busy: 0});
 const freeTransports = c => { const s = shipsOf(c); return s.transport - s.busy; };
 const transportCost = c => Math.round(moneyPerPoint(c) * 140);
@@ -42,7 +42,7 @@ function startLanding(L) {   // embarca y zarpa
   const divs = arms.reduce((n, a) => n + a.divs.length, 0), need = Math.ceil(divs / TRANSPORT_CAP);
   if (freeTransports(c) < need) return {ok: false, msg: `Faltan transportes: necesitas ${need} y hay ${freeTransports(c)} libres.`};
   shipsOf(c).busy += need;
-  const days = Math.ceil(provDist(L.from, L.to) * 2.4 + 3);
+  const days = Math.ceil(provDist(L.from, L.to) * 4 + 5);
   arms.forEach(a => { a.sea = {plan: L.id, from: L.from, to: L.to, left: days, total: days}; a.path = []; a.dest = null; a.mode = null; });
   L.phase = 'sea'; L.left = days; L.carried = arms.map(a => a.id); L.need = need; L.active = true;
   G.shipReturns = G.shipReturns || []; G.shipReturns.push({tag: L.tag, n: need, days: days * 2 + 2});

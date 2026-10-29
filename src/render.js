@@ -61,8 +61,8 @@ function stateFill(s) {
 function initRenderer(canvas) {
   const W = MAP_W, H = MAP_H;
   R.canvas = canvas;
-  R.renderer = new THREE.WebGLRenderer({canvas, antialias: true, preserveDrawingBuffer: true});
-  R.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  R.renderer = new THREE.WebGLRenderer({canvas, antialias: (window.devicePixelRatio || 1) < 1.5, preserveDrawingBuffer: false, powerPreference: 'high-performance'});
+  R.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   R.scene = new THREE.Scene();
   R.scene.background = new THREE.Color(0x14222c);
   R.camera = new THREE.PerspectiveCamera(32, 1, 0.5, 900);
@@ -514,8 +514,9 @@ function updateMarkers() {
 function drawMinimap() {
   const mm = document.getElementById('minimap'); if (!mm) return;
   const ctx = mm.getContext('2d'); const w = mm.width, h = mm.height;
-  if (R.minimapDirty) { ctx.drawImage(R.cv, 0, 0, w, h); R.minimapDirty = false; R.mmCache = ctx.getImageData(0, 0, w, h); }
-  else if (R.mmCache) ctx.putImageData(R.mmCache, 0, 0);
+  if (!R.mmBase) { R.mmBase = document.createElement('canvas'); R.mmBase.width = w; R.mmBase.height = h; R.minimapDirty = true; }
+  if (R.minimapDirty) { R.mmBase.getContext('2d').drawImage(R.cv, 0, 0, w, h); R.minimapDirty = false; }
+  ctx.drawImage(R.mmBase, 0, 0);
   // región visible
   const corners = [[0, 0], [R.canvas.clientWidth, 0], [R.canvas.clientWidth, R.canvas.clientHeight], [0, R.canvas.clientHeight]].map(([x, y]) => screenToWorld(x, y));
   ctx.strokeStyle = '#f5e6b0'; ctx.lineWidth = 1.5; ctx.beginPath();

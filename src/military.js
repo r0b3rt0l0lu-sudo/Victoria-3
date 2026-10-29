@@ -1,9 +1,9 @@
 /* ===== SISTEMA MILITAR (Parte 1): divisiones, ejércitos, movimiento, batallas, ocupación e IA ===== */
 const MEN_PER_DIV = 8000;
 const DIVS = {
-  inf: {name: 'Infantería de línea', icon: '🪖', att: 6, def: 9, spd: 1.0, org: 40, cost: 200, days: 14, desc: 'Barata y resistente. Fuerte en defensa.'},
-  cav: {name: 'Caballería', icon: '🐎', att: 7, def: 5, spd: 1.6, org: 36, cost: 320, days: 20, desc: 'Muy rápida. Débil frente a posiciones defendidas.'},
-  art: {name: 'Artillería', icon: '💣', att: 11, def: 4, spd: 0.8, org: 28, cost: 420, days: 25, desc: 'Gran poder de ataque, pero lenta y frágil.'}
+  inf: {name: 'Infantería de línea', icon: '🪖', att: 6, def: 9, spd: 1.0, org: 40, cost: 200, days: 24, desc: 'Barata y resistente. Fuerte en defensa.'},
+  cav: {name: 'Caballería', icon: '🐎', att: 7, def: 5, spd: 1.6, org: 36, cost: 320, days: 34, desc: 'Muy rápida. Débil frente a posiciones defendidas.'},
+  art: {name: 'Artillería', icon: '💣', att: 11, def: 4, spd: 0.8, org: 28, cost: 420, days: 42, desc: 'Gran poder de ataque, pero lenta y frágil.'}
 };
 const MAX_DIVS_ARMY = 12;
 const BATTLE_WIDTH = 10;       // divisiones que combaten a la vez por bando
@@ -102,11 +102,16 @@ function hopDays(a, fromId, toId) {
   const lg = 1 + 0.1 * (a.gen.log - 1) + genMods(a.gen).spd + (typeof docMod === 'function' ? docMod(a.tag, 'spd') : 0);   // la velocidad es igual para todos los países
   const so = G.S[B.s]; const rail = (so.owner === a.tag || sameSide(a.tag, so.owner)) ? 1 - Math.min(0.35, (so.infra || 0) * 0.05) : 1;
   const mode = (a.fm ? 0.68 : 1) * (a.rail && so.owner !== NONE && (so.owner === a.tag || sameSide(a.tag, so.owner)) ? 0.35 : 1);
-  return clamp(Math.round(provDist(fromId, toId) * 1.9 * B.terr.move * rail * mode / spd / lg), 1, 16);
+  return clamp(Math.round(provDist(fromId, toId) * 3.2 * B.terr.move * rail * mode / spd / lg), 2, 30);
 }
+const _ssCache = new Map(); let _ssSig = -1;
 function sameSide(ta, tb) {
   if (ta === tb) return true;
-  return G.wars.some(w => (w.attAll.includes(ta) && w.attAll.includes(tb)) || (w.defAll.includes(ta) && w.defAll.includes(tb))) || !!pactBetween('alliance', ta, tb);
+  const sig = G.date.t * 7919 + G.wars.length * 131 + G.pacts.length * 17 + G.nextWarId;
+  if (sig !== _ssSig) { _ssCache.clear(); _ssSig = sig; }
+  const k = (G.C[ta].id << 10) | G.C[tb].id; let v = _ssCache.get(k);
+  if (v === undefined) { v = G.wars.some(w => (w.attAll.includes(ta) && w.attAll.includes(tb)) || (w.defAll.includes(ta) && w.defAll.includes(tb))) || !!pactBetween('alliance', ta, tb); _ssCache.set(k, v); }
+  return v;
 }
 function hostileTags(ta, tb) { return G.hostile && G.hostile.has(ta + '|' + tb); }
 function canEnterState(tag, sid) {
@@ -265,7 +270,7 @@ function battleDay(b) {
   const ev = battleEvents(b, sa, sb);
   const rnd1 = () => 0.85 + Math.random() * 0.3;
   const rAB = sa.F * ev.fA * rnd1() / Math.max(1, sb.T), rBA = sb.F * ev.fB * rnd1() / Math.max(1, sa.T);
-  const dmg = (r) => clamp(5.5 * r, 0.6, 13);       // % de organización perdida por día
+  const dmg = (r) => clamp(3.3 * r, 0.4, 8);       // % de organización perdida por día
   const apply = (armies, orgLoss, extra, cas) => {
     let lost = 0;
     armies.forEach(a => {
@@ -294,7 +299,7 @@ function battleDay(b) {
   const oA = A2.length ? sideStats(b, b.A, true).org : 0, oB = B2.length ? sideStats(b, b.B, true).org : 0;
   if (!A2.length || !B2.length) { endBattle(b, A2.length ? 'A' : 'B'); return; }
   const th = list => list.some(a => a.mode === 'hold') ? 0.08 : 0.18;       // «mantener posición» resiste hasta el final
-  if (b.day >= 3 && (oA < th(A2) || oB < th(B2))) endBattle(b, oA < oB ? 'B' : 'A');
+  if (b.day >= 5 && (oA < th(A2) || oB < th(B2))) endBattle(b, oA < oB ? 'B' : 'A');
 }
 // Bajas: se restan de la población de reclutamiento del país y suben el cansancio de guerra
 function bleed(tag, men) {

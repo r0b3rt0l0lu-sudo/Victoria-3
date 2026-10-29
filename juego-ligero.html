@@ -1704,7 +1704,7 @@ function computeFrontRank(sid, sideTags) {
 /* ===== PROVINCIAS: subdivisión de cada estado para mover tropas ===== */
 // Datos estáticos en MAP.provs / MAP.provOf; datos dinámicos (ocupación, fortificación) en G.P.
 const NOPROV = 65535;
-const OCC_DAYS = 5;            // días que debe mantenerse una provincia sin defensores para ocuparla
+const OCC_DAYS = 8;            // días que debe mantenerse una provincia sin defensores para ocuparla
 
 function buildProvinces() {
   const t0 = performance.now();
@@ -2574,7 +2574,7 @@ function pickInvestment(c) {
   for (let k = 0; k < 14; k++) {
     if (!c.states.length) return null;
     const s = G.S[pick(c.states)];
-    const cands = BUILDINGS.filter(b => b.out && canBuild(s, b, c) && buildRoom(s, b.id) >= 1);
+    const cands = BUILDINGS.filter(b => b.out && (s.cap[b.id] || 0) - (s.b[b.id] || 0) >= 1 && canBuild(s, b, c) && buildRoom(s, b.id) >= 1);
     if (!cands.length) continue;
     cands.forEach(b => {
       let iv = 0; for (const g in b.inputs) iv += b.inputs[g] * G.price[g];
@@ -3410,10 +3410,10 @@ function warWeek() {
     if (dead) { endWar(w, alive(w.att) ? w.att : w.def); continue; }
     if (capitulationCheck(w)) continue;
     if (Math.abs(w.score) >= 100 && !humans) endWar(w, w.score > 0 ? w.att : w.def);
-    else if (!humans && w.weeks > 30 && Math.abs(w.score) > 45) endWar(w, w.score > 0 ? w.att : w.def);
-    else if (!humans && w.weeks > 70 && Math.abs(w.score) < 25) endWar(w, null);
-    else if (!humans && w.weeks > 110) endWar(w, null);
-    else if (humans && w.weeks > 150 && Math.abs(w.score) < 25) endWar(w, null);
+    else if (!humans && w.weeks > 48 && Math.abs(w.score) > 45) endWar(w, w.score > 0 ? w.att : w.def);
+    else if (!humans && w.weeks > 112 && Math.abs(w.score) < 25) endWar(w, null);
+    else if (!humans && w.weeks > 176) endWar(w, null);
+    else if (humans && w.weeks > 240 && Math.abs(w.score) < 25) endWar(w, null);
   }
   milEconWeek(); aiRecruitWeek(); aiTrainWeek(); aiLandingWeek();
 }
@@ -3729,9 +3729,9 @@ function insultCountry(c, tag) {
 /* ===== SISTEMA MILITAR (Parte 1): divisiones, ejércitos, movimiento, batallas, ocupación e IA ===== */
 const MEN_PER_DIV = 8000;
 const DIVS = {
-  inf: {name: 'Infantería de línea', icon: '🪖', att: 6, def: 9, spd: 1.0, org: 40, cost: 200, days: 14, desc: 'Barata y resistente. Fuerte en defensa.'},
-  cav: {name: 'Caballería', icon: '🐎', att: 7, def: 5, spd: 1.6, org: 36, cost: 320, days: 20, desc: 'Muy rápida. Débil frente a posiciones defendidas.'},
-  art: {name: 'Artillería', icon: '💣', att: 11, def: 4, spd: 0.8, org: 28, cost: 420, days: 25, desc: 'Gran poder de ataque, pero lenta y frágil.'}
+  inf: {name: 'Infantería de línea', icon: '🪖', att: 6, def: 9, spd: 1.0, org: 40, cost: 200, days: 24, desc: 'Barata y resistente. Fuerte en defensa.'},
+  cav: {name: 'Caballería', icon: '🐎', att: 7, def: 5, spd: 1.6, org: 36, cost: 320, days: 34, desc: 'Muy rápida. Débil frente a posiciones defendidas.'},
+  art: {name: 'Artillería', icon: '💣', att: 11, def: 4, spd: 0.8, org: 28, cost: 420, days: 42, desc: 'Gran poder de ataque, pero lenta y frágil.'}
 };
 const MAX_DIVS_ARMY = 12;
 const BATTLE_WIDTH = 10;       // divisiones que combaten a la vez por bando
@@ -3830,11 +3830,16 @@ function hopDays(a, fromId, toId) {
   const lg = 1 + 0.1 * (a.gen.log - 1) + genMods(a.gen).spd + (typeof docMod === 'function' ? docMod(a.tag, 'spd') : 0);   // la velocidad es igual para todos los países
   const so = G.S[B.s]; const rail = (so.owner === a.tag || sameSide(a.tag, so.owner)) ? 1 - Math.min(0.35, (so.infra || 0) * 0.05) : 1;
   const mode = (a.fm ? 0.68 : 1) * (a.rail && so.owner !== NONE && (so.owner === a.tag || sameSide(a.tag, so.owner)) ? 0.35 : 1);
-  return clamp(Math.round(provDist(fromId, toId) * 1.9 * B.terr.move * rail * mode / spd / lg), 1, 16);
+  return clamp(Math.round(provDist(fromId, toId) * 3.2 * B.terr.move * rail * mode / spd / lg), 2, 30);
 }
+const _ssCache = new Map(); let _ssSig = -1;
 function sameSide(ta, tb) {
   if (ta === tb) return true;
-  return G.wars.some(w => (w.attAll.includes(ta) && w.attAll.includes(tb)) || (w.defAll.includes(ta) && w.defAll.includes(tb))) || !!pactBetween('alliance', ta, tb);
+  const sig = G.date.t * 7919 + G.wars.length * 131 + G.pacts.length * 17 + G.nextWarId;
+  if (sig !== _ssSig) { _ssCache.clear(); _ssSig = sig; }
+  const k = (G.C[ta].id << 10) | G.C[tb].id; let v = _ssCache.get(k);
+  if (v === undefined) { v = G.wars.some(w => (w.attAll.includes(ta) && w.attAll.includes(tb)) || (w.defAll.includes(ta) && w.defAll.includes(tb))) || !!pactBetween('alliance', ta, tb); _ssCache.set(k, v); }
+  return v;
 }
 function hostileTags(ta, tb) { return G.hostile && G.hostile.has(ta + '|' + tb); }
 function canEnterState(tag, sid) {
@@ -3993,7 +3998,7 @@ function battleDay(b) {
   const ev = battleEvents(b, sa, sb);
   const rnd1 = () => 0.85 + Math.random() * 0.3;
   const rAB = sa.F * ev.fA * rnd1() / Math.max(1, sb.T), rBA = sb.F * ev.fB * rnd1() / Math.max(1, sa.T);
-  const dmg = (r) => clamp(5.5 * r, 0.6, 13);       // % de organización perdida por día
+  const dmg = (r) => clamp(3.3 * r, 0.4, 8);       // % de organización perdida por día
   const apply = (armies, orgLoss, extra, cas) => {
     let lost = 0;
     armies.forEach(a => {
@@ -4022,7 +4027,7 @@ function battleDay(b) {
   const oA = A2.length ? sideStats(b, b.A, true).org : 0, oB = B2.length ? sideStats(b, b.B, true).org : 0;
   if (!A2.length || !B2.length) { endBattle(b, A2.length ? 'A' : 'B'); return; }
   const th = list => list.some(a => a.mode === 'hold') ? 0.08 : 0.18;       // «mantener posición» resiste hasta el final
-  if (b.day >= 3 && (oA < th(A2) || oB < th(B2))) endBattle(b, oA < oB ? 'B' : 'A');
+  if (b.day >= 5 && (oA < th(A2) || oB < th(B2))) endBattle(b, oA < oB ? 'B' : 'A');
 }
 // Bajas: se restan de la población de reclutamiento del país y suben el cansancio de guerra
 function bleed(tag, men) {
@@ -4843,8 +4848,8 @@ function stateFill(s) {
 function initRenderer(canvas) {
   const W = MAP_W, H = MAP_H;
   R.canvas = canvas;
-  R.renderer = new THREE.WebGLRenderer({canvas, antialias: true, preserveDrawingBuffer: true});
-  R.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  R.renderer = new THREE.WebGLRenderer({canvas, antialias: (window.devicePixelRatio || 1) < 1.5, preserveDrawingBuffer: false, powerPreference: 'high-performance'});
+  R.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   R.scene = new THREE.Scene();
   R.scene.background = new THREE.Color(0x14222c);
   R.camera = new THREE.PerspectiveCamera(32, 1, 0.5, 900);
@@ -5296,8 +5301,9 @@ function updateMarkers() {
 function drawMinimap() {
   const mm = document.getElementById('minimap'); if (!mm) return;
   const ctx = mm.getContext('2d'); const w = mm.width, h = mm.height;
-  if (R.minimapDirty) { ctx.drawImage(R.cv, 0, 0, w, h); R.minimapDirty = false; R.mmCache = ctx.getImageData(0, 0, w, h); }
-  else if (R.mmCache) ctx.putImageData(R.mmCache, 0, 0);
+  if (!R.mmBase) { R.mmBase = document.createElement('canvas'); R.mmBase.width = w; R.mmBase.height = h; R.minimapDirty = true; }
+  if (R.minimapDirty) { R.mmBase.getContext('2d').drawImage(R.cv, 0, 0, w, h); R.minimapDirty = false; }
+  ctx.drawImage(R.mmBase, 0, 0);
   // región visible
   const corners = [[0, 0], [R.canvas.clientWidth, 0], [R.canvas.clientWidth, R.canvas.clientHeight], [0, R.canvas.clientHeight]].map(([x, y]) => screenToWorld(x, y));
   ctx.strokeStyle = '#f5e6b0'; ctx.lineWidth = 1.5; ctx.beginPath();
@@ -6448,7 +6454,7 @@ function doLoad(fromStart) {
 }
 
 /* ---------- bucle principal ---------- */
-const SPEED_MS = [0, 900, 450, 200, 80, 25];
+const SPEED_MS = [0, 1300, 750, 380, 170, 60];
 let _gt = 0;
 window.onFrame = function (t) {
   if (!UI.started) return;
@@ -7265,7 +7271,7 @@ Object.assign(ACT, {
 });
 
 /* ===== TRANSPORTES Y PLANES DE DESEMBARCO (sin flota de guerra) ===== */
-const TRANSPORT_CAP = 2, TRANSPORT_DAYS = 25, LAND_PREP = 8, LAND_RANGE = 75;
+const TRANSPORT_CAP = 2, TRANSPORT_DAYS = 40, LAND_PREP = 14, LAND_RANGE = 75;
 const shipsOf = c => (c.ships = c.ships || {transport: 0, busy: 0});
 const freeTransports = c => { const s = shipsOf(c); return s.transport - s.busy; };
 const transportCost = c => Math.round(moneyPerPoint(c) * 140);
@@ -7308,7 +7314,7 @@ function startLanding(L) {   // embarca y zarpa
   const divs = arms.reduce((n, a) => n + a.divs.length, 0), need = Math.ceil(divs / TRANSPORT_CAP);
   if (freeTransports(c) < need) return {ok: false, msg: `Faltan transportes: necesitas ${need} y hay ${freeTransports(c)} libres.`};
   shipsOf(c).busy += need;
-  const days = Math.ceil(provDist(L.from, L.to) * 2.4 + 3);
+  const days = Math.ceil(provDist(L.from, L.to) * 4 + 5);
   arms.forEach(a => { a.sea = {plan: L.id, from: L.from, to: L.to, left: days, total: days}; a.path = []; a.dest = null; a.mode = null; });
   L.phase = 'sea'; L.left = days; L.carried = arms.map(a => a.id); L.need = need; L.active = true;
   G.shipReturns = G.shipReturns || []; G.shipReturns.push({tag: L.tag, n: need, days: days * 2 + 2});
@@ -7980,7 +7986,7 @@ const MANUAL = [
 
 {id: 'war', title: '16. La guerra y los ejércitos', html: `
 <h4>Participantes</h4><p>Al declarar la guerra, los <b>aliados</b> y los miembros de bloques militares de cada bando son llamados (aceptan con una probabilidad según relaciones). Los <b>garantes</b> del defensor y sus <b>vasallos</b> también se suman. Se informa de quién entra.</p>
-<h4>Divisiones y reclutamiento</h4><p>Un ejército se compone de <b>divisiones</b> de 8.000 hombres: <b>infantería</b> (barata, fuerte en defensa), <b>caballería</b> (rápida) y <b>artillería</b> (mucho ataque, lenta y frágil). Se reclutan en <b>Ejército y guerra → Reclutamiento</b> en estados con <b>Cuarteles</b>: cuestan dinero y 8.000 campesinos del estado, y tardan 14–25 días en instruirse. El máximo de divisiones depende de los soldados de tu país (soldados ÷ 8.000). Hasta 12 divisiones forman un ejército, al mando de un <b>general</b> aleatorio con Ataque, Defensa y Logística que gana experiencia.</p>
+<h4>Divisiones y reclutamiento</h4><p>Un ejército se compone de <b>divisiones</b> de 8.000 hombres: <b>infantería</b> (barata, fuerte en defensa), <b>caballería</b> (rápida) y <b>artillería</b> (mucho ataque, lenta y frágil). Se reclutan en <b>Ejército y guerra → Reclutamiento</b> en estados con <b>Cuarteles</b>: cuestan dinero y 8.000 campesinos del estado, y tardan 24–42 días en instruirse. El máximo de divisiones depende de los soldados de tu país (soldados ÷ 8.000). Hasta 12 divisiones forman un ejército, al mando de un <b>general</b> aleatorio con Ataque, Defensa y Logística que gana experiencia.</p>
 <h4>Mover ejércitos</h4><p>Cada ejército aparece como una ficha con bandera y nº de divisiones. <b>Clic</b> en la ficha (o en la lista) para seleccionarlo y abrir su panel; después <b>clic derecho</b> sobre un estado para ordenar el movimiento: el ejército sigue una ruta por los estados vecinos (se dibuja punteada) y tarda según el terreno, la velocidad de sus divisiones y la logística. Puedes detenerlo, enviarlo a la capital, dividirlo, fusionarlo con otro del mismo estado o disolverlo (devuelve parte de los soldados). No se puede cruzar el territorio de países con pacto de no agresión, garantía o alianza, ni de vasallos o bloque.</p>
 <h4>Movilización</h4><p>En <b>Reclutamiento</b> eliges el nivel de movilización: solo soldados profesionales (barracones), voluntarios (1% de la población), servicio limitado (2,5%), conscripción (5%) o movilización total (10%). Más movilización permite más divisiones, pero reduce la producción (−4% por nivel), cuesta dinero cada mes y genera malestar y pérdida de legitimidad. Cada división tiene además un <b>mantenimiento semanal</b> (más caro en guerra).</p>
 <h4>Otras formas de mover</h4><p>Además del clic derecho: botón <b>🎯 Mover</b> en el panel del ejército y clic izquierdo en el destino, o <b>Mayús + clic</b>. Con <b>Ctrl/Mayús + clic</b> sobre otras fichas propias formas un grupo que se mueve a la vez. Si el destino contiene un ejército enemigo, tus ejércitos lo <b>persiguen</b> y corrigen su ruta cada pocos días. Todos los ejércitos (tuyos y enemigos) se mueven con la misma fórmula; las rutas enemigas se dibujan en rojo y las fichas se desplazan suavemente entre provincias.</p>
@@ -7996,7 +8002,7 @@ const MANUAL = [
 <h4>Generales</h4><p>Cada general tiene Ataque, Defensa y Logística (1–5) y <b>rasgos</b> (Ofensivo, Defensivo, Logístico, Maestro de caballería, Artillero, Fortificador, Marcha forzada, Carismático, Temerario, Instructor) que bufean al ejército. Puedes reclutar generales de reserva en la pestaña <b>Generales</b> y asignarlos a cualquier ejército desde su panel. Los generales suben de nivel ganando batallas y pueden morir al perder una.</p>
 <h4>Entrenamiento</h4><p>Cada división tiene un nivel de entrenamiento (Recluta, Regular, Veterano, Élite) que multiplica su rendimiento de ×0,75 a ×1,25. Las divisiones nuevas son reclutas; con <b>🎓 Entrenar</b> en territorio propio mejoran cada día (más rápido con cuarteles y generales instructores) a cambio de un 40% más de mantenimiento. Combatir también entrena. La IA entrena a sus ejércitos en tiempos de paz.</p>
 <h4>Batallas</h4><p>Cuando dos ejércitos hostiles coinciden en un estado empieza una <b>batalla automática de varios días</b>. Cada día se compara fuerza, ataque o defensa, el <b>terreno</b> (bosque, montaña y pantano favorecen al defensor), el <b>general</b> y la suerte. Las divisiones pierden fuerza y organización; si se quedan sin organización <b>se retiran</b> al estado propio más cercano. Las bajas reducen la población campesina del país.</p>
-<h4>Ocupación y puntuación de guerra</h4><p>Un estado enemigo sin defensores y con tus tropas durante <b>10 días</b> queda <b>ocupado</b> (se dibuja con rayas y línea de frente, produce y recauda mucho menos). La <b>puntuación de guerra</b> (−100 a +100) se calcula con los estados ocupados por cada bando (más si son capitales u objetivos de la guerra) y las batallas ganadas. Ya no depende de una comparación abstracta de potencias: <b>hay que ganar la guerra sobre el terreno</b>.</p>
+<h4>Ocupación y puntuación de guerra</h4><p>Un estado enemigo sin defensores y con tus tropas durante <b>8 días</b> queda <b>ocupada la provincia</b> (se dibuja con rayas y línea de frente, produce y recauda mucho menos). La <b>puntuación de guerra</b> (−100 a +100) se calcula con los estados ocupados por cada bando (más si son capitales u objetivos de la guerra) y las batallas ganadas. Ya no depende de una comparación abstracta de potencias: <b>hay que ganar la guerra sobre el terreno</b>.</p>
 <h4>IA militar</h4><p>Los países de la IA reclutan al entrar en guerra, defienden su capital y atacan el estado enemigo más débil de su frontera.</p>
 <h4>Conferencia de paz</h4><p>Cuando ganas una guerra (por rendición, por imponer la paz o por capitulación del enemigo) se abre una <b>conferencia de paz</b>. Dispones de <b>puntos de guerra</b> (según la puntuación) y los gastas en exigencias: <b>territorios</b> (más baratos si están ocupados o son objetivo de guerra; puedes cederlos a tus aliados), <b>reparaciones</b>, <b>humillación</b>, <b>concesiones comerciales</b>, <b>desmilitarización</b>, <b>imponer una ley</b> y <b>vasallaje</b>. La IA elige sola cuando vence. Las guerras que acaban por crisis diplomática se resuelven con las exigencias originales.</p>
 <h4>Humo de batalla</h4><p>Las provincias en combate echan columnas de humo y fogonazos visibles desde lejos.</p>
@@ -8011,7 +8017,7 @@ const MANUAL = [
 <h4>Compra y política de equipo</h4><p>El Estado compra cada semana el equipo que le falta en el mercado, con un gasto máximo según la política elegida en Reclutamiento: <b>Normal</b>, <b>Ampliada</b> (más reservas para reclutar) o <b>Economía de guerra</b>. Para reclutar una división nueva hace falta tener equipo de reserva suficiente. Con poco equipo las divisiones rinden menos; los combates gastan pólvora y las bajas destruyen fusiles, caballos y cañones. El gasto aparece en Presupuesto.</p>
 <h4>Crisis por escasez</h4><p>Si la oferta mundial de hierro, carbón, madera, acero, salitre, pólvora, fusiles, cañones o caballos no cubre la demanda durante semanas, estalla una <b>crisis de escasez</b> mundial que encarece el bien y frena la industria. Un país en guerra con pocos fusiles o pólvora sufre una <b>crisis de armamento</b>: descontento, menos legitimidad y menos producción.</p>`},
 {id: 'landing', title: '16e. Transportes y desembarcos', html: `
-<p>Para llegar a islas o costas sin camino terrestre construye <b>transportes</b> en un estado con puerto (Ejército → Frentes → Transportes); cada uno lleva 2 divisiones. Selecciona un ejército que esté en una provincia con puerto, pulsa <b>⚓ Desembarco</b> y haz clic en una costa enemiga, sin dueño o aliada (hasta unos 75° de distancia). El plan concentra los ejércitos en el puerto 8 días, embarca y navega; al llegar, las tropas desembarcan con un 45% menos de organización y un 25% menos de ataque durante 6 días. Reciben suministro por mar 45 días; si capturan un puerto, quedan conectadas. Los transportes vuelven al puerto tras la operación. No hay combates navales: la supremacía naval no se tiene en cuenta.</p>`},
+<p>Para llegar a islas o costas sin camino terrestre construye <b>transportes</b> en un estado con puerto (Ejército → Frentes → Transportes); cada uno lleva 2 divisiones. Selecciona un ejército que esté en una provincia con puerto, pulsa <b>⚓ Desembarco</b> y haz clic en una costa enemiga, sin dueño o aliada (hasta unos 75° de distancia). El plan concentra los ejércitos en el puerto 14 días, embarca y navega; al llegar, las tropas desembarcan con un 45% menos de organización y un 25% menos de ataque durante 6 días. Reciben suministro por mar 45 días; si capturan un puerto, quedan conectadas. Los transportes vuelven al puerto tras la operación. No hay combates navales: la supremacía naval no se tiene en cuenta.</p>`},
 {id: 'logistics', title: '16b. Suministro, cercos, cansancio y capitulación', html: `
 <h4>Suministro</h4><p>Cada país tiene una <b>red de suministro</b> que parte de su capital y de sus puertos y se extiende por las provincias que controla; los <b>ferrocarriles</b> (infraestructura) alargan su alcance y aumentan cuántas divisiones puede mantener cada provincia. Fuera de tu red (en territorio enemigo o neutral) el suministro cae unos 30% por provincia. Un ejército con menos del 50% de suministro pierde organización y fuerza cada día y combate peor; amontonar demasiadas divisiones en una provincia también reduce el suministro. El panel del ejército muestra su suministro actual.</p>
 <h4>Cercos</h4><p>Un ejército sin ninguna conexión de suministro rodeado de enemigos está <b>cercado</b>: tras unas semanas se <b>rinde</b> y el bando contrario suma puntos de guerra. Rompe el cerco antes, o evita adentrarte demasiado sin carreteras ni ferrocarriles. Si pierdes la capital, tu red se reconstruye desde tus puertos o tu estado más poblado.</p>

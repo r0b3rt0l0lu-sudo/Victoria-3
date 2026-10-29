@@ -69,3 +69,9 @@
 - Desembarcos (`src/landing.js`): transportes, planes de desembarco, cabezas de playa, IA básica.
 - Interfaz: toasts abajo, paneles sin solapamientos (layout dinámico según la placa), botón 🚪 de menú principal.
 - Ciudades con nombre (`src/cities.js`) y bordes vectoriales suavizados en alta resolución (`src/mapsmooth.js`).
+
+## Sesión: ritmo más lento y rendimiento
+- Velocidades de juego ~1,7× más lentas; movimiento de ejércitos ×1,7, batallas más largas (menos daño diario, mín. 5 días), ocupación 8 días,
+  reclutamiento 24–42 días, desembarcos más lentos (preparación 14 días); guerras de IA con plazos más largos.
+- Rendimiento: minimapa sin `getImageData` (era el 29% de la CPU), caché de `sameSide`, prefiltro de `buildRoom`, `preserveDrawingBuffer` desactivado,
+  resolución de render limitada a 1,5×. Simulación de 2 años: 6,8 s → 4,5 s.

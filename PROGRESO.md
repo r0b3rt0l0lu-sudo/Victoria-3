@@ -79,3 +79,7 @@
 ## Sesión: coaliciones y presión de la IA
 - `src/coalition.js`: índice de amenaza (infamia + conquistas recientes), coaliciones de potencias contra el expansionista, apoyo a las víctimas en guerra,
   crisis diplomáticas iniciadas por el líder, grandes potencias que intimidan al jugador débil, pestaña Diplomacia → Coaliciones (imagen, apaciguar, sobornar).
+
+## Sesión: combate táctico animado
+- `src/battleviz.js`: al abrir una batalla se ve el campo con cada división como un grupo de soldados individuales (infantería, caballería, artillería) con movimiento propio, humo, disparos, cañonazos, bajas, lluvia, barra de dominio y avisos de eventos (carga de caballería, carga desesperada, cañoneo, pánico, refuerzos). En las retiradas los soldados huyen dispersos.
+- Estrategias por ejército (`STRATS` en military.js): asalto frontal, flanqueo, aguardar en los altos, cañoneo y asalto, hostigamiento, carga masiva. Modifican ataque/defensa/bajas y se representan en el campo. La IA elige (`chooseStrategy`); el jugador fija la suya en el panel de batalla o de ejército.

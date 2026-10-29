@@ -75,3 +75,7 @@
   reclutamiento 24–42 días, desembarcos más lentos (preparación 14 días); guerras de IA con plazos más largos.
 - Rendimiento: minimapa sin `getImageData` (era el 29% de la CPU), caché de `sameSide`, prefiltro de `buildRoom`, `preserveDrawingBuffer` desactivado,
   resolución de render limitada a 1,5×. Simulación de 2 años: 6,8 s → 4,5 s.
+
+## Sesión: coaliciones y presión de la IA
+- `src/coalition.js`: índice de amenaza (infamia + conquistas recientes), coaliciones de potencias contra el expansionista, apoyo a las víctimas en guerra,
+  crisis diplomáticas iniciadas por el líder, grandes potencias que intimidan al jugador débil, pestaña Diplomacia → Coaliciones (imagen, apaciguar, sobornar).

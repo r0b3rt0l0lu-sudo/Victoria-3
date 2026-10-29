@@ -423,6 +423,8 @@ WINDOWS.diplomacy = {title: 'Diplomacia', icon: '🤝', render() {
       ${c.fabricating ? `<div class="notice">📜 Fabricando reclamación sobre <b>${G.S[c.fabricating.state].name}</b>: ${c.fabricating.months} meses.</div>` : ''}</div>
       <div class="card"><h3>Fabricar reclamaciones</h3><p class="hint">Selecciona un país en Potencias (${sel ? G.C[sel].name : 'ninguno'}) y elige un estado alcanzable. Cuesta 30 de influencia y 6 meses.</p><table class="tbl"><tbody>${rs.map(x => `<tr><td>${G.S[x.id].name}</td><td class="r">${fmtN(popTotal(G.S[x.id]), 1)}</td><td class="r">${hasClaim(c, x.id) ? '<span class="tag good">Reclamado</span>' : `<button data-act="fabricate" data-id="${x.id}" ${c.fabricating || c.influence < 30 ? 'disabled' : ''}>Fabricar</button>`}</td></tr>`).join('') || '<tr><td class="dim">Elige un país primero.</td></tr>'}</tbody></table></div></div>
     <div class="col wide"><div class="card"><h3>Casus belli disponibles</h3>${Object.keys(CBS).filter(k => !CBS[k].hidden).map(k => `<div class="cbrow"><span class="cbi">${CBS[k].icon}</span><div><b>${CBS[k].name}</b> <small class="dim">${CBS[k].cost} infl. base${CBS[k].perState ? ' + ' + CBS[k].perState + ' por territorio' : ''}</small><p class="hint">${CBS[k].desc}</p></div></div>`).join('')}</div></div></div>`;
+  } else if (t === 'coal') {
+    body = coalitionsHtml();
   } else if (t === 'crisis') {
     body = dcrisisTabHtml();
   } else if (t === 'vassals') {
@@ -434,7 +436,7 @@ WINDOWS.diplomacy = {title: 'Diplomacia', icon: '🤝', render() {
     body = `<div class="card"><h3>Colonización</h3>${c.colonizing ? `<div class="notice">⚓ Colonizando <b>${G.S[c.colonizing.state].name}</b> — ${c.colonizing.months} meses restantes.</div>` : '<p class="hint">Reclama tierras sin dueño al alcance de tus territorios. Cuesta 80 de influencia y tarda 6 meses.</p>'}
      <table class="tbl clickable"><thead><tr><th>Estado</th><th class="r">Población</th><th class="r">Distancia</th><th></th></tr></thead><tbody>${tg.map(x => { const s2 = G.S[x.id]; return `<tr data-act="focus" data-id="${s2.id}"><td>${s2.name}</td><td class="r">${fmtN(popTotal(s2), 1)}</td><td class="r">${Math.round(x.d)}°</td><td class="r"><button data-act="colonize" data-id="${s2.id}" ${c.colonizing || c.influence < 80 ? 'disabled' : ''}>Colonizar</button></td></tr>`; }).join('') || '<tr><td colspan="4" class="dim">No hay territorios sin reclamar a tu alcance.</td></tr>'}</tbody></table></div>`;
   }
-  return tabs('dip', [['world', 'Potencias'], ['pacts', 'Acuerdos' + (mail ? ` (${mail})` : '')], ['blocs', 'Bloques'], ['crisis', 'Crisis' + ((G.dcrises || []).length ? ` (${G.dcrises.length})` : '')], ['claims', 'Casus belli'], ['vassals', 'Vasallos'], ['colony', 'Colonización']]) + body;
+  return tabs('dip', [['world', 'Potencias'], ['pacts', 'Acuerdos' + (mail ? ` (${mail})` : '')], ['blocs', 'Bloques'], ['crisis', 'Crisis' + ((G.dcrises || []).length ? ` (${G.dcrises.length})` : '')], ['coal', 'Coaliciones' + (coalitionOf(G.player) ? ' ⚠' : '')], ['claims', 'Casus belli'], ['vassals', 'Vasallos'], ['colony', 'Colonización']]) + body;
 }};
 
 /* --- Ejército y guerra --- */

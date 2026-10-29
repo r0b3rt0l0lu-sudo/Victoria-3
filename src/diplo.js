@@ -177,6 +177,7 @@ function recruitSides(w) {
   callers(w.att, 'att'); callers(w.def, 'def');
   // el líder de un bloque militar es arrastrado por sus miembros
   [[w.att, 'att'], [w.def, 'def']].forEach(([lead, side]) => { const b = blocOf(lead); if (b && b.type === 'military' && b.leader !== lead) tryJoin(b.leader, side, 0.8); });
+  if (typeof coalitionCall === 'function') coalitionCall(w);
 }
 
 /* ---------- frentes y ocupación ---------- */

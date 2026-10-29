@@ -65,7 +65,7 @@ function createWorld(playerTag) {
   G.player = playerTag; G.paused = true; G.speed = 2; G.week = 0; G.notifs = []; G.pendingEvent = null;
   G.log = []; G.wars = []; G.nextWarId = 1; G.eventCool = {};
   G.armies = []; G.battles = []; G.recruits = []; G.nextArmyId = 1; G.nextBattleId = 1; G.hostile = new Set(); G.occList = []; initProvinceState();
-  G.milD = Object.assign({}, MIL_NEED); G.dcrises = []; G.nextDC = 1; G.sup = {}; G.fronts = []; G.nextFront = 1; G.battleLog = [];
+  G.milD = Object.assign({}, MIL_NEED); G.coals = []; G.nextCoal = 1; G.dcrises = []; G.nextDC = 1; G.sup = {}; G.fronts = []; G.nextFront = 1; G.battleLog = [];
   G.crises = []; G.diff = G.diff || 2; G.pacts = []; G.blocs = []; G.proposals = []; G.nextId = 1; G.pt = {}; G.fx = {}; G.cycle = 0;
   G.C = {};
   Object.keys(COUNTRY_DATA).forEach(t => G.C[t] = mkCountry(t));
@@ -721,7 +721,7 @@ function monthlyTick(init) {
     if (c.ai) aiMonth(c);
     if (!init) { journal(c); traitMonth(c); if (!c.ai) achMonth(c); }
   });
-  if (!init) { randomEvents(); stepColonizeAll(); diploMonth(); crisisMonth(); dcrisisMonth(); }
+  if (!init) { randomEvents(); stepColonizeAll(); diploMonth(); crisisMonth(); dcrisisMonth(); coalitionsMonth(); }
   // crecimiento de población (mensual)
   G.S.forEach(s => {
     const c = G.C[s.owner];
@@ -916,7 +916,7 @@ function stepColonize(c) {
 }
 
 function transferState(s, tag) {
-  const old = G.C[s.owner]; const nw = G.C[tag];
+  const old = G.C[s.owner]; const nw = G.C[tag]; nw.exp = (nw.exp || 0) + (old.tag !== NONE ? 6 : 2);
   s.occ = 0; s.occBy = null; clearProvOcc(s.id);
   if (old.tag !== NONE && !old.claims.some(x => x.state === s.id)) old.claims.push({state: s.id, perm: true});
   nw.claims = nw.claims.filter(x => x.state !== s.id);

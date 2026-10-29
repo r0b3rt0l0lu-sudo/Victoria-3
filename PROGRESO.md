@@ -62,3 +62,10 @@
 ## Sesión: conferencias de paz, humo de batalla y casas solo de cerca
 - Conferencia de paz con presupuesto de puntos de guerra (`src/peace.js`); la IA elige exigencias automáticamente; las crisis diplomáticas usan el resultado legado.
 - Humo y fogonazos en las provincias en batalla; las casas y campanarios solo se ven con zoom cercano.
+
+## Sesión: economía militar, desembarcos, interfaz, ciudades y bordes suaves
+- Economía militar (`src/milecon.js`): bienes salitre/pólvora/fusiles/cañones/caballos, 5 edificios nuevos, necesidades por división,
+  compra semanal del Estado con política Normal/Ampliada/Economía de guerra, desgaste y bajas de equipo, crisis por escasez y de armamento.
+- Desembarcos (`src/landing.js`): transportes, planes de desembarco, cabezas de playa, IA básica.
+- Interfaz: toasts abajo, paneles sin solapamientos (layout dinámico según la placa), botón 🚪 de menú principal.
+- Ciudades con nombre (`src/cities.js`) y bordes vectoriales suavizados en alta resolución (`src/mapsmooth.js`).

@@ -5,6 +5,8 @@ const EV_ICON = {barrage: '💥', charge: '🔥', cav: '🐎', flank: '↪️', 
 function armyOrderText(a) {
   if (a.battle) return '⚔ En combate';
   if (a.joinTo) { const t = armyById(a.joinTo); return `⛓ Juntándose con ${t ? t.name : '?'}`; }
+  if (a.sea) return `⛴ En el mar hacia ${provName(a.sea.to)} · ${a.sea.left} d`;
+  if (a.landing) return '⚓ Esperando el embarque';
   if (a.chase) return '🎯 Persiguiendo';
   if (a.patrol && a.path.length) return '🔁 Patrullando';
   if (a.path.length) return `${a.rail ? '🚆' : a.fm ? '🥾' : '➜'} ${provName(a.dest != null ? a.dest : a.path[a.path.length - 1])} · ${armyEta(a)} d`;
@@ -68,7 +70,7 @@ function renderArmyPanel() {
   <div class="divl">${a.divs.map(d => `<div class="dv" data-tip="${DIVS[d.t].name}: fuerza ${Math.round(d.s * 100)}%, organización ${Math.round(d.o / DIVS[d.t].org * 100)}%, entrenamiento ${trainName(d.tr === undefined ? 0.5 : d.tr)}">${DIVS[d.t].icon}<i style="height:${Math.round(d.s * 100)}%"></i><u style="height:${Math.round(d.o / DIVS[d.t].org * 100)}%"></u><em style="height:${Math.round((d.tr === undefined ? 0.5 : d.tr) * 100)}%"></em></div>`).join('')}</div>
   ${own ? `<p class="hint"><b>Clic derecho</b>: mover (sobre un enemigo: perseguir). <b>Mayús + clic derecho</b>: añadir punto de ruta. <b>Ctrl/Mayús + clic en ficha</b>: grupo${group ? ` (<b>${sel.length} seleccionados</b>)` : ''}.</p>
   <div class="ordgrid">
-    ${tg(UI.moveMode, 'movemode', '🎯 Mover')}${tg(UI.optFm || a.fm, 'optfm', '🥾 Marcha forzada')}${tg(UI.optRail || a.rail, 'optrail', '🚆 Ferrocarril')}${tg(UI.patrolNext, 'patrolmode', '🔁 Patrulla')}
+    ${tg(UI.moveMode, 'movemode', '🎯 Mover')}${tg(UI.optFm || a.fm, 'optfm', '🥾 Marcha forzada')}${tg(UI.optRail || a.rail, 'optrail', '🚆 Ferrocarril')}${tg(UI.patrolNext, 'patrolmode', '🔁 Patrulla')}${tg(UI.landNext, 'landmode', '⚓ Desembarco')}
     ${tg(a.mode === 'hold', 'armymode', '🛡 Mantener', 'data-m="hold"')}${tg(a.mode === 'dig', 'armymode', '⛏ Atrincherar', 'data-m="dig"')}${tg(a.mode === 'train', 'armymode', '🎓 Entrenar', 'data-m="train"')}
     <button data-act="armystop" ${a.path.length || a.joinTo || a.patrol ? '' : 'disabled'}>✋ Detener</button><button data-act="armyretreat" ${a.battle ? 'disabled' : ''}>↩ Retirada</button><button data-act="armycap" ${a.battle ? 'disabled' : ''}>★ Capital</button>
     <button data-act="armysplit" ${a.divs.length < 2 || a.battle ? 'disabled' : ''}>✂ Dividir</button><button data-act="armydisband" ${a.battle ? 'disabled' : ''}>✖ Disolver</button>${b ? `<button data-act="selbattle" data-id="${b.id}">⚔ Batalla</button>` : ''}
@@ -88,6 +90,7 @@ function frontStatus(f) {
 }
 function frontsTabHtml() {
   const list = frontsOf(G.player);
+  const landHtml = landingsHtml();
   const cards = list.map(f => {
     const arms = frontArmies(f); const en = f.targets.length ? G.C[provOwner(f.targets[0])].name : (G.wars.find(w => w.attAll.includes(G.player) || w.defAll.includes(G.player)) ? 'enemigo' : '—');
     return `<div class="card front ${f.mode}"><div class="kv"><b>${f.mode === 'attack' ? '⚔' : '🛡'} ${f.name}</b>${frontStatus(f)}</div>
@@ -99,7 +102,7 @@ function frontsTabHtml() {
     ${f.mode === 'attack' ? `<label class="chk"><input type="checkbox" data-act="frontauto" data-f="${f.id}" ${f.auto ? 'checked' : ''}> Atacar automáticamente tras 12 días de preparación</label>` : ''}</div>`;
   }).join('');
   return `<div class="cols"><div class="col wide">${cards || '<div class="card"><p class="hint">No tienes planes. Crea uno y <b>dibuja la línea sobre una frontera</b> en el mapa.</p></div>'}</div>
-  <div class="col"><div class="card"><h3>Nuevo plan</h3>
+  <div class="col">${landHtml}<div class="card"><h3>Nuevo plan</h3>
     <button class="block" data-act="newfront" data-m="defend">🛡 Plan de defensa</button><button class="block" data-act="newfront" data-m="attack">⚔ Plan de ataque</button>
     <p class="hint"><b>Defensa:</b> dibuja una línea de provincias; los ejércitos asignados se reparten por ella según la amenaza y se atrincheran.<br><b>Ataque:</b> dibuja la línea de partida y marca con flechas las provincias enemigas. Los ejércitos se concentran (hasta +15% de ataque tras 15 días de preparación) y, al ejecutar, avanzan sobre los objetivos; la línea avanza con las conquistas.<br>Los planes se <b>activan</b> con el botón ▶.</p></div></div></div>`;
 }
@@ -170,6 +173,7 @@ function frontsSvg() {
   };
   frontsOf(G.player).forEach(f => one(f.line, f.mode === 'attack' ? f.targets : [], f.mode === 'attack' ? 'att' : 'def', f.active));
   if (UI.draw) one(UI.draw.line, UI.draw.targets, 'draw', true);
+  (G.landings || []).filter(l => l.tag === G.player).forEach(l => { const [x1, y1] = pt(l.from).split(','), [x2, y2] = pt(l.to).split(','); h += `<line class="arrow sea ${l.active ? 'act' : ''}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" marker-end="url(#arr)"/>`; });
   return h;
 }
 

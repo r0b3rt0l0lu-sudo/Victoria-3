@@ -91,6 +91,7 @@ function buildHud() {
     <button class="rbtn" data-act="load" title="Cargar partida">📂</button>
     <button class="rbtn" data-act="win" data-w="journal" title="Diario">📜</button>
     <button class="rbtn" data-act="win" data-w="manual" title="Manual del juego (F1)">📖</button>
+    <button class="rbtn home" data-act="gomenu" title="Volver al menú principal">🚪</button>
   </div>
   <div id="menu">
     ${[['budget', '💷', 'Presupuesto'], ['production', '🏭', 'Producción y mercado'], ['pops', '👥', 'Población'], ['politics', '🏛️', 'Política'], ['tech', '💡', 'Tecnología'], ['diplomacy', '🤝', 'Diplomacia'], ['military', '⚔️', 'Ejército y guerra'], ['construction', '🏗️', 'Construcción'], ['national', '🌳', 'Decisiones nacionales']]
@@ -124,6 +125,7 @@ function minimapJump(e) {
 function updateHud(force) {
   const c = me(); if (!c) return;
   const st = c.stats;
+  { const pq = $('#plaque'); if (pq) document.documentElement.style.setProperty('--ph', (pq.offsetHeight + 10) + 'px'); }
   $('#crest').innerHTML = flag(c.tag, 'big');
   $('#pl-name').textContent = c.name;
   $('#pl-sub').textContent = `${c.gov} · Rango ${c.rank}`;
@@ -132,8 +134,8 @@ function updateHud(force) {
   const tr = $('#pl-traits'); if (tr && tr.dataset.k !== tb) { tr.innerHTML = tb; tr.dataset.k = tb; }
   const set = (id, txt, tip) => { const e = $('#' + id); e.querySelector('span').textContent = txt; if (tip) e.dataset.tip = tip; };
   set('ch-treasury', money(c.treasury), `<b>Tesoro</b><br>${money(c.treasury)}`);
-  const bal = st.income - st.expense - (c.budget.expense.constr || 0) - (c.budget.expense.pub || 0) - (c.budget.expense.interest || 0) - (c.budget.expense.army || 0);
-  set('ch-balance', (bal >= 0 ? '+' : '') + fmtN(bal, 1), `<b>Balance semanal</b><br>Ingresos ${money(st.income)}<br>Gastos ${money(st.expense + (c.budget.expense.constr || 0) + (c.budget.expense.pub || 0) + (c.budget.expense.army || 0))}`);
+  const bal = st.income - st.expense - (c.budget.expense.constr || 0) - (c.budget.expense.pub || 0) - (c.budget.expense.interest || 0) - (c.budget.expense.army || 0) - (c.budget.expense.equip || 0);
+  set('ch-balance', (bal >= 0 ? '+' : '') + fmtN(bal, 1), `<b>Balance semanal</b><br>Ingresos ${money(st.income)}<br>Gastos ${money(st.expense + (c.budget.expense.constr || 0) + (c.budget.expense.pub || 0) + (c.budget.expense.army || 0) + (c.budget.expense.equip || 0))}`);
   $('#ch-balance').classList.toggle('neg', bal < 0);
   set('ch-prestige', Math.round(c.prestige), '<b>Prestigio</b><br>Determina tu posición entre las potencias.');
   set('ch-influence', Math.floor(c.influence), '<b>Influencia</b><br>Se gasta en reformas, guerras y diplomacia.');
@@ -191,7 +193,7 @@ function countryAgg(c) {
 /* --- Presupuesto --- */
 WINDOWS.budget = {title: 'Presupuesto', icon: '💷', render() {
   const c = me(), st = c.stats, b = c.budget;
-  const exp = (b.expense.gov || 0) + (b.expense.constr || 0) + (b.expense.pub || 0) + (b.expense.interest || 0) + (b.expense.army || 0);
+  const exp = (b.expense.gov || 0) + (b.expense.constr || 0) + (b.expense.pub || 0) + (b.expense.interest || 0) + (b.expense.army || 0) + (b.expense.equip || 0);
   const inc = st.income, bal = inc - exp;
   const row = (n, v, cls = '') => `<tr class="${cls}"><td>${n}</td><td class="r">${money(v)}</td></tr>`;
   return `
@@ -202,7 +204,7 @@ WINDOWS.budget = {title: 'Presupuesto', icon: '💷', render() {
       <table class="tbl">
         ${row('Impuesto sobre la renta', b.income.tax || 0)}${row('Impuesto al consumo', b.income.ctax || 0)}
         <tr class="tot"><td>Ingresos</td><td class="r good">${money(inc)}</td></tr>
-        ${row('Salarios públicos (admin., ejército, universidades)', b.expense.gov || 0)}${row('Construcción pública', b.expense.constr || 0)}${row('Mantenimiento de las divisiones', b.expense.army || 0)}${row('Servicios públicos y obras menores', b.expense.pub || 0)}${row('Intereses de la deuda', b.expense.interest || 0)}
+        ${row('Salarios públicos (admin., ejército, universidades)', b.expense.gov || 0)}${row('Construcción pública', b.expense.constr || 0)}${row('Mantenimiento de las divisiones', b.expense.army || 0)}${row('Compra de armas, caballos y pólvora', b.expense.equip || 0)}${row('Servicios públicos y obras menores', b.expense.pub || 0)}${row('Intereses de la deuda', b.expense.interest || 0)}
         <tr class="tot"><td>Gastos</td><td class="r bad">${money(exp)}</td></tr>
         <tr class="tot"><td>Balance</td><td class="r ${bal >= 0 ? 'good' : 'bad'}">${money(bal)}</td></tr>
       </table>
@@ -460,11 +462,15 @@ WINDOWS.military = {title: 'Ejército y guerra', icon: '⚔️', render() {
       <div class="kv"><span>Divisiones (incl. en instrucción)</span><b class="${ndiv >= lim ? 'bad' : ''}">${ndiv} / ${lim}</b></div>
       <p class="hint">Cada división moviliza ${fmtN(MEN_PER_DIV, 0)} soldados de la población campesina del estado y cuesta dinero. Se necesitan Cuarteles en el estado y capacidad militar suficiente.</p>
       ${states.length ? `<table class="tbl"><thead><tr><th>Estado</th><th class="r">Cuarteles</th><th class="r">Campesinos</th>${Object.keys(DIVS).map(k => `<th class="r">${DIVS[k].icon} ${DIVS[k].name}<br><small>${money(recruitCost(c, k))} · ${DIVS[k].days} d</small></th>`).join('')}</tr></thead><tbody>${states.map(id => { const s = G.S[id]; return `<tr><td data-act="focus" data-id="${id}"><b>${s.name}</b></td><td class="r">${s.b.barracks}</td><td class="r">${fmtN(s.pops.peasants || 0, 1)}</td>${Object.keys(DIVS).map(k => { const e = canRecruit(c, id, k); return `<td class="r"><button data-act="recruit" data-id="${id}" data-t="${k}" ${e ? 'disabled' : ''} ${e ? `data-tip="${escA(e)}"` : ''}>＋ Reclutar</button></td>`; }).join('')}</tr>`; }).join('')}</tbody></table>` : '<p class="hint bad">No tienes Cuarteles. Constrúyelos en el panel de un estado → Edificios.</p>'}</div></div>
-      <div class="col"><div class="card"><h3>Movilización de la población</h3>
+      <div class="col"><div class="card"><h3>Equipo militar</h3>
+      ${(() => { const need = eqNeedOf(c.tag); return EQ_GOODS.map(g => { const have = (c.eq || {})[g] || 0, nd = need[g] || 0, f = nd ? have / nd : 1; return `<div class="kv sm"><span>${GOOD[g].icon} ${GOOD[g].name} <small class="dim">· £${f1(G.price[g])}</small></span><b class="${f < 0.8 ? 'bad' : f < 1 ? 'warn' : ''}">${fmtN(have, 0)} / ${fmtN(nd, 0)}</b></div>${bar(Math.min(1, f), 1, f < 0.8 ? 'bad' : f < 1 ? 'warn' : 'good')}`; }).join(''); })()}
+      <div class="btnrow">${EQ_POLICY.map((p, i) => `<button data-act="eqpol" data-n="${i}" class="${(c.eqPolicy || 0) === i ? 'on' : ''}" data-tip="${escA(p.desc + ' Gasto máx. ' + Math.round(p.budget * 100) + '% de los ingresos.')}">${p.name}</button>`).join('')}</div>
+      <p class="hint">Las divisiones necesitan fusiles, cañones, caballos y pólvora que fabrican tus industrias o que compras en el mercado mundial. Si faltan, las tropas rinden menos y no puedes reclutar más. Por cada nivel de la política se compra más equipo.</p></div>
+      <div class="card"><h3>Movilización de la población</h3>
       ${MOB_LEVELS.map((m, i) => `<button class="block ${(c.mob || 0) === i ? 'on' : ''}" data-act="mob" data-n="${i}"><b>${m.name}</b> <small>${i ? fmtN(c.stats.pop * m.pct / MEN_PER_DIV, 0) + ' div. extra' : 'ninguna'}</small><small class="dim">${m.desc}</small></button>`).join('')}
       <p class="hint">Más movilización permite reclutar más divisiones pero reduce la producción (−${Math.round((1 - mobK(c)) * 100)}% ahora), cuesta dinero cada mes y genera malestar. Subir de nivel cuesta ${money(c.stats.income * 0.5)} por nivel.</p></div>
       <div class="card"><h3>En instrucción</h3>${mine.length ? mine.map(r => `<div class="kv sm"><span>${DIVS[r.type].icon} ${DIVS[r.type].name} · ${G.S[r.state].name}</span><b>${r.days} d</b></div>`).join('') : '<p class="hint">Nada en instrucción.</p>'}</div>
-      <div class="card"><h3>Tipos de división</h3>${Object.keys(DIVS).map(k => `<div class="divt"><b>${DIVS[k].icon} ${DIVS[k].name}</b><small>${DIVS[k].desc}</small><small>Ataque ${DIVS[k].att} · Defensa ${DIVS[k].def} · Velocidad ${DIVS[k].spd} · Organización ${DIVS[k].org}</small></div>`).join('')}</div></div></div>`;
+      <div class="card"><h3>Tipos de división</h3>${Object.keys(DIVS).map(k => `<div class="divt"><b>${DIVS[k].icon} ${DIVS[k].name}</b><small>${DIVS[k].desc}</small><small>Ataque ${DIVS[k].att} · Defensa ${DIVS[k].def} · Velocidad ${DIVS[k].spd} · Organización ${DIVS[k].org}</small><small>Necesita: ${fmtN(MEN_PER_DIV, 0)} soldados · ${Object.keys(DIV_NEEDS[k]).map(g => GOOD[g].icon + ' ' + fmtN(DIV_NEEDS[k][g], 0)).join(' · ')}</small></div>`).join('')}</div></div></div>`;
   } else if (tab === 'wars') {
     body = `<div class="cols"><div class="col wide"><div class="card"><h3>Guerras en curso</h3>${myWars.length ? myWars.map(w => {
       const mineSide = w.attAll.includes(G.player); const score = mineSide ? w.score : -w.score; const po = peaceOptions(w, G.player);
@@ -686,6 +692,7 @@ window.onMapHover = (id, e) => {
 };
 window.onMapClick = (id, e, pid) => {
   if (UI.draw && pid !== undefined && pid >= 0) { drawClick(pid); return; }
+  if (UI.landNext && pid !== undefined && pid >= 0) { landClick(pid); return; }
   if (UI.selArmy && pid !== undefined && pid >= 0 && (UI.moveMode || UI.patrolNext || (e && e.shiftKey))) { orderArmies(pid, UI.patrolNext ? 'patrol' : 'move'); return; }
   UI.sel = id >= 0 ? id : null; setSelected(id >= 0 ? id : -1); renderStatePanel();
 };
@@ -770,6 +777,7 @@ const ACT = {
   wheelmode: () => { R.wheelMode = R.wheelMode === 'zoom' ? 'pan' : 'zoom'; saveMapPrefs(); syncCamBtns(); toast('🖱️', R.wheelMode === 'zoom' ? 'La rueda del ratón o del panel táctil hace zoom.' : 'La rueda o el panel táctil desplaza el mapa (pellizca para hacer zoom).'); },
   animtoggle: () => { R.anim = !R.anim; if (R.waterMesh) { R.waterMesh.visible = R.anim; R.cloudMesh.visible = R.anim; } R.renderMs = 10; R.dirty = true; syncCamBtns(); toast('≈', R.anim ? 'Animaciones del mapa activadas.' : 'Animaciones desactivadas (más fluidez).'); },
   edgescroll: () => { R.edgeScroll = !R.edgeScroll; saveMapPrefs(); syncCamBtns(); toast('⇱', R.edgeScroll ? 'Desplazamiento por los bordes activado.' : 'Desplazamiento por los bordes desactivado.'); },
+  gomenu: () => { if (confirm('¿Volver al menú principal?\n\nLa partida se guardará automáticamente (puedes retomarla con «Continuar»).')) { try { doSave(true); } catch (e) {} location.reload(); } },
   save: () => doSave(),
   load: () => doLoad(),
   cont: () => doLoad(true),
@@ -789,6 +797,7 @@ const ACT = {
   armydisband: () => { const a = armyById(UI.selArmy); if (a && confirm('¿Disolver este ejército? Los soldados volverán a la población.')) { disbandArmy(a); selectArmy(null); renderWindow(); } },
   propa: d => { const r = buyPropaganda(me(), d.k); toast(r.ok ? '📢' : '⚠️', r.msg); renderWindow(); },
   mob: d => { const r = setMobilization(me(), +d.n); if (r.msg) toast(r.ok ? '🪖' : '⚠️', r.msg); renderWindow(); },
+  eqpol: d => { me().eqPolicy = +d.n; renderWindow(); },
   recruit: d => { const r = recruit(me(), +d.id, d.t); toast(r.ok ? '🪖' : '⚠️', r.ok ? `Reclutando ${DIVS[d.t].name} en ${G.S[+d.id].name}.` : r.msg); renderWindow(); }
 };
 function refreshDiploMap() { if (R.mode === 'diplomacy' || R.mode === 'blocs') fullRepaint(); }
@@ -829,12 +838,12 @@ window.addEventListener('keydown', e => {
 /* ---------- avisos ---------- */
 function toast(icon, text, state) {
   const el = document.createElement('div'); el.className = 'toast';
-  el.innerHTML = `<span>${icon}</span><p>${text}</p>`;
-  if (state !== undefined && state !== null) { el.classList.add('click'); el.addEventListener('click', () => { focusState(state, 55); el.remove(); }); }
+  el.innerHTML = `<span>${icon}</span><p>${text}</p><b class="tx" title="Cerrar">✕</b>`;
+  el.classList.add('click'); el.addEventListener('click', e => { if (state !== undefined && state !== null && !e.target.classList.contains('tx')) focusState(state, 55); el.remove(); });
   $('#toasts').appendChild(el);
   setTimeout(() => el.classList.add('in'), 10);
-  setTimeout(() => { el.classList.remove('in'); setTimeout(() => el.remove(), 400); }, 9000);
-  while ($("#toasts").children.length > 5) $('#toasts').firstChild.remove();
+  setTimeout(() => { el.classList.remove('in'); setTimeout(() => el.remove(), 400); }, 6500);
+  while ($("#toasts").children.length > 4) $('#toasts').firstChild.remove();
 }
 const NOTIF_ICON = {build: '🏗️', tech: '💡', law: '📜', journal: '🏆', war: '⚔️', colony: '⚓', event: '📰', diplo: '🤝', crisis: '📉', politics: '🏛️'};
 function drainNotifs() {

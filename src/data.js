@@ -21,8 +21,15 @@ const GOODS = [
  {id:'clothes',name:'Ropa',       base:22, icon:'👔', color:'#6a8ab8', cat:'Industriales'},
  {id:'furniture',name:'Muebles',  base:24, icon:'🪑', color:'#a8784a', cat:'Industriales'},
  {id:'tools',  name:'Herramientas',base:26,icon:'🔧', color:'#9aa4b0', cat:'Industriales'},
- {id:'steel',  name:'Acero',      base:36, icon:'🔩', color:'#b6c2d2', cat:'Industriales'}
+ {id:'steel',  name:'Acero',      base:36, icon:'🔩', color:'#b6c2d2', cat:'Industriales'},
+ {id:'saltpeter',name:'Salitre',   base:14, icon:'🧂', color:'#d8d4c4', cat:'Materias primas'},
+ {id:'gunpowder',name:'Pólvora',   base:30, icon:'💥', color:'#5a5a62', cat:'Militares'},
+ {id:'rifles', name:'Fusiles',    base:34, icon:'🔫', color:'#7a6a58', cat:'Militares'},
+ {id:'cannons',name:'Cañones',    base:70, icon:'💣', color:'#4e5a66', cat:'Militares'},
+ {id:'horses', name:'Caballos',   base:36, icon:'🐎', color:'#9a6a3a', cat:'Militares'}
 ];
+// consumo militar mundial estimado por semana (para dimensionar la industria inicial)
+const MIL_NEED = {rifles: 60000, cannons: 3500, horses: 25000, gunpowder: 18000};
 const GOOD = {}; GOODS.forEach(g => GOOD[g.id] = g);
 
 const VA_PER_WORKER = 10;      // valor añadido por trabajador a precios base
@@ -48,6 +55,11 @@ const BUILDINGS = [
  {id:'tools',    name:'Talleres de Herramientas',icon:'🔧',grp:'Industria',  out:'tools',  inputs:{iron:2000,wood:1000,coal:500}, workers:{laborers:.8,machinists:.2}, cost:300, cap:'ind'},
  {id:'liquor',   name:'Destilerías',           icon:'🍷', grp:'Industria',   out:'liquor', inputs:{grain:2500}, workers:{laborers:.85,machinists:.15}, cost:260, cap:'ind'},
  {id:'steel',    name:'Acerías',               icon:'🔥', grp:'Industria',   out:'steel',  inputs:{iron:3000,coal:3000}, workers:{laborers:.75,machinists:.25}, cost:420, cap:'ind', tech:'blast_furnace'},
+ {id:'saltpeter',name:'Salitreras',            icon:'🧂', grp:'Extracción',  out:'saltpeter',workers:{laborers:1}, cost:220, cap:'mineral'},
+ {id:'stud',     name:'Haras de Caballos',     icon:'🐎', grp:'Agricultura', out:'horses', inputs:{grain:2500}, workers:{peasants:1}, cost:200, cap:'pasture'},
+ {id:'powder',   name:'Fábricas de Pólvora',   icon:'💥', grp:'Industria militar', out:'gunpowder', inputs:{saltpeter:2000,coal:1500}, workers:{laborers:.8,machinists:.2}, cost:300, cap:'ind'},
+ {id:'armory',   name:'Fábricas de Armas',     icon:'🔫', grp:'Industria militar', out:'rifles', inputs:{iron:1800,wood:900,tools:200}, workers:{laborers:.8,machinists:.2}, cost:320, cap:'ind'},
+ {id:'foundry',  name:'Fundiciones de Cañones',icon:'💣', grp:'Industria militar', out:'cannons', inputs:{iron:2600,coal:1200,tools:300}, workers:{laborers:.75,machinists:.25}, cost:380, cap:'ind'},
  {id:'constr',   name:'Sector de la Construcción',icon:'🏗️',grp:'Infraestructura',out:null, workers:{laborers:.8,machinists:.2}, cost:250, cap:'any', gov:false, ctr:25},
  {id:'railway',  name:'Ferrocarriles',         icon:'🚂', grp:'Infraestructura',out:null, inputs:{iron:800,coal:800}, workers:{laborers:.85,machinists:.15}, cost:420, cap:'rail', tech:'railways', infra:1},
  {id:'admin',    name:'Administración',        icon:'🏛️', grp:'Gobierno',    out:null, workers:{bureaucrats:1}, cost:200, cap:'any', gov:true, bur:100},

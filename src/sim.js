@@ -65,7 +65,7 @@ function createWorld(playerTag) {
   G.player = playerTag; G.paused = true; G.speed = 2; G.week = 0; G.notifs = []; G.pendingEvent = null;
   G.log = []; G.wars = []; G.nextWarId = 1; G.eventCool = {};
   G.armies = []; G.battles = []; G.recruits = []; G.nextArmyId = 1; G.nextBattleId = 1; G.hostile = new Set(); G.occList = []; initProvinceState();
-  G.dcrises = []; G.nextDC = 1; G.sup = {}; G.fronts = []; G.nextFront = 1; G.battleLog = [];
+  G.milD = Object.assign({}, MIL_NEED); G.dcrises = []; G.nextDC = 1; G.sup = {}; G.fronts = []; G.nextFront = 1; G.battleLog = [];
   G.crises = []; G.diff = G.diff || 2; G.pacts = []; G.blocs = []; G.proposals = []; G.nextId = 1; G.pt = {}; G.fx = {}; G.cycle = 0;
   G.C = {};
   Object.keys(COUNTRY_DATA).forEach(t => G.C[t] = mkCountry(t));
@@ -90,7 +90,7 @@ function initGame(playerTag) {
   G.tags.forEach(t => { const c = G.C[t]; c.techs = new Set(); c.research = null; c.innovStock = 0; recalcMods(c); c.treasury = t === NONE ? 0 : Math.round(c.stats.income * (6 + (COUNTRY_DATA[t] ? COUNTRY_DATA[t][9] / 300000 : 1) * 1.5)); c.startPop = Math.max(1, c.stats.pop); c.hist = {gdp: [], pop: [], treasury: [], sol: [], prestige: []}; });
   updateRanks();
   G.tags.forEach(t => { const c = G.C[t]; c.prestige = Math.round(10 + (c.power ? Math.sqrt(c.power) * 3 : 0)); c.start = {ind: c.stats.indLevels, lit: c.lit, soldiers: c.stats.soldiers, prestige: c.prestige, rank: c.rank}; });
-  assignTraits(); initClaims(); seedDiplomacy(); initArmies(); G.notifs.length = 0; G.log.length = 0; G.week = 0;
+  assignTraits(); initClaims(); seedDiplomacy(); initArmies(); initEquipment(); G.notifs.length = 0; G.log.length = 0; G.week = 0;
   logMsg('Comienza la partida en enero de ' + START_YEAR + '.');
 }
 
@@ -105,6 +105,7 @@ function computeCaps() {
   for (let it = 0; it < 8; it++) {
     const need = {}; GOODS.forEach(g => need[g.id] = 0);
     LADDER.forEach((l, i) => need[l.g] += pop * l.q * afford[i]);
+    for (const g in MIL_NEED) need[g] += MIL_NEED[g];
     BUILDINGS.forEach(b => { if (b.out && lv[b.id]) for (const g in b.inputs) need[g] += lv[b.id] * b.inputs[g]; });
     BUILDINGS.forEach(b => { if (b.out) lv[b.id] = need[b.out] / b.outAmt; });
   }
@@ -133,9 +134,13 @@ function computeCaps() {
     W.steel[i] = indW * (1 + 0.5 * ((s.res.i || 0) + (s.res.c || 0)) / 3);
     W.constr[i] = Math.ceil(s.popBase / 500 + 1) * (0.3 + 2 * ind);
     W.railway[i] = Math.ceil(s.popBase / 900 + 1) * (0.4 + 2 * ind);
+    const mineral = (s.res.i || 0) + (s.res.c || 0);
+    W.saltpeter[i] = mineral * 0.6 + 0.03 * pasture / 100 + 0.01;
+    W.stud[i] = pasture * (1 + 0.3 * (s.res.m || 0)) * 0.8 + 0.05 * s.popBase;
+    ['powder', 'armory', 'foundry'].forEach(k => W[k][i] = indW * (1 + 0.4 * mineral / 4));
     W.admin[i] = W.barracks[i] = W.university[i] = Math.ceil(s.popBase / 450 + 1);
   });
-  const K = {farm: 1.9, ranch: 2.0, fishing: 2.4, logging: 2.0, iron: 1.9, coal: 1.9, fruit: 2.3, sugar: 2.3, tea: 2.3, coffee: 2.3, tobacco: 2.3, fibers: 2.2, textile: 2.6, clothes: 2.6, furniture: 2.6, liquor: 2.6, tools: 2.6, steel: 2.6};
+  const K = {farm: 1.9, ranch: 2.0, fishing: 2.4, logging: 2.0, iron: 1.9, coal: 1.9, fruit: 2.3, sugar: 2.3, tea: 2.3, coffee: 2.3, tobacco: 2.3, fibers: 2.2, textile: 2.6, clothes: 2.6, furniture: 2.6, liquor: 2.6, tools: 2.6, steel: 2.6, saltpeter: 10, stud: 8, powder: 12, armory: 12, foundry: 12};
   BUILDINGS.forEach(b => {
     const w = W[b.id]; let tot = 0; for (let i = 0; i < w.length; i++) tot += w[i];
     S.forEach((s, i) => {
@@ -215,6 +220,7 @@ function loadData(text) {
   G.S.forEach(s => G.C[s.owner].states.push(s.id));
   refreshOwnerOf();
   if (d.v2 !== 2) initArmies();
+  if (!G.milD || !G.C[G.player].eq) initEquipment();
   G.paused = true;
   return d;
 }
@@ -296,7 +302,7 @@ function recalcFx() {
 function econBegin(warm) {
   G.week++;
   recalcFx();
-  const D = {}, P = {}; GOODS.forEach(g => { D[g.id] = 0; P[g.id] = 0; });
+  const D = {}, P = {}; GOODS.forEach(g => { D[g.id] = (G.milD && G.milD[g.id]) || 0; P[g.id] = 0; });
   const cstat = {};
   G.tags.forEach(t => cstat[t] = {gdp: 0, tax: 0, ctax: 0, wages: 0, govPay: 0, ownerInc: 0, pop: 0, soldiers: 0, popSol: 0, employed: 0, workers: 0, indLevels: 0, bur: 0, constr: 0, inn: 0, spent: 0, invest: 0});
   ECX = {D, P, R: null, cstat, utTarget: {}, warm};
@@ -509,7 +515,8 @@ function econEnd() {
     c.budget.expense.subs = subs;
     const upkeep = warm ? 0 : armyUpkeep(c);
     c.budget.expense.army = upkeep;
-    const free = income - expense - spentCon - subs - upkeep;
+    const eqs = warm ? 0 : (c.eqSpent || 0); c.budget.expense.equip = eqs;
+    const free = income - expense - spentCon - subs - upkeep - eqs;
     const pub = warm ? Math.max(0, free) : (free > 0 && c.treasury > -c.stats.income * 8 ? free * 0.85 : 0);
     c.budget.expense.pub = pub;
     spreadPublic(c, pub);

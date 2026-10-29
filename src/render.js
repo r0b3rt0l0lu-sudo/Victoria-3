@@ -130,7 +130,7 @@ function initRenderer(canvas) {
   setupControls();
   resizeRenderer();
   window.addEventListener('resize', resizeRenderer);
-  fullRepaint();
+  fullRepaint(); initBorderOverlay();
   requestAnimationFrame(frame_);
 }
 
@@ -340,11 +340,8 @@ function paintPixel(i, fill, hov, sel) {
     const x = i % MAP_W, y = (i / MAP_W) | 0, st = ((x + y) >> 1) & 1;
     if (nbp !== NOPROV && by !== nby) { if (st) { r = 255; g = 232; b = 130; } else { r = 150; g = 22; b = 22; } }
     else if (by) { const k = st ? 0.78 : 0.45, rgb = R.occRGB(by); r = r * (1 - k) + rgb[0] * k; g = g * (1 - k) + rgb[1] * k; b = b * (1 - k) + rgb[2] * k; }
-    else if (MAP.pedge[i]) { r *= 0.84; g *= 0.84; b *= 0.84; }
-  } else if (MAP.pedge[i]) { r *= 0.84; g *= 0.84; b *= 0.84; }
-  const e = MAP.edge[i];
-  if (e === 2) { r = r * 0.35 + 18; g = g * 0.35 + 18; b = b * 0.35 + 22; }
-  else if (e === 1) { r *= 0.72; g *= 0.72; b *= 0.72; }
+  }
+  const e = 0;
   if (hov) { r = r * 0.8 + 55; g = g * 0.8 + 55; b = b * 0.8 + 44; }
   if (sel) { r = r * 0.78 + 60; g = g * 0.78 + 52; b = b * 0.78 + 28; if (e) { r = 255; g = 236; b = 170; } }
   d[o] = r; d[o + 1] = g; d[o + 2] = b; d[o + 3] = 255;
@@ -361,6 +358,7 @@ function fullRepaint() {
   R.ctx.putImageData(R.img, 0, 0);
   R.tex.needsUpdate = true; R.dirty = true; R.minimapDirty = true;
   if (R.cityMesh) updateCityColors();
+  if (typeof redrawOverlay === 'function') redrawOverlay(false);
 }
 
 function repaintState(id) {
@@ -383,7 +381,7 @@ function onFrontChanged(ids) {
   R.anyOcc = G.P.some(p => p.by);
   ids.forEach(sid => { if (G.S[sid]) repaintState(sid); });
 }
-function setSelected(id) { const old = R.sel; R.sel = id; repaintState(old); repaintState(id); }
+function setSelected(id) { const old = R.sel; R.sel = id; repaintState(old); repaintState(id); if (typeof redrawOverlay === 'function') redrawOverlay(false); }
 function setMapMode(m) { R.mode = m; fullRepaint(); }
 
 function onOwnershipChanged(sid) {
@@ -442,7 +440,7 @@ function updateLabels() {
     else if (l.on) { l.el.style.display = 'none'; l.on = false; }
   });
   // marcadores
-  updateMarkers();
+  updateMarkers(); if (typeof updateCityLabels === 'function') updateCityLabels();
 }
 
 function updateArmyTokens() {
@@ -463,15 +461,16 @@ function updateArmyTokens() {
     let el = R.ak[a.id];
     if (!el) { el = document.createElement('div'); el.className = 'atoken'; el.dataset.aid = a.id; el.dataset.act = 'seltoken'; el.dataset.id = a.id; R.markerRoot.appendChild(el); R.ak[a.id] = el; }
     const pv = MAP.provs[a.loc]; let plon = pv.lon, plat = pv.lat;
-    if (a.path.length && a.hopMax > 0 && !a.battle) { const nx = MAP.provs[a.path[0]], f = clamp(1 - a.hop / a.hopMax, 0, 1); plon += (nx.lon - plon) * f; plat += (nx.lat - plat) * f; }
+    if (a.sea) { const sf = MAP.provs[a.sea.from], st = MAP.provs[a.sea.to], f = clamp(1 - a.sea.left / a.sea.total, 0, 1); plon = sf.lon + (st.lon - sf.lon) * f; plat = sf.lat + (st.lat - sf.lat) * f; }
+    else if (a.path.length && a.hopMax > 0 && !a.battle) { const nx = MAP.provs[a.path[0]], f = clamp(1 - a.hop / a.hopMax, 0, 1); plon += (nx.lon - plon) * f; plat += (nx.lat - plat) * f; }
     const p = worldToScreen(plon, R.cam.dist < 62 ? 1.0 : 0.5, -plat);
     const off = (i - (n - 1) / 2) * 30;
     const x = p[0] + off, y = p[1] + (a.tag === G.player ? 0 : 0);
     if (x < -40 || x > cw + 40 || y < -40 || y > ch + 40) { el.style.display = 'none'; return; }
     el.style.display = 'flex';
-    const key = G.player + a.tag + a.divs.length + (a.battle ? 'b' : '') + (a.id === sel ? 's' : '') + (a.path.length ? 'm' : '') + (window.UI && UI.selSet && UI.selSet.has(a.id) ? 'g' : '') + Math.round(armyStr(a) * 10);
+    const key = G.player + a.tag + a.divs.length + (a.sea ? 'z' : '') + (a.battle ? 'b' : '') + (a.id === sel ? 's' : '') + (a.path.length ? 'm' : '') + (window.UI && UI.selSet && UI.selSet.has(a.id) ? 'g' : '') + Math.round(armyStr(a) * 10);
     if (el._k !== key) {
-      el._k = key; el.className = 'atoken' + (UI.selSet && UI.selSet.has(a.id) ? ' sel2' : '') + (a.tag === G.player ? ' mine' : '') + (a.id === sel ? ' sel' : '') + (a.battle ? ' fight' : '') + (a.path.length ? ' moving' : '');
+      el._k = key; el.className = 'atoken' + (UI.selSet && UI.selSet.has(a.id) ? ' sel2' : '') + (a.tag === G.player ? ' mine' : '') + (a.id === sel ? ' sel' : '') + (a.battle ? ' fight' : '') + (a.sea ? ' sea' : '') + (a.path.length ? ' moving' : '');
       el.innerHTML = flag(a.tag, 'sm') + `<b>${a.divs.length}</b>` + `<i style="width:${Math.round(armyStr(a) * 100)}%"></i>` + (a.battle ? '<u>⚔</u>' : '');
     }
     el.style.transform = `translate(-50%,-50%) translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;

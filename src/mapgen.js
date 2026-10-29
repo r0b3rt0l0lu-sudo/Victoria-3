@@ -336,7 +336,7 @@ function buildMap() {
   for (let i = 0; i < N; i++) if (land[i]) order[pos[so[i]]++] = i;
   MAP.pixOff = off; MAP.pixOrder = order;
   MAP.edge = new Uint8Array(N);
-  buildProvinces();
+  buildProvinces(); buildBorderLines();
   console.log('Mapa generado en', Math.round(performance.now() - t0), 'ms; estados:', S);
 }
 

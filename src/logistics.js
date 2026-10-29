@@ -19,6 +19,7 @@ function computeSupply(tag) {
     let best = null, bp = -1; c.states.forEach(sid => { const s = G.S[sid]; MAP.stats[sid].provs.forEach(pid => { if (controlled(tag, pid) && s.popBase > bp) { bp = s.popBase; best = pid; } }); });
     if (best !== null) seed(best, 0.7);
   }
+  beachSupply(tag).forEach(p => seed(p, 0.55));
   const done = new Set();
   while (heap.length) {
     const [v, pid, out] = pop(); if (done.has(pid) || v < (lvl.get(pid) || 0)) continue; done.add(pid);
@@ -41,9 +42,10 @@ function supplyDay() {
   let idx = 0;
   tags.forEach(t => { if (!G.sup || !G.sup[t] || (G.date.t + idx) % SUPPLY_EVERY === 0) computeSupply(t); idx++; });
   const cnt = {};
-  G.armies.forEach(a => { const k = a.tag + '|' + a.loc; cnt[k] = (cnt[k] || 0) + a.divs.length; });
+  G.armies.forEach(a => { if (a.sea) return; const k = a.tag + '|' + a.loc; cnt[k] = (cnt[k] || 0) + a.divs.length; });
   const dead = [];
   G.armies.forEach(a => {
+    if (a.sea) { a.sup = 1; return; }
     let l = supplyAt(a.tag, a.loc); const n = cnt[a.tag + '|' + a.loc], cap = provCap(a.loc, a.tag);
     if (n > cap) l *= cap / n;
     a.sup = a.sup === undefined ? l : a.sup * 0.6 + l * 0.4;
@@ -68,7 +70,6 @@ function supplyDay() {
   });
   if (G.armies.some(a => a._dead)) { G.armies = G.armies.filter(a => !a._dead); G.battles = G.battles.filter(b => b.A.some(armyById) && b.B.some(armyById)); }
 }
-const equipMod = () => 1;
 // solo se considera cercado al ejército sin suministro que está en territorio enemigo o junto a tropas enemigas
 function hostileHere(a) {
   const o = provOwner(a.loc), by = G.P[a.loc].by;

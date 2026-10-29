@@ -52,6 +52,29 @@ function buildCities() {
   updateCityColors();
 }
 const px0 = pv => pv.px, py0 = pv => pv.py;
+// etiquetas con el nombre de las ciudades importantes
+function buildCityLabels() {
+  R.cityRoot = document.getElementById('citylabels'); if (R.cLabels || !G.S || !G.S.length || !R.cityRoot) return;
+  R.cLabels = [];
+  G.S.forEach(s => {
+    const e = CITY_NAMES[s.name]; if (!e) return;
+    const prov = MAP.provs[stateCapitalProv(s.id)]; const el = document.createElement('div'); el.className = 'citylabel i' + e[1]; el.innerHTML = `<i></i>${e[0]}`; R.cityRoot.appendChild(el);
+    R.cLabels.push({el, lon: prov.lon, lat: prov.lat, imp: e[1], sid: s.id, on: false});
+  });
+}
+function updateCityLabels() {
+  if (!R.cLabels) { try { buildCityLabels(); } catch (e) { R.cLabels = []; } }
+  const d = R.cam.dist, lim = {3: 190, 2: 95, 1: 52}, cw = R.canvas.clientWidth, ch = R.canvas.clientHeight;
+  R.cLabels.forEach(l => {
+    if (d > lim[l.imp]) { if (l.on) { l.el.style.display = 'none'; l.on = false; } return; }
+    const p = worldToScreen(l.lon, 0.3, -l.lat);
+    if (p[0] < -40 || p[0] > cw + 40 || p[1] < -20 || p[1] > ch + 20) { if (l.on) { l.el.style.display = 'none'; l.on = false; } return; }
+    const cap = G.C[G.S[l.sid].owner] && G.C[G.S[l.sid].owner].capital === l.sid;
+    if (!l.on) { l.el.style.display = 'block'; l.on = true; }
+    l.el.classList.toggle('cap', !!cap);
+    l.el.style.transform = `translate(-50%,0) translate(${p[0].toFixed(1)}px,${(p[1] + 15).toFixed(1)}px)`;
+  });
+}
 function updateCityVisibility() {
   const on = R.cam.dist < 34; if (R.cityBody && R.cityBody.visible !== on) { R.cityBody.visible = R.cityRoof.visible = R.cityTower.visible = on; R.dirty = true; }
 }
@@ -121,6 +144,7 @@ function updateArmyMeshes(t) {
   if (show) {
     const cw = R.canvas.clientWidth, ch = R.canvas.clientHeight, perProv = {};
     G.armies.forEach(a => {
+      if (a.sea) return;
       const pv = MAP.provs[a.loc]; let lon = pv.lon, lat = pv.lat, fdir = 0;
       if (a.path.length && a.hopMax > 0 && !a.battle) { const nx = MAP.provs[a.path[0]], f = clamp(1 - a.hop / a.hopMax, 0, 1); lon += (nx.lon - lon) * f; lat += (nx.lat - lat) * f; fdir = Math.atan2(nx.lon - pv.lon, -(nx.lat - pv.lat)); }
       else if (a.battle) { const b = G.battles.find(x => x.id === a.battle); fdir = b && b.A.includes(a.id) ? Math.PI / 2 : -Math.PI / 2; }

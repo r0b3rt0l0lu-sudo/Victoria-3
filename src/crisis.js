@@ -97,6 +97,7 @@ function crisisMonth() {
     // ciclo recesivo: la inversión de los capitalistas se evapora en las depresiones
     if (G.crises.some(x => x.type === 'depression')) c.investPool *= 0.9;
   });
+  if (typeof shortageCrisesMonth === 'function') shortageCrisesMonth();
 }
 
 // Respuestas del jugador a las crisis

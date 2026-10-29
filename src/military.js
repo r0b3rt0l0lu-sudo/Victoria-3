@@ -144,7 +144,7 @@ function armyEta(a) {
   if (!a.path.length) return 0; let t = a.hop; for (let i = 1; i < a.path.length; i++) t += hopDays(a, a.path[i - 1], a.path[i]); return t;
 }
 function stepMove(a) {
-  if (a.battle || !a.path.length) return;
+  if (a.sea || a.battle || !a.path.length) return;
   if (a.sup !== undefined && a.sup < 0.25 && Math.random() < 0.4) return;      // sin suministro avanza más despacio
   a.hop--;
   if (a.hop > 0) return;
@@ -202,8 +202,9 @@ function sideStats(b, ids, isAttacker) {
     const air = typeof airBonus === 'function' ? airBonus(a.tag, b.state) : 0;
     const plan = a.plan && a.plan.ready ? 0.15 * Math.min(1, a.plan.days / 15) : 0;
     const sup = typeof supplyMod === 'function' ? supplyMod(a) : 1;
+    const landPen = a.landed && G.date.t - a.landed < 6 ? 0.75 : 1;
     const dig = isAttacker ? 0 : Math.min(6, a.dig || 0) * 0.04 * (a.mode === 'hold' || a.mode === 'dig' ? 1.25 : 1);
-    const am = (1 + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup;
+    const am = (1 + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup * landPen;
     const dm = (1 + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + gm.def + dm0(a.tag, 'def') + air + dig) * sup;
     brave += gm.brave; gun += gm.art;
     a.divs.forEach(d => {
@@ -299,7 +300,7 @@ function battleDay(b) {
 function bleed(tag, men) {
   if (men <= 0) return;
   const c = G.C[tag]; if (!c || !c.states.length) return;
-  c.cnt = c.cnt || {}; c.cnt.casualties = (c.cnt.casualties || 0) + men;
+  c.cnt = c.cnt || {}; c.cnt.casualties = (c.cnt.casualties || 0) + men; if (typeof eqLoss === 'function') eqLoss(tag, men);
   c.wearV = (c.wearV || 0) + men / Math.max(1e5, c.stats.pop) * 240;
   let left = men;
   for (let k = 0; k < 4 && left > 0; k++) { const s = G.S[pick(c.states)]; const take = Math.min(left, (s.pops.peasants || 0) * 0.02); s.pops.peasants -= take; left -= take; }
@@ -338,7 +339,7 @@ function retreatArmy(a, b) {
   }
   a.loc = dest; a.from = null; a.arrived = G.date.t; a.divs.forEach(d => { d.o = Math.min(d.o, DIVS[d.t].org * 0.3); });
 }
-function armiesAt(pid) { return G.armies.filter(a => a.loc === pid); }
+function armiesAt(pid) { return G.armies.filter(a => a.loc === pid && !a.sea); }
 function nearestOwnProv(tag, from) {
   const c = G.C[tag]; let best = null, bd = 1e9;
   c.states.forEach(sid => MAP.stats[sid].provs.forEach(id => { if (armiesAt(id).some(o => hostileTags(tag, o.tag))) return; const d = provDist(from, id); if (d < bd) { bd = d; best = id; } }));
@@ -351,9 +352,9 @@ function militaryDay() {
   if (!G.hostile) recalcHostile();
   recalcHostileIfNeeded();
   if (G.armies.length) {
-    G.armies.forEach(chaseDay); G.armies.forEach(joinDay); G.armies.forEach(patrolDay); G.armies.forEach(stepMove);
+    landingDay(); G.armies.forEach(chaseDay); G.armies.forEach(joinDay); G.armies.forEach(patrolDay); G.armies.forEach(stepMove);
     const byProv = new Map();
-    G.armies.forEach(a => { (byProv.get(a.loc) || byProv.set(a.loc, []).get(a.loc)).push(a); });
+    G.armies.forEach(a => { if (a.sea) return; (byProv.get(a.loc) || byProv.set(a.loc, []).get(a.loc)).push(a); });
     createBattles(byProv);
     G.battles.slice().forEach(battleDay);
     if (typeof supplyDay === 'function') supplyDay();
@@ -397,7 +398,7 @@ function recalcHostileIfNeeded() {
 function occupationDay() {
   const changedProv = new Set(), changedState = new Set();
   const byProv = new Map();
-  G.armies.forEach(a => { if (!a.battle) (byProv.get(a.loc) || byProv.set(a.loc, []).get(a.loc)).push(a); });
+  G.armies.forEach(a => { if (!a.battle && !a.sea) (byProv.get(a.loc) || byProv.set(a.loc, []).get(a.loc)).push(a); });
   // solo se revisan las provincias con tropas y las que tienen una ocupación en curso
   const check = new Set(byProv.keys()); G.occList = (G.occList || []).filter(pid => G.P[pid].by || G.P[pid].prog > 0); G.occList.forEach(p => check.add(p));
   check.forEach(pid => {
@@ -448,6 +449,7 @@ function canRecruit(c, sid, type) {
   const s = G.S[sid];
   if (!s || s.owner !== c.tag) return 'Ese estado no es tuyo.';
   if (!(s.b.barracks >= 1)) return 'El estado necesita Cuarteles.';
+  const eqm = typeof eqCheck === 'function' ? eqCheck(c, type) : null; if (eqm) return eqm;
   if (countDivs(c.tag) >= divLimit(c)) return `Has alcanzado el máximo de divisiones (${divLimit(c)}). Construye más cuarteles.`;
   if ((s.pops.peasants || 0) < MEN_PER_DIV * 6) return 'No hay suficiente población en el estado.';
   if (c.treasury < recruitCost(c, type)) return 'No tienes fondos suficientes.';
@@ -592,8 +594,8 @@ function cleanupArmies() {
 /* ---------- guardado de datos militares ---------- */
 function provSave() { const o = []; G.P.forEach((p, i) => { if (p.by || p.prog || p.fort) o.push([i, p.by, p.prog, p.pby || null, p.fort || 0]); }); return o; }
 function provLoad(list) { initProvinceState(); (list || []).forEach(([i, by, prog, pby, fort]) => { const p = G.P[i]; if (p) { p.by = by; p.prog = prog; p.pby = pby; p.fort = fort; } }); G.occList = (list || []).map(x => x[0]); G.S.forEach(s => refreshStateOcc(s.id)); }
-function saveExtra() { return {battleLog: G.battleLog || [], fronts: G.fronts || [], nextFront: G.nextFront || 1, dcrises: G.dcrises || [], nextDC: G.nextDC || 1, mov: G.movStore || null}; }
-function loadExtra(x) { G.battleLog = (x && x.battleLog) || []; G.fronts = (x && x.fronts) || []; G.nextFront = (x && x.nextFront) || 1; G.dcrises = (x && x.dcrises) || []; G.nextDC = (x && x.nextDC) || 1; }
+function saveExtra() { return {battleLog: G.battleLog || [], landings: G.landings || [], nextLand: G.nextLand || 1, shipQ: G.shipQ || [], shipReturns: G.shipReturns || [], beach: G.beach || {}, fronts: G.fronts || [], nextFront: G.nextFront || 1, dcrises: G.dcrises || [], nextDC: G.nextDC || 1, mov: G.movStore || null}; }
+function loadExtra(x) { G.battleLog = (x && x.battleLog) || []; G.landings = (x && x.landings) || []; G.nextLand = (x && x.nextLand) || 1; G.shipQ = (x && x.shipQ) || []; G.shipReturns = (x && x.shipReturns) || []; G.beach = (x && x.beach) || {}; G.fronts = (x && x.fronts) || []; G.nextFront = (x && x.nextFront) || 1; G.dcrises = (x && x.dcrises) || []; G.nextDC = (x && x.nextDC) || 1; }
 
 /* ---------- órdenes de movilidad al estilo HoI4 ---------- */
 // juntar: el ejército va hacia otro propio y se fusiona al llegar

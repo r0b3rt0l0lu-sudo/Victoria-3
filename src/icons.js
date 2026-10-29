@@ -36,6 +36,7 @@ const ICON_PATHS = {
   edge: 'M4 4h6M4 4v6M4 4l7 7M20 20h-6M20 20v-6M20 20l-7-7',
   anchor: 'M12 5a2 2 0 100-4 2 2 0 000 4zM12 5v16M7 11H4a8 8 0 0016 0h-3M8 9h8',
   plane: 'M12 3l2 7 8 4v2l-8-2-1 5 3 2v1l-5-1-5 1v-1l3-2-1-5-8 2v-2l8-4z',
+  door: 'M5 21V4h9l5 2v15M5 21h14M14 4v17M11 12h.01',
   star: 'M12 3l2.800 5.800 6.200.9-4.500 4.400 1 6.200L12 17.400 6.500 20.300l1-6.200L3 9.700l6.200-.9z',
   tree: 'M12 3v18M12 8l-5-3M12 12l6-3M12 16l-5-3M7 5v3M18 9v3',
   ship: 'M3 15l2 5h14l2-5zM12 3v9M12 4l6 7h-6M12 6l-5 5h5',
@@ -44,7 +45,7 @@ const ICON_PATHS = {
   cannon: 'M3 14l12-5 3 4-12 5zM17 13l4 3M5 20a3 3 0 100-6 3 3 0 000 6z',
   horse: 'M5 20l2-7-3-3 4-3 3 1 3-4 2 3 4 4-2 3-3-1-2 7M9 7l-1-3'
 };
-const EMO_ICON = {'💰': 'coin', '⚖': 'scale', '🏆': 'trophy', '🕊': 'globe', '💡': 'bulb', '🏛': 'columns', '👥': 'people', '🍞': 'bread', '📉': 'chartdown', '✉': 'mail', '🔍': 'search', '🏅': 'medal', '💾': 'save', '📂': 'folder', '📜': 'scroll', '📖': 'book', '💷': 'money', '🏭': 'factory', '🤝': 'handshake', '⚔': 'swords', '🏗': 'hammer', '🏴': 'flag', '🏳': 'wflag', '⛰': 'mountain', '📈': 'chartup', '🔥': 'fire', '🏠': 'home', '⟲': 'rotl', '⟳': 'rotr', '⤒': 'tiltu', '⤓': 'tiltd', '🖱': 'mouse', '🖐': 'hand', '⇱': 'edge', '⚓': 'anchor', '✈': 'plane', '★': 'star', '🌳': 'tree'};
+const EMO_ICON = {'💰': 'coin', '⚖': 'scale', '🏆': 'trophy', '🕊': 'globe', '💡': 'bulb', '🏛': 'columns', '👥': 'people', '🍞': 'bread', '📉': 'chartdown', '✉': 'mail', '🔍': 'search', '🏅': 'medal', '💾': 'save', '📂': 'folder', '📜': 'scroll', '📖': 'book', '💷': 'money', '🏭': 'factory', '🤝': 'handshake', '⚔': 'swords', '🏗': 'hammer', '🏴': 'flag', '🏳': 'wflag', '⛰': 'mountain', '📈': 'chartup', '🔥': 'fire', '🏠': 'home', '⟲': 'rotl', '⟳': 'rotr', '⤒': 'tiltu', '⤓': 'tiltd', '🖱': 'mouse', '🖐': 'hand', '⇱': 'edge', '⚓': 'anchor', '✈': 'plane', '★': 'star', '🌳': 'tree', '🚪': 'door'};
 function icon(name, cls) { const p = ICON_PATHS[name]; return p ? `<svg class="ic ${cls || ''}" viewBox="0 0 24 24" aria-hidden="true"><path d="${p}"/></svg>` : ''; }
 // sustituye el emoji de un elemento por su icono SVG
 function iconize(root) {

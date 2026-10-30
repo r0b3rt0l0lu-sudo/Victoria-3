@@ -428,6 +428,7 @@ svg.orders line.arrow.sea{stroke:#6aa8e8;stroke-width:3.5}.atoken.sea{background
 #bmap{display:block;width:auto;max-width:100%;max-height:60vh;margin:6px auto}
 .bvplay{margin-left:auto;margin-right:8px;background:#7a5a1f;color:#fff;border:1px solid #e0b04a;border-radius:5px;padding:4px 10px;cursor:pointer}
 .mini{margin-left:6px;padding:0 6px;font-size:11px;background:#2a2e35;color:#eee;border:1px solid #666;border-radius:4px;cursor:pointer}
+#selbox{position:fixed;border:1px solid #ffe28a;background:rgba(255,226,138,.12);pointer-events:none;z-index:40;display:none}
 </style>
 </head>
 <body>
@@ -3098,6 +3099,7 @@ function sponsorAbroad(c, tag, ig) {
 }
 function decayBoosts(c) {
   if (typeof mobilizationMonth === 'function') mobilizationMonth(c);
+  if (typeof intelMonth === 'function') intelMonth(c);
   propagandaMonth(c); warWearMonth(c); politics2Month(c);
   for (const k in (c.propa || {})) if (--c.propa[k].months <= 0) delete c.propa[k];
   c.boosts = c.boosts.filter(b => --b.months > 0);
@@ -3429,7 +3431,7 @@ function warWeek() {
     else if (!humans && w.weeks > 176) endWar(w, null);
     else if (humans && w.weeks > 240 && Math.abs(w.score) < 25) endWar(w, null);
   }
-  milEconWeek(); aiRecruitWeek(); aiTrainWeek(); aiLandingWeek();
+  milEconWeek(); aiRecruitWeek(); aiTrainWeek(); aiLandingWeek(); if (typeof intelWeek === 'function') intelWeek(); if (typeof homeWeek === 'function') homeWeek();
 }
 
 /* ---------- paz y resultado ---------- */
@@ -3714,6 +3716,7 @@ function aiWarsNew() {
   if (cb === 'regime') return;
   const fr = A.influence < warCost(a, targets, cb);
   if (Math.random() < 0.35 && !crisisOf(a) && !crisisOf(d)) { const r = openCrisis(a, d, cb, targets, {free: fr, ai: true}); if (r.ok) return; }
+  if (typeof intelAiAttack === 'function' && intelAiAttack(a, d, cb, targets, fr)) return;
   declareWar(a, d, cb, targets, {free: fr});
 }
 function respondProposal(id, accept) {
@@ -3902,15 +3905,15 @@ function recalcHostile() {
   G.wars.forEach(w => w.attAll.forEach(x => w.defAll.forEach(y => { h.add(x + '|' + y); h.add(y + '|' + x); })));
   G.hostile = h;
 }
-function findPath(a, dest) {
+function findPath(a, dest, any) {
   if (dest === a.loc) return [];
-  return pathProvs(a.loc, dest, (u, v) => canEnter(a.tag, v), (u, v) => hopDays(a, u, v), 6000);
+  return pathProvs(a.loc, dest, (u, v) => any || canEnter(a.tag, v), (u, v) => hopDays(a, u, v), 6000);
 }
 function orderMove(a, dest, keepPlan, opts) {
   if (a.battle) return {ok: false, msg: 'El ejército está en combate.'};
   opts = opts || {};
   a.fm = !!opts.fm; a.rail = false;
-  const p = findPath(a, dest);
+  const p = findPath(a, dest, opts.any); a.homing = !!opts.any;
   if (p === null) return {ok: false, msg: 'No hay un camino terrestre permitido hasta esa provincia.'};
   if (opts.rail) {
     const own = pid => { const o = provOwner(pid); return o === a.tag || sameSide(a.tag, o); };
@@ -3930,10 +3933,10 @@ function stepMove(a) {
   a.hop--;
   if (a.hop > 0) return;
   const next = a.path[0];
-  if (!canEnter(a.tag, next)) { a.path = []; return; }
+  if (!a.homing && !canEnter(a.tag, next)) { a.path = []; return; }
   a.from = a.loc; a.loc = next; a.arrived = G.date.t; a.path.shift();
   a.rest = 0; a.dig = 0;
-  if (a.path.length) { a.hop = hopDays(a, a.loc, a.path[0]); a.hopMax = a.hop; } else { a.dest = null; a.fm = false; a.rail = false; }
+  if (a.path.length) { a.hop = hopDays(a, a.loc, a.path[0]); a.hopMax = a.hop; } else { a.dest = null; a.fm = false; a.rail = false; a.homing = false; }
 }
 // persecución: se reajusta el camino hacia el ejército enemigo perseguido
 function chaseDay(a) {
@@ -3989,8 +3992,9 @@ function sideStats(b, ids, isAttacker) {
     const sup = typeof supplyMod === 'function' ? supplyMod(a) : 1;
     const landPen = a.landed && G.date.t - a.landed < 6 ? 0.75 : 1;
     const dig = isAttacker ? 0 : Math.min(6, a.dig || 0) * 0.04 * (a.mode === 'hold' || a.mode === 'dig' ? 1.25 : 1);
-    const am = (1 + stAtt + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup * landPen;
-    const dm = (1 + stDef + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + gm.def + dm0(a.tag, 'def') + air + dig) * sup;
+    const stl = typeof intelStealBonus === 'function' && sideKey ? intelStealBonus(a.tag, sideKey === 'A' ? b.B0 : b.A0) : 0;
+    const am = (1 + stl + stAtt + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup * landPen;
+    const dm = (1 + stl + stDef + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + gm.def + dm0(a.tag, 'def') + air + dig) * sup;
     brave += gm.brave; gun += gm.art;
     a.divs.forEach(d => {
       const info = DIVS[d.t];
@@ -4139,6 +4143,7 @@ function militaryDay() {
   if (!G.armies) return;
   if (!G.hostile) recalcHostile();
   recalcHostileIfNeeded();
+  if (typeof intelDay === 'function') intelDay();
   if (G.armies.length) {
     landingDay(); G.armies.forEach(chaseDay); G.armies.forEach(joinDay); G.armies.forEach(patrolDay); G.armies.forEach(stepMove);
     const byProv = new Map();
@@ -4399,13 +4404,25 @@ function aiRecruitWeek() {
     while (n-- > 0 && sts.length) { const r = Math.random(); const type = r < 0.65 ? 'inf' : r < 0.8 ? 'cav' : 'art'; recruit(c, pick(sts), type); }
   });
 }
+// ¿está el ejército en un país donde ya no tiene nada que hacer (sin guerra compartida ni en guerra con él)?
+function overstaying(a) {
+  if (a.sea || a.battle) return false;
+  const o = provOwner(a.loc); if (o === a.tag || o === NONE) return false;
+  if (hostileTags(a.tag, o)) return false;
+  const by = G.P[a.loc].by; if (by && by === a.tag && hostileTags(a.tag, o)) return false;
+  return !G.wars.some(w => (w.attAll.includes(a.tag) && w.attAll.includes(o)) || (w.defAll.includes(a.tag) && w.defAll.includes(o)));
+}
+function sendHome(a, teleport) {
+  const home = nearestOwnProv(a.tag, a.loc); if (home === null) return;
+  const r = orderMove(a, home, false, {fm: true, any: true});
+  if (r.ok) { if (a.tag === G.player && !a._homeMsg) { a._homeMsg = true; notify('war', `${a.name} regresa a casa desde ${provName(a.loc)}.`); } }
+  else if (teleport) { a.loc = home; a.path = []; a.from = null; }
+}
+function homeWeek() {
+  G.armies.forEach(a => { if (a.path.length) return; if (overstaying(a)) { a._homeTry = (a._homeTry || 0) + 1; sendHome(a, a._homeTry > 3); } else { a._homeMsg = false; a._homeTry = 0; } });
+}
 function evacuateForeignArmies() {
-  G.armies.forEach(a => {
-    const o = provOwner(a.loc);
-    if (!(o === a.tag || o === NONE || sameSide(a.tag, o) || hostileTags(a.tag, o)) && !a.battle) {
-      const home = nearestOwnProv(a.tag, a.loc); if (home !== null) { a.loc = home; a.path = []; a.from = null; }
-    }
-  });
+  G.armies.forEach(a => { if (overstaying(a)) sendHome(a, true); });
 }
 function cleanupArmies() {
   G.armies = G.armies.filter(a => G.C[a.tag] && G.C[a.tag].states.length);
@@ -4416,8 +4433,8 @@ function cleanupArmies() {
 /* ---------- guardado de datos militares ---------- */
 function provSave() { const o = []; G.P.forEach((p, i) => { if (p.by || p.prog || p.fort) o.push([i, p.by, p.prog, p.pby || null, p.fort || 0]); }); return o; }
 function provLoad(list) { initProvinceState(); (list || []).forEach(([i, by, prog, pby, fort]) => { const p = G.P[i]; if (p) { p.by = by; p.prog = prog; p.pby = pby; p.fort = fort; } }); G.occList = (list || []).map(x => x[0]); G.S.forEach(s => refreshStateOcc(s.id)); }
-function saveExtra() { return {battleLog: G.battleLog || [], landings: G.landings || [], nextLand: G.nextLand || 1, shipQ: G.shipQ || [], shipReturns: G.shipReturns || [], beach: G.beach || {}, fronts: G.fronts || [], nextFront: G.nextFront || 1, coals: G.coals || [], nextCoal: G.nextCoal || 1, dcrises: G.dcrises || [], nextDC: G.nextDC || 1, mov: G.movStore || null}; }
-function loadExtra(x) { G.battleLog = (x && x.battleLog) || []; G.landings = (x && x.landings) || []; G.nextLand = (x && x.nextLand) || 1; G.shipQ = (x && x.shipQ) || []; G.shipReturns = (x && x.shipReturns) || []; G.beach = (x && x.beach) || {}; G.fronts = (x && x.fronts) || []; G.nextFront = (x && x.nextFront) || 1; G.coals = (x && x.coals) || []; G.nextCoal = (x && x.nextCoal) || 1; G.dcrises = (x && x.dcrises) || []; G.nextDC = (x && x.nextDC) || 1; }
+function saveExtra() { return {battleLog: G.battleLog || [], landings: G.landings || [], nextLand: G.nextLand || 1, shipQ: G.shipQ || [], shipReturns: G.shipReturns || [], beach: G.beach || {}, fronts: G.fronts || [], nextFront: G.nextFront || 1, coals: G.coals || [], nextCoal: G.nextCoal || 1, dcrises: G.dcrises || [], nextDC: G.nextDC || 1, mov: G.movStore || null, fog: G.fog ? {p: G.fog.p, rad: G.fog.rad, seen: Array.from(G.fog.seen).reduce((o, v, i) => { if (v) o.push(i); return o; }, [])} : null, pendAtt: G.pendAtt || []}; }
+function loadExtra(x) { G.battleLog = (x && x.battleLog) || []; G.landings = (x && x.landings) || []; G.nextLand = (x && x.nextLand) || 1; G.shipQ = (x && x.shipQ) || []; G.shipReturns = (x && x.shipReturns) || []; G.beach = (x && x.beach) || {}; G.fronts = (x && x.fronts) || []; G.nextFront = (x && x.nextFront) || 1; G.coals = (x && x.coals) || []; G.nextCoal = (x && x.nextCoal) || 1; G.dcrises = (x && x.dcrises) || []; G.nextDC = (x && x.nextDC) || 1; G.pendAtt = (x && x.pendAtt) || []; G.fog = null; G.vis = null; if (x && x.fog && MAP.provs) { const s = new Uint8Array(MAP.provs.length); x.fog.seen.forEach(i => { s[i] = 1; }); G.fog = {p: x.fog.p, rad: x.fog.rad, seen: s}; } }
 
 /* ---------- órdenes de movilidad al estilo HoI4 ---------- */
 // juntar: el ejército va hacia otro propio y se fusiona al llegar
@@ -5133,7 +5150,8 @@ function setupControls() {
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
       if (Math.abs(dx) + Math.abs(dy) > (drag.touch ? 10 : 4)) drag.moved = true;
       if (drag.moved) {
-        if (drag.btn === 2 || e.shiftKey) { R.cam.yaw = drag.yaw - dx * 0.005; R.cam.tilt = drag.tilt + dy * 0.004; camChanged(); }
+        if (drag.btn === 2 && window.onMapBoxSelect && !e.shiftKey) { drag.box = {x0: drag.x, y0: drag.y, x1: e.clientX, y1: e.clientY}; showSelBox(drag.box); }
+        else if (drag.btn === 1 || e.shiftKey) { R.cam.yaw = drag.yaw - dx * 0.005; R.cam.tilt = drag.tilt + dy * 0.004; camChanged(); }
         else if (drag.world) { const cur = screenToWorld(e.clientX, e.clientY); if (cur) { R.cam.tx += drag.world.x - cur.x; R.cam.tz += drag.world.z - cur.z; camChanged(); } }
         document.body.classList.add('dragging'); hideTipSafe();
         return;
@@ -5151,6 +5169,7 @@ function setupControls() {
       const wp = screenToWorld(e.clientX, e.clientY), id = stateAtWorld(wp);
       if (window.onMapClick) window.onMapClick(id, e, provAtWorld(wp));
     }
+    if (drag && drag.moved && drag.btn === 2 && drag.box && e.type === 'pointerup') { showSelBox(null); window.onMapBoxSelect(drag.box, e); }
     if (drag && !drag.moved && drag.btn === 2 && e.type === 'pointerup') {
       const wp = screenToWorld(e.clientX, e.clientY), id = stateAtWorld(wp);
       if (window.onMapRightClick) window.onMapRightClick(id, e, provAtWorld(wp));
@@ -5175,6 +5194,12 @@ function setupControls() {
   window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
   window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
   R.keys = keys;
+}
+function showSelBox(b) {
+  let el = document.getElementById('selbox');
+  if (!b) { if (el) el.style.display = 'none'; return; }
+  if (!el) { el = document.createElement('div'); el.id = 'selbox'; document.body.appendChild(el); }
+  el.style.cssText = `display:block;left:${Math.min(b.x0, b.x1)}px;top:${Math.min(b.y0, b.y1)}px;width:${Math.abs(b.x1 - b.x0)}px;height:${Math.abs(b.y1 - b.y0)}px`;
 }
 function hideTipSafe() { const t = document.getElementById('tooltip'); if (t) t.style.display = 'none'; }
 
@@ -5221,6 +5246,7 @@ function paintPixel(i, fill, hov, sel) {
   let r = tc[o], g = tc[o + 1], b = tc[o + 2];
   const pr = G.P ? G.P[MAP.provOf[i]] : null;
   const gn = (((i * 2246822519) >>> 0) & 255) / 255 - 0.5; r += gn * 7; g += gn * 7; b += gn * 7;
+  if (G.fog && !R.fogOff && !G.fog.seen[MAP.provOf[i]]) { const l = r * 0.3 + g * 0.59 + b * 0.11; d[o] = l * 0.5 + 22; d[o + 1] = l * 0.5 + 26; d[o + 2] = l * 0.5 + 34; d[o + 3] = 255; return; }
   if (fill[3] > 0) {
     const a = fill[3];
     // modula con la luminancia del terreno para conservar el relieve
@@ -5343,6 +5369,7 @@ function updateArmyTokens() {
   const wanted = new Map(), perState = {};
   G.armies.forEach(a => {
     const mine = a.tag === G.player, atWar = !mine && hostileTags(G.player, a.tag);
+    if (!armyVisible(a)) return;
     if (!(mine || a.battle || a.id === sel || atWar || zoomIn)) return;
     (perState[a.loc] = perState[a.loc] || []).push(a);
   });
@@ -5375,7 +5402,7 @@ function drawOrders() {
   const sel = window.UI && UI.selArmy; let h = '';
   G.armies.forEach(a => {
     const foe = a.tag !== G.player && hostileTags(G.player, a.tag);
-    if (!a.path.length || !(a.tag === G.player || a.id === sel || foe)) return;
+    if (!a.path.length || !(a.tag === G.player || a.id === sel || foe) || !armyVisible(a)) return;
     const pts = [a.loc].concat(a.path).map(pid => { const pv = MAP.provs[pid]; const p = worldToScreen(pv.lon, 0.5, -pv.lat); return p[0].toFixed(1) + ',' + p[1].toFixed(1); });
     const last = pts[pts.length - 1].split(',');
     const cl = (a.id === sel ? 'sel' : '') + (foe ? ' foe' : '') + (a.chase ? ' chase' : '');
@@ -5387,7 +5414,7 @@ function drawOrders() {
 function updateMarkers() {
   if (!R.markerRoot) return;
   const want = [];
-  G.battles.forEach(b => { if (G.S[b.state]) want.push({id: 'bt' + b.id, state: b.state, prov: b.prov, ch: '⚔️', cls: 'war'}); });
+  G.battles.forEach(b => { if (G.S[b.state] && provVisible(b.prov)) want.push({id: 'bt' + b.id, state: b.state, prov: b.prov, ch: '⚔️', cls: 'war'}); });
   const me = G.C[G.player];
   if (me && me.capital >= 0) want.push({id: 'cap', state: me.capital, ch: '★', cls: 'cap'});
   if (me && me.colonizing) want.push({id: 'col', state: me.colonizing.state, ch: '⚓', cls: 'col'});
@@ -5589,7 +5616,7 @@ function updateArmyMeshes(t) {
   if (show) {
     const cw = R.canvas.clientWidth, ch = R.canvas.clientHeight, perProv = {};
     G.armies.forEach(a => {
-      if (a.sea) return;
+      if (a.sea || !armyVisible(a)) return;
       const pv = MAP.provs[a.loc]; let lon = pv.lon, lat = pv.lat, fdir = 0;
       if (a.path.length && a.hopMax > 0 && !a.battle) { const nx = MAP.provs[a.path[0]], f = clamp(1 - a.hop / a.hopMax, 0, 1); lon += (nx.lon - lon) * f; lat += (nx.lat - lat) * f; fdir = Math.atan2(nx.lon - pv.lon, -(nx.lat - pv.lat)); }
       else if (a.battle) { const b = G.battles.find(x => x.id === a.battle); fdir = b && b.A.includes(a.id) ? Math.PI / 2 : -Math.PI / 2; }
@@ -6067,7 +6094,7 @@ WINDOWS.military = {title: 'Ejército y guerra', icon: '⚔️', render() {
   let barr = 0; c.states.forEach(i => barr += G.S[i].b.barracks || 0);
   const ndiv = countDivs(G.player), lim = divLimit(c);
   const sideHtml = (list, lead) => list.map(t => `${flag(t, 'sm')} ${G.C[t].name}${t === lead ? ' 👑' : ''}`).join(', ');
-  const head = tabs('mil', [['armies', `Ejércitos (${mine.length})`], ['fronts', `Frentes${frontsOf(G.player).length ? ' (' + frontsOf(G.player).length + ')' : ''}`], ['generals', 'Generales'], ['recruit', 'Reclutamiento'], ['wars', `Guerras${myWars.length ? ' (' + myWars.length + ')' : ''}`], ['stats', 'Fuerzas armadas']]);
+  const head = tabs('mil', [['armies', `Ejércitos (${mine.length})`], ['fronts', `Frentes${frontsOf(G.player).length ? ' (' + frontsOf(G.player).length + ')' : ''}`], ['generals', 'Generales'], ['recruit', 'Reclutamiento'], ['intel', '🕵️ Inteligencia'], ['wars', `Guerras${myWars.length ? ' (' + myWars.length + ')' : ''}`], ['stats', 'Fuerzas armadas']]);
   let body = '';
   if (tab === 'armies') {
     body = `<div class="card"><h3>Tus ejércitos</h3>${mine.length ? `<table class="tbl clickable"><thead><tr><th>Ejército · general</th><th>Ubicación</th><th class="r">Div.</th><th class="r">Hombres (mil)</th><th class="r">Fuerza</th><th class="r">Organ.</th><th>Orden</th></tr></thead><tbody>${mine.map(armyRowHtml).join('')}</tbody></table>` : '<p class="hint">No tienes ejércitos. Recluta divisiones en la pestaña Reclutamiento (se necesitan Cuarteles).</p>'}
@@ -6096,6 +6123,8 @@ WINDOWS.military = {title: 'Ejército y guerra', icon: '⚔️', render() {
       <p class="hint">Más movilización permite reclutar más divisiones pero reduce la producción (−${Math.round((1 - mobK(c)) * 100)}% ahora), cuesta dinero cada mes y genera malestar. Subir de nivel cuesta ${money(c.stats.income * 0.5)} por nivel.</p></div>
       <div class="card"><h3>En instrucción</h3>${mine.length ? mine.map(r => `<div class="kv sm"><span>${DIVS[r.type].icon} ${DIVS[r.type].name} · ${G.S[r.state].name}</span><b>${r.days} d</b></div>`).join('') : '<p class="hint">Nada en instrucción.</p>'}</div>
       <div class="card"><h3>Tipos de división</h3>${Object.keys(DIVS).map(k => `<div class="divt"><b>${DIVS[k].icon} ${DIVS[k].name}</b><small>${DIVS[k].desc}</small><small>Ataque ${DIVS[k].att} · Defensa ${DIVS[k].def} · Velocidad ${DIVS[k].spd} · Organización ${DIVS[k].org}</small><small>Necesita: ${fmtN(MEN_PER_DIV, 0)} soldados · ${Object.keys(DIV_NEEDS[k]).map(g => GOOD[g].icon + ' ' + fmtN(DIV_NEEDS[k][g], 0)).join(' · ')}</small></div>`).join('')}</div></div></div>`;
+  } else if (tab === 'intel') {
+    body = intelTabHtml();
   } else if (tab === 'wars') {
     body = `<div class="cols"><div class="col wide"><div class="card"><h3>Guerras en curso</h3>${myWars.length ? myWars.map(w => {
       const mineSide = w.attAll.includes(G.player); const score = mineSide ? w.score : -w.score; const po = peaceOptions(w, G.player);
@@ -6135,6 +6164,15 @@ function selectArmy(id, add) {
   renderArmyPanel(); R.labelsDirty = true;
 }
 const BIOME_NAMES = ['Mar', 'Llanura', 'Bosque', 'Desierto', 'Estepa', 'Tundra', 'Selva', 'Montaña', 'Nieve'];
+// clic derecho + arrastrar: selecciona todos tus ejércitos dentro del recuadro
+window.onMapBoxSelect = (b, e) => {
+  const x0 = Math.min(b.x0, b.x1), x1 = Math.max(b.x0, b.x1), y0 = Math.min(b.y0, b.y1), y1 = Math.max(b.y0, b.y1), cv = R.canvas.getBoundingClientRect();
+  const list = armiesOf(G.player).filter(a => { if (a.sea) return false; const pv = MAP.provs[a.loc], p = worldToScreen(pv.lon, R.cam.dist < 62 ? 1.0 : 0.5, -pv.lat); const x = p[0] + cv.left, y = p[1] + cv.top; return x >= x0 && x <= x1 && y >= y0 && y <= y1; });
+  if (!list.length) { toast('▭', 'No hay ejércitos tuyos en esa zona.'); return; }
+  UI.selArmy = list[0].id; UI.selSet = new Set(list.slice(1).map(a => a.id)); UI.moveMode = false;
+  toast('▭', `${list.length} ejército(s) seleccionados. Haz clic en un territorio para moverlos.`);
+  renderArmyPanel(); R.labelsDirty = true;
+};
 window.onMapRightClick = (sid, e, pid) => {
   if (UI.draw) { drawUndo(); return; }
   const a = UI.selArmy ? armyById(UI.selArmy) : null;
@@ -6318,7 +6356,8 @@ window.onMapHover = (id, e) => {
 window.onMapClick = (id, e, pid) => {
   if (UI.draw && pid !== undefined && pid >= 0) { drawClick(pid); return; }
   if (UI.landNext && pid !== undefined && pid >= 0) { landClick(pid); return; }
-  if (UI.selArmy && pid !== undefined && pid >= 0 && (UI.moveMode || UI.patrolNext || (e && e.shiftKey))) { orderArmies(pid, UI.patrolNext ? 'patrol' : 'move'); return; }
+  if (UI.selArmy && pid !== undefined && pid >= 0) { const a0 = armyById(UI.selArmy); if (a0 && a0.tag === G.player) { orderArmies(pid, UI.patrolNext ? 'patrol' : e && e.shiftKey ? 'wp' : 'move'); return; } }
+  if (UI.selArmy && (pid === undefined || pid < 0)) { UI.selArmy = null; UI.selSet = new Set(); renderArmyPanel(); R.labelsDirty = true; }
   UI.sel = id >= 0 ? id : null; setSelected(id >= 0 ? id : -1); renderStatePanel();
 };
 
@@ -6458,7 +6497,7 @@ window.addEventListener('keydown', e => {
   if (e.key === 'F1') { e.preventDefault(); openWindow('manual'); return; }
   if (e.key === '/') { e.preventDefault(); openSearch(); return; }
   if (e.code === 'Space') { e.preventDefault(); ACT.pause(); }
-  else if (e.key === 'Escape') { if (UI.win) closeWindow(); else ACT.desel(); }
+  else if (e.key === 'Escape') { if (UI.win) closeWindow(); else { if (UI.selArmy) { UI.selArmy = null; UI.selSet = new Set(); renderArmyPanel(); R.labelsDirty = true; } ACT.desel(); } }
   else if (e.key === '.') { UI.speed = Math.min(5, UI.speed + 1); updateHud(); }
   else if (e.key === ',') { UI.speed = Math.max(1, UI.speed - 1); updateHud(); }
 });
@@ -6751,10 +6790,12 @@ function renderDrawBar() {
 }
 function finishDraw() {
   const d = UI.draw; if (!d || !d.line.length) return;
-  const ids = selectedArmies().map(a => a.id);
+  let ids = selectedArmies().map(a => a.id);
+  if (!ids.length) ids = armiesOf(G.player).filter(a => !a.front && !a.sea).map(a => a.id);
   const f = createFront(G.player, d.line, d.mode, ids, d.targets);
+  f.auto = true; activateFront(f, true);
   UI.draw = null; renderDrawBar(); UI.winTab.mil = 'fronts'; UI.win = null; openWindow('military');
-  toast('🗺️', `${f.name} creado con ${ids.length} ejército(s). Pulsa ▶ Activar plan para ponerlo en marcha.`);
+  toast('🗺️', `${f.name} en marcha con ${ids.length} ejército(s): ${d.mode === 'attack' ? 'se concentrarán en la línea y atacarán solos en unas dos semanas (o pulsa «Atacar ya»)' : 'tomarán posiciones en la línea'}.`);
   R.labelsDirty = true;
 }
 // capa SVG de frentes (se dibuja junto a las órdenes de movimiento)
@@ -7863,6 +7904,152 @@ function landClick(pid) {
   UI.winTab.mil = 'fronts'; UI.win = null; openWindow('military'); R.labelsDirty = true;
 }
 
+/* ===== NIEBLA DE GUERRA E INTELIGENCIA =====
+   - Al empezar sólo conoces parte del mundo: cuanto mayor es tu país, mayor es el radio explorado.
+   - Las tropas de otros países sólo se ven en territorio propio/aliado, junto a tus ejércitos o a través de una red de agentes.
+   - El servicio de inteligencia avisa de ataques, extiende la vista y permite robar tácticas al rival. */
+const INTEL_LEVELS = [
+  {name: 'Sin servicio', cost: 0, desc: 'No inviertes en espionaje.'},
+  {name: 'Oficina de información', cost: 0.008, desc: '2 agentes. Avisa de ataques de la IA contra ti con unos días de antelación.'},
+  {name: 'Servicio de inteligencia', cost: 0.016, desc: '4 agentes. Detecta tropas a 2 provincias de tu frontera.'},
+  {name: 'Agencia de espionaje', cost: 0.028, desc: '6 agentes. Puede frustrar planes de ataque contra ti.'},
+  {name: 'Red de espionaje mundial', cost: 0.045, desc: '8 agentes. Mayor alcance de vigilancia y espionaje más eficaz.'},
+  {name: 'Servicio secreto imperial', cost: 0.07, desc: '10 agentes. Máxima eficacia en todo.'}
+];
+const INTEL_STEAL_DAYS = 60;
+function intelOf(c) {
+  if (!c.intel) c.intel = {lvl: c.ai ? (c.rank <= 8 ? 3 : c.rank <= 22 ? 2 : 1) : 0, ag: {}, steal: {}, miss: [], alert: {}};
+  return c.intel;
+}
+const intelAgents = c => intelOf(c).lvl * 2;
+const intelUsed = c => Object.values(intelOf(c).ag).reduce((s, n) => s + n, 0);
+// fuerza de la red de agentes de `tag` dentro de `t` (0..1)
+function intelNet(tag, t) {
+  const c = G.C[tag]; if (!c) return 0; const I = intelOf(c), n = I.ag[t] || 0; if (!n) return 0;
+  return clamp(Math.min(1, n * 0.34) * (0.7 + 0.06 * I.lvl) * (1 - 0.1 * intelOf(G.C[t]).lvl), 0, 1);
+}
+const intelReveals = (tag, t) => intelNet(tag, t) >= 0.2;
+
+/* ---------- niebla ---------- */
+function fogInit() {
+  const N = MAP.provs.length, seen = new Uint8Array(N), c = G.C[G.player];
+  const nT = G.tags.filter(t => t !== NONE && G.C[t].states.length).length, pct = 1 - (Math.min(c.rank, nT) - 1) / Math.max(1, nT - 1);
+  const rad = 10 + 110 * Math.pow(clamp(1 - (c.rank - 1) / 35, 0, 1), 1.2); void pct;
+  const own = []; c.states.forEach(sid => MAP.stats[sid].provs.forEach(p => own.push(p)));
+  MAP.provs.forEach(P => { let d = 1e9; for (let i = 0; i < own.length; i++) { const q = MAP.provs[own[i]], dd = Math.hypot(P.lon - q.lon, P.lat - q.lat); if (dd < d) d = dd; } if (d <= rad) seen[P.id] = 1; });
+  own.forEach(p => { seen[p] = 1; MAP.provs[p].nb.forEach(q => { seen[q] = 1; }); });
+  G.fog = {p: G.player, seen, rad: Math.round(rad)};
+  G.vis = null; R.needPaint = true;
+}
+function fogUpdate() {
+  if (!G.player || !MAP.provs) return;
+  if (!G.fog || G.fog.p !== G.player || G.fog.seen.length !== MAP.provs.length) fogInit();
+  const me = G.player, c = G.C[me], I = intelOf(c), N = MAP.provs.length;
+  const vis = G.vis && G.vis.length === N ? G.vis.fill(0) : (G.vis = new Uint8Array(N));
+  const ring = (p, d) => { vis[p] = 1; if (d <= 0) return; MAP.provs[p].nb.forEach(q => { if (!vis[q] || d > 1) ring(q, d - 1); vis[q] = 1; }); };
+  const depth = 1 + (I.lvl >= 2 ? 1 : 0) + (I.lvl >= 4 ? 1 : 0);
+  for (let p = 0; p < N; p++) {
+    const o = G.S[MAP.provs[p].s].owner, by = G.P[p].by;
+    if ((o !== NONE && (o === me || sameSide(me, o))) || (by && sameSide(me, by))) { vis[p] = 1; if (o === me || (by && sameSide(me, by))) MAP.provs[p].nb.forEach(q => { vis[q] = 1; if (depth > 1) MAP.provs[q].nb.forEach(r => { vis[r] = 1; if (depth > 2) MAP.provs[r].nb.forEach(s => { vis[s] = 1; }); }); }); }
+  }
+  G.armies.forEach(a => { if (a.sea || !sameSide(me, a.tag)) return; vis[a.loc] = 1; MAP.provs[a.loc].nb.forEach(q => { vis[q] = 1; }); if (a.divs.some(d => d.t === 'cav')) MAP.provs[a.loc].nb.forEach(q => MAP.provs[q].nb.forEach(r => { vis[r] = 1; })); });
+  for (const t in I.ag) if (intelReveals(me, t) && G.C[t]) G.C[t].states.forEach(sid => MAP.stats[sid].provs.forEach(p => { vis[p] = 1; }));
+  let fresh = 0; for (let p = 0; p < N; p++) if (vis[p] && !G.fog.seen[p]) { G.fog.seen[p] = 1; fresh++; }
+  if (fresh) R.needPaint = true;
+  void ring;
+}
+function armyVisible(a) {
+  if (!G.fog || !G.player || R.fogOff) return true;
+  if (a.tag === G.player || sameSide(G.player, a.tag)) return true;
+  if (a.sea) return !!(G.vis && (G.vis[a.sea.from] || G.vis[a.sea.to]));
+  return !G.vis || !!G.vis[a.loc];
+}
+const provVisible = pid => !G.fog || !G.vis || R.fogOff || !!G.vis[pid];
+
+/* ---------- tareas diarias / semanales / mensuales ---------- */
+function intelDay() {
+  if (!G.player || !G.C[G.player]) return;
+  if (!G.fog || (G.date.t % 2) === 0) fogUpdate();
+  const I = intelOf(G.C[G.player]);
+  I.miss = I.miss.filter(m => {
+    if (G.date.t < m.end) return true;
+    const t = G.C[m.t], p = clamp(0.3 + 0.11 * I.lvl + 0.25 * intelNet(G.player, m.t) - 0.07 * intelOf(t).lvl, 0.1, 0.92);
+    if (Math.random() < p) { I.steal[m.t] = G.date.t + INTEL_STEAL_DAYS; notify('war', `🕵️ ¡Tus agentes han obtenido los planes tácticos de ${t.name}! Durante ${INTEL_STEAL_DAYS} días tus ejércitos combaten mejor contra ellos.`); }
+    else { I.ag[m.t] = Math.max(0, (I.ag[m.t] || 0) - 1); addRel(G.player, m.t, -15); notify('war', `🕵️ La misión de espionaje contra ${t.name} fracasó: un agente fue capturado y las relaciones empeoran.`); }
+    return false;
+  });
+}
+function intelWeek() {
+  const c = G.C[G.player]; if (!c) return; const I = intelOf(c);
+  // ataques de la IA en preparación
+  G.pendAtt = (G.pendAtt || []).filter(p => {
+    if (G.date.t < p.at) return true;
+    const A = G.C[p.a]; if (!alive(p.a) || !alive(p.d) || A.wars.length || relOf(p.a, p.d) > 40) { if (alive(p.a)) notify('diplo', `🕵️ ${A.name} renuncia a atacarte.`); return false; }
+    declareWar(p.a, p.d, p.cb, p.targets, {free: p.fr}); return false;
+  });
+  // concentración de tropas junto a la frontera
+  if (I.lvl >= 1 && c.states.length) {
+    const near = new Set(); c.states.forEach(sid => MAP.stats[sid].provs.forEach(p => { near.add(p); MAP.provs[p].nb.forEach(q => { near.add(q); if (I.lvl >= 2) MAP.provs[q].nb.forEach(r => near.add(r)); }); }));
+    const cnt = {}; G.armies.forEach(a => { if (a.sea || a.tag === G.player || sameSide(G.player, a.tag) || !near.has(a.loc)) return; if (!(I.lvl >= 2 || intelReveals(G.player, a.tag) || (G.vis && G.vis[a.loc]))) return; cnt[a.tag] = (cnt[a.tag] || 0) + a.divs.length; });
+    for (const t in cnt) if (cnt[t] >= 4 && G.date.t - (I.alert[t] || -99) > 40) { I.alert[t] = G.date.t; notify('war', `🕵️ Inteligencia: ${G.C[t].name} concentra ${cnt[t]} divisiones junto a tu frontera.`); }
+  }
+}
+function intelMonth(c) {
+  const I = intelOf(c);
+  if (c.ai) return;
+  c.treasury -= Math.max(0, c.stats.income) * INTEL_LEVELS[I.lvl].cost * 4.3;
+  if (I.lvl === 0) { for (const t in I.ag) delete I.ag[t]; }
+  else for (const t in I.ag) { // el exceso de agentes se retira y algunos son capturados
+    const lim = intelAgents(c); while (intelUsed(c) > lim) { const k = Object.keys(I.ag).find(x => I.ag[x] > 0); if (!k) break; I.ag[k]--; }
+    for (let i = 0; i < (I.ag[t] || 0); i++) if (Math.random() < 0.012 * intelOf(G.C[t]).lvl * (1 - 0.1 * I.lvl)) { I.ag[t]--; addRel(c.tag, t, -6); notify('war', `🕵️ Un agente tuyo ha sido capturado en ${G.C[t].name}. Las relaciones empeoran.`); break; }
+    if (!I.ag[t]) delete I.ag[t];
+  }
+}
+// la IA va a atacar al jugador: el servicio de inteligencia avisa (y quizá lo frustra)
+function intelAiAttack(a, d, cb, targets, fr) {
+  if (d !== G.player) return false; const I = intelOf(G.C[d]); if (I.lvl < 1) return false;
+  if (I.lvl >= 3 && Math.random() < 0.15 * (I.lvl - 2)) { notify('diplo', `🕵️ Tus agentes han frustrado un plan de ataque de ${G.C[a].name}.`); return true; }
+  const days = 8 + I.lvl * 4; (G.pendAtt = G.pendAtt || []).push({a, d, cb, targets, fr, at: G.date.t + days});
+  notify('diplo', `🕵️ Tus agentes advierten: ${G.C[a].name} prepara un ataque contra ti en unos ${days} días. Moviliza tropas o mejora las relaciones.`);
+  return true;
+}
+/* ---------- acciones del jugador ---------- */
+function intelSetLevel(c, n) { const I = intelOf(c); I.lvl = clamp(n | 0, 0, 5); while (intelUsed(c) > intelAgents(c)) { const k = Object.keys(I.ag).find(x => I.ag[x] > 0); I.ag[k]--; if (!I.ag[k]) delete I.ag[k]; } }
+function intelSend(c, t) { const I = intelOf(c); if (intelUsed(c) >= intelAgents(c)) return {ok: false, msg: 'No tienes agentes libres. Sube el nivel del servicio.'}; if ((I.ag[t] || 0) >= 3) return {ok: false, msg: 'Ya hay 3 agentes allí.'}; I.ag[t] = (I.ag[t] || 0) + 1; G.vis = null; fogUpdate(); return {ok: true, msg: `Un agente parte hacia ${G.C[t].name}.`}; }
+function intelRecall(c, t) { const I = intelOf(c); if (!I.ag[t]) return {ok: false, msg: ''}; I.ag[t]--; if (!I.ag[t]) delete I.ag[t]; return {ok: true, msg: `Un agente regresa de ${G.C[t].name}.`}; }
+const stealCost = c => Math.round(Math.max(0, c.stats.income) * 0.25);
+function intelSteal(c, t) {
+  const I = intelOf(c); if (!(I.ag[t] > 0)) return {ok: false, msg: 'Necesitas al menos un agente en ese país.'};
+  if (I.miss.some(m => m.t === t)) return {ok: false, msg: 'Ya hay una misión en curso allí.'};
+  if (c.treasury < stealCost(c)) return {ok: false, msg: 'No tienes fondos para la operación.'};
+  c.treasury -= stealCost(c); I.miss.push({t, end: G.date.t + 20});
+  return {ok: true, msg: `Tus agentes en ${G.C[t].name} intentan robar sus planes tácticos (20 días).`};
+}
+const intelStealBonus = (tag, foe) => { const c = G.C[tag]; return c && c.intel && foe && c.intel.steal && c.intel.steal[foe] > G.date.t ? 0.12 : 0; };
+
+/* ---------- pestaña de la interfaz ---------- */
+function intelTabHtml() {
+  const c = me(), I = intelOf(c), free = intelAgents(c) - intelUsed(c);
+  const myProvs = new Set(); c.states.forEach(sid => MAP.stats[sid].provs.forEach(p => myProvs.add(p)));
+  const rel = G.tags.filter(t => t !== NONE && t !== G.player && alive(t)).map(t => {
+    let near = 0; G.C[t].states.forEach(sid => MAP.stats[sid].provs.forEach(p => { if (MAP.provs[p].nb.some(q => myProvs.has(q))) near = 1; }));
+    return {t, sc: (near ? 100 : 0) + (hostileTags(G.player, t) ? 150 : 0) + (I.ag[t] ? 200 : 0) + (60 - Math.min(60, G.C[t].rank * 3))};
+  }).sort((a, b) => b.sc - a.sc).slice(0, 18);
+  return `<div class="cols"><div class="col"><div class="card"><h3>🕵️ Servicio de inteligencia</h3>
+    <p class="hint">Cuanto más inviertas, más agentes tienes y más lejos ves. Coste mensual: <b>${money(Math.max(0, c.stats.income) * INTEL_LEVELS[I.lvl].cost * 4.3)}</b>.</p>
+    ${INTEL_LEVELS.map((l, i) => `<button class="block ${I.lvl === i ? 'on' : ''}" data-act="intellvl" data-n="${i}"><b>${l.name}</b> <small>${i ? Math.round(l.cost * 1000) / 10 + '% de los ingresos' : 'gratis'}</small><small class="dim">${l.desc}</small></button>`).join('')}
+    <div class="kv"><span>Agentes libres</span><b>${free} / ${intelAgents(c)}</b></div>
+    <div class="kv"><span>Mundo explorado</span><b>${G.fog ? Math.round(G.fog.seen.reduce((s, x) => s + x, 0) / G.fog.seen.length * 100) : 0}%</b></div></div></div>
+    <div class="col wide"><div class="card"><h3>Agentes en el extranjero</h3><p class="hint">Dos agentes en un país te dan <b>visión completa</b> de su territorio y sus ejércitos. Con un agente puedes <b>robar sus tácticas</b>: durante ${INTEL_STEAL_DAYS} días tus tropas atacan y defienden un 12% mejor contra ellos. Los países con buen servicio de inteligencia descubren a tus agentes.</p>
+    <table class="tbl"><thead><tr><th>País</th><th class="r">Agentes</th><th class="r">Red</th><th></th></tr></thead><tbody>${rel.map(r => { const n = I.ag[r.t] || 0, st = I.steal[r.t] > G.date.t, ms = I.miss.some(m => m.t === r.t); return `<tr><td>${flag(r.t, 'sm')} <b>${G.C[r.t].name}</b> <small class="dim">${hostileTags(G.player, r.t) ? '⚔ en guerra' : ''} · inteligencia ${intelOf(G.C[r.t]).lvl}</small></td><td class="r">${n}</td><td class="r">${Math.round(intelNet(G.player, r.t) * 100)}%</td><td class="r"><button data-act="intelsend" data-t="${r.t}" ${free > 0 && n < 3 ? '' : 'disabled'}>＋</button> <button data-act="intelrecall" data-t="${r.t}" ${n ? '' : 'disabled'}>－</button> <button data-act="intelsteal" data-t="${r.t}" ${n && !ms ? '' : 'disabled'} data-tip="Cuesta ${money(stealCost(c))}">${st ? '✔ tácticas robadas (' + (I.steal[r.t] - G.date.t) + ' d)' : ms ? 'en curso…' : '📜 Robar tácticas'}</button></td></tr>`; }).join('')}</tbody></table></div></div></div>`;
+}
+Object.assign(ACT, {
+  intellvl: d => { intelSetLevel(me(), +d.n); renderWindow(); },
+  intelsend: d => { const r = intelSend(me(), d.t); toast(r.ok ? '🕵️' : '⚠️', r.msg); renderWindow(); },
+  intelrecall: d => { const r = intelRecall(me(), d.t); if (r.msg) toast('🕵️', r.msg); renderWindow(); },
+  intelsteal: d => { const r = intelSteal(me(), d.t); toast(r.ok ? '📜' : '⚠️', r.msg); renderWindow(); }
+});
+
 /* ===== EVENTOS AMPLIADOS, RASGOS NACIONALES Y LOGROS ===== */
 const cnt = (c, k, n) => { c.cnt = c.cnt || {}; c.cnt[k] = (c.cnt[k] || 0) + (n === undefined ? 1 : n); return c.cnt[k]; };
 const cntOf = (c, k) => (c.cnt && c.cnt[k]) || 0;
@@ -8260,7 +8447,7 @@ const MANUAL = [
 <tr><td>Rueda = desplazar</td><td>Si usas un panel táctil y prefieres desplazarte con dos dedos, pulsa el botón 🖱️/🖐️ del lateral: la rueda pasa a mover el mapa (el pellizco sigue haciendo zoom).</td></tr>
 <tr><td>Bordes de pantalla</td><td>El botón ⇱ activa el desplazamiento al acercar el ratón al borde de la ventana.</td></tr>
 <tr><td>Vista inicial</td><td>Botón 🏠. Los botones ⟲ ⟳ giran y ⤒ ⤓ inclinan la cámara.</td></tr>
-<tr><td>Girar e inclinar</td><td>Botón derecho + arrastrar (o <b>Mayús</b> + arrastrar); teclas <b>Q E</b> (girar) y <b>R F</b> (inclinar).</td></tr>
+<tr><td>Girar e inclinar</td><td>Botón central + arrastrar (o <b>Mayús</b> + arrastrar); teclas <b>Q E</b> (girar) y <b>R F</b> (inclinar).</td></tr>
 <tr><td>Seleccionar un estado</td><td>Clic. Abre el panel con población, nivel de vida, edificios y recursos.</td></tr>
 <tr><td>Información rápida</td><td>Pasa el ratón sobre un estado para ver un resumen.</td></tr>
 </tbody></table>
@@ -8459,6 +8646,9 @@ const MANUAL = [
 <h4>Mover ejércitos</h4><p>Cada ejército aparece como una ficha con bandera y nº de divisiones. <b>Clic</b> en la ficha (o en la lista) para seleccionarlo y abrir su panel; después <b>clic derecho</b> sobre un estado para ordenar el movimiento: el ejército sigue una ruta por los estados vecinos (se dibuja punteada) y tarda según el terreno, la velocidad de sus divisiones y la logística. Puedes detenerlo, enviarlo a la capital, dividirlo, fusionarlo con otro del mismo estado o disolverlo (devuelve parte de los soldados). No se puede cruzar el territorio de países con pacto de no agresión, garantía o alianza, ni de vasallos o bloque.</p>
 <h4>Levas y compra de equipo</h4><p>En <b>Reclutamiento</b> puedes <b>comprar el equipo</b> que falta para una división (con un 30% de recargo) o un lote de cualquier bien (pólvora, fusiles…) cuando la producción propia no basta. También puedes alzar <b>levas de campesinos</b>: divisiones baratas, rápidas y sin cuarteles ni equipo, pero mal entrenadas (atacan −45%, defienden −25%) que sirven para defender. Con la <b>Movilización total</b> aparecen levas automáticamente en todos tus estados; al bajar de nivel se disuelven.</p>
 <h4>Movilización</h4><p>En <b>Reclutamiento</b> eliges el nivel de movilización: solo soldados profesionales (barracones), voluntarios (1% de la población), servicio limitado (2,5%), conscripción (5%) o movilización total (10%). Más movilización permite más divisiones, pero reduce la producción (−4% por nivel), cuesta dinero cada mes y genera malestar y pérdida de legitimidad. Cada división tiene además un <b>mantenimiento semanal</b> (más caro en guerra).</p>
+<h4>Selección rápida</h4><p>Con un ejército tuyo seleccionado, basta un <b>clic izquierdo</b> en cualquier territorio para enviarlo allí (Mayús + clic añade un punto de ruta; <b>Esc</b> o clic en el mar deselecciona). Con el <b>botón derecho pulsado, arrastra un recuadro</b> sobre el mapa y todos tus ejércitos de esa zona quedan seleccionados.</p>
+<h4>Niebla de guerra</h4><p>Al empezar sólo conoces la parte del mundo cercana a ti: un país pequeño ve poco; una gran potencia, casi todo. Las tropas de otros países sólo se ven en tu territorio (o el de tus aliados), junto a tus ejércitos o a través de agentes. Planes de frente: al dibujarlos se activan solos; los ataques se lanzan tras unas dos semanas de concentración.</p>
+<h4>Inteligencia</h4><p>En <b>Ejército y guerra → Inteligencia</b> eliges el nivel del servicio secreto (cuesta un % de tus ingresos). Te avisa de los ataques de la IA contra ti (y con nivel 3+ puede frustrarlos), detecta tropas junto a la frontera, y te da agentes que puedes enviar al extranjero: con dos agentes ves todo el país; con uno puedes <b>robar sus tácticas</b> y combatir un 12% mejor contra él durante 60 días. Si fallan, pierdes el agente y la relación. Tras una guerra, los ejércitos aliados vuelven solos a casa.</p>
 <h4>Otras formas de mover</h4><p>Además del clic derecho: botón <b>🎯 Mover</b> en el panel del ejército y clic izquierdo en el destino, o <b>Mayús + clic</b>. Con <b>Ctrl/Mayús + clic</b> sobre otras fichas propias formas un grupo que se mueve a la vez. Si el destino contiene un ejército enemigo, tus ejércitos lo <b>persiguen</b> y corrigen su ruta cada pocos días. Todos los ejércitos (tuyos y enemigos) se mueven con la misma fórmula; las rutas enemigas se dibujan en rojo y las fichas se desplazan suavemente entre provincias.</p>
 <h4>Sucesos y minimapa de batalla</h4><p>El panel de batalla incluye un <b>minimapa táctico</b> con las divisiones de cada bando (en primera línea o en reserva), la línea del frente que avanza o retrocede y flechas de avance. Cada día puede ocurrir algo aleatorio: <b>cañoneo</b> preparatorio de la artillería, <b>cargas de caballería</b>, <b>cargas desesperadas</b> del bando que pierde (muy dañinas para ambos), <b>flanqueos</b>, <b>pánico</b>, refuerzos o lluvia. Se muestran en el minimapa y en el registro.</p>
 <h4>Estadísticas de batalla en tiempo real</h4><p>Pulsa el icono ⚔ de una batalla (o «Ver batalla» en el panel de un ejército) para abrir un panel que se actualiza en vivo: divisiones, hombres, fuerza y organización de cada bando, poder de ataque y de defensa, divisiones en combate y en reserva, generales, atrincheramiento, suministro, bajas, terreno y una gráfica de la organización. Las batallas terminadas se guardan en un historial.</p>

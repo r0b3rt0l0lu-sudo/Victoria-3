@@ -144,7 +144,7 @@ function updateArmyMeshes(t) {
   if (show) {
     const cw = R.canvas.clientWidth, ch = R.canvas.clientHeight, perProv = {};
     G.armies.forEach(a => {
-      if (a.sea) return;
+      if (a.sea || !armyVisible(a)) return;
       const pv = MAP.provs[a.loc]; let lon = pv.lon, lat = pv.lat, fdir = 0;
       if (a.path.length && a.hopMax > 0 && !a.battle) { const nx = MAP.provs[a.path[0]], f = clamp(1 - a.hop / a.hopMax, 0, 1); lon += (nx.lon - lon) * f; lat += (nx.lat - lat) * f; fdir = Math.atan2(nx.lon - pv.lon, -(nx.lat - pv.lat)); }
       else if (a.battle) { const b = G.battles.find(x => x.id === a.battle); fdir = b && b.A.includes(a.id) ? Math.PI / 2 : -Math.PI / 2; }

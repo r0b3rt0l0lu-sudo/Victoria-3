@@ -160,15 +160,15 @@ function recalcHostile() {
   G.wars.forEach(w => w.attAll.forEach(x => w.defAll.forEach(y => { h.add(x + '|' + y); h.add(y + '|' + x); })));
   G.hostile = h;
 }
-function findPath(a, dest) {
+function findPath(a, dest, any) {
   if (dest === a.loc) return [];
-  return pathProvs(a.loc, dest, (u, v) => canEnter(a.tag, v), (u, v) => hopDays(a, u, v), 6000);
+  return pathProvs(a.loc, dest, (u, v) => any || canEnter(a.tag, v), (u, v) => hopDays(a, u, v), 6000);
 }
 function orderMove(a, dest, keepPlan, opts) {
   if (a.battle) return {ok: false, msg: 'El ejército está en combate.'};
   opts = opts || {};
   a.fm = !!opts.fm; a.rail = false;
-  const p = findPath(a, dest);
+  const p = findPath(a, dest, opts.any); a.homing = !!opts.any;
   if (p === null) return {ok: false, msg: 'No hay un camino terrestre permitido hasta esa provincia.'};
   if (opts.rail) {
     const own = pid => { const o = provOwner(pid); return o === a.tag || sameSide(a.tag, o); };
@@ -188,10 +188,10 @@ function stepMove(a) {
   a.hop--;
   if (a.hop > 0) return;
   const next = a.path[0];
-  if (!canEnter(a.tag, next)) { a.path = []; return; }
+  if (!a.homing && !canEnter(a.tag, next)) { a.path = []; return; }
   a.from = a.loc; a.loc = next; a.arrived = G.date.t; a.path.shift();
   a.rest = 0; a.dig = 0;
-  if (a.path.length) { a.hop = hopDays(a, a.loc, a.path[0]); a.hopMax = a.hop; } else { a.dest = null; a.fm = false; a.rail = false; }
+  if (a.path.length) { a.hop = hopDays(a, a.loc, a.path[0]); a.hopMax = a.hop; } else { a.dest = null; a.fm = false; a.rail = false; a.homing = false; }
 }
 // persecución: se reajusta el camino hacia el ejército enemigo perseguido
 function chaseDay(a) {
@@ -247,8 +247,9 @@ function sideStats(b, ids, isAttacker) {
     const sup = typeof supplyMod === 'function' ? supplyMod(a) : 1;
     const landPen = a.landed && G.date.t - a.landed < 6 ? 0.75 : 1;
     const dig = isAttacker ? 0 : Math.min(6, a.dig || 0) * 0.04 * (a.mode === 'hold' || a.mode === 'dig' ? 1.25 : 1);
-    const am = (1 + stAtt + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup * landPen;
-    const dm = (1 + stDef + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + gm.def + dm0(a.tag, 'def') + air + dig) * sup;
+    const stl = typeof intelStealBonus === 'function' && sideKey ? intelStealBonus(a.tag, sideKey === 'A' ? b.B0 : b.A0) : 0;
+    const am = (1 + stl + stAtt + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup * landPen;
+    const dm = (1 + stl + stDef + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + gm.def + dm0(a.tag, 'def') + air + dig) * sup;
     brave += gm.brave; gun += gm.art;
     a.divs.forEach(d => {
       const info = DIVS[d.t];
@@ -397,6 +398,7 @@ function militaryDay() {
   if (!G.armies) return;
   if (!G.hostile) recalcHostile();
   recalcHostileIfNeeded();
+  if (typeof intelDay === 'function') intelDay();
   if (G.armies.length) {
     landingDay(); G.armies.forEach(chaseDay); G.armies.forEach(joinDay); G.armies.forEach(patrolDay); G.armies.forEach(stepMove);
     const byProv = new Map();
@@ -657,13 +659,25 @@ function aiRecruitWeek() {
     while (n-- > 0 && sts.length) { const r = Math.random(); const type = r < 0.65 ? 'inf' : r < 0.8 ? 'cav' : 'art'; recruit(c, pick(sts), type); }
   });
 }
+// ¿está el ejército en un país donde ya no tiene nada que hacer (sin guerra compartida ni en guerra con él)?
+function overstaying(a) {
+  if (a.sea || a.battle) return false;
+  const o = provOwner(a.loc); if (o === a.tag || o === NONE) return false;
+  if (hostileTags(a.tag, o)) return false;
+  const by = G.P[a.loc].by; if (by && by === a.tag && hostileTags(a.tag, o)) return false;
+  return !G.wars.some(w => (w.attAll.includes(a.tag) && w.attAll.includes(o)) || (w.defAll.includes(a.tag) && w.defAll.includes(o)));
+}
+function sendHome(a, teleport) {
+  const home = nearestOwnProv(a.tag, a.loc); if (home === null) return;
+  const r = orderMove(a, home, false, {fm: true, any: true});
+  if (r.ok) { if (a.tag === G.player && !a._homeMsg) { a._homeMsg = true; notify('war', `${a.name} regresa a casa desde ${provName(a.loc)}.`); } }
+  else if (teleport) { a.loc = home; a.path = []; a.from = null; }
+}
+function homeWeek() {
+  G.armies.forEach(a => { if (a.path.length) return; if (overstaying(a)) { a._homeTry = (a._homeTry || 0) + 1; sendHome(a, a._homeTry > 3); } else { a._homeMsg = false; a._homeTry = 0; } });
+}
 function evacuateForeignArmies() {
-  G.armies.forEach(a => {
-    const o = provOwner(a.loc);
-    if (!(o === a.tag || o === NONE || sameSide(a.tag, o) || hostileTags(a.tag, o)) && !a.battle) {
-      const home = nearestOwnProv(a.tag, a.loc); if (home !== null) { a.loc = home; a.path = []; a.from = null; }
-    }
-  });
+  G.armies.forEach(a => { if (overstaying(a)) sendHome(a, true); });
 }
 function cleanupArmies() {
   G.armies = G.armies.filter(a => G.C[a.tag] && G.C[a.tag].states.length);
@@ -674,8 +688,8 @@ function cleanupArmies() {
 /* ---------- guardado de datos militares ---------- */
 function provSave() { const o = []; G.P.forEach((p, i) => { if (p.by || p.prog || p.fort) o.push([i, p.by, p.prog, p.pby || null, p.fort || 0]); }); return o; }
 function provLoad(list) { initProvinceState(); (list || []).forEach(([i, by, prog, pby, fort]) => { const p = G.P[i]; if (p) { p.by = by; p.prog = prog; p.pby = pby; p.fort = fort; } }); G.occList = (list || []).map(x => x[0]); G.S.forEach(s => refreshStateOcc(s.id)); }
-function saveExtra() { return {battleLog: G.battleLog || [], landings: G.landings || [], nextLand: G.nextLand || 1, shipQ: G.shipQ || [], shipReturns: G.shipReturns || [], beach: G.beach || {}, fronts: G.fronts || [], nextFront: G.nextFront || 1, coals: G.coals || [], nextCoal: G.nextCoal || 1, dcrises: G.dcrises || [], nextDC: G.nextDC || 1, mov: G.movStore || null}; }
-function loadExtra(x) { G.battleLog = (x && x.battleLog) || []; G.landings = (x && x.landings) || []; G.nextLand = (x && x.nextLand) || 1; G.shipQ = (x && x.shipQ) || []; G.shipReturns = (x && x.shipReturns) || []; G.beach = (x && x.beach) || {}; G.fronts = (x && x.fronts) || []; G.nextFront = (x && x.nextFront) || 1; G.coals = (x && x.coals) || []; G.nextCoal = (x && x.nextCoal) || 1; G.dcrises = (x && x.dcrises) || []; G.nextDC = (x && x.nextDC) || 1; }
+function saveExtra() { return {battleLog: G.battleLog || [], landings: G.landings || [], nextLand: G.nextLand || 1, shipQ: G.shipQ || [], shipReturns: G.shipReturns || [], beach: G.beach || {}, fronts: G.fronts || [], nextFront: G.nextFront || 1, coals: G.coals || [], nextCoal: G.nextCoal || 1, dcrises: G.dcrises || [], nextDC: G.nextDC || 1, mov: G.movStore || null, fog: G.fog ? {p: G.fog.p, rad: G.fog.rad, seen: Array.from(G.fog.seen).reduce((o, v, i) => { if (v) o.push(i); return o; }, [])} : null, pendAtt: G.pendAtt || []}; }
+function loadExtra(x) { G.battleLog = (x && x.battleLog) || []; G.landings = (x && x.landings) || []; G.nextLand = (x && x.nextLand) || 1; G.shipQ = (x && x.shipQ) || []; G.shipReturns = (x && x.shipReturns) || []; G.beach = (x && x.beach) || {}; G.fronts = (x && x.fronts) || []; G.nextFront = (x && x.nextFront) || 1; G.coals = (x && x.coals) || []; G.nextCoal = (x && x.nextCoal) || 1; G.dcrises = (x && x.dcrises) || []; G.nextDC = (x && x.nextDC) || 1; G.pendAtt = (x && x.pendAtt) || []; G.fog = null; G.vis = null; if (x && x.fog && MAP.provs) { const s = new Uint8Array(MAP.provs.length); x.fog.seen.forEach(i => { s[i] = 1; }); G.fog = {p: x.fog.p, rad: x.fog.rad, seen: s}; } }
 
 /* ---------- órdenes de movilidad al estilo HoI4 ---------- */
 // juntar: el ejército va hacia otro propio y se fusiona al llegar

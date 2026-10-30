@@ -241,7 +241,8 @@ function setupControls() {
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
       if (Math.abs(dx) + Math.abs(dy) > (drag.touch ? 10 : 4)) drag.moved = true;
       if (drag.moved) {
-        if (drag.btn === 2 || e.shiftKey) { R.cam.yaw = drag.yaw - dx * 0.005; R.cam.tilt = drag.tilt + dy * 0.004; camChanged(); }
+        if (drag.btn === 2 && window.onMapBoxSelect && !e.shiftKey) { drag.box = {x0: drag.x, y0: drag.y, x1: e.clientX, y1: e.clientY}; showSelBox(drag.box); }
+        else if (drag.btn === 1 || e.shiftKey) { R.cam.yaw = drag.yaw - dx * 0.005; R.cam.tilt = drag.tilt + dy * 0.004; camChanged(); }
         else if (drag.world) { const cur = screenToWorld(e.clientX, e.clientY); if (cur) { R.cam.tx += drag.world.x - cur.x; R.cam.tz += drag.world.z - cur.z; camChanged(); } }
         document.body.classList.add('dragging'); hideTipSafe();
         return;
@@ -259,6 +260,7 @@ function setupControls() {
       const wp = screenToWorld(e.clientX, e.clientY), id = stateAtWorld(wp);
       if (window.onMapClick) window.onMapClick(id, e, provAtWorld(wp));
     }
+    if (drag && drag.moved && drag.btn === 2 && drag.box && e.type === 'pointerup') { showSelBox(null); window.onMapBoxSelect(drag.box, e); }
     if (drag && !drag.moved && drag.btn === 2 && e.type === 'pointerup') {
       const wp = screenToWorld(e.clientX, e.clientY), id = stateAtWorld(wp);
       if (window.onMapRightClick) window.onMapRightClick(id, e, provAtWorld(wp));
@@ -283,6 +285,12 @@ function setupControls() {
   window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
   window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
   R.keys = keys;
+}
+function showSelBox(b) {
+  let el = document.getElementById('selbox');
+  if (!b) { if (el) el.style.display = 'none'; return; }
+  if (!el) { el = document.createElement('div'); el.id = 'selbox'; document.body.appendChild(el); }
+  el.style.cssText = `display:block;left:${Math.min(b.x0, b.x1)}px;top:${Math.min(b.y0, b.y1)}px;width:${Math.abs(b.x1 - b.x0)}px;height:${Math.abs(b.y1 - b.y0)}px`;
 }
 function hideTipSafe() { const t = document.getElementById('tooltip'); if (t) t.style.display = 'none'; }
 
@@ -329,6 +337,7 @@ function paintPixel(i, fill, hov, sel) {
   let r = tc[o], g = tc[o + 1], b = tc[o + 2];
   const pr = G.P ? G.P[MAP.provOf[i]] : null;
   const gn = (((i * 2246822519) >>> 0) & 255) / 255 - 0.5; r += gn * 7; g += gn * 7; b += gn * 7;
+  if (G.fog && !R.fogOff && !G.fog.seen[MAP.provOf[i]]) { const l = r * 0.3 + g * 0.59 + b * 0.11; d[o] = l * 0.5 + 22; d[o + 1] = l * 0.5 + 26; d[o + 2] = l * 0.5 + 34; d[o + 3] = 255; return; }
   if (fill[3] > 0) {
     const a = fill[3];
     // modula con la luminancia del terreno para conservar el relieve
@@ -451,6 +460,7 @@ function updateArmyTokens() {
   const wanted = new Map(), perState = {};
   G.armies.forEach(a => {
     const mine = a.tag === G.player, atWar = !mine && hostileTags(G.player, a.tag);
+    if (!armyVisible(a)) return;
     if (!(mine || a.battle || a.id === sel || atWar || zoomIn)) return;
     (perState[a.loc] = perState[a.loc] || []).push(a);
   });
@@ -483,7 +493,7 @@ function drawOrders() {
   const sel = window.UI && UI.selArmy; let h = '';
   G.armies.forEach(a => {
     const foe = a.tag !== G.player && hostileTags(G.player, a.tag);
-    if (!a.path.length || !(a.tag === G.player || a.id === sel || foe)) return;
+    if (!a.path.length || !(a.tag === G.player || a.id === sel || foe) || !armyVisible(a)) return;
     const pts = [a.loc].concat(a.path).map(pid => { const pv = MAP.provs[pid]; const p = worldToScreen(pv.lon, 0.5, -pv.lat); return p[0].toFixed(1) + ',' + p[1].toFixed(1); });
     const last = pts[pts.length - 1].split(',');
     const cl = (a.id === sel ? 'sel' : '') + (foe ? ' foe' : '') + (a.chase ? ' chase' : '');
@@ -495,7 +505,7 @@ function drawOrders() {
 function updateMarkers() {
   if (!R.markerRoot) return;
   const want = [];
-  G.battles.forEach(b => { if (G.S[b.state]) want.push({id: 'bt' + b.id, state: b.state, prov: b.prov, ch: '⚔️', cls: 'war'}); });
+  G.battles.forEach(b => { if (G.S[b.state] && provVisible(b.prov)) want.push({id: 'bt' + b.id, state: b.state, prov: b.prov, ch: '⚔️', cls: 'war'}); });
   const me = G.C[G.player];
   if (me && me.capital >= 0) want.push({id: 'cap', state: me.capital, ch: '★', cls: 'cap'});
   if (me && me.colonizing) want.push({id: 'col', state: me.colonizing.state, ch: '⚓', cls: 'col'});

@@ -448,7 +448,7 @@ WINDOWS.military = {title: 'Ejército y guerra', icon: '⚔️', render() {
   let barr = 0; c.states.forEach(i => barr += G.S[i].b.barracks || 0);
   const ndiv = countDivs(G.player), lim = divLimit(c);
   const sideHtml = (list, lead) => list.map(t => `${flag(t, 'sm')} ${G.C[t].name}${t === lead ? ' 👑' : ''}`).join(', ');
-  const head = tabs('mil', [['armies', `Ejércitos (${mine.length})`], ['fronts', `Frentes${frontsOf(G.player).length ? ' (' + frontsOf(G.player).length + ')' : ''}`], ['generals', 'Generales'], ['recruit', 'Reclutamiento'], ['wars', `Guerras${myWars.length ? ' (' + myWars.length + ')' : ''}`], ['stats', 'Fuerzas armadas']]);
+  const head = tabs('mil', [['armies', `Ejércitos (${mine.length})`], ['fronts', `Frentes${frontsOf(G.player).length ? ' (' + frontsOf(G.player).length + ')' : ''}`], ['generals', 'Generales'], ['recruit', 'Reclutamiento'], ['intel', '🕵️ Inteligencia'], ['wars', `Guerras${myWars.length ? ' (' + myWars.length + ')' : ''}`], ['stats', 'Fuerzas armadas']]);
   let body = '';
   if (tab === 'armies') {
     body = `<div class="card"><h3>Tus ejércitos</h3>${mine.length ? `<table class="tbl clickable"><thead><tr><th>Ejército · general</th><th>Ubicación</th><th class="r">Div.</th><th class="r">Hombres (mil)</th><th class="r">Fuerza</th><th class="r">Organ.</th><th>Orden</th></tr></thead><tbody>${mine.map(armyRowHtml).join('')}</tbody></table>` : '<p class="hint">No tienes ejércitos. Recluta divisiones en la pestaña Reclutamiento (se necesitan Cuarteles).</p>'}
@@ -477,6 +477,8 @@ WINDOWS.military = {title: 'Ejército y guerra', icon: '⚔️', render() {
       <p class="hint">Más movilización permite reclutar más divisiones pero reduce la producción (−${Math.round((1 - mobK(c)) * 100)}% ahora), cuesta dinero cada mes y genera malestar. Subir de nivel cuesta ${money(c.stats.income * 0.5)} por nivel.</p></div>
       <div class="card"><h3>En instrucción</h3>${mine.length ? mine.map(r => `<div class="kv sm"><span>${DIVS[r.type].icon} ${DIVS[r.type].name} · ${G.S[r.state].name}</span><b>${r.days} d</b></div>`).join('') : '<p class="hint">Nada en instrucción.</p>'}</div>
       <div class="card"><h3>Tipos de división</h3>${Object.keys(DIVS).map(k => `<div class="divt"><b>${DIVS[k].icon} ${DIVS[k].name}</b><small>${DIVS[k].desc}</small><small>Ataque ${DIVS[k].att} · Defensa ${DIVS[k].def} · Velocidad ${DIVS[k].spd} · Organización ${DIVS[k].org}</small><small>Necesita: ${fmtN(MEN_PER_DIV, 0)} soldados · ${Object.keys(DIV_NEEDS[k]).map(g => GOOD[g].icon + ' ' + fmtN(DIV_NEEDS[k][g], 0)).join(' · ')}</small></div>`).join('')}</div></div></div>`;
+  } else if (tab === 'intel') {
+    body = intelTabHtml();
   } else if (tab === 'wars') {
     body = `<div class="cols"><div class="col wide"><div class="card"><h3>Guerras en curso</h3>${myWars.length ? myWars.map(w => {
       const mineSide = w.attAll.includes(G.player); const score = mineSide ? w.score : -w.score; const po = peaceOptions(w, G.player);
@@ -516,6 +518,15 @@ function selectArmy(id, add) {
   renderArmyPanel(); R.labelsDirty = true;
 }
 const BIOME_NAMES = ['Mar', 'Llanura', 'Bosque', 'Desierto', 'Estepa', 'Tundra', 'Selva', 'Montaña', 'Nieve'];
+// clic derecho + arrastrar: selecciona todos tus ejércitos dentro del recuadro
+window.onMapBoxSelect = (b, e) => {
+  const x0 = Math.min(b.x0, b.x1), x1 = Math.max(b.x0, b.x1), y0 = Math.min(b.y0, b.y1), y1 = Math.max(b.y0, b.y1), cv = R.canvas.getBoundingClientRect();
+  const list = armiesOf(G.player).filter(a => { if (a.sea) return false; const pv = MAP.provs[a.loc], p = worldToScreen(pv.lon, R.cam.dist < 62 ? 1.0 : 0.5, -pv.lat); const x = p[0] + cv.left, y = p[1] + cv.top; return x >= x0 && x <= x1 && y >= y0 && y <= y1; });
+  if (!list.length) { toast('▭', 'No hay ejércitos tuyos en esa zona.'); return; }
+  UI.selArmy = list[0].id; UI.selSet = new Set(list.slice(1).map(a => a.id)); UI.moveMode = false;
+  toast('▭', `${list.length} ejército(s) seleccionados. Haz clic en un territorio para moverlos.`);
+  renderArmyPanel(); R.labelsDirty = true;
+};
 window.onMapRightClick = (sid, e, pid) => {
   if (UI.draw) { drawUndo(); return; }
   const a = UI.selArmy ? armyById(UI.selArmy) : null;
@@ -699,7 +710,8 @@ window.onMapHover = (id, e) => {
 window.onMapClick = (id, e, pid) => {
   if (UI.draw && pid !== undefined && pid >= 0) { drawClick(pid); return; }
   if (UI.landNext && pid !== undefined && pid >= 0) { landClick(pid); return; }
-  if (UI.selArmy && pid !== undefined && pid >= 0 && (UI.moveMode || UI.patrolNext || (e && e.shiftKey))) { orderArmies(pid, UI.patrolNext ? 'patrol' : 'move'); return; }
+  if (UI.selArmy && pid !== undefined && pid >= 0) { const a0 = armyById(UI.selArmy); if (a0 && a0.tag === G.player) { orderArmies(pid, UI.patrolNext ? 'patrol' : e && e.shiftKey ? 'wp' : 'move'); return; } }
+  if (UI.selArmy && (pid === undefined || pid < 0)) { UI.selArmy = null; UI.selSet = new Set(); renderArmyPanel(); R.labelsDirty = true; }
   UI.sel = id >= 0 ? id : null; setSelected(id >= 0 ? id : -1); renderStatePanel();
 };
 
@@ -839,7 +851,7 @@ window.addEventListener('keydown', e => {
   if (e.key === 'F1') { e.preventDefault(); openWindow('manual'); return; }
   if (e.key === '/') { e.preventDefault(); openSearch(); return; }
   if (e.code === 'Space') { e.preventDefault(); ACT.pause(); }
-  else if (e.key === 'Escape') { if (UI.win) closeWindow(); else ACT.desel(); }
+  else if (e.key === 'Escape') { if (UI.win) closeWindow(); else { if (UI.selArmy) { UI.selArmy = null; UI.selSet = new Set(); renderArmyPanel(); R.labelsDirty = true; } ACT.desel(); } }
   else if (e.key === '.') { UI.speed = Math.min(5, UI.speed + 1); updateHud(); }
   else if (e.key === ',') { UI.speed = Math.max(1, UI.speed - 1); updateHud(); }
 });

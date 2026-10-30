@@ -215,7 +215,7 @@ function warWeek() {
     else if (!humans && w.weeks > 176) endWar(w, null);
     else if (humans && w.weeks > 240 && Math.abs(w.score) < 25) endWar(w, null);
   }
-  milEconWeek(); aiRecruitWeek(); aiTrainWeek(); aiLandingWeek();
+  milEconWeek(); aiRecruitWeek(); aiTrainWeek(); aiLandingWeek(); if (typeof intelWeek === 'function') intelWeek(); if (typeof homeWeek === 'function') homeWeek();
 }
 
 /* ---------- paz y resultado ---------- */
@@ -500,6 +500,7 @@ function aiWarsNew() {
   if (cb === 'regime') return;
   const fr = A.influence < warCost(a, targets, cb);
   if (Math.random() < 0.35 && !crisisOf(a) && !crisisOf(d)) { const r = openCrisis(a, d, cb, targets, {free: fr, ai: true}); if (r.ok) return; }
+  if (typeof intelAiAttack === 'function' && intelAiAttack(a, d, cb, targets, fr)) return;
   declareWar(a, d, cb, targets, {free: fr});
 }
 function respondProposal(id, accept) {

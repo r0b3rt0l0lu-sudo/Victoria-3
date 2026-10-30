@@ -89,3 +89,9 @@
 - Compra urgente de equipo (pólvora, fusiles…) con recargo del 30% por bien o para una división completa; tarjeta de levas de campesinos (sin cuarteles ni equipo, mal entrenadas, no cuentan para el límite de divisiones).
 - Movilización total: levas de campesinos (`spawnLevies`) por todos los estados, débiles pero útiles para defender; se disuelven al bajar de nivel.
 - Rendiciones menos agresivas: un ejército sólo se considera cercado si no tiene ninguna provincia propia libre a su lado y se rinde a los 60 días; capitulación del país más exigente (jugador: 8 semanas).
+
+## Sesión: niebla, inteligencia, selección y órdenes
+- `src/intel.js`: niebla de guerra (mundo explorado según el rango del país; tropas ajenas sólo visibles en territorio propio/aliado, junto a tus ejércitos o vía agentes) y servicio de inteligencia (niveles, agentes en el extranjero, aviso/frustración de ataques de la IA, alertas de frontera, robo de tácticas +12% 60 días). Pestaña «Inteligencia» en Ejército y guerra.
+- Los planes de frente se activan solos al crearse (ataque automático tras ~2 semanas de concentración); si no hay selección, usan los ejércitos libres.
+- Las tropas de aliados/ex-enemigos en tierra ajena sin guerra compartida vuelven solas a casa (`homeWeek`).
+- Clic en un territorio con un ejército seleccionado lo mueve; clic derecho + arrastrar selecciona todos los ejércitos del recuadro (rotar cámara: botón central o Mayús+arrastrar). Esc deselecciona.

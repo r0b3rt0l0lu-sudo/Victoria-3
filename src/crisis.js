@@ -166,6 +166,7 @@ function sponsorAbroad(c, tag, ig) {
 }
 function decayBoosts(c) {
   if (typeof mobilizationMonth === 'function') mobilizationMonth(c);
+  if (typeof intelMonth === 'function') intelMonth(c);
   propagandaMonth(c); warWearMonth(c); politics2Month(c);
   for (const k in (c.propa || {})) if (--c.propa[k].months <= 0) delete c.propa[k];
   c.boosts = c.boosts.filter(b => --b.months > 0);

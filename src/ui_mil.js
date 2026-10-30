@@ -154,10 +154,12 @@ function renderDrawBar() {
 }
 function finishDraw() {
   const d = UI.draw; if (!d || !d.line.length) return;
-  const ids = selectedArmies().map(a => a.id);
+  let ids = selectedArmies().map(a => a.id);
+  if (!ids.length) ids = armiesOf(G.player).filter(a => !a.front && !a.sea).map(a => a.id);
   const f = createFront(G.player, d.line, d.mode, ids, d.targets);
+  f.auto = true; activateFront(f, true);
   UI.draw = null; renderDrawBar(); UI.winTab.mil = 'fronts'; UI.win = null; openWindow('military');
-  toast('🗺️', `${f.name} creado con ${ids.length} ejército(s). Pulsa ▶ Activar plan para ponerlo en marcha.`);
+  toast('🗺️', `${f.name} en marcha con ${ids.length} ejército(s): ${d.mode === 'attack' ? 'se concentrarán en la línea y atacarán solos en unas dos semanas (o pulsa «Atacar ya»)' : 'tomarán posiciones en la línea'}.`);
   R.labelsDirty = true;
 }
 // capa SVG de frentes (se dibuja junto a las órdenes de movimiento)

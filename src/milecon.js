@@ -4,7 +4,7 @@ const DIV_NEEDS = {
   cav: {rifles: 5000, horses: 9000, gunpowder: 600},
   art: {cannons: 1500, rifles: 3500, horses: 3000, gunpowder: 4000}
 };
-const EQ_GOODS = ['rifles', 'cannons', 'horses', 'gunpowder'];
+const EQ_GOODS = ['rifles', 'cannons', 'horses', 'gunpowder', 'mgs'];
 const EQ_POLICY = [
   {name: 'Normal', mult: 1.12, budget: 0.16, desc: 'Mantienes el equipo de tus divisiones con un pequeño margen.'},
   {name: 'Ampliada', mult: 1.4, budget: 0.3, desc: 'Compras más equipo para poder reclutar nuevas divisiones.'},
@@ -13,18 +13,18 @@ const EQ_POLICY = [
 // necesidades de equipo de todos los países (una sola pasada)
 function eqNeedAll() {
   const out = {};
-  const add = (tag, type) => { const o = out[tag] = out[tag] || {rifles: 0, cannons: 0, horses: 0, gunpowder: 0}; const n = DIV_NEEDS[type]; for (const g in n) o[g] += n[g]; };
+  const add = (tag, type) => { const o = out[tag] = out[tag] || {rifles: 0, cannons: 0, horses: 0, gunpowder: 0, mgs: 0}; const n = DIV_NEEDS[type]; for (const g in n) o[g] = (o[g] || 0) + n[g]; };
   G.armies.forEach(a => a.divs.forEach(d => { if (!d.lv) add(a.tag, d.t); }));
   G.recruits.forEach(r => { if (!r.lv) add(r.tag, r.type); });
   return out;
 }
-function eqNeedOf(tag) { return eqNeedAll()[tag] || {rifles: 0, cannons: 0, horses: 0, gunpowder: 0}; }
+function eqNeedOf(tag) { return eqNeedAll()[tag] || {rifles: 0, cannons: 0, horses: 0, gunpowder: 0, mgs: 0}; }
 function initEquipment() {
   const need = eqNeedAll();
   G.tags.forEach(t => { if (t === NONE) return; const c = G.C[t], n = need[t] || {}; c.eq = {}; EQ_GOODS.forEach(g => c.eq[g] = (n[g] || 0) * 1.25); c.eqFill = {}; EQ_GOODS.forEach(g => c.eqFill[g] = 1); c.eqPolicy = 0; c.eqSpent = 0; });
   G.milD = Object.assign({}, MIL_NEED); G.shortage = {};
 }
-const EQ_NAME = {rifles: 'fusiles', cannons: 'cañones', horses: 'caballos', gunpowder: 'pólvora'};
+const EQ_NAME = {rifles: 'fusiles', cannons: 'cañones', horses: 'caballos', gunpowder: 'pólvora', mgs: 'ametralladoras', aircraft: 'aviones', ships: 'tonelaje'};
 // ¿hay equipo de reserva para una división más?
 function eqCheck(c, type) {
   if (!c.eq) return null;
@@ -82,7 +82,7 @@ function milEconWeek() {
     const maxSpend = Math.max(0, c.stats.income) * pol.budget + (c.wars.length ? 0 : 0);
     const k = totalCost > maxSpend && totalCost > 0 ? maxSpend / totalCost : 1;
     let spent = 0;
-    EQ_GOODS.forEach(g => { const w = wants[g] * k; G.milD[g] += w; const buy = w * clamp(G.ratio[g] === undefined ? 1 : G.ratio[g], 0, 1); c.eq[g] += buy; spent += buy * G.price[g]; });
+    EQ_GOODS.forEach(g => { const w = wants[g] * k; G.milD[g] += w; const buy = w * clamp(G.ratio[g] === undefined ? 1 : G.ratio[g], 0, 1); if (typeof eqAdd === 'function') eqAdd(c, g, buy, Math.max(0, eqBestGen(c, g) - 1)); else c.eq[g] += buy; spent += buy * G.price[g]; });
     c.eqSpent = spent;
     c.eqFill = {}; EQ_GOODS.forEach(g => c.eqFill[g] = n[g] > 0 ? clamp(c.eq[g] / n[g], 0, 1.5) : 1);
     const low = Math.min(c.eqFill.rifles, c.eqFill.gunpowder);

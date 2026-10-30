@@ -215,7 +215,7 @@ function warWeek() {
     else if (!humans && w.weeks > 176) endWar(w, null);
     else if (humans && w.weeks > 240 && Math.abs(w.score) < 25) endWar(w, null);
   }
-  milEconWeek(); aiRecruitWeek(); aiTrainWeek(); aiLandingWeek(); if (typeof intelWeek === 'function') intelWeek(); if (typeof homeWeek === 'function') homeWeek();
+  milEconWeek(); if (typeof mil2Week === 'function') mil2Week(); aiRecruitWeek(); aiTrainWeek(); aiLandingWeek(); if (typeof intelWeek === 'function') intelWeek(); if (typeof homeWeek === 'function') homeWeek();
 }
 
 /* ---------- paz y resultado ---------- */

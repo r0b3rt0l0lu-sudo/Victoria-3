@@ -47,6 +47,7 @@ function fogUpdate() {
     if ((o !== NONE && (o === me || sameSide(me, o))) || (by && sameSide(me, by))) { vis[p] = 1; if (o === me || (by && sameSide(me, by))) MAP.provs[p].nb.forEach(q => { vis[q] = 1; if (depth > 1) MAP.provs[q].nb.forEach(r => { vis[r] = 1; if (depth > 2) MAP.provs[r].nb.forEach(s => { vis[s] = 1; }); }); }); }
   }
   G.armies.forEach(a => { if (a.sea || !sameSide(me, a.tag)) return; vis[a.loc] = 1; MAP.provs[a.loc].nb.forEach(q => { vis[q] = 1; }); if (a.divs.some(d => d.t === 'cav')) MAP.provs[a.loc].nb.forEach(q => MAP.provs[q].nb.forEach(r => { vis[r] = 1; })); });
+  if (typeof airReconRegs === 'function' && G.mx) airReconRegs(me).forEach(r => airReg(r).states.forEach(sid => MAP.stats[sid].provs.forEach(p => { vis[p] = 1; })));
   for (const t in I.ag) if (intelReveals(me, t) && G.C[t]) G.C[t].states.forEach(sid => MAP.stats[sid].provs.forEach(p => { vis[p] = 1; }));
   let fresh = 0; for (let p = 0; p < N; p++) if (vis[p] && !G.fog.seen[p]) { G.fog.seen[p] = 1; fresh++; }
   if (fresh) R.needPaint = true;

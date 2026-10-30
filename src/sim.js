@@ -90,7 +90,7 @@ function initGame(playerTag) {
   G.tags.forEach(t => { const c = G.C[t]; c.techs = new Set(); c.research = null; c.innovStock = 0; recalcMods(c); c.treasury = t === NONE ? 0 : Math.round(c.stats.income * (6 + (COUNTRY_DATA[t] ? COUNTRY_DATA[t][9] / 300000 : 1) * 1.5)); c.startPop = Math.max(1, c.stats.pop); c.hist = {gdp: [], pop: [], treasury: [], sol: [], prestige: []}; });
   updateRanks();
   G.tags.forEach(t => { const c = G.C[t]; c.prestige = Math.round(10 + (c.power ? Math.sqrt(c.power) * 3 : 0)); c.start = {ind: c.stats.indLevels, lit: c.lit, soldiers: c.stats.soldiers, prestige: c.prestige, rank: c.rank}; });
-  assignTraits(); initClaims(); seedDiplomacy(); initArmies(); initEquipment(); G.notifs.length = 0; G.log.length = 0; G.week = 0;
+  assignTraits(); initClaims(); seedDiplomacy(); initArmies(); initEquipment(); if (typeof initMil2 === 'function') initMil2(); G.notifs.length = 0; G.log.length = 0; G.week = 0;
   logMsg('Comienza la partida en enero de ' + START_YEAR + '.');
 }
 
@@ -162,6 +162,7 @@ function computeCaps() {
     s.cap.railway = Math.max(s.cap.railway, 1);
     s.cap.steel = s.cap.steel; // se activa con tecnología
   });
+  if (typeof milCaps === 'function') milCaps();
 }
 function areaWeight(s, F) { const st = MAP.stats[s.id]; let a = 0; for (let b = 1; b < 9; b++) a += st.biomes[b] * F[b]; return a; }
 
@@ -269,7 +270,7 @@ function stateStaffing(s, c) {
   s.fill = fill;
   BUILDINGS.forEach(b => {
     let st = 0; for (const p in b.workers) st += b.workers[p] * fill[p];
-    s.stg[b.id] = st;
+    s.stg[b.id] = st * (1 - (s.bomb || 0));
   });
 }
 
@@ -673,7 +674,8 @@ function researchStep(c, warm) {
       const av = TECHS.filter(t => techAvailable(c, t));
       if (av.length) {
         // la IA prefiere lo barato y lo de su especialidad; ocasionalmente elige al azar
-        av.sort((a, b) => a.cost * (0.8 + Math.random() * 0.5) - b.cost * (0.8 + Math.random() * 0.5));
+        const mk = t => t.cost * (0.8 + Math.random() * 0.5) * (t.cat === 'Militar' ? (c.rank <= 14 ? 0.5 : 0.8) : 1);
+        av.sort((a, b) => mk(a) - mk(b));
         c.research = av[0].id;
       }
     }

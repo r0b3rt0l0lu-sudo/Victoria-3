@@ -429,6 +429,9 @@ svg.orders line.arrow.sea{stroke:#6aa8e8;stroke-width:3.5}.atoken.sea{background
 .bvplay{margin-left:auto;margin-right:8px;background:#7a5a1f;color:#fff;border:1px solid #e0b04a;border-radius:5px;padding:4px 10px;cursor:pointer}
 .mini{margin-left:6px;padding:0 6px;font-size:11px;background:#2a2e35;color:#eee;border:1px solid #666;border-radius:4px;cursor:pointer}
 #selbox{position:fixed;border:1px solid #ffe28a;background:rgba(255,226,138,.12);pointer-events:none;z-index:40;display:none}
+.tabs{flex-wrap:wrap}
+.tabs .tab{padding-left:10px;padding-right:10px}
+.tplbn .kv{margin:2px 0}
 </style>
 </head>
 <body>
@@ -1030,7 +1033,7 @@ const GOODS = [
  {id:'horses', name:'Caballos',   base:36, icon:'🐎', color:'#9a6a3a', cat:'Militares'}
 ];
 // consumo militar mundial estimado por semana (para dimensionar la industria inicial)
-const MIL_NEED = {rifles: 60000, cannons: 3500, horses: 25000, gunpowder: 18000};
+const MIL_NEED = {rifles: 60000, cannons: 3500, horses: 25000, gunpowder: 18000, ships: 1300};
 const GOOD = {}; GOODS.forEach(g => GOOD[g.id] = g);
 
 const VA_PER_WORKER = 10;      // valor añadido por trabajador a precios base
@@ -2051,7 +2054,7 @@ function initGame(playerTag) {
   G.tags.forEach(t => { const c = G.C[t]; c.techs = new Set(); c.research = null; c.innovStock = 0; recalcMods(c); c.treasury = t === NONE ? 0 : Math.round(c.stats.income * (6 + (COUNTRY_DATA[t] ? COUNTRY_DATA[t][9] / 300000 : 1) * 1.5)); c.startPop = Math.max(1, c.stats.pop); c.hist = {gdp: [], pop: [], treasury: [], sol: [], prestige: []}; });
   updateRanks();
   G.tags.forEach(t => { const c = G.C[t]; c.prestige = Math.round(10 + (c.power ? Math.sqrt(c.power) * 3 : 0)); c.start = {ind: c.stats.indLevels, lit: c.lit, soldiers: c.stats.soldiers, prestige: c.prestige, rank: c.rank}; });
-  assignTraits(); initClaims(); seedDiplomacy(); initArmies(); initEquipment(); G.notifs.length = 0; G.log.length = 0; G.week = 0;
+  assignTraits(); initClaims(); seedDiplomacy(); initArmies(); initEquipment(); if (typeof initMil2 === 'function') initMil2(); G.notifs.length = 0; G.log.length = 0; G.week = 0;
   logMsg('Comienza la partida en enero de ' + START_YEAR + '.');
 }
 
@@ -2123,6 +2126,7 @@ function computeCaps() {
     s.cap.railway = Math.max(s.cap.railway, 1);
     s.cap.steel = s.cap.steel; // se activa con tecnología
   });
+  if (typeof milCaps === 'function') milCaps();
 }
 function areaWeight(s, F) { const st = MAP.stats[s.id]; let a = 0; for (let b = 1; b < 9; b++) a += st.biomes[b] * F[b]; return a; }
 
@@ -2230,7 +2234,7 @@ function stateStaffing(s, c) {
   s.fill = fill;
   BUILDINGS.forEach(b => {
     let st = 0; for (const p in b.workers) st += b.workers[p] * fill[p];
-    s.stg[b.id] = st;
+    s.stg[b.id] = st * (1 - (s.bomb || 0));
   });
 }
 
@@ -2634,7 +2638,8 @@ function researchStep(c, warm) {
       const av = TECHS.filter(t => techAvailable(c, t));
       if (av.length) {
         // la IA prefiere lo barato y lo de su especialidad; ocasionalmente elige al azar
-        av.sort((a, b) => a.cost * (0.8 + Math.random() * 0.5) - b.cost * (0.8 + Math.random() * 0.5));
+        const mk = t => t.cost * (0.8 + Math.random() * 0.5) * (t.cat === 'Militar' ? (c.rank <= 14 ? 0.5 : 0.8) : 1);
+        av.sort((a, b) => mk(a) - mk(b));
         c.research = av[0].id;
       }
     }
@@ -3107,6 +3112,7 @@ function sponsorAbroad(c, tag, ig) {
 function decayBoosts(c) {
   if (typeof mobilizationMonth === 'function') mobilizationMonth(c);
   if (typeof intelMonth === 'function') intelMonth(c);
+  if (typeof mil2Month === 'function') mil2Month(c);
   propagandaMonth(c); warWearMonth(c); politics2Month(c);
   for (const k in (c.propa || {})) if (--c.propa[k].months <= 0) delete c.propa[k];
   c.boosts = c.boosts.filter(b => --b.months > 0);
@@ -3438,7 +3444,7 @@ function warWeek() {
     else if (!humans && w.weeks > 176) endWar(w, null);
     else if (humans && w.weeks > 240 && Math.abs(w.score) < 25) endWar(w, null);
   }
-  milEconWeek(); aiRecruitWeek(); aiTrainWeek(); aiLandingWeek(); if (typeof intelWeek === 'function') intelWeek(); if (typeof homeWeek === 'function') homeWeek();
+  milEconWeek(); if (typeof mil2Week === 'function') mil2Week(); aiRecruitWeek(); aiTrainWeek(); aiLandingWeek(); if (typeof intelWeek === 'function') intelWeek(); if (typeof homeWeek === 'function') homeWeek();
 }
 
 /* ---------- paz y resultado ---------- */
@@ -3985,32 +3991,33 @@ function createBattles(byProv) {
 }
 function sideStats(b, ids, isAttacker) {
   const sideKey = ids === b.A ? 'A' : ids === b.B ? 'B' : null, ST = STRATS[(sideKey && b['str' + sideKey]) || 'frontal'];
-  let hasCav = false; ids.forEach(id => { const a0 = armyById(id); if (a0 && a0.divs.some(d => d.t === 'cav')) hasCav = true; });
+  let hasCav = false; ids.forEach(id => { const a0 = armyById(id); if (a0 && a0.divs.some(d => dKind(d) === 'cav')) hasCav = true; });
   const stAtt = ST.att + (ST === STRATS.flank && !hasCav ? -0.06 : 0);
   const stDef = ST.def + (ST.terr ? ST.terr * clamp((MAP.provs[b.prov].terr.def - 1) / 0.25, 0, 1) : 0);
-  let F = 0, T = 0, n = 0, org = 0, orgN = 0, art = 0, cav = 0, gun = 0, brave = 0, tr = 0;
+  let F = 0, T = 0, n = 0, wsum = 0, org = 0, orgN = 0, art = 0, cav = 0, gun = 0, brave = 0, tr = 0;
   const pv = MAP.provs[b.prov]; const terr = pv.terr;
   ids.forEach(id => {
     const a = armyById(id); if (!a) return;
     const c = G.C[a.tag], gm = genMods(a.gen);
     const dm0 = typeof docMod === 'function' ? docMod : () => 0;
     const air = typeof airBonus === 'function' ? airBonus(a.tag, b.state) : 0;
-    const plan = a.plan && a.plan.ready ? 0.15 * Math.min(1, a.plan.days / 15) : 0;
+    const mb = typeof marBonus === 'function' ? marBonus(a) : {att: 0, def: 0, plan: 0};
+    const plan = a.plan && a.plan.ready ? 0.15 * Math.min(1, a.plan.days * (1 + mb.plan) / 15) : 0;
     const sup = typeof supplyMod === 'function' ? supplyMod(a) : 1;
     const landPen = a.landed && G.date.t - a.landed < 6 ? 0.75 : 1;
     const dig = isAttacker ? 0 : Math.min(6, a.dig || 0) * 0.04 * (a.mode === 'hold' || a.mode === 'dig' ? 1.25 : 1);
     const stl = typeof intelStealBonus === 'function' && sideKey ? intelStealBonus(a.tag, sideKey === 'A' ? b.B0 : b.A0) : 0;
-    const am = (1 + stl + stAtt + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup * landPen;
-    const dm = (1 + stl + stDef + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + gm.def + dm0(a.tag, 'def') + air + dig) * sup;
+    const am = (1 + mb.att + stl + stAtt + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup * landPen;
+    const dm = (1 + mb.def + stl + stDef + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + gm.def + dm0(a.tag, 'def') + air + dig) * sup;
     brave += gm.brave; gun += gm.art;
     a.divs.forEach(d => {
       const info = DIVS[d.t];
-      if (n < BATTLE_WIDTH + (terr.mnt > 0.4 ? -2 : 0)) {
+      if (wsum < BATTLE_WIDTH + (terr.mnt > 0.4 ? -2 : 0)) {
         const tm = trainMod(d);
-        const str = d.s * (0.55 + 0.45 * d.o / info.org) * tm * (d.lv ? (isAttacker ? 0.55 : 0.75) : typeof equipMod === 'function' ? equipMod(a.tag, d.t) : 1);
-        const um = 1 + (d.t === 'cav' ? gm.cav + (ST.cavAtt || 0) : d.t === 'art' ? gm.art + (ST.artAtt || 0) : 0);
+        const str = d.s * (0.55 + 0.45 * d.o / info.org) * tm * (d.lv ? (isAttacker ? 0.55 : 0.75) : (typeof equipMod === 'function' ? equipMod(a.tag, d.t) : 1) * (typeof qualMod === 'function' ? qualMod(a.tag, d.t) : 1));
+        const kd = dKind(d), um = 1 + (kd === 'cav' ? gm.cav + (ST.cavAtt || 0) : kd === 'art' ? gm.art + (ST.artAtt || 0) : 0);
         F += info.att * str * am * um; T += info.def * str * dm * (isAttacker ? 1 : terr.def);
-        n++; tr += tm; if (d.t === 'art') art++; if (d.t === 'cav') cav++;
+        n++; wsum += info.width || 1; tr += tm; if (kd === 'art') art++; if (kd === 'cav') cav++;
       }
       org += d.o / info.org; orgN++;
     });
@@ -4063,7 +4070,8 @@ function battleDay(b) {
   updateStrategies(b);
   const ev = battleEvents(b, sa, sb);
   const rnd1 = () => 0.85 + Math.random() * 0.3;
-  const rAB = sa.F * ev.fA * rnd1() / Math.max(1, sb.T), rBA = sb.F * ev.fB * rnd1() / Math.max(1, sa.T);
+  const casA = typeof airCas === 'function' ? airCas(b.A0, b.state) : 0, casB = typeof airCas === 'function' ? airCas(b.B0, b.state) : 0;
+  const rAB = sa.F * ev.fA * rnd1() * (1 + casA) / Math.max(1, sb.T), rBA = sb.F * ev.fB * rnd1() * (1 + casB) / Math.max(1, sa.T);
   const dmg = (r) => clamp(3.3 * r, 0.4, 8);       // % de organización perdida por día
   const apply = (armies, orgLoss, extra, cas) => {
     let lost = 0;
@@ -4071,7 +4079,7 @@ function battleDay(b) {
       a.divs.forEach((d, i) => {
         if (i >= BATTLE_WIDTH) return;
         const info = DIVS[d.t];
-        d.o = Math.max(0, d.o - info.org * (orgLoss + extra) / 100 * (0.8 + Math.random() * 0.4));
+        d.o = Math.max(0, d.o - info.org * (orgLoss + extra) / 100 * (0.8 + Math.random() * 0.4) * (1 - (typeof docMod === 'function' ? docMod(a.tag, 'org') : 0)));
         const sl = (orgLoss / 100) * 0.38 * (0.6 + 0.8 * (1 - d.o / info.org)) * cas;
         d.s = Math.max(0, d.s - sl); lost += sl * MEN_PER_DIV;
         d.tr = Math.min(1, (d.tr === undefined ? 0.5 : d.tr) + 0.004);      // la experiencia de combate entrena
@@ -4151,6 +4159,7 @@ function militaryDay() {
   if (!G.hostile) recalcHostile();
   recalcHostileIfNeeded();
   if (typeof intelDay === 'function') intelDay();
+  if (typeof mil2Day === 'function') mil2Day();
   if (G.armies.length) {
     landingDay(); G.armies.forEach(chaseDay); G.armies.forEach(joinDay); G.armies.forEach(patrolDay); G.armies.forEach(stepMove);
     const byProv = new Map();
@@ -4161,7 +4170,7 @@ function militaryDay() {
     G.armies.forEach(a => {
       if (a.battle) return;
       const owner = provOwner(a.loc), own = owner === a.tag || sameSide(a.tag, owner);
-      a.rest++; { const gm = genMods(a.gen); const per = a.mode === 'dig' || gm.dig ? 2 : 4; if (!a.path.length && a.rest % per === 0) a.dig = Math.min(6, (a.dig || 0) + 1); }
+      a.rest++; { const gm = genMods(a.gen); const eng = a.divs.reduce((n, d) => n + ((DIVS[d.t] && DIVS[d.t].fort) || 0), 0), per = a.mode === 'dig' || gm.dig || eng >= 0.04 ? 2 : 4; if (!a.path.length && a.rest % per === 0) a.dig = Math.min(6, (a.dig || 0) + 1); }
       trainDay(a);
       if (a.fm && a.path.length) { const gm = genMods(a.gen); a.divs.forEach(d => { d.o = Math.max(0, d.o - DIVS[d.t].org * 0.012 * gm.march); }); if (armyOrg(a) < 0.35) { a.fm = false; if (a.tag === G.player) notify('war', `${a.name} cancela la marcha forzada por agotamiento.`, provState(a.loc)); } }
       const supK = Math.max(0.2, a.sup === undefined ? 1 : a.sup);
@@ -4245,7 +4254,7 @@ function computeWarScore(w) {
 function sideStrength(list) { let t = 0; list.forEach(tag => armiesOf(tag).forEach(a => a.divs.forEach(d => t += d.s * DIVS[d.t].att))); return Math.round(t); }
 
 /* ---------- reclutamiento ---------- */
-function recruitCost(c, type) { return Math.round(DIVS[type].cost * moneyPerPoint(c)); }
+function recruitCost(c, type) { return Math.round(DIVS[type].cost * moneyPerPoint(c) * (1 + (typeof docMod === 'function' ? docMod(c.tag, 'cost') : 0))); }
 /* ---------- levas de campesinos (movilización total) ---------- */
 const LEVY_MAX = 70;
 function spawnLevies(c) {
@@ -4387,7 +4396,7 @@ function aiMilitary() {
 function aiRecruitCountry(t) {
   const c = G.C[t]; if (!c || !c.ai || !c.states.length) return;
   const sts = c.states.filter(id => G.S[id].b.barracks >= 1); if (!sts.length) return;
-  const r = Math.random(); recruit(c, pick(sts), r < 0.65 ? 'inf' : r < 0.8 ? 'cav' : 'art');
+  recruit(c, pick(sts), typeof aiPickType === 'function' ? aiPickType(c) : (Math.random() < 0.65 ? 'inf' : 'cav'));
 }
 // mantenimiento semanal de las divisiones (más caro en guerra y con alta movilización)
 function armyUpkeep(c) {
@@ -4408,7 +4417,7 @@ function aiRecruitWeek() {
     if (!c.wars.length && (Math.random() > 0.03 || countDivs(t) >= divLimit(c) * 0.6)) return;
     let n = c.wars.length ? 2 : 1;
     const sts = c.states.filter(id => G.S[id].b.barracks >= 1);
-    while (n-- > 0 && sts.length) { const r = Math.random(); const type = r < 0.65 ? 'inf' : r < 0.8 ? 'cav' : 'art'; recruit(c, pick(sts), type); }
+    while (n-- > 0 && sts.length) { const r = Math.random(); const type = typeof aiPickType === 'function' ? aiPickType(c) : (r < 0.65 ? 'inf' : r < 0.8 ? 'cav' : 'art'); recruit(c, pick(sts), type); }
   });
 }
 // ¿está el ejército en un país donde ya no tiene nada que hacer (sin guerra compartida ni en guerra con él)?
@@ -4440,8 +4449,8 @@ function cleanupArmies() {
 /* ---------- guardado de datos militares ---------- */
 function provSave() { const o = []; G.P.forEach((p, i) => { if (p.by || p.prog || p.fort) o.push([i, p.by, p.prog, p.pby || null, p.fort || 0]); }); return o; }
 function provLoad(list) { initProvinceState(); (list || []).forEach(([i, by, prog, pby, fort]) => { const p = G.P[i]; if (p) { p.by = by; p.prog = prog; p.pby = pby; p.fort = fort; } }); G.occList = (list || []).map(x => x[0]); G.S.forEach(s => refreshStateOcc(s.id)); }
-function saveExtra() { return {battleLog: G.battleLog || [], landings: G.landings || [], nextLand: G.nextLand || 1, shipQ: G.shipQ || [], shipReturns: G.shipReturns || [], beach: G.beach || {}, fronts: G.fronts || [], nextFront: G.nextFront || 1, coals: G.coals || [], nextCoal: G.nextCoal || 1, dcrises: G.dcrises || [], nextDC: G.nextDC || 1, mov: G.movStore || null, fog: G.fog ? {p: G.fog.p, rad: G.fog.rad, seen: Array.from(G.fog.seen).reduce((o, v, i) => { if (v) o.push(i); return o; }, [])} : null, pendAtt: G.pendAtt || []}; }
-function loadExtra(x) { G.battleLog = (x && x.battleLog) || []; G.landings = (x && x.landings) || []; G.nextLand = (x && x.nextLand) || 1; G.shipQ = (x && x.shipQ) || []; G.shipReturns = (x && x.shipReturns) || []; G.beach = (x && x.beach) || {}; G.fronts = (x && x.fronts) || []; G.nextFront = (x && x.nextFront) || 1; G.coals = (x && x.coals) || []; G.nextCoal = (x && x.nextCoal) || 1; G.dcrises = (x && x.dcrises) || []; G.nextDC = (x && x.nextDC) || 1; G.pendAtt = (x && x.pendAtt) || []; G.fog = null; G.vis = null; if (x && x.fog && MAP.provs) { const s = new Uint8Array(MAP.provs.length); x.fog.seen.forEach(i => { s[i] = 1; }); G.fog = {p: x.fog.p, rad: x.fog.rad, seen: s}; } }
+function saveExtra() { return {battleLog: G.battleLog || [], landings: G.landings || [], nextLand: G.nextLand || 1, shipQ: G.shipQ || [], shipReturns: G.shipReturns || [], beach: G.beach || {}, fronts: G.fronts || [], nextFront: G.nextFront || 1, coals: G.coals || [], nextCoal: G.nextCoal || 1, dcrises: G.dcrises || [], nextDC: G.nextDC || 1, mov: G.movStore || null, mx: typeof mxSave === 'function' ? mxSave() : null, fog: G.fog ? {p: G.fog.p, rad: G.fog.rad, seen: Array.from(G.fog.seen).reduce((o, v, i) => { if (v) o.push(i); return o; }, [])} : null, pendAtt: G.pendAtt || []}; }
+function loadExtra(x) { G.battleLog = (x && x.battleLog) || []; G.landings = (x && x.landings) || []; G.nextLand = (x && x.nextLand) || 1; G.shipQ = (x && x.shipQ) || []; G.shipReturns = (x && x.shipReturns) || []; G.beach = (x && x.beach) || {}; G.fronts = (x && x.fronts) || []; G.nextFront = (x && x.nextFront) || 1; G.coals = (x && x.coals) || []; G.nextCoal = (x && x.nextCoal) || 1; G.dcrises = (x && x.dcrises) || []; G.nextDC = (x && x.nextDC) || 1; G.pendAtt = (x && x.pendAtt) || []; if (typeof mxLoad === 'function') mxLoad(x && x.mx); G.fog = null; G.vis = null; if (x && x.fog && MAP.provs) { const s = new Uint8Array(MAP.provs.length); x.fog.seen.forEach(i => { s[i] = 1; }); G.fog = {p: x.fog.p, rad: x.fog.rad, seen: s}; } }
 
 /* ---------- órdenes de movilidad al estilo HoI4 ---------- */
 // juntar: el ejército va hacia otro propio y se fusiona al llegar
@@ -4627,7 +4636,7 @@ function computeSupply(tag) {
   const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { let k = i * 2 + 1; if (k >= heap.length) break; if (k + 1 < heap.length && heap[k + 1][0] > heap[k][0]) k++; if (heap[k][0] <= heap[i][0]) break; [heap[k], heap[i]] = [heap[i], heap[k]]; i = k; } } return top; };
   const seed = (pid, v) => { if (v > (lvl.get(pid) || 0)) { lvl.set(pid, v); push([v, pid, 0]); } };
   if (c.capital >= 0 && G.S[c.capital].owner === tag) { const cp = stateCapitalProv(c.capital); if (controlled(tag, cp)) seed(cp, 1); }
-  c.states.forEach(sid => MAP.stats[sid].provs.forEach(pid => { if (MAP.provs[pid].port && controlled(tag, pid)) seed(pid, 0.85); }));
+  c.states.forEach(sid => MAP.stats[sid].provs.forEach(pid => { if (MAP.provs[pid].port && controlled(tag, pid) && !(typeof portBlockaded === 'function' && portBlockaded(tag, pid))) seed(pid, 0.85); }));
   // los aliados de la misma guerra comparten sus capitales
   if (!heap.length) {      // sin capital ni puertos controlados: se improvisa un centro de suministro en el estado más poblado
     let best = null, bp = -1; c.states.forEach(sid => { const s = G.S[sid]; MAP.stats[sid].provs.forEach(pid => { if (controlled(tag, pid) && s.popBase > bp) { bp = s.popBase; best = pid; } }); });
@@ -4662,6 +4671,7 @@ function supplyDay() {
     if (a.sea) { a.sup = 1; return; }
     let l = supplyAt(a.tag, a.loc); const n = cnt[a.tag + '|' + a.loc], cap = provCap(a.loc, a.tag);
     if (n > cap) l *= cap / n;
+    if (typeof resSupplyMul === 'function') l *= resSupplyMul(a);
     a.sup = a.sup === undefined ? l : a.sup * 0.6 + l * 0.4;
     if (a.sup < 0.5) {
       const def = 0.5 - a.sup, k = a.sup < 0.15 ? 3 : 1;
@@ -4732,7 +4742,7 @@ const DIV_NEEDS = {
   cav: {rifles: 5000, horses: 9000, gunpowder: 600},
   art: {cannons: 1500, rifles: 3500, horses: 3000, gunpowder: 4000}
 };
-const EQ_GOODS = ['rifles', 'cannons', 'horses', 'gunpowder'];
+const EQ_GOODS = ['rifles', 'cannons', 'horses', 'gunpowder', 'mgs'];
 const EQ_POLICY = [
   {name: 'Normal', mult: 1.12, budget: 0.16, desc: 'Mantienes el equipo de tus divisiones con un pequeño margen.'},
   {name: 'Ampliada', mult: 1.4, budget: 0.3, desc: 'Compras más equipo para poder reclutar nuevas divisiones.'},
@@ -4741,18 +4751,18 @@ const EQ_POLICY = [
 // necesidades de equipo de todos los países (una sola pasada)
 function eqNeedAll() {
   const out = {};
-  const add = (tag, type) => { const o = out[tag] = out[tag] || {rifles: 0, cannons: 0, horses: 0, gunpowder: 0}; const n = DIV_NEEDS[type]; for (const g in n) o[g] += n[g]; };
+  const add = (tag, type) => { const o = out[tag] = out[tag] || {rifles: 0, cannons: 0, horses: 0, gunpowder: 0, mgs: 0}; const n = DIV_NEEDS[type]; for (const g in n) o[g] = (o[g] || 0) + n[g]; };
   G.armies.forEach(a => a.divs.forEach(d => { if (!d.lv) add(a.tag, d.t); }));
   G.recruits.forEach(r => { if (!r.lv) add(r.tag, r.type); });
   return out;
 }
-function eqNeedOf(tag) { return eqNeedAll()[tag] || {rifles: 0, cannons: 0, horses: 0, gunpowder: 0}; }
+function eqNeedOf(tag) { return eqNeedAll()[tag] || {rifles: 0, cannons: 0, horses: 0, gunpowder: 0, mgs: 0}; }
 function initEquipment() {
   const need = eqNeedAll();
   G.tags.forEach(t => { if (t === NONE) return; const c = G.C[t], n = need[t] || {}; c.eq = {}; EQ_GOODS.forEach(g => c.eq[g] = (n[g] || 0) * 1.25); c.eqFill = {}; EQ_GOODS.forEach(g => c.eqFill[g] = 1); c.eqPolicy = 0; c.eqSpent = 0; });
   G.milD = Object.assign({}, MIL_NEED); G.shortage = {};
 }
-const EQ_NAME = {rifles: 'fusiles', cannons: 'cañones', horses: 'caballos', gunpowder: 'pólvora'};
+const EQ_NAME = {rifles: 'fusiles', cannons: 'cañones', horses: 'caballos', gunpowder: 'pólvora', mgs: 'ametralladoras', aircraft: 'aviones', ships: 'tonelaje'};
 // ¿hay equipo de reserva para una división más?
 function eqCheck(c, type) {
   if (!c.eq) return null;
@@ -4810,7 +4820,7 @@ function milEconWeek() {
     const maxSpend = Math.max(0, c.stats.income) * pol.budget + (c.wars.length ? 0 : 0);
     const k = totalCost > maxSpend && totalCost > 0 ? maxSpend / totalCost : 1;
     let spent = 0;
-    EQ_GOODS.forEach(g => { const w = wants[g] * k; G.milD[g] += w; const buy = w * clamp(G.ratio[g] === undefined ? 1 : G.ratio[g], 0, 1); c.eq[g] += buy; spent += buy * G.price[g]; });
+    EQ_GOODS.forEach(g => { const w = wants[g] * k; G.milD[g] += w; const buy = w * clamp(G.ratio[g] === undefined ? 1 : G.ratio[g], 0, 1); if (typeof eqAdd === 'function') eqAdd(c, g, buy, Math.max(0, eqBestGen(c, g) - 1)); else c.eq[g] += buy; spent += buy * G.price[g]; });
     c.eqSpent = spent;
     c.eqFill = {}; EQ_GOODS.forEach(g => c.eqFill[g] = n[g] > 0 ? clamp(c.eq[g] / n[g], 0, 1.5) : 1);
     const low = Math.min(c.eqFill.rifles, c.eqFill.gunpowder);
@@ -5634,7 +5644,7 @@ function updateArmyMeshes(t) {
       const col = R.occRGB(a.tag); c.setRGB(col[0] / 255, col[1] / 255, col[2] / 255);
       const moving = a.path.length && !a.battle;
       a.divs.slice(0, 9).forEach((d, i) => {
-        const type = d.t, row = Math.floor(i / 3), cl = i % 3, per = type === 'inf' ? 3 : type === 'cav' ? 2 : 1;
+        const type = dKind(d), row = Math.floor(i / 3), cl = i % 3, per = type === 'inf' ? 3 : type === 'cav' ? 2 : 1;
         for (let f = 0; f < per; f++) {
           if (n[type] >= FIG_CAP) return;
           const ox = ((cl - 1) * 0.2 + (f - (per - 1) / 2) * 0.075 * (type === 'art' ? 0 : 1)) * FS, oz = row * 0.17 * FS;
@@ -6101,7 +6111,7 @@ WINDOWS.military = {title: 'Ejército y guerra', icon: '⚔️', render() {
   let barr = 0; c.states.forEach(i => barr += G.S[i].b.barracks || 0);
   const ndiv = countDivs(G.player), lim = divLimit(c);
   const sideHtml = (list, lead) => list.map(t => `${flag(t, 'sm')} ${G.C[t].name}${t === lead ? ' 👑' : ''}`).join(', ');
-  const head = tabs('mil', [['armies', `Ejércitos (${mine.length})`], ['fronts', `Frentes${frontsOf(G.player).length ? ' (' + frontsOf(G.player).length + ')' : ''}`], ['generals', 'Generales'], ['recruit', 'Reclutamiento'], ['intel', '🕵️ Inteligencia'], ['wars', `Guerras${myWars.length ? ' (' + myWars.length + ')' : ''}`], ['stats', 'Fuerzas armadas']]);
+  const head = tabs('mil', [['armies', `Ejércitos (${mine.length})`], ['fronts', `Frentes${frontsOf(G.player).length ? ' (' + frontsOf(G.player).length + ')' : ''}`], ['generals', 'Generales'], ['recruit', 'Reclutamiento'], ['intel', '🕵️ Inteligencia'], ['wars', `Guerras${myWars.length ? ' (' + myWars.length + ')' : ''}`], ['stats', 'Fuerzas armadas']].concat(typeof MX_TABS !== 'undefined' ? MX_TABS.map(t => [t.id, t.label]) : []));
   let body = '';
   if (tab === 'armies') {
     body = `<div class="card"><h3>Tus ejércitos</h3>${mine.length ? `<table class="tbl clickable"><thead><tr><th>Ejército · general</th><th>Ubicación</th><th class="r">Div.</th><th class="r">Hombres (mil)</th><th class="r">Fuerza</th><th class="r">Organ.</th><th>Orden</th></tr></thead><tbody>${mine.map(armyRowHtml).join('')}</tbody></table>` : '<p class="hint">No tienes ejércitos. Recluta divisiones en la pestaña Reclutamiento (se necesitan Cuarteles).</p>'}
@@ -6116,9 +6126,9 @@ WINDOWS.military = {title: 'Ejército y guerra', icon: '⚔️', render() {
     body = `<div class="cols"><div class="col wide"><div class="card"><h3>Reclutar divisiones</h3>
       <div class="kv"><span>Divisiones (incl. en instrucción)</span><b class="${ndiv >= lim ? 'bad' : ''}">${ndiv} / ${lim}</b></div>
       <p class="hint">Cada división moviliza ${fmtN(MEN_PER_DIV, 0)} soldados de la población campesina del estado y cuesta dinero. Se necesitan Cuarteles en el estado y capacidad militar suficiente.</p>
-      ${states.length ? `<table class="tbl"><thead><tr><th>Estado</th><th class="r">Cuarteles</th><th class="r">Campesinos</th>${Object.keys(DIVS).map(k => `<th class="r">${DIVS[k].icon} ${DIVS[k].name}<br><small>${money(recruitCost(c, k))} · ${DIVS[k].days} d</small></th>`).join('')}</tr></thead><tbody>${states.map(id => { const s = G.S[id]; return `<tr><td data-act="focus" data-id="${id}"><b>${s.name}</b></td><td class="r">${s.b.barracks}</td><td class="r">${fmtN(s.pops.peasants || 0, 1)}</td>${Object.keys(DIVS).map(k => { const e = canRecruit(c, id, k); return `<td class="r"><button data-act="recruit" data-id="${id}" data-t="${k}" ${e ? 'disabled' : ''} ${e ? `data-tip="${escA(e)}"` : ''}>＋ Reclutar</button></td>`; }).join('')}</tr>`; }).join('')}</tbody></table>` : '<p class="hint bad">No tienes Cuarteles. Constrúyelos en el panel de un estado → Edificios.</p>'}</div>
+      ${states.length ? `<table class="tbl"><thead><tr><th>Estado</th><th class="r">Cuarteles</th><th class="r">Campesinos</th>${divTypesOf(c).map(k => `<th class="r">${DIVS[k].icon} ${DIVS[k].name}<br><small>${money(recruitCost(c, k))} · ${DIVS[k].days} d</small></th>`).join('')}</tr></thead><tbody>${states.map(id => { const s = G.S[id]; return `<tr><td data-act="focus" data-id="${id}"><b>${s.name}</b></td><td class="r">${s.b.barracks}</td><td class="r">${fmtN(s.pops.peasants || 0, 1)}</td>${divTypesOf(c).map(k => { const e = canRecruit(c, id, k); return `<td class="r"><button data-act="recruit" data-id="${id}" data-t="${k}" ${e ? 'disabled' : ''} ${e ? `data-tip="${escA(e)}"` : ''}>＋ Reclutar</button></td>`; }).join('')}</tr>`; }).join('')}</tbody></table>` : '<p class="hint bad">No tienes Cuarteles. Constrúyelos en el panel de un estado → Edificios.</p>'}</div>
       <div class="card"><h3>💰 Comprar equipo para nuevas divisiones</h3><p class="hint">Si te falta equipo (fusiles, cañones, caballos, <b>pólvora</b>…) puedes comprar de golpe lo que falta para una división más, con un 30% de recargo sobre el precio de mercado; o fabricarlo con tus industrias (Salitre → Pólvora, Hierro → Fusiles…).</p>
-      <div class="btnrow">${Object.keys(DIVS).map(k => { const m = eqMissing(c, k), cost = eqMissingCost(m); return `<button data-act="buyeqdiv" data-t="${k}" ${cost ? '' : 'disabled'} data-tip="${escA(cost ? Object.keys(m).map(g => EQ_NAME[g] + ' ' + fmtN(m[g], 0)).join(', ') : 'Ya tienes equipo de sobra')}">${DIVS[k].icon} ${DIVS[k].name}: ${cost ? money(cost) : 'listo'}</button>`; }).join('')}</div></div>
+      <div class="btnrow">${divTypesOf(c).map(k => { const m = eqMissing(c, k), cost = eqMissingCost(m); return `<button data-act="buyeqdiv" data-t="${k}" ${cost ? '' : 'disabled'} data-tip="${escA(cost ? Object.keys(m).map(g => EQ_NAME[g] + ' ' + fmtN(m[g], 0)).join(', ') : 'Ya tienes equipo de sobra')}">${DIVS[k].icon} ${DIVS[k].name}: ${cost ? money(cost) : 'listo'}</button>`; }).join('')}</div></div>
       <div class="card"><h3>🌾 Levas de campesinos (mal entrenadas)</h3><p class="hint">Reclutas campesinos con armas improvisadas: <b>sin cuarteles ni equipo</b>, ${money(levyCost(c))} y ${Math.ceil(DIVS.inf.days * 0.4)} días, pero combaten mal (ataque −45%, defensa −25%, sin entrenamiento). Valen para defender. Levas: <b>${levyCount(c.tag)} / ${Math.max(3, Math.floor(lim * 0.5))}</b> (no cuentan como divisiones). Con <b>Movilización total</b> surgen solas por todo el país.</p>
       <table class="tbl"><tbody>${c.states.slice().sort((a, b) => (G.S[b].pops.peasants || 0) - (G.S[a].pops.peasants || 0)).slice(0, 8).map(id => { const s = G.S[id], e = canLevy(c, id); return `<tr><td><b>${s.name}</b></td><td class="r">${fmtN(s.pops.peasants || 0, 1)} campesinos</td><td class="r"><button data-act="levy" data-id="${id}" ${e ? 'disabled' : ''} ${e ? `data-tip="${escA(e)}"` : ''}>＋ Leva</button></td></tr>`; }).join('')}</tbody></table></div></div>
       <div class="col"><div class="card"><h3>Equipo militar</h3>
@@ -6129,7 +6139,9 @@ WINDOWS.military = {title: 'Ejército y guerra', icon: '⚔️', render() {
       ${MOB_LEVELS.map((m, i) => `<button class="block ${(c.mob || 0) === i ? 'on' : ''}" data-act="mob" data-n="${i}"><b>${m.name}</b> <small>${i ? fmtN(c.stats.pop * m.pct / MEN_PER_DIV, 0) + ' div. extra' : 'ninguna'}</small><small class="dim">${m.desc}</small></button>`).join('')}
       <p class="hint">Más movilización permite reclutar más divisiones pero reduce la producción (−${Math.round((1 - mobK(c)) * 100)}% ahora), cuesta dinero cada mes y genera malestar. Subir de nivel cuesta ${money(c.stats.income * 0.5)} por nivel.</p></div>
       <div class="card"><h3>En instrucción</h3>${mine.length ? mine.map(r => `<div class="kv sm"><span>${DIVS[r.type].icon} ${DIVS[r.type].name} · ${G.S[r.state].name}</span><b>${r.days} d</b></div>`).join('') : '<p class="hint">Nada en instrucción.</p>'}</div>
-      <div class="card"><h3>Tipos de división</h3>${Object.keys(DIVS).map(k => `<div class="divt"><b>${DIVS[k].icon} ${DIVS[k].name}</b><small>${DIVS[k].desc}</small><small>Ataque ${DIVS[k].att} · Defensa ${DIVS[k].def} · Velocidad ${DIVS[k].spd} · Organización ${DIVS[k].org}</small><small>Necesita: ${fmtN(MEN_PER_DIV, 0)} soldados · ${Object.keys(DIV_NEEDS[k]).map(g => GOOD[g].icon + ' ' + fmtN(DIV_NEEDS[k][g], 0)).join(' · ')}</small></div>`).join('')}</div></div></div>`;
+      <div class="card"><h3>Tipos de división</h3>${divTypesOf(c).map(k => `<div class="divt"><b>${DIVS[k].icon} ${DIVS[k].name}</b><small>${DIVS[k].desc}</small><small>Ataque ${DIVS[k].att} · Defensa ${DIVS[k].def} · Velocidad ${DIVS[k].spd} · Organización ${DIVS[k].org}</small><small>Necesita: ${fmtN(MEN_PER_DIV, 0)} soldados · ${Object.keys(DIV_NEEDS[k]).map(g => GOOD[g].icon + ' ' + fmtN(DIV_NEEDS[k][g], 0)).join(' · ')}</small></div>`).join('')}</div></div></div>`;
+  } else if (typeof MX_TABS !== 'undefined' && MX_TABS.some(t => t.id === tab)) {
+    body = MX_TABS.find(t => t.id === tab).html();
   } else if (tab === 'intel') {
     body = intelTabHtml();
   } else if (tab === 'wars') {
@@ -6906,7 +6918,7 @@ function drawBattleMap(cv, b, A, B) {
       g.fillStyle = '#10161b'; g.fillRect(x - w / 2, y - h / 2, w, h);
       g.fillStyle = col; g.fillRect(x - w / 2 + 1, y - h / 2 + 1, w - 2, 6);
       g.strokeStyle = d.o / info.org < 0.25 ? '#ff5a3c' : '#f0e2b0'; g.lineWidth = 1; g.strokeRect(x - w / 2, y - h / 2, w, h);
-      g.fillStyle = '#f5ecd0'; g.font = 'bold 9px sans-serif'; g.textAlign = 'center'; g.fillText(d.t === 'inf' ? 'INF' : d.t === 'cav' ? 'CAB' : 'ART', x, y + 5);
+      g.fillStyle = '#f5ecd0'; g.font = 'bold 9px sans-serif'; g.textAlign = 'center'; g.fillText(dKind(d) === 'inf' ? 'INF' : dKind(d) === 'cav' ? 'CAB' : 'ART', x, y + 5);
       g.fillStyle = '#79c35a'; g.fillRect(x - w / 2 + 1, y + h / 2 - 3, (w - 2) * d.s, 2);
       g.fillStyle = '#e0b04a'; g.fillRect(x - w / 2 + 1, y + h / 2 - 5, (w - 2) * (d.o / info.org), 1.5);
       g.globalAlpha = 1; k++;
@@ -6988,7 +7000,7 @@ function bvSync(V, b) {
     list.forEach((it, i) => {
       seen.add(it.d); let g = V.groups.get(it.d);
       if (!g) {
-        g = {d: it.d, side, type: it.d.t, units: [], color: G.C[it.a.tag].color};
+        g = {d: it.d, side, type: dKind(it.d), units: [], color: G.C[it.a.tag].color};
         const nf = BV_FIGS[g.type]; for (let k = 0; k < nf; k++) { const u = {g, side, type: g.type, k, x: side === 'A' ? -20 : BV_W + 20, y: BV_H / 2, vx: 0, vy: 0, alive: true, dying: 0, flee: 0, face: side === 'A' ? 0 : Math.PI, flash: 0, ph: Math.random() * 6.28}; g.units.push(u); V.units.push(u); }
         V.groups.set(it.d, g);
       }
@@ -7856,7 +7868,7 @@ function landingDay() {
       }
     } else if (L.phase === 'sea') {
       let any = false;
-      L.carried.forEach(id => { const a = armyById(id); if (!a || !a.sea) return; any = true; if (--a.sea.left <= 0) landArmy(a, L); });
+      L.carried.forEach(id => { const a = armyById(id); if (!a || !a.sea) return; any = true; if (typeof navalLandingAttrition === 'function') { navalLandingAttrition(a); if (a._dead) { G.armies = G.armies.filter(x => x !== a); return; } } if (--a.sea.left <= 0) landArmy(a, L); });
       if (!any) { G.landings = G.landings.filter(x => x !== L); }
     }
   });
@@ -7960,6 +7972,7 @@ function fogUpdate() {
     if ((o !== NONE && (o === me || sameSide(me, o))) || (by && sameSide(me, by))) { vis[p] = 1; if (o === me || (by && sameSide(me, by))) MAP.provs[p].nb.forEach(q => { vis[q] = 1; if (depth > 1) MAP.provs[q].nb.forEach(r => { vis[r] = 1; if (depth > 2) MAP.provs[r].nb.forEach(s => { vis[s] = 1; }); }); }); }
   }
   G.armies.forEach(a => { if (a.sea || !sameSide(me, a.tag)) return; vis[a.loc] = 1; MAP.provs[a.loc].nb.forEach(q => { vis[q] = 1; }); if (a.divs.some(d => d.t === 'cav')) MAP.provs[a.loc].nb.forEach(q => MAP.provs[q].nb.forEach(r => { vis[r] = 1; })); });
+  if (typeof airReconRegs === 'function' && G.mx) airReconRegs(me).forEach(r => airReg(r).states.forEach(sid => MAP.stats[sid].provs.forEach(p => { vis[p] = 1; })));
   for (const t in I.ag) if (intelReveals(me, t) && G.C[t]) G.C[t].states.forEach(sid => MAP.stats[sid].provs.forEach(p => { vis[p] = 1; }));
   let fresh = 0; for (let p = 0; p < N; p++) if (vis[p] && !G.fog.seen[p]) { G.fog.seen[p] = 1; fresh++; }
   if (fresh) R.needPaint = true;
@@ -8055,6 +8068,1003 @@ Object.assign(ACT, {
   intelsend: d => { const r = intelSend(me(), d.t); toast(r.ok ? '🕵️' : '⚠️', r.msg); renderWindow(); },
   intelrecall: d => { const r = intelRecall(me(), d.t); if (r.msg) toast('🕵️', r.msg); renderWindow(); },
   intelsteal: d => { const r = intelSteal(me(), d.t); toast(r.ok ? '📜' : '⚠️', r.msg); renderWindow(); }
+});
+
+/* ===== MILITAR 2 · NÚCLEO =====
+   Datos nuevos (bienes, edificios, tecnologías), estado ampliado de país y de partida, regiones aéreas, zonas marítimas,
+   pestañas nuevas de la ventana militar y utilidades comunes de los módulos aviacion / marina / doctrinas / plantillas /
+   produccion / resistencia / mariscales. Todo lo nuevo se guarda dentro de G.mx (partida) y c.m2 (país) con valores por defecto,
+   de modo que las partidas antiguas siguen cargando. */
+const MX_TABS = [];          // {id, label, html()}: pestañas añadidas a «Ejército y guerra»
+
+/* ---------- bienes nuevos ---------- */
+[
+  {id: 'engines', name: 'Motores', base: 40, icon: '⚙️', color: '#8a8f99', cat: 'Industriales'},
+  {id: 'aircraft', name: 'Aviones', base: 3500, icon: '✈️', color: '#b9c7d6', cat: 'Militares'},
+  {id: 'mgs', name: 'Ametralladoras', base: 160, icon: '🔫', color: '#6c6f78', cat: 'Militares'},
+  {id: 'ships', name: 'Tonelaje naval', base: 2200, icon: '⚓', color: '#4f7aa0', cat: 'Militares'}
+].forEach(g => { if (!GOOD[g.id]) { GOODS.push(g); GOOD[g.id] = g; } });
+
+/* ---------- edificios nuevos ---------- */
+[
+  {id: 'enginew', name: 'Fábricas de Motores', icon: '⚙️', grp: 'Industria militar', out: 'engines', inputs: {steel: 1500, tools: 600, coal: 400}, workers: {laborers: .7, machinists: .3}, cost: 420, cap: 'ind', tech: 'internal_comb'},
+  {id: 'aeroworks', name: 'Fábricas Aeronáuticas', icon: '✈️', grp: 'Industria militar', out: 'aircraft', inputs: {steel: 1200, engines: 900, fabric: 1500}, workers: {laborers: .6, machinists: .4}, cost: 520, cap: 'ind', tech: 'military_aviation'},
+  {id: 'mgworks', name: 'Fábricas de Ametralladoras', icon: '🔫', grp: 'Industria militar', out: 'mgs', inputs: {steel: 1400, tools: 500}, workers: {laborers: .75, machinists: .25}, cost: 360, cap: 'ind', tech: 'machine_guns'},
+  {id: 'shipyard', name: 'Astilleros', icon: '⚓', grp: 'Industria militar', out: 'ships', inputs: {wood: 3000, iron: 900, cannons: 60, fabric: 600}, workers: {laborers: .75, machinists: .25}, cost: 400, cap: 'coast'}
+].forEach(b => {
+  if (BLD[b.id]) return;
+  BUILDINGS.push(b); BLD[b.id] = b; b.workersPerLevel = WORKERS_PER_LEVEL;
+  let iv = 0; for (const g in b.inputs) iv += b.inputs[g] * GOOD[g].base;
+  b.outAmt = (iv + VA_PER_WORKER * b.workersPerLevel) / GOOD[b.out].base;
+});
+const MIL_BUILDINGS = ['armory', 'foundry', 'powder', 'mgworks', 'aeroworks', 'shipyard', 'enginew'];
+
+/* ---------- tecnologías nuevas ---------- */
+[
+  ['steam_frigate', 'Fragatas de Vapor', 1, 1.0, ['steam_engine'], {army: .01}, 'Buques de guerra con propulsión de vapor y ruedas de palas.', {after: 1848}],
+  ['ironclad', 'Acorazados', 2, 1.2, ['steam_frigate', 'blast_furnace'], {army: .01}, 'Buques blindados con casco de hierro.', {after: 1858}],
+  ['bolt_action', 'Fusil de Cerrojo', 2, 1.2, ['breech_loaders'], {army: .04}, 'Fusiles de repetición con cargador.', {after: 1868}],
+  ['cruisers', 'Cruceros', 3, 1.2, ['ironclad', 'steel_artillery'], {army: .01}, 'Buques rápidos de gran autonomía.', {after: 1893}],
+  ['submarines', 'Submarinos', 3, 1.3, ['ironclad', 'electricity', 'internal_comb'], {army: .01}, 'Buques sumergibles con torpedos.', {after: 1898}],
+  ['dreadnought', 'Acorazados Dreadnought', 3, 1.4, ['cruisers', 'quick_firing'], {army: .02}, 'Artillería gruesa uniforme y turbinas: HMS Dreadnought (1906).', {after: 1904}],
+  ['military_aviation', 'Aviación Militar', 3, 1.3, ['internal_comb'], {army: .01}, 'Los hermanos Wright abren la era de los aeroplanos. Desbloquea las fábricas aeronáuticas.', {after: 1903}],
+  ['fighters', 'Cazas', 3, 1.3, ['military_aviation'], {army: .01}, 'Aeroplanos armados para disputar el cielo.', {after: 1910}],
+  ['bombers', 'Bombarderos', 3, 1.3, ['military_aviation'], {army: .01}, 'Aeroplanos de carga para el bombardeo.', {after: 1911}],
+  ['armor', 'Carros de Combate', 3, 1.5, ['motorization', 'trench_warfare'], {army: .03}, 'Vehículos oruga blindados para romper las trincheras.', {after: 1914}]
+].forEach(r => {
+  if (TECH[r[0]]) return;
+  const t = {id: r[0], name: r[1], cat: 'Militar', era: r[2], cost: Math.round(ERAS[r[2]].base * r[3] / 10) * 10, req: r[4], fx: r[5], desc: r[6], ex: undefined, until: undefined, after: r[7].after};
+  TECHS.push(t); TECH[t.id] = t;
+});
+
+/* ---------- estado ampliado ---------- */
+function mx() {
+  if (!G.mx) G.mx = {};
+  const m = G.mx;
+  if (!m.sq) { m.sq = []; m.nsq = 1; }
+  if (!m.fl) { m.fl = []; m.nfl = 1; }
+  if (!m.nq) m.nq = [];
+  if (!m.mar) { m.mar = []; m.nmar = 1; }
+  if (!m.zc) m.zc = {};
+  if (!m.nlog) m.nlog = [];
+  return m;
+}
+function mc(c) {
+  if (!c.m2) c.m2 = {};
+  const m = c.m2;
+  if (!m.xp) m.xp = {air: 0, navy: 0};
+  if (!m.doc) m.doc = {land: null, air: null, navy: null, tier: {land: 0, air: 0, navy: 0}};
+  if (!m.tpl) { m.tpl = []; m.tplN = 1; }
+  if (!m.lines) m.lines = {};
+  if (!m.q) m.q = {};
+  if (!m.aiT) m.aiT = 0;
+  return m;
+}
+const hasTech = (c, id) => c.techs && c.techs.has(id);
+const yearNow = () => G.date.y + G.date.m / 12;
+
+/* ---------- regiones aéreas: agrupaciones de estados vecinos ---------- */
+function airRegions() {
+  if (MAP.air) return MAP.air;
+  const S = G.S, cen = S.map(s => stateCenter(s)), n = S.length, K = Math.min(30, Math.max(8, Math.round(n / 9)));
+  const seeds = []; const order = S.map((s, i) => i).sort((a, b) => S[b].popBase - S[a].popBase);
+  seeds.push(order[0]);
+  const md = cen.map(c => Math.hypot(c[0] - cen[order[0]][0], c[1] - cen[order[0]][1]));
+  while (seeds.length < K) { let bi = 0, bv = -1; md.forEach((v, i) => { const w = v * (0.6 + Math.min(1, S[i].popBase / 4000)); if (w > bv) { bv = w; bi = i; } }); seeds.push(bi); cen.forEach((c, i) => { const d = Math.hypot(c[0] - cen[bi][0], c[1] - cen[bi][1]); if (d < md[i]) md[i] = d; }); }
+  const of = new Int16Array(n);
+  S.forEach((s, i) => { let b = 0, bv = 1e9; seeds.forEach((sd, k) => { const d = Math.hypot(cen[i][0] - cen[sd][0], cen[i][1] - cen[sd][1]); if (d < bv) { bv = d; b = k; } }); of[i] = b; });
+  const regs = seeds.map((sd, k) => ({id: k, name: 'Región aérea de ' + S[sd].name, states: [], lon: cen[sd][0], lat: cen[sd][1], nb: new Set()}));
+  S.forEach((s, i) => regs[of[i]].states.push(i));
+  S.forEach((s, i) => s.neigh && s.neigh.forEach(j => { if (of[i] !== of[j]) { regs[of[i]].nb.add(of[j]); regs[of[j]].nb.add(of[i]); } }));
+  regs.forEach(r => { r.nb = [...r.nb]; });
+  MAP.air = {regs, of};
+  return MAP.air;
+}
+const airRegOf = sid => airRegions().of[sid];
+const airReg = id => airRegions().regs[id];
+
+/* ---------- zonas marítimas ---------- */
+const SEA_ZONES = [
+  {id: 0, name: 'Mar del Norte', lon: 3, lat: 56}, {id: 1, name: 'Mar Báltico', lon: 19, lat: 58}, {id: 2, name: 'Atlántico Nordeste', lon: -8, lat: 46},
+  {id: 3, name: 'Atlántico Norte', lon: -35, lat: 48}, {id: 4, name: 'Atlántico Central', lon: -38, lat: 18}, {id: 5, name: 'Atlántico Sur', lon: -18, lat: -25},
+  {id: 6, name: 'Caribe y Golfo de México', lon: -78, lat: 20}, {id: 7, name: 'Mediterráneo Occidental', lon: 4, lat: 38}, {id: 8, name: 'Mediterráneo Oriental', lon: 27, lat: 34},
+  {id: 9, name: 'Mar Negro', lon: 34, lat: 43}, {id: 10, name: 'Mar Rojo y Golfo Pérsico', lon: 50, lat: 18}, {id: 11, name: 'Índico Occidental', lon: 62, lat: 2},
+  {id: 12, name: 'Índico Oriental', lon: 92, lat: 4}, {id: 13, name: 'Mares de China', lon: 116, lat: 20}, {id: 14, name: 'Pacífico Norte', lon: 160, lat: 40},
+  {id: 15, name: 'Pacífico Oriental', lon: -120, lat: 20}, {id: 16, name: 'Pacífico Sur', lon: -95, lat: -30}, {id: 17, name: 'Mares de Oceanía', lon: 150, lat: -20},
+  {id: 18, name: 'Océano Ártico', lon: 30, lat: 72}, {id: 19, name: 'Golfo de Guinea', lon: 4, lat: -2}
+];
+function seaZoneOfLL(lon, lat) { let b = 0, bv = 1e9; SEA_ZONES.forEach(z => { const dx = Math.min(Math.abs(lon - z.lon), 360 - Math.abs(lon - z.lon)), d = Math.hypot(dx, (lat - z.lat) * 1.2); if (d < bv) { bv = d; b = z.id; } }); return b; }
+const _pz = new Map();
+function seaZoneOfProv(pid) { let z = _pz.get(pid); if (z === undefined) { const p = MAP.provs[pid]; z = seaZoneOfLL(p.lon, p.lat); _pz.set(pid, z); } return z; }
+function zoneDist(a, b) { const A = SEA_ZONES[a], B = SEA_ZONES[b]; return Math.hypot(Math.min(Math.abs(A.lon - B.lon), 360 - Math.abs(A.lon - B.lon)), A.lat - B.lat); }
+function countryZones(c) { const z = new Map(); c.states.forEach(sid => MAP.stats[sid].provs.forEach(p => { if (MAP.provs[p].port) z.set(seaZoneOfProv(p), (z.get(seaZoneOfProv(p)) || 0) + 1); })); return z; }
+
+/* ---------- capacidad de los edificios nuevos (llamado desde computeCaps) ---------- */
+function milCaps() {
+  const S = G.S;
+  const w = {shipyard: [], enginew: [], aeroworks: [], mgworks: []};
+  S.forEach(s => { const c = G.C[s.owner], ind = c ? c.ind : 0.05, base = Math.pow(s.popBase, 0.9) * (0.25 + 3 * ind), coast = Math.pow(MAP.stats[s.id].coast, 0.85);
+    w.shipyard.push(coast * Math.pow(s.popBase, 0.5) * (0.25 + 3 * ind)); w.enginew.push(base); w.aeroworks.push(base); w.mgworks.push(base); });
+  const T = {shipyard: 30, enginew: 40, aeroworks: 40, mgworks: 40};
+  for (const k in w) { const tot = w[k].reduce((a, x) => a + x, 0) || 1; S.forEach((s, i) => { s.cap[k] = T[k] * w[k][i] / tot; s.b[k] = k === 'shipyard' ? s.cap[k] * 0.35 : 0; }); }
+  // todo estado con puerto tiene un astillero modesto (para que las potencias menores puedan construir)
+  S.forEach(s => { if (MAP.stats[s.id].provs.some(p => MAP.provs[p].port)) { s.cap.shipyard = Math.max(s.cap.shipyard || 0, 1); s.b.shipyard = Math.max(s.b.shipyard || 0, 0.3); } });
+}
+
+/* ---------- ¿cuántas fábricas militares tiene un país? ---------- */
+function milFactories(c) {
+  let n = 0; c.states.forEach(sid => { const b = G.S[sid].b; MIL_BUILDINGS.forEach(k => { n += b[k] || 0; }); });
+  return Math.floor(n + (c.stats.indLevels || 0) * 0.08) + 2;
+}
+
+/* ---------- guardado ---------- */
+function mxSave() { return G.mx || null; }
+function mxLoad(x) { const fresh = !x; G.mx = x || null; mx(); MAP.air = null; if (typeof tplRegisterAll === 'function') tplRegisterAll(); G.tags.forEach(t => { if (t !== NONE) mc(G.C[t]); }); if (fresh && typeof initNavies === 'function') initNavies(); else if (typeof mxEnsureEq === 'function') mxEnsureEq(); }
+
+/* ---------- ganchos de la simulación ---------- */
+function initMil2() { G.mx = null; mx(); MAP.air = null; initNavies(); G.tags.forEach(t => { if (t !== NONE) { mc(G.C[t]); if (G.C[t].ai) aiTemplates(G.C[t]); } }); }
+function mil2Day() { if (typeof airDay === 'function') { airDay(); navyDay(); docDay(); marDay(); } }
+function mil2Week() { linesWeek(); aviationWeek(); navalWeek(); docWeek(); marWeek(); resistanceWeek(); resistanceAIWeek(); aiTemplatesWeek(); }
+function mil2Month(c) { navalMonth(c); }
+
+/* ===== DOCTRINAS MILITARES =====
+   Experiencia: terrestre (c.mxp, se gana combatiendo y entrenando), naval y aérea (c.m2.xp). Con ella se compran escalones de un
+   árbol de doctrinas con ramas excluyentes. docMod(tag, clave) devuelve la suma de bonificaciones de las doctrinas adoptadas. */
+const DOCTRINES = {
+  land: {
+    name: 'Doctrina terrestre', icon: '🪖', xp: 'land', branches: {
+      depth: {name: 'Defensa en profundidad', icon: '🛡️', desc: 'Líneas escalonadas y reservas: el defensor aguanta y desgasta al atacante.', tiers: [
+        {name: 'Líneas escalonadas', xp: 30, from: 1836, fx: {def: .05, org: .04}},
+        {name: 'Reservas móviles', xp: 70, from: 1860, fx: {def: .07, att: .02}},
+        {name: 'Defensa elástica', xp: 120, from: 1890, fx: {def: .10, org: .08}}]},
+      mobile: {name: 'Ofensiva móvil', icon: '🏇', desc: 'Maniobra, flanqueos y velocidad para romper el frente.', tiers: [
+        {name: 'Columnas de maniobra', xp: 30, from: 1836, fx: {spd: .08, att: .03}},
+        {name: 'Penetración profunda', xp: 70, from: 1860, fx: {att: .06, spd: .10}},
+        {name: 'Guerra de movimiento', xp: 120, from: 1890, fx: {att: .08, spd: .15, org: .04}}]},
+      fire: {name: 'Fuego superior', icon: '💥', desc: 'Potencia de fuego de fusiles y artillería por encima de todo.', tiers: [
+        {name: 'Fuego de salvas', xp: 30, from: 1836, fx: {att: .05}},
+        {name: 'Concentración artillera', xp: 70, from: 1860, fx: {att: .07, def: .02}},
+        {name: 'Barrera rodante', xp: 120, from: 1890, fx: {att: .10, def: .03}}]},
+      mass: {name: 'Movilización de masas', icon: '👥', desc: 'Grandes ejércitos de reservistas, baratos y numerosos.', tiers: [
+        {name: 'Reservas nacionales', xp: 30, from: 1836, fx: {org: .03, cost: -.06}},
+        {name: 'Levas masivas', xp: 70, from: 1860, fx: {def: .03, att: .02, cost: -.08}},
+        {name: 'Nación en armas', xp: 120, from: 1890, fx: {att: .04, def: .04, org: .05, cost: -.10}}]}
+    }},
+  air: {
+    name: 'Doctrina aérea', icon: '✈️', xp: 'air', branches: {
+      supremacy: {name: 'Superioridad aérea', icon: '🛩️', desc: 'Cazas y control del cielo: mayor bonificación por dominar la región.', tiers: [
+        {name: 'Patrullas de caza', xp: 20, from: 1905, fx: {air: .06, intc: .08}},
+        {name: 'Escuadras de combate', xp: 45, from: 1912, fx: {air: .10, intc: .12}},
+        {name: 'Dominio del aire', xp: 80, from: 1920, fx: {air: .14, intc: .16}}]},
+      strategic: {name: 'Bombardeo estratégico', icon: '💣', desc: 'Bombarderos contra la industria del enemigo.', tiers: [
+        {name: 'Bombardeo de objetivos', xp: 20, from: 1905, fx: {bomb: .15}},
+        {name: 'Campaña estratégica', xp: 45, from: 1912, fx: {bomb: .25, cas: .05}},
+        {name: 'Destrucción industrial', xp: 80, from: 1920, fx: {bomb: .35, cas: .08}}]}
+    }},
+  navy: {
+    name: 'Doctrina naval', icon: '⚓', xp: 'navy', branches: {
+      battle: {name: 'Flota de batalla', icon: '🚢', desc: 'Grandes acorazados que buscan la batalla decisiva.', tiers: [
+        {name: 'Línea de combate', xp: 25, from: 1836, fx: {nav: .06}},
+        {name: 'Escuadras de acorazados', xp: 60, from: 1870, fx: {nav: .10, navdef: .05}},
+        {name: 'Dominio del mar', xp: 100, from: 1900, fx: {nav: .14, navdef: .08}}]},
+      raid: {name: 'Guerra de corso', icon: '🏴‍☠️', desc: 'Cruceros y submarinos contra el comercio enemigo.', tiers: [
+        {name: 'Corsarios', xp: 25, from: 1836, fx: {raid: .15}},
+        {name: 'Cruceros comerciales', xp: 60, from: 1870, fx: {raid: .25, nav: .03}},
+        {name: 'Guerra submarina', xp: 100, from: 1900, fx: {raid: .40, nav: .04}}]}
+    }}
+};
+const XP_KEYS = {land: c => c.mxp || 0, navy: c => mc(c).xp.navy, air: c => mc(c).xp.air};
+const xpOf = (c, cat) => XP_KEYS[cat](c);
+function xpSpend(c, cat, n) { if (cat === 'land') c.mxp = (c.mxp || 0) - n; else mc(c).xp[cat] -= n; }
+function xpGain(tag, cat, n) { const c = G.C[tag]; if (!c || tag === NONE) return; if (cat === 'land') c.mxp = (c.mxp || 0) + n; else mc(c).xp[cat] += n; }
+
+// bonificaciones de las doctrinas adoptadas (atk es un alias de att)
+function docMod(tag, key) {
+  const c = G.C[tag]; if (!c || !c.m2) return 0;
+  const d = c.m2.doc; if (!d) return 0; if (key === 'atk') key = 'att';
+  let v = 0;
+  for (const cat in DOCTRINES) { const br = d[cat], n = d.tier[cat] || 0; if (!br) continue; const B = DOCTRINES[cat].branches[br]; if (!B) continue; for (let i = 0; i < n; i++) v += B.tiers[i].fx[key] || 0; }
+  return v;
+}
+function docNext(c, cat) {
+  const d = mc(c).doc, br = d[cat]; if (!br) return null;
+  const n = d.tier[cat] || 0, t = DOCTRINES[cat].branches[br].tiers[n]; return t || null;
+}
+function docCanBuy(c, cat, branch) {
+  const d = mc(c).doc, def = DOCTRINES[cat];
+  if (cat === 'air' && !hasTech(c, 'military_aviation')) return 'Necesitas la tecnología Aviación Militar.';
+  if (d[cat] && d[cat] !== branch) return 'Ya has elegido otra rama: las ramas son excluyentes.';
+  const t = d[cat] ? docNext(c, cat) : def.branches[branch].tiers[0];
+  if (!t) return 'Rama completada.';
+  if (yearNow() < t.from) return `Disponible desde ${t.from}.`;
+  if (xpOf(c, def.xp) < t.xp) return `Faltan puntos de experiencia (${Math.floor(xpOf(c, def.xp))}/${t.xp}).`;
+  return null;
+}
+function docBuy(c, cat, branch) {
+  const err = docCanBuy(c, cat, branch); if (err) return {ok: false, msg: err};
+  const d = mc(c).doc, def = DOCTRINES[cat], t = d[cat] ? docNext(c, cat) : def.branches[branch].tiers[0];
+  xpSpend(c, def.xp, t.xp); d[cat] = branch; d.tier[cat] = (d.tier[cat] || 0) + 1;
+  return {ok: true, msg: `Doctrina adoptada: ${t.name} (${def.branches[branch].name}).`};
+}
+// el entrenamiento y las batallas dan experiencia (ganchos ligeros)
+function docDay() {
+  G.armies.forEach(a => { if (a.mode === 'train' && !a.path.length && !a.battle && a.tag !== NONE) xpGain(a.tag, 'land', 0.035 * Math.min(6, a.divs.length)); });
+}
+// la IA elige rama según su carácter y gasta su experiencia
+function docAI(c) {
+  const m = mc(c), d = m.doc;
+  ['land', 'air', 'navy'].forEach(cat => {
+    if (cat === 'air' && !hasTech(c, 'military_aviation')) return;
+    if (!d[cat]) {
+      const keys = Object.keys(DOCTRINES[cat].branches); let pick2;
+      if (cat === 'land') pick2 = c.rank <= 6 ? 'fire' : c.stats.pop > 2e7 ? 'mass' : (c.monarchy ? 'depth' : 'mobile');
+      else if (cat === 'air') pick2 = c.ind > 0.5 ? 'strategic' : 'supremacy';
+      else pick2 = c.rank <= 3 ? 'battle' : 'raid';
+      if (!keys.includes(pick2)) pick2 = keys[0];
+      d[cat] = pick2; d.tier[cat] = 0;
+    }
+    const br = d[cat], t = DOCTRINES[cat].branches[br].tiers[d.tier[cat] || 0];
+    if (t && yearNow() >= t.from && xpOf(c, DOCTRINES[cat].xp) >= t.xp) { xpSpend(c, DOCTRINES[cat].xp, t.xp); d.tier[cat] = (d.tier[cat] || 0) + 1; }
+  });
+}
+function docWeek() {
+  G.tags.forEach(t => { if (t === NONE) return; const c = G.C[t]; if (!c.states.length) return;
+    // la paz y el tamaño del ejército también dan algo de práctica
+    const n = countDivs(t); if (n) xpGain(t, 'land', Math.min(0.5, n * 0.004));
+    if (c.ai) docAI(c); });
+}
+
+/* ---------- interfaz ---------- */
+function doctrinesHtml() {
+  const c = me(), m = mc(c), d = m.doc;
+  const cat = key => { const def = DOCTRINES[key], sel = d[key], n = d.tier[key] || 0;
+    return `<div class="card"><h3>${def.icon} ${def.name} <small class="dim">· experiencia ${Math.floor(xpOf(c, def.xp))}</small></h3>
+    ${Object.keys(def.branches).map(bk => { const B = def.branches[bk], chosen = sel === bk, locked = sel && !chosen; const err = docCanBuy(c, key, bk);
+      return `<div class="block ${chosen ? 'on' : ''}" style="${locked ? 'opacity:.45' : ''}"><b>${B.icon} ${B.name}</b> ${chosen ? `<span class="tag">${n}/${B.tiers.length}</span>` : ''}<small class="dim">${B.desc}</small>
+      ${B.tiers.map((t, i) => `<div class="kv sm"><span>${i < n && chosen ? '✔' : '▫'} ${t.name} <small class="dim">· ${Object.keys(t.fx).map(k => ({att: 'ataque', def: 'defensa', org: 'organización', spd: 'velocidad', cost: 'coste', air: 'dominio aéreo', intc: 'intercepción', bomb: 'bombardeo', cas: 'apoyo cercano', nav: 'combate naval', navdef: 'defensa naval', raid: 'guerra de corso'})[k] + ' ' + sgn(t.fx[k] * 100, 0) + '%').join(', ')}</small></span><b class="dim">${t.xp} xp · ${t.from}</b></div>`).join('')}
+      ${locked ? '' : `<div class="btnrow"><button data-act="docbuy" data-c="${key}" data-b="${bk}" ${err ? 'disabled' : ''} ${err ? `data-tip="${escA(err)}"` : ''}>${chosen ? 'Siguiente escalón' : 'Adoptar esta rama'}</button></div>`}</div>`; }).join('')}</div>`; };
+  return `<div class="cols"><div class="col wide">${cat('land')}</div><div class="col">${cat('air')}${cat('navy')}
+    <div class="card"><h3>Experiencia militar</h3><div class="kv"><span>🪖 Ejército (combates y entrenamiento)</span><b>${Math.floor(xpOf(c, 'land'))}</b></div><div class="kv"><span>⚓ Marina (batallas y misiones)</span><b>${Math.floor(xpOf(c, 'navy'))}</b></div><div class="kv"><span>✈️ Aviación (combates y misiones)</span><b>${Math.floor(xpOf(c, 'air'))}</b></div>
+    <p class="hint">Cada rama es excluyente: elegir una cierra las demás de su categoría. Los escalones se compran con experiencia y están disponibles desde el año indicado.</p></div></div></div>`;
+}
+MX_TABS.push({id: 'doctrines', label: '🎖️ Doctrinas', html: doctrinesHtml});
+Object.assign(ACT, {docbuy: d => { const r = docBuy(me(), d.c, d.b); toast(r.ok ? '🎖️' : '⚠️', r.msg); renderWindow(); }});
+
+/* ===== PLANTILLAS DE DIVISIÓN =====
+   Una plantilla combina hasta 9 batallones. Cada plantilla registra un tipo en DIVS (clave «T<TAG>_<n>») con sus estadísticas
+   calculadas, de modo que todo el código de combate existente sigue funcionando con DIVS[d.t]. */
+const TPL_SLOTS = 9;
+const BATTALIONS = {
+  inf: {name: 'Infantería de línea', icon: '🪖', att: .67, def: 1.0, org: 4.4, spd: 1.0, cost: 22, width: 1, kind: 'inf', needs: {rifles: 1333, gunpowder: 90}},
+  cav: {name: 'Caballería', icon: '🐎', att: .78, def: .55, org: 4.0, spd: 1.6, cost: 36, width: 1, kind: 'cav', needs: {rifles: 555, horses: 1000, gunpowder: 66}},
+  art: {name: 'Artillería', icon: '💣', att: 1.22, def: .45, org: 3.1, spd: .8, cost: 47, width: 1, kind: 'art', needs: {cannons: 167, rifles: 390, horses: 333, gunpowder: 444}},
+  eng: {name: 'Ingenieros', icon: '⛏️', att: .3, def: .8, org: 4.5, spd: .9, cost: 28, width: 1, kind: 'inf', needs: {rifles: 700, gunpowder: 50}, fort: .015, sup: .01},
+  mg: {name: 'Ametralladoras', icon: '🔫', att: 1.0, def: 1.9, org: 3.5, spd: .9, cost: 40, width: 1, kind: 'inf', tech: 'machine_guns', needs: {mgs: 120, rifles: 400, gunpowder: 120}},
+  mot: {name: 'Infantería motorizada', icon: '🚚', att: .9, def: 1.1, org: 4.5, spd: 1.5, cost: 50, width: 1, kind: 'inf', tech: 'motorization', needs: {rifles: 1200, gunpowder: 90}},
+  arm: {name: 'Blindados', icon: '🛡️', att: 2.4, def: 1.6, org: 3.0, spd: 1.4, cost: 110, width: 1, kind: 'art', tech: 'armor', needs: {cannons: 60, rifles: 300, gunpowder: 150}}
+};
+const BN_ORDER = ['inf', 'cav', 'art', 'eng', 'mg', 'mot', 'arm'];
+const bnAvail = (c, k) => !BATTALIONS[k].tech || hasTech(c, BATTALIONS[k].tech);
+
+// estadísticas de una plantilla (lista de batallones)
+function tplStats(bns) {
+  const n = bns.length || 1, st = {att: 0, def: 0, org: 0, cost: 0, spd: 9, needs: {}, fort: 0, sup: 0, cnt: {}};
+  bns.forEach(k => { const b = BATTALIONS[k]; st.att += b.att; st.def += b.def; st.org += b.org; st.cost += b.cost; st.spd = Math.min(st.spd, b.spd); st.fort += b.fort || 0; st.sup += b.sup || 0; st.cnt[k] = (st.cnt[k] || 0) + 1; for (const g in b.needs) st.needs[g] = (st.needs[g] || 0) + b.needs[g]; });
+  if (!bns.length) st.spd = 1;
+  // la velocidad la marca el batallón más lento, aunque los motorizados compensan parcialmente
+  const avgSpd = bns.reduce((s, k) => s + BATTALIONS[k].spd, 0) / n; st.spd = +(st.spd * 0.6 + avgSpd * 0.4).toFixed(2);
+  st.width = +(bns.length / TPL_SLOTS).toFixed(2);
+  // tipo principal para animaciones y bonificaciones de arma
+  let best = 'inf', bv = -1; for (const k in st.cnt) { const kd = BATTALIONS[k].kind; const v = st.cnt[k] * (kd === 'inf' ? 0.8 : 1); if (v > bv) { bv = v; best = kd; } }
+  st.kind = best;
+  return st;
+}
+function tplKey(tag, id) { return 'T' + tag + '_' + id; }
+// registra (o actualiza) el tipo de división asociado a una plantilla
+function tplRegister(c, t) {
+  const st = tplStats(t.bns), key = tplKey(c.tag, t.id); t.key = key;
+  DIVS[key] = {name: t.name, icon: BATTALIONS[t.bns[0]] ? (st.kind === 'cav' ? '🐎' : st.kind === 'art' ? '💣' : '🪖') : '🪖', att: +st.att.toFixed(2), def: +st.def.toFixed(2), spd: st.spd, org: Math.round(st.org), cost: Math.round(st.cost), days: Math.round(12 + st.cost * 0.06), desc: t.bns.length + ' batallones', kind: st.kind, width: st.width, tpl: true, fort: st.fort, sup: st.sup};
+  DIV_NEEDS[key] = st.needs;
+  return DIVS[key];
+}
+function tplRegisterAll() { G.tags.forEach(tag => { if (tag === NONE) return; const c = G.C[tag]; if (c.m2 && c.m2.tpl) c.m2.tpl.forEach(t => tplRegister(c, t)); }); }
+function tplCreate(c, name, bns) {
+  const m = mc(c); const t = {id: m.tplN++, name: name || 'Plantilla ' + (m.tplN - 1), bns: bns.slice(0, TPL_SLOTS)}; m.tpl.push(t); tplRegister(c, t); return t;
+}
+function tplDelete(c, id) {
+  const m = mc(c), t = m.tpl.find(x => x.id === id); if (!t) return;
+  if (G.armies.some(a => a.tag === c.tag && a.divs.some(d => d.t === t.key)) || G.recruits.some(r => r.tag === c.tag && r.type === t.key)) return false;
+  m.tpl = m.tpl.filter(x => x !== t); delete DIVS[t.key]; delete DIV_NEEDS[t.key]; return true;
+}
+function tplSetBn(c, id, k, delta) {
+  const t = mc(c).tpl.find(x => x.id === id); if (!t) return;
+  const cnt = t.bns.filter(b => b === k).length;
+  if (delta > 0 && t.bns.length < TPL_SLOTS && bnAvail(c, k)) { t.bns.push(k); }
+  else if (delta < 0 && cnt > 0 && t.bns.length > 1) { t.bns.splice(t.bns.lastIndexOf(k), 1); }
+  t.bns.sort((a, b) => BN_ORDER.indexOf(a) - BN_ORDER.indexOf(b));
+  tplRegister(c, t);
+}
+// tipos de división que un país puede reclutar: los clásicos y sus plantillas
+function divTypesOf(c) { return ['inf', 'cav', 'art'].concat(mc(c).tpl.map(t => t.key)); }
+const dKind = d => (DIVS[d.t] && DIVS[d.t].kind) || d.t;
+
+/* ---------- plantillas de la IA ---------- */
+function aiTemplates(c) {
+  const m = mc(c), want = [];
+  want.push(['Infantería con artillería', ['inf', 'inf', 'inf', 'inf', 'inf', 'inf', 'inf', 'art', 'art'], 0]);
+  want.push(['Infantería con ingenieros', ['inf', 'inf', 'inf', 'inf', 'inf', 'inf', 'eng', 'art', 'art'], 0]);
+  if (hasTech(c, 'machine_guns')) want.push(['Infantería con ametralladoras', ['inf', 'inf', 'inf', 'inf', 'inf', 'mg', 'mg', 'art', 'eng'], 1]);
+  if (hasTech(c, 'motorization')) want.push(['Infantería motorizada', ['mot', 'mot', 'mot', 'mot', 'mot', 'mot', 'mg', 'art', 'eng'], 2]);
+  if (hasTech(c, 'armor')) want.push(['División blindada', ['arm', 'arm', 'arm', 'arm', 'arm', 'mot', 'mot', 'mot', 'art'], 3]);
+  want.forEach(([name, bns, tier]) => { const ex = m.tpl.find(t => t.ai === tier); if (!ex) { const t = tplCreate(c, name, bns); t.ai = tier; } else if (ex.bns.join() !== bns.join()) { ex.bns = bns.slice(); ex.name = name; tplRegister(c, ex); } });
+  // las plantillas de la IA con generaciones antiguas se sustituyen por las nuevas: los tipos ya reclutados siguen existiendo
+}
+// plantilla que reclutará la IA según su tecnología y prioridades
+function aiPickType(c) {
+  const m = mc(c); if (!m.tpl.length) aiTemplates(c);
+  const r = Math.random(), pools = m.tpl.filter(t => t.ai !== undefined);
+  const best = pools.slice().sort((a, b) => b.ai - a.ai);
+  if (r < 0.12) return 'cav'; if (r < 0.2 && !hasTech(c, 'motorization')) return 'art';
+  const modern = best[0], base = pools.filter(t => t.ai <= 1);
+  if (modern && modern.ai >= 2 && Math.random() < 0.55) return modern.key;
+  const t = base.length ? pick(base) : best[0]; return t ? t.key : 'inf';
+}
+function aiTemplatesWeek() { G.tags.forEach(t => { if (t === NONE) return; const c = G.C[t]; if (c.ai && c.states.length && (G.week + c.id) % 26 === 0) aiTemplates(c); }); }
+
+/* ---------- interfaz ---------- */
+function templatesHtml() {
+  const c = me(), m = mc(c);
+  const tcard = t => { const st = tplStats(t.bns), used = G.armies.some(a => a.tag === c.tag && a.divs.some(d => d.t === t.key));
+    return `<div class="card"><h3>${st.kind === 'cav' ? '🐎' : st.kind === 'art' ? '💣' : '🪖'} ${t.name} <small class="dim">${t.bns.length}/${TPL_SLOTS} batallones</small></h3>
+    <div class="kv sm"><span>Ataque · Defensa</span><b>${f1(st.att)} · ${f1(st.def)}</b></div><div class="kv sm"><span>Organización · Velocidad</span><b>${Math.round(st.org)} · ×${st.spd.toFixed(2)}</b></div>
+    <div class="kv sm"><span>Anchura de combate</span><b>${st.width.toFixed(2)}</b></div><div class="kv sm"><span>Coste · instrucción</span><b>${money(Math.round(st.cost * moneyPerPoint(c)))} · ${Math.round(12 + st.cost * 0.06)} d</b></div>
+    <div class="kv sm"><span>Equipo</span><b>${Object.keys(st.needs).map(g => (GOOD[g] ? GOOD[g].icon : '') + fmtN(st.needs[g], 0)).join(' ')}</b></div>
+    <div class="tplbn">${BN_ORDER.map(k => { const B = BATTALIONS[k], n = st.cnt[k] || 0, ok = bnAvail(c, k); return `<div class="kv sm" style="${ok ? '' : 'opacity:.4'}"><span>${B.icon} ${B.name}${ok ? '' : ` <small class="dim">(tecnología: ${TECH[B.tech].name})</small>`}</span><span><button data-act="tplbn" data-id="${t.id}" data-k="${k}" data-d="-1" ${n ? '' : 'disabled'}>−</button> <b>${n}</b> <button data-act="tplbn" data-id="${t.id}" data-k="${k}" data-d="1" ${ok && t.bns.length < TPL_SLOTS ? '' : 'disabled'}>＋</button></span></div>`; }).join('')}</div>
+    <div class="btnrow"><button data-act="tplren" data-id="${t.id}">✏️ Renombrar</button><button data-act="tpldup" data-id="${t.id}">⧉ Duplicar</button><button data-act="tpldel" data-id="${t.id}" ${used ? 'disabled data-tip="Hay divisiones o reclutas con esta plantilla"' : ''}>🗑 Borrar</button></div></div>`; };
+  const base = ['inf', 'cav', 'art'].map(k => { const D = DIVS[k]; return `<div class="kv sm"><span>${D.icon} <b>${D.name}</b> <small class="dim">(predefinida)</small></span><b>${D.att} / ${D.def} · org ${D.org} · ×${D.spd}</b></div>`; }).join('');
+  return `<div class="cols"><div class="col"><div class="card"><h3>Plantillas de división</h3><p class="hint">Diseña tus divisiones combinando hasta ${TPL_SLOTS} batallones. Cada plantilla calcula su ataque, defensa, organización, anchura de combate (las divisiones estrechas dejan combatir a más a la vez), velocidad y equipo necesario. Después se reclutan desde la pestaña <b>Reclutamiento</b>. Los ingenieros acelera la fortificación; las ametralladoras, los motorizados y los blindados exigen tecnología.</p>${base}
+      <div class="btnrow"><button data-act="tplnew">＋ Nueva plantilla</button></div></div></div><div class="col wide">${m.tpl.length ? m.tpl.map(tcard).join('') : '<div class="card"><p class="hint">Aún no has creado plantillas. Pulsa «Nueva plantilla».</p></div>'}</div></div>`;
+}
+MX_TABS.push({id: 'templates', label: '📐 Plantillas', html: templatesHtml});
+Object.assign(ACT, {
+  tplnew: () => { const c = me(); tplCreate(c, '', ['inf', 'inf', 'inf', 'inf', 'inf', 'inf', 'eng', 'art', 'art']); renderWindow(); },
+  tplbn: d => { tplSetBn(me(), +d.id, d.k, +d.d); renderWindow(); },
+  tplren: d => { const t = mc(me()).tpl.find(x => x.id === +d.id); if (!t) return; const n = prompt('Nombre de la plantilla', t.name); if (n) { t.name = n.slice(0, 30); tplRegister(me(), t); renderWindow(); } },
+  tpldup: d => { const c = me(), t = mc(c).tpl.find(x => x.id === +d.id); if (t) { tplCreate(c, t.name + ' (copia)', t.bns); renderWindow(); } },
+  tpldel: d => { if (tplDelete(me(), +d.id) === false) toast('⚠️', 'Hay divisiones con esa plantilla.'); renderWindow(); }
+});
+
+/* ===== PRODUCCIÓN MILITAR POR LÍNEAS =====
+   Las fábricas militares de un país (arsenales: niveles de armerías, fundiciones, pólvora, aeronáuticas, astilleros… más una parte de su
+   industria general) se reparten entre líneas de producción. Cada línea compra en el mercado los insumos (consumiendo la oferta mundial)
+   y los convierte en equipo del inventario nacional. La eficiencia sube del 10% al 100% mientras se mantiene la línea y cae al cambiar
+   de generación o retirar fábricas. El equipo antiguo sigue sirviendo, con penalización. */
+const LINE_KINDS = {
+  rifles: {name: 'Fusiles', icon: '🔫', eq: 'rifles', rate: 700, gens: [
+    {n: 'Fusil de chispa', t: null}, {n: 'Fusil de percusión', t: 'percussion_cap'}, {n: 'Fusil de retrocarga', t: 'breech_loaders'}, {n: 'Fusil de cerrojo', t: 'bolt_action'}]},
+  cannons: {name: 'Artillería', icon: '💣', eq: 'cannons', rate: 45, gens: [
+    {n: 'Cañón de ánima lisa', t: null}, {n: 'Cañón rayado de acero', t: 'steel_artillery'}, {n: 'Cañón de tiro rápido', t: 'quick_firing'}]},
+  ammo: {name: 'Munición', icon: '💥', eq: 'gunpowder', rate: 900, gens: [
+    {n: 'Pólvora negra', t: null}, {n: 'Pólvora sin humo', t: 'organic_chem'}]},
+  mgs: {name: 'Ametralladoras', icon: '🔫', eq: 'mgs', rate: 25, gens: [
+    {n: 'Ametralladora Maxim', t: 'machine_guns'}, {n: 'Ametralladora refrigerada', t: 'trench_warfare'}]},
+  aircraft: {name: 'Aviones', icon: '✈️', eq: 'aircraft', rate: 9, gens: [
+    {n: 'Biplano', t: 'military_aviation'}, {n: 'Monoplano de combate', t: 'fighters'}]},
+  ships: {name: 'Buques (tonelaje)', icon: '⚓', eq: 'ships', rate: 7, gens: [
+    {n: 'Casco de madera', t: null}, {n: 'Casco de hierro', t: 'steam_frigate'}, {n: 'Casco de acero', t: 'ironclad'}, {n: 'Turbinas y acero reforzado', t: 'dreadnought'}]}
+};
+const LINE_ORDER = ['rifles', 'cannons', 'ammo', 'mgs', 'aircraft', 'ships'];
+// primera generación disponible (la línea no existe sin ella) y mejor generación disponible
+function lineAvail(c, k) { const g = LINE_KINDS[k].gens; return hasTech(c, g[0].t) || g[0].t === null; }
+function bestGen(c, k) { const gens = LINE_KINDS[k].gens; let b = -1; gens.forEach((g, i) => { if (g.t === null || hasTech(c, g.t)) b = i; }); return b; }
+function gensOf(c, k) { return LINE_KINDS[k].gens.map((g, i) => ({i, n: g.n, ok: g.t === null || hasTech(c, g.t)})).filter(g => g.ok); }
+function lineOf(c, k) { const m = mc(c); if (!m.lines[k]) m.lines[k] = {f: 0, eff: 0.1, gen: Math.max(0, bestGen(c, k)), out: 0, need: 0}; return m.lines[k]; }
+
+/* ---------- calidad del equipo almacenado ---------- */
+function eqAdd(c, g, amt, gen) {
+  if (!c.eq) c.eq = {}; const m = mc(c), cur = c.eq[g] || 0;
+  m.q[g] = cur + amt > 0 ? ((m.q[g] || 0) * cur + gen * amt) / (cur + amt) : (m.q[g] || 0);
+  c.eq[g] = cur + amt;
+}
+const EQ_KIND = {rifles: 'rifles', cannons: 'cannons', gunpowder: 'ammo', mgs: 'mgs', aircraft: 'aircraft', ships: 'ships'};
+function eqBestGen(c, g) { const k = EQ_KIND[g]; return k ? Math.max(0, bestGen(c, k)) : 0; }
+// bonificación (o penalización) del equipo de una división por su generación media; el equipo antiguo rinde peor
+function qualMod(tag, type) {
+  const c = G.C[tag]; if (!c || !c.m2) return 1;
+  const n = DIV_NEEDS[type]; if (!n) return 1;
+  const g = n.cannons && !n.rifles ? 'cannons' : (n.cannons && n.cannons > (n.rifles || 0) / 8) ? 'cannons' : 'rifles';
+  const q = c.m2.q[g] || 0, best = eqBestGen(c, g);
+  return clamp(1 + 0.07 * q - 0.04 * Math.max(0, best - q), 0.85, 1.25);
+}
+
+/* ---------- producción semanal ---------- */
+function linesWeek() {
+  G.tags.forEach(tag => {
+    if (tag === NONE) return; const c = G.C[tag]; if (!c.states.length || !c.eq) return;
+    const m = mc(c), F = milFactories(c), need = eqNeedOf(tag);
+    LINE_ORDER.forEach(k => { if (lineAvail(c, k)) lineOf(c, k); });
+    if (c.ai) aiLines(c, F, need);
+    // las fábricas asignadas no pueden superar las disponibles
+    let used = 0; LINE_ORDER.forEach(k => { const L = m.lines[k]; if (L) used += L.f; });
+    if (used > F) { LINE_ORDER.slice().reverse().forEach(k => { const L = m.lines[k]; if (L && used > F) { const d = Math.min(L.f, used - F); L.f -= d; used -= d; } }); }
+    m.free = F - used; m.F = F;
+    LINE_ORDER.forEach(k => {
+      const L = m.lines[k]; if (!L) return; const K = LINE_KINDS[k];
+      if (L.f > 0) L.eff = Math.min(1, L.eff + 0.045 + L.f * 0.001); else L.eff = Math.max(0.1, L.eff - 0.05);
+      let out = L.f * K.rate * L.eff;
+      const g = K.eq, cap = Math.max(K.rate * 4, (need[g] || 0) * 3, g === 'ships' ? 1800 : g === 'aircraft' ? 700 : 0);       // no se acumula sin límite
+      const stock = c.eq[g] || 0; out = Math.max(0, Math.min(out, cap - stock));
+      const R = clamp(G.ratio[g] === undefined ? 1 : G.ratio[g], 0, 1);
+      G.milD[g] = (G.milD[g] || 0) + out;
+      out *= R;
+      const price = G.price[g] || GOOD[g].base, cost = out * price * 0.95;
+      if (cost > c.treasury * 0.4 && c.treasury > 0) out *= Math.max(0, c.treasury * 0.4 / cost); else if (c.treasury <= 0) out = 0;
+      L.out = out; L.need = need[g] || 0;
+      if (out > 0) { c.treasury -= out * price * 0.95; eqAdd(c, g, out, L.gen); L.made = (L.made || 0) + out; }
+    });
+  });
+}
+// asignación automática de la IA: reparte las fábricas según el déficit de cada equipo (se intenta cerrar el hueco en ~10 semanas)
+function aiLines(c, F, need) {
+  const gap = {rifles: (need.rifles || 0) * 1.3 - (c.eq.rifles || 0), cannons: (need.cannons || 0) * 1.3 - (c.eq.cannons || 0), ammo: (need.gunpowder || 0) * 1.3 - (c.eq.gunpowder || 0), mgs: (need.mgs || 0) * 1.3 - (c.eq.mgs || 0), aircraft: aircraftWantSafe(c), ships: shipsWant(c)};
+  const ks = LINE_ORDER.filter(k => lineAvail(c, k)), f = {}; let tot = 0;
+  ks.forEach(k => { f[k] = Math.max(0, Math.ceil(gap[k] / (LINE_KINDS[k].rate * 10 * 0.8))); tot += f[k]; });
+  const sc = tot > F ? F / tot : 1; let used = 0;
+  ks.forEach(k => { f[k] = Math.floor(f[k] * sc); used += f[k]; });
+  let left = Math.min(F - used, tot - used); ks.sort((a, b) => gap[b] - gap[a]); let i = 0; while (left > 0 && ks.length && i < 400) { const k = ks[i++ % ks.length]; if (gap[k] > 0) { f[k]++; left--; } }
+  ks.forEach(k => { const L = lineOf(c, k), bg = Math.max(0, bestGen(c, k)); if (L.gen < bg && (G.week + c.id) % 13 === 0) { L.gen = bg; L.eff = Math.max(0.1, L.eff * 0.5); } L.f = f[k] || 0; });
+}
+const shipsWant = c => typeof navalWantPts === 'function' ? navalWantPts(c) : 0;
+const aircraftWantSafe = c => typeof aircraftWant === 'function' ? aircraftWant(c) : 0;
+
+// cambios del jugador
+function lineSet(c, k, d) {
+  const m = mc(c), L = lineOf(c, k), F = m.F || milFactories(c); let used = 0; LINE_ORDER.forEach(x => { if (m.lines[x]) used += m.lines[x].f; });
+  if (d > 0 && used < F && lineAvail(c, k)) L.f++; else if (d < 0 && L.f > 0) { L.f--; L.eff = Math.max(0.1, L.eff * 0.85); }
+}
+function lineGen(c, k) { const L = lineOf(c, k), gs = gensOf(c, k); if (gs.length < 2) return; const i = gs.findIndex(g => g.i === L.gen), nx = gs[(i + 1) % gs.length]; L.gen = nx.i; L.eff = Math.max(0.1, L.eff * 0.3); }
+
+/* ---------- interfaz ---------- */
+function productionHtml() {
+  const c = me(), m = mc(c), F = m.F || milFactories(c), need = eqNeedOf(c.tag); let used = 0; LINE_ORDER.forEach(k => { if (m.lines[k]) used += m.lines[k].f; });
+  const rows = LINE_ORDER.filter(k => lineAvail(c, k)).map(k => { const K = LINE_KINDS[k], L = lineOf(c, k), g = K.eq, have = c.eq[g] || 0, nd = need[g] || 0, def = nd - have, gs = gensOf(c, k);
+    return `<tr><td>${K.icon} <b>${K.name}</b><br><small class="dim">${K.gens[L.gen].n}</small></td>
+      <td class="r"><button data-act="linef" data-k="${k}" data-d="-1">−</button> <b>${L.f}</b> <button data-act="linef" data-k="${k}" data-d="1" ${used >= F ? 'disabled' : ''}>＋</button></td>
+      <td>${bar(L.eff, 1, L.eff > .7 ? '' : 'warn', Math.round(L.eff * 100) + '%')}</td>
+      <td class="r">${fmtN(L.out || 0, 0)} /sem</td>
+      <td class="r ${def > 0 ? 'bad' : 'good'}">${fmtN(have, 0)} / ${fmtN(nd, 0)}<br><small>${def > 0 ? 'déficit ' + fmtN(def, 0) : 'cubierto'}</small></td>
+      <td class="r">${gs.length > 1 ? `<button data-act="linegen" data-k="${k}" data-tip="Cambiar de generación reduce la eficiencia al 30%">Cambiar modelo</button>` : '<small class="dim">única</small>'}</td></tr>`; }).join('');
+  const q = g => (c.m2.q[g] || 0).toFixed(1);
+  return `<div class="cols"><div class="col wide"><div class="card"><h3>🏭 Líneas de producción militar</h3>
+    <div class="kv"><span>Fábricas militares</span><b>${F} (${F - used} libres)</b></div>
+    <p class="hint">Las fábricas militares (niveles de armerías, fundiciones, fábricas de pólvora, aeronáuticas y astilleros, más una parte de la industria general) se asignan a líneas. La eficiencia sube del 10% al 100% si mantienes la misma línea; cambiar de modelo o quitar fábricas la hace bajar. Cada línea compra sus insumos en el mercado mundial y lo produce en tu inventario.</p>
+    <table class="tbl"><thead><tr><th>Línea</th><th class="r">Fábricas</th><th>Eficiencia</th><th class="r">Producción</th><th class="r">Inventario / necesidad</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>
+    <div class="col"><div class="card"><h3>Generación del equipo</h3>${['rifles', 'cannons', 'gunpowder', 'mgs'].filter(g => (c.eq[g] || 0) > 0).map(g => `<div class="kv sm"><span>${GOOD[g].icon} ${GOOD[g].name}</span><b>gen. media ${q(g)} / mejor ${eqBestGen(c, g)}</b></div>`).join('')}
+    <p class="hint">Las generaciones nuevas dan hasta +14% de rendimiento a las divisiones; el equipo antiguo aún sirve, pero con penalización frente a lo último en tu tecnología.</p></div>
+    <div class="card"><h3>Aviones y buques</h3><div class="kv sm"><span>✈️ Aviones en inventario</span><b>${fmtN(c.eq.aircraft || 0, 0)}</b></div><div class="kv sm"><span>⚓ Tonelaje en inventario</span><b>${fmtN(c.eq.ships || 0, 0)}</b></div><div class="kv sm"><span>⚙️ Ametralladoras</span><b>${fmtN(c.eq.mgs || 0, 0)}</b></div></div></div></div>`;
+}
+MX_TABS.push({id: 'production', label: '🏭 Producción', html: productionHtml});
+Object.assign(ACT, {
+  linef: d => { lineSet(me(), d.k, +d.d); renderWindow(); },
+  linegen: d => { lineGen(me(), d.k); renderWindow(); }
+});
+
+/* ===== AVIACIÓN =====
+   Escuadrones de cazas y bombarderos formados con el inventario nacional de aviones y desplegados en regiones aéreas (grupos de estados
+   vecinos). Misiones: superioridad aérea, apoyo cercano, bombardeo estratégico e intercepción. airBonus(tag, estado) da hasta +25% de ataque
+   terrestre a quien domina el cielo de la región; el apoyo cercano causa daño directo en las batallas; el bombardeo reduce la producción
+   de los edificios del estado. Solo existe con las tecnologías de la Era 3 (hacia 1905-1915). */
+const SQ_MAX = 100, SQ_MIN = 10;
+const AIR_TYPES = {
+  fighter: {name: 'Cazas', icon: '🛩️', tech: 'fighters', att: 1.0, missions: ['sup', 'intc', 'cas']},
+  bomber: {name: 'Bombarderos', icon: '✈️', tech: 'bombers', att: 0.8, missions: ['cas', 'strat']}
+};
+const AIR_MISSIONS = {
+  sup: {name: 'Superioridad aérea', icon: '🏆', desc: 'Disputa el cielo de la región: da hasta +25% de ataque terrestre a quien lo domina.'},
+  cas: {name: 'Apoyo cercano', icon: '🎯', desc: 'Daño directo al enemigo en las batallas terrestres de la región.'},
+  strat: {name: 'Bombardeo estratégico', icon: '💣', desc: 'Reduce la producción de los edificios de los estados enemigos de la región.'},
+  intc: {name: 'Intercepción', icon: '🛡️', desc: 'Derriba bombarderos enemigos y protege tu región.'}
+};
+const sqPower = s => s.n * (1 + 0.18 * (s.gen || 0)) * (1 + Math.min(0.3, (s.xp || 0) * 0.002));
+const airTypesOf = c => Object.keys(AIR_TYPES).filter(k => hasTech(c, AIR_TYPES[k].tech));
+
+/* ---------- cálculos por región ---------- */
+// poder de cazas de un país en una región (los de superioridad/intercepción cuentan entero; los de apoyo, la mitad)
+function airFighters(tag, reg) { let p = 0; mx().sq.forEach(s => { if (s.reg !== reg || s.type !== 'fighter' || s.n <= 0) return; if (s.tag !== tag && !sameSide(tag, s.tag)) return; p += sqPower(s) * (s.mission === 'sup' || s.mission === 'intc' ? 1 : 0.5); }); return p * (1 + docMod(tag, 'air')); }
+function airHostileFighters(tag, reg) { let p = 0; mx().sq.forEach(s => { if (s.reg !== reg || s.type !== 'fighter' || s.n <= 0 || !hostileTags(tag, s.tag)) return; p += sqPower(s) * (s.mission === 'sup' || s.mission === 'intc' ? 1 : 0.5) * (1 + docMod(s.tag, 'air')); }); return p; }
+// dominio aéreo de un país en una región (0..1)
+function airDominance(tag, reg) { const own = airFighters(tag, reg), foe = airHostileFighters(tag, reg); return own <= 0 ? 0 : clamp((own - foe) / Math.max(own, foe, 1), 0, 1); }
+// gancho del combate terrestre: +ataque por superioridad aérea
+function airBonus(tag, sid) { if (!G.mx || !mx().sq.length) return 0; return 0.25 * Math.pow(airDominance(tag, airRegOf(sid)), 0.8); }
+// gancho del combate terrestre: daño directo del apoyo cercano (se suma al ritmo de daño)
+function airCas(tag, sid) {
+  if (!G.mx || !mx().sq.length) return 0; const reg = airRegOf(sid); let p = 0;
+  mx().sq.forEach(s => { if (s.reg === reg && s.mission === 'cas' && s.n > 0 && (s.tag === tag || sameSide(tag, s.tag))) p += sqPower(s) * (s.type === 'bomber' ? 1 : 0.4); });
+  const foe = airHostileFighters(tag, reg), prot = clamp(foe / Math.max(1, foe + p), 0, 0.6);
+  return clamp(p * 0.0022 * (1 + docMod(tag, 'cas')) * (1 - prot), 0, 0.4);
+}
+// regiones con reconocimiento aéreo de un país (para la niebla de guerra)
+function airReconRegs(tag) { const out = new Set(); mx().sq.forEach(s => { if (s.n >= SQ_MIN && (s.tag === tag || sameSide(tag, s.tag)) && airDominance(tag, s.reg) >= 0 && airHostileFighters(tag, s.reg) < sqPower(s) * 1.5) out.add(s.reg); }); return out; }
+
+/* ---------- escuadrones ---------- */
+function sqCost(c, n) { return Math.round(n * 160 * moneyPerPoint(c) / 6); }
+function sqCanBuild(c, type, n) {
+  const T = AIR_TYPES[type]; if (!T) return 'Tipo desconocido.';
+  if (!hasTech(c, 'military_aviation') || !hasTech(c, T.tech)) return `Necesitas la tecnología ${TECH[T.tech].name}.`;
+  if ((c.eq.aircraft || 0) < n) return `Faltan aviones en el inventario (${fmtN(c.eq.aircraft || 0, 0)} de ${n}). Asigna fábricas a la línea de aviones.`;
+  if (c.treasury < sqCost(c, n)) return 'No tienes fondos.';
+  return null;
+}
+function sqBuild(c, type, n, reg) {
+  const err = sqCanBuild(c, type, n); if (err) return {ok: false, msg: err};
+  c.eq.aircraft -= n; c.treasury -= sqCost(c, n);
+  if (reg === undefined || reg === null) reg = airRegOf(c.capital);
+  const gen = Math.round(mc(c).q.aircraft || 0);
+  const s = {id: mx().nsq++, tag: c.tag, type, n, gen, reg, mission: type === 'fighter' ? 'sup' : 'cas', xp: 0};
+  mx().sq.push(s); return {ok: true, sq: s, msg: `Escuadrón de ${AIR_TYPES[type].name.toLowerCase()} formado en la ${airReg(reg).name}.`};
+}
+function sqReinforce(c, s) { const need = Math.floor(Math.min(SQ_MAX - s.n, c.eq.aircraft || 0)); if (need <= 0) return 0; c.eq.aircraft -= need; s.n += need; return need; }
+
+/* ---------- resolución diaria ---------- */
+function airDay() {
+  const M = mx(); if (!M.sq.length) { return; }
+  const byReg = {}; M.sq.forEach(s => { if (s.n > 0) (byReg[s.reg] = byReg[s.reg] || []).push(s); });
+  for (const r in byReg) {
+    const list = byReg[r]; const tags = [...new Set(list.map(s => s.tag))];
+    // combate aéreo entre bandos hostiles
+    tags.forEach(a => tags.forEach(b => {
+      if (a >= b || !hostileTags(a, b)) return;
+      const fa = list.filter(s => s.tag === a), fb = list.filter(s => s.tag === b);
+      const pa = fa.reduce((n, s) => n + sqPower(s) * (s.type === 'fighter' ? (s.mission === 'sup' || s.mission === 'intc' ? 1 : .5) : .25), 0) * (1 + docMod(a, 'air'));
+      const pb = fb.reduce((n, s) => n + sqPower(s) * (s.type === 'fighter' ? (s.mission === 'sup' || s.mission === 'intc' ? 1 : .5) : .25), 0) * (1 + docMod(b, 'air'));
+      if (pa <= 0 || pb <= 0) return;
+      const hit = (sq, foeP, ownP, tag) => sq.forEach(s => { const exposed = s.type === 'bomber' && s.mission === 'strat' ? 1.4 : s.mission === 'sup' || s.mission === 'intc' ? 1 : 0.6; const k = clamp(0.012 * foeP / Math.max(30, ownP + 30), 0, 0.06) * exposed * (0.8 + Math.random() * 0.4); const lost = Math.min(s.n, Math.max(s.n > 0 && Math.random() < k * s.n ? 1 : 0, Math.round(s.n * k))); s.n -= lost; s.lost = (s.lost || 0) + lost; s.xp = (s.xp || 0) + 0.4; xpGain(tag, 'air', 0.025); });
+      hit(fa, pb * (1 + docMod(b, 'intc')), pa, a); hit(fb, pa * (1 + docMod(a, 'intc')), pb, b);
+    }));
+    // bombardeo estratégico: reduce la producción de los estados enemigos de la región
+    list.forEach(s => {
+      if (s.n < SQ_MIN || s.type !== 'bomber' || s.mission !== 'strat') return;
+      const states = airReg(+r).states.filter(sid => { const o = G.S[sid].owner; return o !== NONE && hostileTags(s.tag, o); }); if (!states.length) return;
+      const foe = states.map(sid => G.S[sid].owner), fpow = airHostileFighters(s.tag, +r), prot = clamp(fpow / Math.max(1, fpow + sqPower(s)), 0, 0.8);
+      const sid = states[(G.date.t + s.id) % states.length], S = G.S[sid];
+      S.bomb = Math.min(0.5, (S.bomb || 0) + 0.0012 * sqPower(s) * (1 + docMod(s.tag, 'bomb')) * (1 - prot)); S.bombT = G.date.t; void foe;
+      s.xp = (s.xp || 0) + 0.15; xpGain(s.tag, 'air', 0.015);
+    });
+  }
+  // los estados se recuperan del bombardeo; los escuadrones vacíos desaparecen
+  if (G.date.t % 3 === 0) G.S.forEach(s => { if (s.bomb) { s.bomb = Math.max(0, s.bomb - 0.008); if (s.bomb < 0.002) s.bomb = 0; } });
+  M.sq = M.sq.filter(s => { if (s.n > 0 && G.C[s.tag] && G.C[s.tag].states.length) return true; if (s.tag === G.player && s.n <= 0) notify('war', `El escuadrón ${s.id} ha sido aniquilado.`); return false; });
+}
+
+/* ---------- IA ---------- */
+function aviationAI(c) {
+  if (!hasTech(c, 'military_aviation') || !c.states.length) return;
+  const M = mx(), mine = M.sq.filter(s => s.tag === c.tag), atWar = c.wars.length > 0;
+  const types = airTypesOf(c); if (!types.length) return;
+  // refuerzos
+  mine.forEach(s => { if (s.n < SQ_MAX * 0.7) sqReinforce(c, s); });
+  // nuevo escuadrón
+  const cap = Math.min(14, 2 + Math.floor((c.stats.indLevels || 0) / 20));
+  if (mine.length < cap && (c.eq.aircraft || 0) >= 40) {
+    const nf = mine.filter(s => s.type === 'fighter').length, nb = mine.length - nf;
+    const type = types.includes('bomber') && (nf > nb * 1.5 || !types.includes('fighter')) ? 'bomber' : (types.includes('fighter') ? 'fighter' : 'bomber');
+    // región con más trabajo: frontera con enemigos en guerra o capital
+    let reg = airRegOf(c.capital);
+    if (atWar) { const hot = {}; G.armies.forEach(a => { if (a.tag === c.tag && !a.sea) { const r = airRegOf(provState(a.loc)); hot[r] = (hot[r] || 0) + a.divs.length; } }); let bv = 0; for (const r in hot) if (hot[r] > bv) { bv = hot[r]; reg = +r; } }
+    const r = sqBuild(c, type, Math.min(SQ_MAX, Math.floor(c.eq.aircraft)), reg); if (r.ok && c.tag !== G.player) logMsg(`${c.name} forma un escuadrón de ${AIR_TYPES[type].name.toLowerCase()}.`);
+  }
+  // misiones
+  mx().sq.filter(s => s.tag === c.tag).forEach(s => {
+    if (s.type === 'fighter') s.mission = airHostileFighters(c.tag, s.reg) > 0 || atWar ? 'sup' : 'intc';
+    else { const enemyStates = airReg(s.reg).states.some(sid => { const o = G.S[sid].owner; return o !== NONE && hostileTags(c.tag, o); }); const fight = G.battles.some(b => airRegOf(b.state) === s.reg); s.mission = fight ? 'cas' : enemyStates ? 'strat' : 'cas'; }
+  });
+}
+// objetivo de producción de aviones de la IA (aviones por semana)
+function aircraftWant(c) {
+  if (!hasTech(c, 'military_aviation') || !airTypesOf(c).length) return 0;
+  const have = (c.eq.aircraft || 0) + mx().sq.filter(s => s.tag === c.tag).reduce((n, s) => n + s.n, 0);
+  const tgt = c.rank <= 8 ? 900 : c.rank <= 20 ? 420 : 120;
+  return Math.max(0, tgt - have) * 2;
+}
+function aviationWeek() { G.tags.forEach(t => { if (t !== NONE && G.C[t].ai && G.C[t].states.length) aviationAI(G.C[t]); }); }
+
+/* ---------- interfaz ---------- */
+function aviationHtml() {
+  const c = me(), M = mx(), mine = M.sq.filter(s => s.tag === G.player), ok = hasTech(c, 'military_aviation'), types = airTypesOf(c);
+  const regs = airRegions().regs.filter(r => r.states.some(sid => G.S[sid].owner === G.player)).slice(0, 14);
+  if (!ok) return `<div class="card"><h3>✈️ Aviación</h3><p class="hint">Aún no hay aviación en tu país. Investiga <b>Aviación Militar</b> (Era 3, hacia ${TECH.military_aviation.after}) y después <b>Cazas</b> y <b>Bombarderos</b>. Necesitarás fábricas aeronáuticas (acero, motores y tela), una línea de producción de aviones y escuadrones desplegados en regiones aéreas.</p></div>`;
+  const sqRow = s => { const T = AIR_TYPES[s.type], reg = airReg(s.reg);
+    return `<tr><td>${T.icon} <b>${T.name}</b> <small class="dim">#${s.id} · gen ${s.gen}</small></td><td class="r">${s.n} / ${SQ_MAX}</td><td>${reg.name.replace('Región aérea de ', '')}</td>
+    <td><select data-act="sqmission" data-id="${s.id}">${T.missions.map(m => `<option value="${m}" ${s.mission === m ? 'selected' : ''}>${AIR_MISSIONS[m].icon} ${AIR_MISSIONS[m].name}</option>`).join('')}</select></td>
+    <td class="r"><select data-act="sqreg" data-id="${s.id}">${airRegions().regs.filter(r => r.states.some(x => G.S[x].owner === G.player || sameSide(G.player, G.S[x].owner))).slice(0, 24).map(r => `<option value="${r.id}" ${r.id === s.reg ? 'selected' : ''}>${r.name.replace('Región aérea de ', '')}</option>`).join('')}</select> <button data-act="sqreinf" data-id="${s.id}">＋ Refuerzo</button> <button data-act="sqdel" data-id="${s.id}">✕</button></td></tr>`; };
+  return `<div class="cols"><div class="col wide"><div class="card"><h3>✈️ Escuadrones</h3>${mine.length ? `<table class="tbl"><thead><tr><th>Escuadrón</th><th class="r">Aviones</th><th>Región</th><th>Misión</th><th class="r">Despliegue</th></tr></thead><tbody>${mine.map(sqRow).join('')}</tbody></table>` : '<p class="hint">No tienes escuadrones.</p>'}
+    <div class="btnrow">${types.map(k => { const err = sqCanBuild(c, k, 50); return `<button data-act="sqnew" data-t="${k}" ${err ? 'disabled' : ''} ${err ? `data-tip="${escA(err)}"` : ''}>＋ ${AIR_TYPES[k].icon} Escuadrón de ${AIR_TYPES[k].name.toLowerCase()} (50 aviones · ${money(sqCost(c, 50))})</button>`; }).join('') || '<small class="dim">Investiga Cazas o Bombarderos.</small>'}</div></div>
+    <div class="card"><h3>Dominio aéreo de tus regiones</h3>${regs.map(r => { const own = airFighters(G.player, r.id), foe = airHostileFighters(G.player, r.id), dom = airDominance(G.player, r.id); return `<div class="kv sm"><span>${r.name.replace('Región aérea de ', '')}</span><b>${own > 0 || foe > 0 ? `🛩️ ${Math.round(own)} vs ${Math.round(foe)} · bonificación ${Math.round(25 * Math.pow(dom, 0.8))}%` : '<span class="dim">sin escuadrones</span>'}</b></div>`; }).join('')}</div></div>
+    <div class="col"><div class="card"><h3>Misiones</h3>${Object.keys(AIR_MISSIONS).map(k => `<div class="kv sm"><span>${AIR_MISSIONS[k].icon} <b>${AIR_MISSIONS[k].name}</b></span></div><small class="dim">${AIR_MISSIONS[k].desc}</small>`).join('')}
+    <p class="hint">Los escuadrones pierden aviones en el combate aéreo. Con un escuadrón desplegado también obtienes reconocimiento aéreo: ves los ejércitos enemigos de esa región.</p></div>
+    <div class="card"><h3>Inventario</h3><div class="kv sm"><span>✈️ Aviones disponibles</span><b>${fmtN(c.eq.aircraft || 0, 0)}</b></div><div class="kv sm"><span>🛠 Fábricas aeronáuticas</span><b>${c.states.reduce((n, id) => n + (G.S[id].b.aeroworks || 0), 0).toFixed(1)}</b></div></div></div></div>`;
+}
+MX_TABS.push({id: 'air', label: '✈️ Aviación', html: aviationHtml});
+Object.assign(ACT, {
+  sqnew: d => { const r = sqBuild(me(), d.t, 50); toast(r.ok ? '✈️' : '⚠️', r.msg); renderWindow(); },
+  sqreinf: d => { const s = mx().sq.find(x => x.id === +d.id); if (s) { const n = sqReinforce(me(), s); toast(n ? '✈️' : '⚠️', n ? `+${n} aviones.` : 'No hay aviones disponibles.'); } renderWindow(); },
+  sqdel: d => { const M = mx(), s = M.sq.find(x => x.id === +d.id); if (s) { me().eq.aircraft = (me().eq.aircraft || 0) + Math.floor(s.n * 0.9); M.sq = M.sq.filter(x => x !== s); } renderWindow(); },
+  sqmission: (d, el) => { const s = mx().sq.find(x => x.id === +d.id); if (s && el && el.value) s.mission = el.value; renderWindow(); },
+  sqreg: (d, el) => { const s = mx().sq.find(x => x.id === +d.id); if (s && el && el.value !== undefined) s.reg = +el.value; renderWindow(); }
+});
+
+/* ===== MARINA DE GUERRA =====
+   Astilleros y buques según la época (fragata de vela 1836 · de vapor ~1850 · acorazado ~1860 · crucero y submarino ~1900 ·
+   dreadnought ~1906), flotas con almirante en zonas marítimas, misiones (patrulla, bloqueo, escolta de convoyes e incursión),
+   batallas navales automáticas, y bloqueo con puntuación de guerra (blockadeScore). La superioridad naval de una zona es necesaria
+   para desembarcar sin pérdidas. */
+const SHIP_TYPES = {
+  sail: {name: 'Fragata de vela', icon: '⛵', att: 3, def: 3, spd: 1.0, pts: 40, days: 70, raid: 1.0, tech: null, up: 260},
+  steam: {name: 'Fragata de vapor', icon: '🚢', att: 5.5, def: 4.5, spd: 1.2, pts: 70, days: 85, raid: 1.1, tech: 'steam_frigate', up: 420},
+  ironclad: {name: 'Acorazado', icon: '🛳️', att: 12, def: 14, spd: 1.0, pts: 170, days: 140, raid: 0.6, tech: 'ironclad', up: 900},
+  cruiser: {name: 'Crucero', icon: '🚤', att: 9, def: 6.5, spd: 1.6, pts: 130, days: 110, raid: 1.8, tech: 'cruisers', up: 700},
+  sub: {name: 'Submarino', icon: '🐟', att: 8, def: 1.5, spd: 0.9, pts: 90, days: 100, raid: 2.6, tech: 'submarines', up: 500},
+  dread: {name: 'Acorazado dreadnought', icon: '⚓', att: 30, def: 27, spd: 1.2, pts: 420, days: 220, raid: 0.5, tech: 'dreadnought', up: 2100}
+};
+const SHIP_ORDER = ['sail', 'steam', 'ironclad', 'cruiser', 'sub', 'dread'];
+const NAV_MISSIONS = {
+  patrol: {name: 'Patrulla', icon: '🧭', desc: 'Vigila la zona y la disputa a flotas enemigas.'},
+  blockade: {name: 'Bloqueo', icon: '🚧', desc: 'Corta el comercio y el suministro por mar de un país enemigo en esa zona; suma puntuación de guerra.'},
+  convoy: {name: 'Escolta de convoyes', icon: '🛡️', desc: 'Protege tus transportes y tu comercio de las incursiones; asegura los desembarcos.'},
+  raid: {name: 'Incursión', icon: '🏴‍☠️', desc: 'Ataca el comercio del enemigo: le cuesta ingresos cada mes.'},
+  port: {name: 'En puerto', icon: '⚓', desc: 'Reparación en el puerto base.'}
+};
+const shipsAvail = c => SHIP_ORDER.filter(k => !SHIP_TYPES[k].tech || hasTech(c, SHIP_TYPES[k].tech));
+const fleetsOf = tag => mx().fl.filter(f => f.tag === tag);
+const fleetShips = f => f.ships.length;
+const shipPow = (s, key) => SHIP_TYPES[s.t][key] * Math.max(0.05, s.hp);
+function fleetPower(f, key) { let p = 0; f.ships.forEach(s => { p += shipPow(s, key || 'att'); }); return p * (1 + 0.04 * ((f.adm && f.adm.lvl) || 1) - 0.04) * (1 + docMod(f.tag, 'nav')); }
+function zonePower(tag, zone, side) {       // side: 'own' (propio y aliados) | 'foe'
+  let p = 0;
+  mx().fl.forEach(f => { if (f.zone !== zone || f.tr || !f.ships.length) return; const own = f.tag === tag || sameSide(tag, f.tag), foe = hostileTags(tag, f.tag); if ((side === 'own' && own && !foe) || (side === 'foe' && foe)) p += fleetPower(f) * (f.mission === 'convoy' ? 1.2 : 1); });
+  return p;
+}
+// ¿es segura la zona para los transportes de un país? (el enemigo no la domina)
+function zoneSecure(tag, zone) { const own = zonePower(tag, zone, 'own'), foe = zonePower(tag, zone, 'foe'); return foe <= own * 0.9 + 1e-6; }
+function navalControl(tag, zone) { const own = zonePower(tag, zone, 'own'), foe = zonePower(tag, zone, 'foe'); return own + foe <= 0 ? 0 : (own - foe) / Math.max(own, foe); }
+
+/* ---------- construcción ---------- */
+const navalMoney = (c, type) => Math.round(SHIP_TYPES[type].pts * 120 * moneyPerPoint(c) / 25);
+function shipyardsOf(c) { return c.states.filter(id => (G.S[id].b.shipyard || 0) >= 0.3 || MAP.stats[id].provs.some(p => MAP.provs[p].port) && (G.S[id].cap.shipyard || 0) > 0); }
+function portsStates(c) { return c.states.filter(id => MAP.stats[id].provs.some(p => MAP.provs[p].port)); }
+function shipCanBuild(c, type, sid) {
+  const T = SHIP_TYPES[type]; if (T.tech && !hasTech(c, T.tech)) return `Necesitas la tecnología ${TECH[T.tech].name}.`;
+  const s = G.S[sid]; if (!s || s.owner !== c.tag) return 'Elige un estado propio con puerto.';
+  if (!MAP.stats[sid].provs.some(p => MAP.provs[p].port)) return 'El estado no tiene puerto.';
+  if ((s.b.shipyard || 0) < 0.1) return 'Necesitas Astilleros en ese estado.';
+  if (c.treasury < navalMoney(c, type)) return 'No tienes fondos.';
+  if (mx().nq.filter(q => q.tag === c.tag).length >= 12) return 'La cola de construcción está llena.';
+  return null;
+}
+function shipOrder(c, type, sid) {
+  const err = shipCanBuild(c, type, sid); if (err) return {ok: false, msg: err};
+  c.treasury -= navalMoney(c, type); mx().nq.push({tag: c.tag, type, state: sid, need: SHIP_TYPES[type].pts, done: 0, age: 0, min: SHIP_TYPES[type].days});
+  return {ok: true, msg: `${SHIP_TYPES[type].name} encargado en ${G.S[sid].name}.`};
+}
+function homeZone(c, sid) { const ps = MAP.stats[sid !== undefined ? sid : c.capital].provs.filter(p => MAP.provs[p].port); return ps.length ? seaZoneOfProv(ps[0]) : null; }
+function mainPortZone(c) { const z = countryZones(c); let b = null, bv = 0; z.forEach((v, k) => { if (v > bv) { bv = v; b = k; } }); return b; }
+const ADM_NAMES = ['Nelson', 'Villeneuve', 'Nakhimov', 'Tegetthoff', 'Farragut', 'Cochrane', 'Jervis', 'Duperré', 'Lazarev', 'Persano', 'Togo', 'Tirpitz', 'Beatty', 'Jellicoe', 'Fisher', 'Scheer', 'Hipper', 'Mahan', 'Dewey', 'Rodney'];
+const newAdmiral = () => ({name: pick(ADM_NAMES) + ' ' + pick(['I', 'II', 'III']), lvl: 1 + Math.floor(Math.random() * 2), xp: 0});
+function newFleet(tag, zone, name) {
+  const M = mx(), f = {id: M.nfl++, tag, zone, ships: [], adm: newAdmiral(), mission: 'port', target: null, name: name || `${fleetsOf(tag).length + 1}.ª Flota`, tr: null};
+  M.fl.push(f); return f;
+}
+function addShip(c, type, zone) {
+  let f = mx().fl.find(x => x.tag === c.tag && x.zone === zone && !x.tr && x.ships.length < 14);
+  if (!f) f = newFleet(c.tag, zone); f.ships.push({t: type, hp: 1}); return f;
+}
+function navalBuildWeek() {
+  const M = mx();
+  M.nq = M.nq.filter(q => {
+    const c = G.C[q.tag]; if (!c || !c.states.length || G.S[q.state].owner !== q.tag) return false;
+    q.age += 7; const yard = G.S[q.state].b.shipyard || 0, cap = 6 + yard * 5;
+    const take = Math.min(q.need - q.done, c.eq.ships || 0, cap); if (take > 0) { q.done += take; c.eq.ships -= take; }
+    if (q.done >= q.need - 1e-6 && q.age >= q.min) { const z = homeZone(c, q.state); if (z !== null) { addShip(c, q.type, z); if (q.tag === G.player) notify('build', `${SHIP_TYPES[q.type].name} botado en ${G.S[q.state].name}.`, q.state); } return false; }
+    return true;
+  });
+}
+function navalWantPts(c) {
+  if (!portsStates(c).length) return 0;
+  const have = fleetsOf(c.tag).reduce((n, f) => n + f.ships.reduce((m, s) => m + SHIP_TYPES[s.t].pts, 0), 0) + mx().nq.filter(q => q.tag === c.tag).reduce((n, q) => n + q.need - q.done, 0);
+  return Math.max(0, navalTargetPts(c) - have) * 0.5;
+}
+function navalTargetPts(c) { const coast = portsStates(c).length; if (!coast) return 0; const r = c.rank; const base = r <= 2 ? 2400 : r <= 5 ? 1500 : r <= 10 ? 800 : r <= 20 ? 380 : r <= 40 ? 160 : 60; const era = 1 + 1.6 * clamp((G.date.y - 1836) / 70, 0, 1); return base * Math.min(1.6, 0.5 + coast / 6) * era * clamp(c.ind * 1.6 + 0.4, 0.4, 1.4); }
+
+/* ---------- movimiento y misiones ---------- */
+function fleetMove(f, zone) {
+  if (zone === f.zone && !f.tr) return; const from = f.tr ? f.tr.to : f.zone;
+  let spd = 9; f.ships.forEach(s => { spd = Math.min(spd, SHIP_TYPES[s.t].spd); }); if (spd === 9) spd = 1;
+  const days = Math.max(2, Math.ceil(zoneDist(from, zone) / (6 * spd)));
+  f.tr = {to: zone, left: days}; f.zoneFrom = f.zone;
+}
+function fleetMission(f, mission, target) { f.mission = mission; f.target = target || null; }
+
+/* ---------- jornada naval ---------- */
+function navyDay() {
+  const M = mx(); if (!M.fl.length) return;
+  // desplazamientos
+  M.fl.forEach(f => { if (f.tr && --f.tr.left <= 0) { f.zone = f.tr.to; f.tr = null; } });
+  // reparación y desgaste
+  M.fl.forEach(f => {
+    const c = G.C[f.tag]; if (!c || f.tr) return; const home = f.zone === mainPortZone(c) || countryZones(c).has(f.zone);
+    const rep = f.mission === 'port' && home ? 0.03 : home ? 0.008 : 0.0005;
+    f.ships.forEach(s => { s.hp = Math.min(1, s.hp + rep); });
+    if (f.mission !== 'port') { f.adm.xp += 0.08; }
+    if (f.adm.xp >= f.adm.lvl * 40 && f.adm.lvl < 5) { f.adm.lvl++; f.adm.xp = 0; if (f.tag === G.player) notify('war', `${f.adm.name} asciende a nivel ${f.adm.lvl}.`); }
+  });
+  // batallas por zona
+  const byZone = {}; M.fl.forEach(f => { if (!f.tr && f.ships.length) (byZone[f.zone] = byZone[f.zone] || []).push(f); });
+  for (const z in byZone) {
+    const list = byZone[z], tags = [...new Set(list.map(f => f.tag))];
+    tags.forEach(a => tags.forEach(b => {
+      if (a >= b || !hostileTags(a, b)) return;
+      const fa = list.filter(f => f.tag === a), fb = list.filter(f => f.tag === b);
+      const pa = fa.reduce((n, f) => n + fleetPower(f, 'att'), 0), pb = fb.reduce((n, f) => n + fleetPower(f, 'att'), 0);
+      if (pa <= 0 || pb <= 0) return;
+      // flotas en puerto no salen a combatir salvo que el enemigo sea mucho más débil
+      navalBattle(+z, a, fa, pa, b, fb, pb);
+    }));
+  }
+  M.fl = M.fl.filter(f => f.ships.length && G.C[f.tag] && G.C[f.tag].states.length);
+}
+function navalBattle(z, a, fa, pa, b, fb, pb) {
+  const hit = (fleets, foeAtt, ownDef, tag) => { let sunk = 0;
+    fleets.forEach(f => f.ships = f.ships.filter(s => {
+      const T = SHIP_TYPES[s.t]; const k = clamp(0.05 * foeAtt / Math.max(10, ownDef) * (6 / (6 + T.def)) * (0.7 + Math.random() * 0.6) * (1 - docMod(tag, 'navdef')), 0, 0.22);
+      s.hp -= k; if (s.hp <= 0.04) { sunk++; return false; } return true; }));
+    return sunk; };
+  const defA = fa.reduce((n, f) => n + fleetPower(f, 'def'), 0), defB = fb.reduce((n, f) => n + fleetPower(f, 'def'), 0);
+  const sb = hit(fb, pa, defB, b), sa = hit(fa, pb, defA, a);
+  if (sa) xpGain(b, 'navy', sa * 1.2); if (sb) xpGain(a, 'navy', sb * 1.2); xpGain(a, 'navy', 0.05); xpGain(b, 'navy', 0.05);
+  fa.concat(fb).forEach(f => { f.adm.xp += 0.5; });
+  const B = mx(); B.nlog = B.nlog || []; if (sa + sb > 0) { B.nlog.unshift({z, a, b, sa, sb, date: dateStr ? dateStr() : ''}); if (B.nlog.length > 12) B.nlog.length = 12; if (a === G.player || b === G.player) notify('war', `Batalla naval en ${SEA_ZONES[z].name}: ${G.C[a].name} pierde ${sa} buques, ${G.C[b].name} pierde ${sb}.`); }
+  // la flota muy dañada se retira al puerto
+  [[fa, pa, pb], [fb, pb, pa]].forEach(([fl, own, foe]) => fl.forEach(f => { if (!f.ships.length) return; const avg = f.ships.reduce((n, s) => n + s.hp, 0) / f.ships.length; if (avg < 0.4 || own < foe * 0.35) { const c = G.C[f.tag]; const hz = mainPortZone(c); if (hz !== null && hz !== f.zone) { fleetMove(f, hz); f.mission = 'port'; f.target = null; } else f.mission = 'port'; } }));
+}
+
+/* ---------- bloqueo, incursiones y suministro ---------- */
+// fracción de los puertos de un país bloqueados (0..1)
+function blockadeFrac(tag) {
+  const c = G.C[tag]; if (!c || !c.states.length) return 0; const M = mx(); if (!M.fl.length) return 0;
+  const zs = countryZones(c); let tot = 0, blk = 0;
+  zs.forEach((n, z) => { tot += n; const foe = fleetsBlockading(tag, z); if (foe > 0 && foe > zonePower(tag, z, 'own')) blk += n; });
+  return tot ? blk / tot : 0;
+}
+function fleetsBlockading(tag, z) { let p = 0; mx().fl.forEach(f => { if (f.zone === z && !f.tr && f.mission === 'blockade' && f.ships.length && hostileTags(tag, f.tag) && (!f.target || f.target === tag)) p += fleetPower(f); }); return p; }
+function portBlockaded(tag, pid) { if (!G.mx || !G.mx.fl.length) return false; const z = seaZoneOfProv(pid); const foe = fleetsBlockading(tag, z); return foe > 0 && foe > zonePower(tag, z, 'own'); }
+// gancho de la puntuación de guerra: el bando que bloquea gana puntos
+function blockadeScore(w) {
+  if (!G.mx || !G.mx.fl.length) return 0;
+  const side = list => { let s = 0, n = 0; list.forEach(t => { const w2 = G.C[t].stats.pop; s += blockadeFrac(t) * w2; n += w2; }); return n ? s / n : 0; };
+  return Math.round(clamp(22 * (side(w.defAll) - side(w.attAll)), -22, 22));
+}
+function raidLoss(tag) {
+  const c = G.C[tag]; let raid = 0, convoy = 0; const zs = countryZones(c);
+  mx().fl.forEach(f => { if (f.tr || !f.ships.length) return;
+    if (f.mission === 'raid' && hostileTags(tag, f.tag) && zs.has(f.zone) && (!f.target || f.target === tag)) f.ships.forEach(s => { raid += SHIP_TYPES[s.t].raid * (0.4 + s.hp * 0.6); });
+    if ((f.mission === 'convoy' || f.mission === 'patrol') && (f.tag === tag || sameSide(tag, f.tag)) && zs.has(f.zone)) f.ships.forEach(s => { convoy += (f.mission === 'convoy' ? 1.2 : 0.6) * (0.5 + SHIP_TYPES[s.t].att / 12); }); });
+  let boost = 0; mx().fl.forEach(f => { if (f.mission === 'raid') boost = Math.max(boost, 0); });
+  return clamp(raid * (1 + docRaid(tag)) / (raid + convoy + 3), 0, 0.9) * (raid > 0 ? 1 : 0) + boost;
+}
+function docRaid(tag) { let m = 0; mx().fl.forEach(f => { if (f.mission === 'raid' && hostileTags(tag, f.tag)) m = Math.max(m, docMod(f.tag, 'raid')); }); return m; }
+function navalMonth(c) {
+  const M = mx(); if (c.tag === NONE) return;
+  const fl = M.fl.filter(f => f.tag === c.tag); let up = 0; fl.forEach(f => f.ships.forEach(s => { up += SHIP_TYPES[s.t].up; }));
+  if (up) c.treasury -= up * moneyPerPoint(c) / 6;
+  if (!c.wars.length && !M.fl.some(f => f.mission === 'raid' || f.mission === 'blockade')) return;
+  const inc = Math.max(0, c.stats.income) * 4.3, blk = blockadeFrac(c.tag), rd = raidLoss(c.tag);
+  const loss = inc * (0.22 * blk + 0.07 * rd); if (loss > 0) { c.treasury -= loss; c.wearV = (c.wearV || 0) + (blk + rd) * 0.6; if (c.tag === G.player && loss > inc * 0.02) notify('war', `El ${blk > 0 ? 'bloqueo' : 'comercio enemigo'} te cuesta ${money(loss)} este mes.`); }
+}
+// los transportes de un desembarco sufren pérdidas si la zona no es segura
+function navalLandingAttrition(a) {
+  if (!a.sea || !G.mx || !G.mx.fl.length) return;
+  const zs = [seaZoneOfProv(a.sea.from), seaZoneOfProv(a.sea.to)];
+  let worst = 0; zs.forEach(z => { if (!zoneSecure(a.tag, z)) { const foe = zonePower(a.tag, z, 'foe'), own = zonePower(a.tag, z, 'own'); worst = Math.max(worst, clamp(0.05 + foe / (own + foe + 5) * 0.12, 0.05, 0.18)); } });
+  if (!worst) return;
+  a.divs.forEach(d => { d.s = Math.max(0, d.s - worst * (0.6 + Math.random() * 0.8)); d.o = Math.max(0, d.o - DIVS[d.t].org * worst * 0.5); });
+  a.divs = a.divs.filter(d => d.s > 0.05); if (!a.divs.length) a._dead = true;
+  if (a.tag === G.player && (G.date.t % 3 === 0)) notify('war', `¡${a.name} sufre pérdidas en el mar: el enemigo domina ${SEA_ZONES[zs[0]].name}! Escolta tus transportes con una flota.`);
+}
+
+/* ---------- flotas iniciales ---------- */
+function initNavies() {
+  const M = mx(); M.fl = []; M.nq = [];
+  G.tags.forEach(t => {
+    if (t === NONE) return; const c = G.C[t]; if (!c.states.length) return;
+    const z = mainPortZone(c); if (z === null) return;
+    const n = Math.round(navalTargetPts(c) * 0.55 / 40); if (n < 1) return;
+    let left = n; while (left > 0) { const k = Math.min(left, 8 + Math.floor(Math.random() * 4)); const f = newFleet(t, z); for (let i = 0; i < k; i++) f.ships.push({t: 'sail', hp: 0.85 + Math.random() * 0.15}); left -= k; f.mission = 'port'; }
+  });
+  mxEnsureEq();
+}
+function mxEnsureEq() { G.tags.forEach(t => { if (t === NONE) return; const c = G.C[t]; c.eq = c.eq || {}; ['mgs', 'aircraft', 'ships'].forEach(g => { if (c.eq[g] === undefined) c.eq[g] = 0; }); }); }
+
+/* ---------- IA naval ---------- */
+function navalAI(c) {
+  const M = mx(), fl = fleetsOf(c.tag); if (!portsStates(c).length) return;
+  // construcción: el mejor casco disponible en el astillero más potente
+  const avail = shipsAvail(c); if (avail.length && M.nq.filter(q => q.tag === c.tag).length < (c.rank <= 8 ? 5 : 2)) {
+    const have = fleetShips(fl[0] || {ships: []}); void have;
+    const raider = mc(c).doc.navy === 'raid'; const mix = Math.random();
+    let type = avail[avail.length - 1]; if (type === 'dread' && Math.random() < 0.15) type = 'cruiser';
+    if (raider && avail.includes('sub') && mix < 0.4) type = 'sub'; else if (raider && avail.includes('cruiser') && mix < 0.3) type = 'cruiser';
+    if (avail.includes('cruiser') && mix < 0.18 && type !== 'sub') type = 'cruiser';
+    const yards = portsStates(c).filter(id => (G.S[id].b.shipyard || 0) >= 0.1).sort((a, b) => (G.S[b].b.shipyard || 0) - (G.S[a].b.shipyard || 0));
+    if (yards.length) shipOrder(c, type, yards[0]);
+  }
+  // misiones
+  const enemies = G.tags.filter(o => o !== NONE && hostileTags(c.tag, o) && alive(o));
+  fl.forEach(f => {
+    if (f.tr) return; const power = fleetPower(f);
+    if (!enemies.length) { if (f.mission !== 'port' && f.mission !== 'patrol') { f.mission = 'port'; f.target = null; } const hz = mainPortZone(c); if (hz !== null && f.zone !== hz && !f.tr) fleetMove(f, hz); return; }
+    // objetivo: el enemigo con más puertos al alcance
+    let tgt = null, bz = null, bs = 0; enemies.forEach(e => { countryZones(G.C[e]).forEach((n, z) => { const s = n * 2 - zoneDist(f.zone, z) * 0.1 - zonePower(c.tag, z, 'foe') * 0.01; if (s > bs) { bs = s; tgt = e; bz = z; } }); });
+    if (tgt === null) { f.mission = 'port'; return; }
+    const foe = zonePower(c.tag, bz, 'foe');
+    if (power > foe * 1.25 + 1) { if (f.zone !== bz) fleetMove(f, bz); f.mission = f.ships.some(s => SHIP_TYPES[s.t].raid >= 1.8) && Math.random() < 0.5 ? 'raid' : 'blockade'; f.target = tgt; }
+    else { const hz = mainPortZone(c); if (hz !== null && f.zone !== hz) fleetMove(f, hz); f.mission = 'patrol'; f.target = null; }
+  });
+  // las flotas pequeñas se agrupan en la misma zona y misión (se mantiene su identidad)
+}
+function navalWeek() { navalBuildWeek(); G.tags.forEach(t => { if (t !== NONE && G.C[t].ai && G.C[t].states.length) navalAI(G.C[t]); }); }
+
+/* ---------- interfaz ---------- */
+function navyHtml() {
+  const c = me(), M = mx(), fl = fleetsOf(G.player), avail = shipsAvail(c), ps = portsStates(c);
+  const total = fl.reduce((n, f) => n + f.ships.length, 0);
+  const zoneOpts = sel => SEA_ZONES.map(z => `<option value="${z.id}" ${z.id === sel ? 'selected' : ''}>${z.name}</option>`).join('');
+  const fleetRow = f => { const cnt = {}; f.ships.forEach(s => cnt[s.t] = (cnt[s.t] || 0) + 1); const avg = f.ships.reduce((n, s) => n + s.hp, 0) / Math.max(1, f.ships.length);
+    return `<div class="card"><div class="kv"><b>${f.name}</b><span>${f.tr ? `⛵ en ruta a ${SEA_ZONES[f.tr.to].name} (${f.tr.left} d)` : SEA_ZONES[f.zone].name}</span></div>
+    <div class="kv sm"><span>Buques</span><b>${SHIP_ORDER.filter(k => cnt[k]).map(k => SHIP_TYPES[k].icon + cnt[k]).join(' ')}</b></div>
+    <div class="kv sm"><span>Casco · Poder</span><b>${Math.round(avg * 100)}% · ${f1(fleetPower(f))}</b></div><div class="kv sm"><span>Almirante</span><b>${f.adm.name} (nivel ${f.adm.lvl})</b></div>
+    <div class="btnrow"><select data-act="flmove" data-id="${f.id}">${zoneOpts(f.tr ? f.tr.to : f.zone)}</select>
+    <select data-act="flmis" data-id="${f.id}">${Object.keys(NAV_MISSIONS).map(k => `<option value="${k}" ${f.mission === k ? 'selected' : ''}>${NAV_MISSIONS[k].icon} ${NAV_MISSIONS[k].name}</option>`).join('')}</select>
+    ${f.mission === 'blockade' || f.mission === 'raid' ? `<select data-act="fltgt" data-id="${f.id}"><option value="">— cualquier enemigo —</option>${G.tags.filter(o => o !== NONE && hostileTags(G.player, o) && alive(o)).map(o => `<option value="${o}" ${f.target === o ? 'selected' : ''}>${G.C[o].name}</option>`).join('')}</select>` : ''}</div></div>`; };
+  const q = M.nq.filter(x => x.tag === G.player);
+  const blk = blockadeFrac(G.player);
+  return `<div class="cols"><div class="col wide"><div class="card"><h3>⚓ Flotas <small class="dim">· ${total} buques</small></h3>${fl.length ? '' : '<p class="hint">No tienes flotas. Construye buques en tus astilleros.</p>'}</div>${fl.map(fleetRow).join('')}
+    <div class="card"><h3>Batallas navales recientes</h3>${(M.nlog || []).slice(0, 6).map(l => `<div class="kv sm"><span>${SEA_ZONES[l.z].name}: ${flag(l.a, 'sm')} vs ${flag(l.b, 'sm')}</span><b>−${l.sa} / −${l.sb}</b></div>`).join('') || '<small class="dim">Sin combates.</small>'}</div></div>
+    <div class="col"><div class="card"><h3>Astilleros y construcción</h3>
+    <div class="kv sm"><span>Tonelaje en inventario</span><b>${fmtN(c.eq.ships || 0, 0)}</b></div><div class="kv sm"><span>Niveles de astilleros</span><b>${c.states.reduce((n, id) => n + (G.S[id].b.shipyard || 0), 0).toFixed(1)}</b></div>
+    ${ps.length ? `<table class="tbl"><tbody>${avail.map(k => { const T = SHIP_TYPES[k]; const sid = ps.filter(id => (G.S[id].b.shipyard || 0) >= 0.1)[0]; const err = sid === undefined ? 'Necesitas astilleros en algún estado con puerto.' : shipCanBuild(c, k, sid);
+      return `<tr><td>${T.icon} <b>${T.name}</b><br><small class="dim">ataque ${T.att} · defensa ${T.def} · ${T.pts} t · ${T.days} d</small></td><td class="r"><button data-act="shipnew" data-t="${k}" ${err ? 'disabled' : ''} ${err ? `data-tip="${escA(err)}"` : ''}>＋ ${money(navalMoney(c, k))}</button></td></tr>`; }).join('')}</tbody></table>` : '<p class="hint bad">No tienes estados con puerto.</p>'}
+    ${q.map(x => `<div class="kv sm"><span>${SHIP_TYPES[x.type].icon} ${SHIP_TYPES[x.type].name} · ${G.S[x.state].name}</span><b>${Math.round(x.done / x.need * 100)}%</b></div>`).join('')}
+    <p class="hint">Los buques se construyen con tonelaje de la línea de <b>Buques</b> (pestaña Producción) en estados con astilleros. Las flotas navegan entre zonas marítimas; la superioridad en una zona protege tus desembarcos.</p></div>
+    <div class="card"><h3>Estado del comercio</h3><div class="kv sm"><span>Bloqueo de tus puertos</span><b class="${blk > 0 ? 'bad' : ''}">${Math.round(blk * 100)}%</b></div><div class="kv sm"><span>Incursiones enemigas</span><b class="${raidLoss(G.player) > 0 ? 'bad' : ''}">${Math.round(raidLoss(G.player) * 100)}%</b></div>
+    ${Object.keys(NAV_MISSIONS).map(k => `<small class="dim">${NAV_MISSIONS[k].icon} <b>${NAV_MISSIONS[k].name}:</b> ${NAV_MISSIONS[k].desc}</small>`).join('<br>')}</div></div></div>`;
+}
+MX_TABS.push({id: 'navy', label: '⚓ Marina', html: navyHtml});
+Object.assign(ACT, {
+  shipnew: d => { const c = me(), sid = portsStates(c).filter(id => (G.S[id].b.shipyard || 0) >= 0.1)[0]; const r = sid === undefined ? {ok: false, msg: 'Necesitas astilleros.'} : shipOrder(c, d.t, sid); toast(r.ok ? '⚓' : '⚠️', r.msg); renderWindow(); },
+  flmove: (d, el) => { const f = mx().fl.find(x => x.id === +d.id); if (f && el) fleetMove(f, +el.value); renderWindow(); },
+  flmis: (d, el) => { const f = mx().fl.find(x => x.id === +d.id); if (f && el) { f.mission = el.value; f.target = null; } renderWindow(); },
+  fltgt: (d, el) => { const f = mx().fl.find(x => x.id === +d.id); if (f && el) f.target = el.value || null; renderWindow(); }
+});
+
+/* ===== RESISTENCIA EN PROVINCIAS OCUPADAS =====
+   Cada provincia ocupada genera resistencia (0-100) según la cultura de sus habitantes respecto al ocupante (el estado de origen del
+   territorio y su perfil cultural). Las guarniciones (divisiones del ocupante estacionadas en la provincia) la contienen. Una resistencia
+   alta ataca el suministro del ocupante y, si desborda, libera la provincia. */
+const RES_CAP = 100;
+function resMap() { return mx().res || (mx().res = {}); }
+const provRes = pid => (G.mx && G.mx.res && G.mx.res[pid]) || 0;
+// afinidad cultural del territorio con el ocupante: 0.3 (son «de los suyos») … 1.5 (cultura ajena)
+function cultureK(sid, occ) {
+  const orig = MAP.seeds[sid] && MAP.seeds[sid].owner; if (!orig || orig === NONE) return 1.0;
+  if (orig === occ) return 0.3;
+  const A = G.C[orig], B = G.C[occ]; if (!A || !B) return 1.0;
+  let k = A.profile === B.profile ? 0.8 : 1.4;
+  const rel = A.adj && B.adj && A.adj === B.adj ? -0.2 : 0; return Math.max(0.3, k + rel);
+}
+function garrisonOf(pid, occ) { let n = 0; armiesAt(pid).forEach(a => { if (a.tag === occ || sameSide(a.tag, occ)) a.divs.forEach(d => { n += dKind(d) === 'inf' ? 1 : dKind(d) === 'cav' ? 0.8 : 0.3; }); }); return n; }
+function resistanceWeek() {
+  const R = resMap();
+  const occ = []; G.P.forEach((p, pid) => { if (p.by) occ.push(pid); });
+  occ.forEach(pid => {
+    const pr = G.P[pid], sid = provState(pid), owner = G.S[sid].owner; if (owner === NONE || !pr.by) return;
+    const k = cultureK(sid, pr.by), g = garrisonOf(pid, pr.by), rad = (G.C[owner].radicals || 0);
+    const need = 0.6 + k * 0.8;                              // divisiones que hacen falta para contenerla
+    let d = (k * 1.6 + rad * 2) * (1 - 0.2 * Math.min(1, g / need)) - g * 1.1;
+    if ((G.S[sid].occ || 0) >= 1) d += 0.4;                    // el estado entero ocupado resiste más
+    R[pid] = clamp((R[pid] || 0) + d, 0, RES_CAP);
+    if (R[pid] <= 0) delete R[pid];
+    if (R[pid] >= 80 && Math.random() < (R[pid] - 78) / 100 * 0.3) {          // desbordamiento: la provincia se libera
+      pr.by = null; pr.prog = 0; R[pid] = 25; refreshStateOcc(sid); if (typeof onFrontChanged === 'function') onFrontChanged(new Set([sid]));
+      if (owner === G.player || pr.pby === G.player) notify('war', `¡Levantamiento en ${provName(pid)}! La resistencia expulsa a la guarnición de ${G.C[pr.pby || owner].name}.`, sid);
+    }
+  });
+  // la resistencia de provincias ya libres decae
+  for (const pid in R) if (!G.P[pid].by) { R[pid] -= 4; if (R[pid] <= 0) delete R[pid]; }
+}
+// penalización de suministro por la resistencia del lugar donde está el ejército
+function resSupplyMul(a) { const r = provRes(a.loc); return r > 40 ? 1 - 0.55 * (r - 40) / 60 : 1; }
+// la IA envía guarniciones a las provincias ocupadas con más resistencia
+function resistanceAI(c) {
+  const hot = []; G.P.forEach((p, pid) => { if (p.by === c.tag && provRes(pid) > 45 && garrisonOf(pid, c.tag) < 1) hot.push(pid); });
+  if (!hot.length) return;
+  const idle = armiesOf(c.tag).filter(a => !a.battle && !a.path.length && !a.sea && !a.front && a.divs.length <= 3);
+  hot.slice(0, 2).forEach(pid => { let best = null, bd = 1e9; idle.forEach(a => { const d = provDist(a.loc, pid); if (d < bd) { bd = d; best = a; } }); if (best) { orderMove(best, pid); idle.splice(idle.indexOf(best), 1); } });
+}
+function resistanceAIWeek() { G.tags.forEach(t => { if (t !== NONE && G.C[t].ai && G.C[t].wars.length) resistanceAI(G.C[t]); }); }
+
+function occupationHtml() {
+  const R = resMap(), mine = []; G.P.forEach((p, pid) => { if (p.by === G.player) mine.push(pid); });
+  mine.sort((a, b) => provRes(b) - provRes(a));
+  const lost = []; G.C[G.player].states.forEach(sid => MAP.stats[sid].provs.forEach(pid => { if (G.P[pid].by && !sameSide(G.player, G.P[pid].by)) lost.push(pid); }));
+  const row = pid => { const r = provRes(pid), g = garrisonOf(pid, G.player), sid = provState(pid); return `<tr class="clk" data-act="focusprov" data-id="${pid}"><td><b>${provName(pid)}</b> <small class="dim">${G.C[G.S[sid].owner].name}</small></td><td class="r">×${cultureK(sid, G.player).toFixed(1)}</td><td>${bar(r, 100, r > 60 ? 'bad' : r > 35 ? 'warn' : '', Math.round(r) + '%')}</td><td class="r ${g < 0.8 ? 'bad' : ''}">${g.toFixed(1)}</td></tr>`; };
+  return `<div class="cols"><div class="col wide"><div class="card"><h3>🏴 Provincias ocupadas por ti</h3>${mine.length ? `<table class="tbl clickable"><thead><tr><th>Provincia</th><th class="r">Hostilidad cultural</th><th>Resistencia</th><th class="r">Guarnición</th></tr></thead><tbody>${mine.slice(0, 40).map(row).join('')}</tbody></table>` : '<p class="hint">No ocupas ninguna provincia.</p>'}
+    <p class="hint">Cada provincia ocupada genera resistencia según la cultura de sus habitantes frente a tu país. Estaciona divisiones (mejor infantería) para contenerla. Con más de un 40% tus ejércitos allí pierden suministro, y con más de un 80% hay riesgo de levantamiento que libera la provincia.</p></div></div>
+    <div class="col"><div class="card"><h3>Tus provincias ocupadas por enemigos</h3>${lost.length ? lost.slice(0, 20).map(pid => `<div class="kv sm clk" data-act="focusprov" data-id="${pid}"><span>${provName(pid)}</span><b>${flag(G.P[pid].by, 'sm')} resistencia ${Math.round(provRes(pid))}%</b></div>`).join('') : '<p class="hint">Ninguna.</p>'}<p class="hint">Si la población resiste, el ocupante tendrá problemas: puedes recuperarla cuando se desborde.</p></div></div></div>`;
+}
+MX_TABS.push({id: 'occupation', label: '🏴 Ocupación', html: occupationHtml});
+
+/* ===== MARISCALES Y PLANES DE BATALLA =====
+   Un mariscal manda un grupo de ejércitos (o un frente completo) y aporta bonificaciones de planificación: cuanto mejor es, antes está
+   listo el plan de batalla (línea de frente y flecha de ofensiva) y más ataque y defensa dan sus tropas. Preparar el plan durante días
+   da hasta +15% de ataque (ya aplicado por el combate a través de a.plan). */
+const MAR_NAMES = ['Radetzky', 'Moltke', 'Kutúzov', 'Wellington', 'Soult', 'Ney', 'Lee', 'Grant', 'Nogi', 'Cadorna', 'MacMahon', 'Bazaine', 'Haig', 'Hindenburg', 'Foch', 'Joffre', 'Brusílov', 'Conrad', 'Falkenhayn', 'Pétain', 'Schlieffen', 'Roon', 'Bismarck'];
+const marMax = c => Math.max(1, Math.min(6, Math.ceil(countDivs(c.tag) / 14)));
+const marOf = tag => mx().mar.filter(m => m.tag === tag);
+function marCost(c) { return Math.round(moneyPerPoint(c) * 700); }
+function marRecruit(c, free) {
+  if (marOf(c.tag).length >= marMax(c)) return {ok: false, msg: `Solo puedes tener ${marMax(c)} mariscales con tu ejército actual.`};
+  if (!free && c.treasury < marCost(c)) return {ok: false, msg: 'No tienes fondos.'};
+  if (!free) c.treasury -= marCost(c);
+  const m = {id: mx().nmar++, tag: c.tag, name: pick(MAR_NAMES), lvl: 1 + Math.floor(Math.random() * 3), xp: 0, group: []};
+  mx().mar.push(m); return {ok: true, m, msg: `El mariscal ${m.name} (nivel ${m.lvl}) toma el mando.`};
+}
+function marOfArmy(a) {
+  const M = mx(); if (!M.mar.length) return null;
+  if (a.front) { const f = (G.fronts || []).find(x => x.id === a.front); if (f && f.mar) { const m = M.mar.find(x => x.id === f.mar && x.tag === a.tag); if (m) return m; } }
+  return M.mar.find(m => m.tag === a.tag && m.group.includes(a.id)) || null;
+}
+const marBonus = a => { const m = marOfArmy(a); return m ? {att: 0.02 * m.lvl, def: 0.015 * m.lvl, plan: 0.14 * m.lvl} : {att: 0, def: 0, plan: 0}; };
+function marDay() {
+  const M = mx(); if (!M.mar.length) return;
+  M.mar.forEach(m => { const arms = m.group.map(armyById).filter(Boolean); (G.fronts || []).forEach(f => { if (f.mar === m.id) f.armies.forEach(id => { const a = armyById(id); if (a && !arms.includes(a)) arms.push(a); }); });
+    if (arms.some(a => a.battle)) { m.xp += 0.08; xpGain(m.tag, 'land', 0.01); }
+    if (m.xp >= m.lvl * 30 && m.lvl < 5) { m.xp = 0; m.lvl++; if (m.tag === G.player) notify('war', `El mariscal ${m.name} asciende a nivel ${m.lvl}.`); } });
+  M.mar.forEach(m => { m.group = m.group.filter(id => armyById(id)); });
+  M.mar = M.mar.filter(m => G.C[m.tag] && G.C[m.tag].states.length);
+}
+function marAssignFront(m, f) { (G.fronts || []).forEach(x => { if (x.mar === m.id) x.mar = null; }); if (f) f.mar = m.id; }
+// la IA nombra mariscales y reparte sus ejércitos por cercanía
+function marAI(c) {
+  const arms = armiesOf(c.tag).filter(a => !a.sea); if (arms.length < 4) return;
+  const want = Math.min(marMax(c), Math.floor(arms.length / 4)); let mine = marOf(c.tag);
+  while (mine.length < want) { const r = marRecruit(c, true); if (!r.ok) break; mine = marOf(c.tag); }
+  if (!mine.length) return;
+  mine.forEach(m => { m.group = m.group.filter(id => armyById(id)); });
+  arms.forEach(a => { if (mine.some(m => m.group.includes(a.id))) return; let best = null, bd = 1e9; mine.forEach(m => { const lead = m.group.length ? armyById(m.group[0]) : null; const d = lead ? provDist(lead.loc, a.loc) : 0; const load = m.group.length * 4; if (d + load < bd) { bd = d + load; best = m; } }); if (best && best.group.length < 10) best.group.push(a.id); });
+}
+function marWeek() { G.tags.forEach(t => { if (t !== NONE && G.C[t].ai && G.C[t].states.length) marAI(G.C[t]); }); }
+
+function marshalsHtml() {
+  const c = me(), M = marOf(G.player), fr = frontsOf(G.player), sel = selectedArmies();
+  const marRow = m => { const arms = m.group.map(armyById).filter(Boolean);
+    return `<div class="card"><div class="kv"><b>🎖️ Mariscal ${m.name}</b><span>nivel ${m.lvl} · +${m.lvl * 2}% ataque · +${(m.lvl * 1.5).toFixed(1)}% defensa · plan ${m.lvl * 14}% más rápido</span></div>
+    <div class="kv sm"><span>Grupo de ejércitos</span><b>${arms.length ? arms.map(a => a.name).join(', ') : '— ninguno —'}</b></div>
+    <div class="btnrow"><button data-act="margroup" data-id="${m.id}" ${sel.length ? '' : 'disabled'} data-tip="Selecciona antes ejércitos en el mapa">＋ Añadir los ${sel.length} ejércitos seleccionados</button><button data-act="marclear" data-id="${m.id}">Vaciar grupo</button><button data-act="mardel" data-id="${m.id}">Retirar</button></div></div>`; };
+  const frRow = f => { const prep = Math.min(30, f.prep || 0), m = M.find(x => x.id === f.mar); const eff = Math.min(1, prep * (1 + (m ? 0.14 * m.lvl : 0)) / 15);
+    return `<div class="card front ${f.mode === 'attack' ? 'attack' : 'defend'}"><div class="kv"><b>${f.mode === 'attack' ? '⚔' : '🛡'} ${f.name}</b><span>${f.active ? (f.phase === 'attack' ? 'ofensiva en curso' : 'preparando el plan') : 'inactivo'}</span></div>
+    ${f.mode === 'attack' ? `<div class="kv sm"><span>Preparación del plan (${prep} d)</span><b>+${Math.round(15 * eff)}% de ataque</b></div>${bar(eff, 1, '')}` : ''}
+    <div class="btnrow"><select data-act="marfront" data-id="${f.id}"><option value="">— sin mariscal —</option>${M.map(m2 => `<option value="${m2.id}" ${f.mar === m2.id ? 'selected' : ''}>${m2.name} (nv. ${m2.lvl})</option>`).join('')}</select></div></div>`; };
+  return `<div class="cols"><div class="col wide"><div class="card"><h3>🎖️ Mariscales <small class="dim">· ${M.length}/${marMax(c)}</small></h3><p class="hint">Los mariscales mandan grupos de ejércitos o frentes completos. Un buen mariscal acelera la preparación del plan de batalla y mejora el ataque y la defensa de sus tropas. Con más divisiones podrás tener más mariscales.</p>
+    <div class="btnrow"><button data-act="marnew" ${M.length >= marMax(c) ? 'disabled' : ''}>＋ Nombrar mariscal (${money(marCost(c))})</button></div></div>${M.map(marRow).join('')}</div>
+    <div class="col"><div class="card"><h3>Planes de batalla</h3><p class="hint">Crea planes en <b>Frentes</b> (línea de frente y flechas de ofensiva). Preparar el plan durante días da hasta <b>+15% de ataque</b>; un mariscal lo acelera.</p></div>${fr.length ? fr.map(frRow).join('') : '<div class="card"><p class="hint">No tienes frentes.</p></div>'}</div></div>`;
+}
+MX_TABS.push({id: 'marshals', label: '🎖️ Mariscales', html: marshalsHtml});
+Object.assign(ACT, {
+  marnew: () => { const r = marRecruit(me()); toast(r.ok ? '🎖️' : '⚠️', r.msg); renderWindow(); },
+  margroup: d => { const m = mx().mar.find(x => x.id === +d.id); if (m) selectedArmies().forEach(a => { mx().mar.forEach(o => { o.group = o.group.filter(i => i !== a.id); }); m.group.push(a.id); }); renderWindow(); },
+  marclear: d => { const m = mx().mar.find(x => x.id === +d.id); if (m) m.group = []; renderWindow(); },
+  mardel: d => { const M2 = mx(); M2.mar = M2.mar.filter(x => x.id !== +d.id); (G.fronts || []).forEach(f => { if (f.mar === +d.id) f.mar = null; }); renderWindow(); },
+  marfront: (d, el) => { const f = (G.fronts || []).find(x => x.id === +d.id); if (f) { const m = el && el.value ? mx().mar.find(x => x.id === +el.value) : null; f.mar = m ? m.id : null; } renderWindow(); }
 });
 
 /* ===== EVENTOS AMPLIADOS, RASGOS NACIONALES Y LOGROS ===== */

@@ -29,7 +29,7 @@ const GOODS = [
  {id:'horses', name:'Caballos',   base:36, icon:'🐎', color:'#9a6a3a', cat:'Militares'}
 ];
 // consumo militar mundial estimado por semana (para dimensionar la industria inicial)
-const MIL_NEED = {rifles: 60000, cannons: 3500, horses: 25000, gunpowder: 18000};
+const MIL_NEED = {rifles: 60000, cannons: 3500, horses: 25000, gunpowder: 18000, ships: 1300};
 const GOOD = {}; GOODS.forEach(g => GOOD[g.id] = g);
 
 const VA_PER_WORKER = 10;      // valor añadido por trabajador a precios base

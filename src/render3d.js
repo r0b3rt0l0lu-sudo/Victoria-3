@@ -155,7 +155,7 @@ function updateArmyMeshes(t) {
       const col = R.occRGB(a.tag); c.setRGB(col[0] / 255, col[1] / 255, col[2] / 255);
       const moving = a.path.length && !a.battle;
       a.divs.slice(0, 9).forEach((d, i) => {
-        const type = d.t, row = Math.floor(i / 3), cl = i % 3, per = type === 'inf' ? 3 : type === 'cav' ? 2 : 1;
+        const type = dKind(d), row = Math.floor(i / 3), cl = i % 3, per = type === 'inf' ? 3 : type === 'cav' ? 2 : 1;
         for (let f = 0; f < per; f++) {
           if (n[type] >= FIG_CAP) return;
           const ox = ((cl - 1) * 0.2 + (f - (per - 1) / 2) * 0.075 * (type === 'art' ? 0 : 1)) * FS, oz = row * 0.17 * FS;

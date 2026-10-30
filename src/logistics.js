@@ -13,7 +13,7 @@ function computeSupply(tag) {
   const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { let k = i * 2 + 1; if (k >= heap.length) break; if (k + 1 < heap.length && heap[k + 1][0] > heap[k][0]) k++; if (heap[k][0] <= heap[i][0]) break; [heap[k], heap[i]] = [heap[i], heap[k]]; i = k; } } return top; };
   const seed = (pid, v) => { if (v > (lvl.get(pid) || 0)) { lvl.set(pid, v); push([v, pid, 0]); } };
   if (c.capital >= 0 && G.S[c.capital].owner === tag) { const cp = stateCapitalProv(c.capital); if (controlled(tag, cp)) seed(cp, 1); }
-  c.states.forEach(sid => MAP.stats[sid].provs.forEach(pid => { if (MAP.provs[pid].port && controlled(tag, pid)) seed(pid, 0.85); }));
+  c.states.forEach(sid => MAP.stats[sid].provs.forEach(pid => { if (MAP.provs[pid].port && controlled(tag, pid) && !(typeof portBlockaded === 'function' && portBlockaded(tag, pid))) seed(pid, 0.85); }));
   // los aliados de la misma guerra comparten sus capitales
   if (!heap.length) {      // sin capital ni puertos controlados: se improvisa un centro de suministro en el estado más poblado
     let best = null, bp = -1; c.states.forEach(sid => { const s = G.S[sid]; MAP.stats[sid].provs.forEach(pid => { if (controlled(tag, pid) && s.popBase > bp) { bp = s.popBase; best = pid; } }); });
@@ -48,6 +48,7 @@ function supplyDay() {
     if (a.sea) { a.sup = 1; return; }
     let l = supplyAt(a.tag, a.loc); const n = cnt[a.tag + '|' + a.loc], cap = provCap(a.loc, a.tag);
     if (n > cap) l *= cap / n;
+    if (typeof resSupplyMul === 'function') l *= resSupplyMul(a);
     a.sup = a.sup === undefined ? l : a.sup * 0.6 + l * 0.4;
     if (a.sup < 0.5) {
       const def = 0.5 - a.sup, k = a.sup < 0.15 ? 3 : 1;

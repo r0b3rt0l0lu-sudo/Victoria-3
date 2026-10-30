@@ -15,7 +15,7 @@ function bvSync(V, b) {
     list.forEach((it, i) => {
       seen.add(it.d); let g = V.groups.get(it.d);
       if (!g) {
-        g = {d: it.d, side, type: it.d.t, units: [], color: G.C[it.a.tag].color};
+        g = {d: it.d, side, type: dKind(it.d), units: [], color: G.C[it.a.tag].color};
         const nf = BV_FIGS[g.type]; for (let k = 0; k < nf; k++) { const u = {g, side, type: g.type, k, x: side === 'A' ? -20 : BV_W + 20, y: BV_H / 2, vx: 0, vy: 0, alive: true, dying: 0, flee: 0, face: side === 'A' ? 0 : Math.PI, flash: 0, ph: Math.random() * 6.28}; g.units.push(u); V.units.push(u); }
         V.groups.set(it.d, g);
       }

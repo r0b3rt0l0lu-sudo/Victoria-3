@@ -67,7 +67,7 @@ function landingDay() {
       }
     } else if (L.phase === 'sea') {
       let any = false;
-      L.carried.forEach(id => { const a = armyById(id); if (!a || !a.sea) return; any = true; if (--a.sea.left <= 0) landArmy(a, L); });
+      L.carried.forEach(id => { const a = armyById(id); if (!a || !a.sea) return; any = true; if (typeof navalLandingAttrition === 'function') { navalLandingAttrition(a); if (a._dead) { G.armies = G.armies.filter(x => x !== a); return; } } if (--a.sea.left <= 0) landArmy(a, L); });
       if (!any) { G.landings = G.landings.filter(x => x !== L); }
     }
   });

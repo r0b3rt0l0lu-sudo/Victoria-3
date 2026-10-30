@@ -263,7 +263,7 @@ function drawBattleMap(cv, b, A, B) {
       g.fillStyle = '#10161b'; g.fillRect(x - w / 2, y - h / 2, w, h);
       g.fillStyle = col; g.fillRect(x - w / 2 + 1, y - h / 2 + 1, w - 2, 6);
       g.strokeStyle = d.o / info.org < 0.25 ? '#ff5a3c' : '#f0e2b0'; g.lineWidth = 1; g.strokeRect(x - w / 2, y - h / 2, w, h);
-      g.fillStyle = '#f5ecd0'; g.font = 'bold 9px sans-serif'; g.textAlign = 'center'; g.fillText(d.t === 'inf' ? 'INF' : d.t === 'cav' ? 'CAB' : 'ART', x, y + 5);
+      g.fillStyle = '#f5ecd0'; g.font = 'bold 9px sans-serif'; g.textAlign = 'center'; g.fillText(dKind(d) === 'inf' ? 'INF' : dKind(d) === 'cav' ? 'CAB' : 'ART', x, y + 5);
       g.fillStyle = '#79c35a'; g.fillRect(x - w / 2 + 1, y + h / 2 - 3, (w - 2) * d.s, 2);
       g.fillStyle = '#e0b04a'; g.fillRect(x - w / 2 + 1, y + h / 2 - 5, (w - 2) * (d.o / info.org), 1.5);
       g.globalAlpha = 1; k++;

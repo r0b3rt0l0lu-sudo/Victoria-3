@@ -233,32 +233,33 @@ function createBattles(byProv) {
 }
 function sideStats(b, ids, isAttacker) {
   const sideKey = ids === b.A ? 'A' : ids === b.B ? 'B' : null, ST = STRATS[(sideKey && b['str' + sideKey]) || 'frontal'];
-  let hasCav = false; ids.forEach(id => { const a0 = armyById(id); if (a0 && a0.divs.some(d => d.t === 'cav')) hasCav = true; });
+  let hasCav = false; ids.forEach(id => { const a0 = armyById(id); if (a0 && a0.divs.some(d => dKind(d) === 'cav')) hasCav = true; });
   const stAtt = ST.att + (ST === STRATS.flank && !hasCav ? -0.06 : 0);
   const stDef = ST.def + (ST.terr ? ST.terr * clamp((MAP.provs[b.prov].terr.def - 1) / 0.25, 0, 1) : 0);
-  let F = 0, T = 0, n = 0, org = 0, orgN = 0, art = 0, cav = 0, gun = 0, brave = 0, tr = 0;
+  let F = 0, T = 0, n = 0, wsum = 0, org = 0, orgN = 0, art = 0, cav = 0, gun = 0, brave = 0, tr = 0;
   const pv = MAP.provs[b.prov]; const terr = pv.terr;
   ids.forEach(id => {
     const a = armyById(id); if (!a) return;
     const c = G.C[a.tag], gm = genMods(a.gen);
     const dm0 = typeof docMod === 'function' ? docMod : () => 0;
     const air = typeof airBonus === 'function' ? airBonus(a.tag, b.state) : 0;
-    const plan = a.plan && a.plan.ready ? 0.15 * Math.min(1, a.plan.days / 15) : 0;
+    const mb = typeof marBonus === 'function' ? marBonus(a) : {att: 0, def: 0, plan: 0};
+    const plan = a.plan && a.plan.ready ? 0.15 * Math.min(1, a.plan.days * (1 + mb.plan) / 15) : 0;
     const sup = typeof supplyMod === 'function' ? supplyMod(a) : 1;
     const landPen = a.landed && G.date.t - a.landed < 6 ? 0.75 : 1;
     const dig = isAttacker ? 0 : Math.min(6, a.dig || 0) * 0.04 * (a.mode === 'hold' || a.mode === 'dig' ? 1.25 : 1);
     const stl = typeof intelStealBonus === 'function' && sideKey ? intelStealBonus(a.tag, sideKey === 'A' ? b.B0 : b.A0) : 0;
-    const am = (1 + stl + stAtt + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup * landPen;
-    const dm = (1 + stl + stDef + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + gm.def + dm0(a.tag, 'def') + air + dig) * sup;
+    const am = (1 + mb.att + stl + stAtt + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup * landPen;
+    const dm = (1 + mb.def + stl + stDef + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + gm.def + dm0(a.tag, 'def') + air + dig) * sup;
     brave += gm.brave; gun += gm.art;
     a.divs.forEach(d => {
       const info = DIVS[d.t];
-      if (n < BATTLE_WIDTH + (terr.mnt > 0.4 ? -2 : 0)) {
+      if (wsum < BATTLE_WIDTH + (terr.mnt > 0.4 ? -2 : 0)) {
         const tm = trainMod(d);
-        const str = d.s * (0.55 + 0.45 * d.o / info.org) * tm * (d.lv ? (isAttacker ? 0.55 : 0.75) : typeof equipMod === 'function' ? equipMod(a.tag, d.t) : 1);
-        const um = 1 + (d.t === 'cav' ? gm.cav + (ST.cavAtt || 0) : d.t === 'art' ? gm.art + (ST.artAtt || 0) : 0);
+        const str = d.s * (0.55 + 0.45 * d.o / info.org) * tm * (d.lv ? (isAttacker ? 0.55 : 0.75) : (typeof equipMod === 'function' ? equipMod(a.tag, d.t) : 1) * (typeof qualMod === 'function' ? qualMod(a.tag, d.t) : 1));
+        const kd = dKind(d), um = 1 + (kd === 'cav' ? gm.cav + (ST.cavAtt || 0) : kd === 'art' ? gm.art + (ST.artAtt || 0) : 0);
         F += info.att * str * am * um; T += info.def * str * dm * (isAttacker ? 1 : terr.def);
-        n++; tr += tm; if (d.t === 'art') art++; if (d.t === 'cav') cav++;
+        n++; wsum += info.width || 1; tr += tm; if (kd === 'art') art++; if (kd === 'cav') cav++;
       }
       org += d.o / info.org; orgN++;
     });
@@ -311,7 +312,8 @@ function battleDay(b) {
   updateStrategies(b);
   const ev = battleEvents(b, sa, sb);
   const rnd1 = () => 0.85 + Math.random() * 0.3;
-  const rAB = sa.F * ev.fA * rnd1() / Math.max(1, sb.T), rBA = sb.F * ev.fB * rnd1() / Math.max(1, sa.T);
+  const casA = typeof airCas === 'function' ? airCas(b.A0, b.state) : 0, casB = typeof airCas === 'function' ? airCas(b.B0, b.state) : 0;
+  const rAB = sa.F * ev.fA * rnd1() * (1 + casA) / Math.max(1, sb.T), rBA = sb.F * ev.fB * rnd1() * (1 + casB) / Math.max(1, sa.T);
   const dmg = (r) => clamp(3.3 * r, 0.4, 8);       // % de organización perdida por día
   const apply = (armies, orgLoss, extra, cas) => {
     let lost = 0;
@@ -319,7 +321,7 @@ function battleDay(b) {
       a.divs.forEach((d, i) => {
         if (i >= BATTLE_WIDTH) return;
         const info = DIVS[d.t];
-        d.o = Math.max(0, d.o - info.org * (orgLoss + extra) / 100 * (0.8 + Math.random() * 0.4));
+        d.o = Math.max(0, d.o - info.org * (orgLoss + extra) / 100 * (0.8 + Math.random() * 0.4) * (1 - (typeof docMod === 'function' ? docMod(a.tag, 'org') : 0)));
         const sl = (orgLoss / 100) * 0.38 * (0.6 + 0.8 * (1 - d.o / info.org)) * cas;
         d.s = Math.max(0, d.s - sl); lost += sl * MEN_PER_DIV;
         d.tr = Math.min(1, (d.tr === undefined ? 0.5 : d.tr) + 0.004);      // la experiencia de combate entrena
@@ -399,6 +401,7 @@ function militaryDay() {
   if (!G.hostile) recalcHostile();
   recalcHostileIfNeeded();
   if (typeof intelDay === 'function') intelDay();
+  if (typeof mil2Day === 'function') mil2Day();
   if (G.armies.length) {
     landingDay(); G.armies.forEach(chaseDay); G.armies.forEach(joinDay); G.armies.forEach(patrolDay); G.armies.forEach(stepMove);
     const byProv = new Map();
@@ -409,7 +412,7 @@ function militaryDay() {
     G.armies.forEach(a => {
       if (a.battle) return;
       const owner = provOwner(a.loc), own = owner === a.tag || sameSide(a.tag, owner);
-      a.rest++; { const gm = genMods(a.gen); const per = a.mode === 'dig' || gm.dig ? 2 : 4; if (!a.path.length && a.rest % per === 0) a.dig = Math.min(6, (a.dig || 0) + 1); }
+      a.rest++; { const gm = genMods(a.gen); const eng = a.divs.reduce((n, d) => n + ((DIVS[d.t] && DIVS[d.t].fort) || 0), 0), per = a.mode === 'dig' || gm.dig || eng >= 0.04 ? 2 : 4; if (!a.path.length && a.rest % per === 0) a.dig = Math.min(6, (a.dig || 0) + 1); }
       trainDay(a);
       if (a.fm && a.path.length) { const gm = genMods(a.gen); a.divs.forEach(d => { d.o = Math.max(0, d.o - DIVS[d.t].org * 0.012 * gm.march); }); if (armyOrg(a) < 0.35) { a.fm = false; if (a.tag === G.player) notify('war', `${a.name} cancela la marcha forzada por agotamiento.`, provState(a.loc)); } }
       const supK = Math.max(0.2, a.sup === undefined ? 1 : a.sup);
@@ -493,7 +496,7 @@ function computeWarScore(w) {
 function sideStrength(list) { let t = 0; list.forEach(tag => armiesOf(tag).forEach(a => a.divs.forEach(d => t += d.s * DIVS[d.t].att))); return Math.round(t); }
 
 /* ---------- reclutamiento ---------- */
-function recruitCost(c, type) { return Math.round(DIVS[type].cost * moneyPerPoint(c)); }
+function recruitCost(c, type) { return Math.round(DIVS[type].cost * moneyPerPoint(c) * (1 + (typeof docMod === 'function' ? docMod(c.tag, 'cost') : 0))); }
 /* ---------- levas de campesinos (movilización total) ---------- */
 const LEVY_MAX = 70;
 function spawnLevies(c) {
@@ -635,7 +638,7 @@ function aiMilitary() {
 function aiRecruitCountry(t) {
   const c = G.C[t]; if (!c || !c.ai || !c.states.length) return;
   const sts = c.states.filter(id => G.S[id].b.barracks >= 1); if (!sts.length) return;
-  const r = Math.random(); recruit(c, pick(sts), r < 0.65 ? 'inf' : r < 0.8 ? 'cav' : 'art');
+  recruit(c, pick(sts), typeof aiPickType === 'function' ? aiPickType(c) : (Math.random() < 0.65 ? 'inf' : 'cav'));
 }
 // mantenimiento semanal de las divisiones (más caro en guerra y con alta movilización)
 function armyUpkeep(c) {
@@ -656,7 +659,7 @@ function aiRecruitWeek() {
     if (!c.wars.length && (Math.random() > 0.03 || countDivs(t) >= divLimit(c) * 0.6)) return;
     let n = c.wars.length ? 2 : 1;
     const sts = c.states.filter(id => G.S[id].b.barracks >= 1);
-    while (n-- > 0 && sts.length) { const r = Math.random(); const type = r < 0.65 ? 'inf' : r < 0.8 ? 'cav' : 'art'; recruit(c, pick(sts), type); }
+    while (n-- > 0 && sts.length) { const r = Math.random(); const type = typeof aiPickType === 'function' ? aiPickType(c) : (r < 0.65 ? 'inf' : r < 0.8 ? 'cav' : 'art'); recruit(c, pick(sts), type); }
   });
 }
 // ¿está el ejército en un país donde ya no tiene nada que hacer (sin guerra compartida ni en guerra con él)?
@@ -688,8 +691,8 @@ function cleanupArmies() {
 /* ---------- guardado de datos militares ---------- */
 function provSave() { const o = []; G.P.forEach((p, i) => { if (p.by || p.prog || p.fort) o.push([i, p.by, p.prog, p.pby || null, p.fort || 0]); }); return o; }
 function provLoad(list) { initProvinceState(); (list || []).forEach(([i, by, prog, pby, fort]) => { const p = G.P[i]; if (p) { p.by = by; p.prog = prog; p.pby = pby; p.fort = fort; } }); G.occList = (list || []).map(x => x[0]); G.S.forEach(s => refreshStateOcc(s.id)); }
-function saveExtra() { return {battleLog: G.battleLog || [], landings: G.landings || [], nextLand: G.nextLand || 1, shipQ: G.shipQ || [], shipReturns: G.shipReturns || [], beach: G.beach || {}, fronts: G.fronts || [], nextFront: G.nextFront || 1, coals: G.coals || [], nextCoal: G.nextCoal || 1, dcrises: G.dcrises || [], nextDC: G.nextDC || 1, mov: G.movStore || null, fog: G.fog ? {p: G.fog.p, rad: G.fog.rad, seen: Array.from(G.fog.seen).reduce((o, v, i) => { if (v) o.push(i); return o; }, [])} : null, pendAtt: G.pendAtt || []}; }
-function loadExtra(x) { G.battleLog = (x && x.battleLog) || []; G.landings = (x && x.landings) || []; G.nextLand = (x && x.nextLand) || 1; G.shipQ = (x && x.shipQ) || []; G.shipReturns = (x && x.shipReturns) || []; G.beach = (x && x.beach) || {}; G.fronts = (x && x.fronts) || []; G.nextFront = (x && x.nextFront) || 1; G.coals = (x && x.coals) || []; G.nextCoal = (x && x.nextCoal) || 1; G.dcrises = (x && x.dcrises) || []; G.nextDC = (x && x.nextDC) || 1; G.pendAtt = (x && x.pendAtt) || []; G.fog = null; G.vis = null; if (x && x.fog && MAP.provs) { const s = new Uint8Array(MAP.provs.length); x.fog.seen.forEach(i => { s[i] = 1; }); G.fog = {p: x.fog.p, rad: x.fog.rad, seen: s}; } }
+function saveExtra() { return {battleLog: G.battleLog || [], landings: G.landings || [], nextLand: G.nextLand || 1, shipQ: G.shipQ || [], shipReturns: G.shipReturns || [], beach: G.beach || {}, fronts: G.fronts || [], nextFront: G.nextFront || 1, coals: G.coals || [], nextCoal: G.nextCoal || 1, dcrises: G.dcrises || [], nextDC: G.nextDC || 1, mov: G.movStore || null, mx: typeof mxSave === 'function' ? mxSave() : null, fog: G.fog ? {p: G.fog.p, rad: G.fog.rad, seen: Array.from(G.fog.seen).reduce((o, v, i) => { if (v) o.push(i); return o; }, [])} : null, pendAtt: G.pendAtt || []}; }
+function loadExtra(x) { G.battleLog = (x && x.battleLog) || []; G.landings = (x && x.landings) || []; G.nextLand = (x && x.nextLand) || 1; G.shipQ = (x && x.shipQ) || []; G.shipReturns = (x && x.shipReturns) || []; G.beach = (x && x.beach) || {}; G.fronts = (x && x.fronts) || []; G.nextFront = (x && x.nextFront) || 1; G.coals = (x && x.coals) || []; G.nextCoal = (x && x.nextCoal) || 1; G.dcrises = (x && x.dcrises) || []; G.nextDC = (x && x.nextDC) || 1; G.pendAtt = (x && x.pendAtt) || []; if (typeof mxLoad === 'function') mxLoad(x && x.mx); G.fog = null; G.vis = null; if (x && x.fog && MAP.provs) { const s = new Uint8Array(MAP.provs.length); x.fog.seen.forEach(i => { s[i] = 1; }); G.fog = {p: x.fog.p, rad: x.fog.rad, seen: s}; } }
 
 /* ---------- órdenes de movilidad al estilo HoI4 ---------- */
 // juntar: el ejército va hacia otro propio y se fusiona al llegar

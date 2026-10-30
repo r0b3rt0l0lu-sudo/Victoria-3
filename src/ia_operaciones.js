@@ -51,7 +51,7 @@ function opRun(t, op, ctx, used) {
     dec.forEach(a => { if (a.battle) return;
       if (foe > armyPow(a) * 1.5 && dsOk) { const back = nearestOwnProv(t, a.loc); if (back !== null && back !== a.loc) orders(a, back, 'op'); }          // el señuelo no combate: se repliega ante una pila superior
       else { orders(a, op.stage, 'op'); if (a.loc === op.stage && a.mode !== 'hold') { setMode(a, 'hold'); a.strat = 'skirmish'; } } });
-    if (op.ph === 'prep' && (dsOk || G.date.t - op.t0 > 6)) op.ph = 'go';
+    if (op.ph === 'prep' && (dsOk || G.date.t - op.t0 > 3)) op.ph = 'go';
     if (op.ph === 'go') main.forEach(a => { if (!a.battle) orders(a, opNextHop(t, a, op.o2), 'op'); });
     else main.forEach(a => { if (!a.battle && a.path.length === 0 && provDist(a.loc, op.o2) > 12) { const rl = op.rally; if (rl !== undefined) orders(a, rl, 'op'); } });
   } else if (op.k === 'ambush') {
@@ -71,6 +71,8 @@ function opRun(t, op, ctx, used) {
   } else if (op.k === 'blitz') {
     A('raid').forEach(a => { if (!a.battle) orders(a, opNextHop(t, a, op.p), 'op'); });
   }
+  // los ejércitos a los que la operación no ha podido dar una orden válida vuelven al control normal (nada de ejércitos parados)
+  op.roles.forEach(r => { r.ids = r.ids.filter(id => { const a = armyById(id); if (!a) return false; if (a.battle || a.path.length || (a.ai && a.ai.task === 'op')) return true; used.delete(id); return false; }); });
 }
 
 /* ---------- planificación ---------- */

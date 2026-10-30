@@ -96,7 +96,8 @@ const armyById = id => G.armies.find(a => a.id === id);
 function armyStr(a) { let t = 0; a.divs.forEach(d => t += d.s); return a.divs.length ? t / a.divs.length : 0; }
 function armyOrg(a) { let t = 0; a.divs.forEach(d => t += d.o / DIVS[d.t].org); return a.divs.length ? t / a.divs.length : 0; }
 function armyMen(a) { let t = 0; a.divs.forEach(d => t += d.s * MEN_PER_DIV); return Math.round(t); }
-function countDivs(tag) { let n = 0; G.armies.forEach(a => { if (a.tag === tag) n += a.divs.length; }); G.recruits.forEach(r => { if (r.tag === tag) n++; }); return n; }
+function countDivs(tag) { let n = 0; G.armies.forEach(a => { if (a.tag === tag) a.divs.forEach(d => { if (!d.lv) n++; }); }); G.recruits.forEach(r => { if (r.tag === tag && !r.lv) n++; }); return n; }
+function levyCount(tag) { let n = 0; G.armies.forEach(a => { if (a.tag === tag) a.divs.forEach(d => { if (d.lv) n++; }); }); G.recruits.forEach(r => { if (r.tag === tag && r.lv) n++; }); return n; }
 const MOB_LEVELS = [
   {name: 'Solo soldados profesionales', pct: 0, desc: 'Solo se recluta con la población de soldados de los cuarteles.'},
   {name: 'Voluntarios', pct: 0.01, desc: 'Movilizas un 1% de la población. Efecto económico leve.'},
@@ -107,13 +108,17 @@ const MOB_LEVELS = [
 function divLimit(c) { return Math.max(0, Math.floor((c.stats.soldiers + c.stats.pop * MOB_LEVELS[c.mob || 0].pct) / MEN_PER_DIV)); }
 const mobK = c => (1 - 0.04 * (c.mob || 0)) * (typeof wearK === 'function' ? wearK(c) : 1);
 function setMobilization(c, lvl) {
-  lvl = clamp(lvl | 0, 0, 4); if (lvl === (c.mob || 0)) return {ok: false, msg: ''};
+  lvl = clamp(lvl | 0, 0, 4); if (lvl === (c.mob || 0)) return {ok: false, msg: ''}; const prevMob = c.mob || 0;
   if (lvl > (c.mob || 0)) { const cost = c.stats.income * 0.5 * (lvl - (c.mob || 0)); if (!c.ai && c.treasury < cost) return {ok: false, msg: 'No tienes fondos para movilizar.'}; if (!c.ai) c.treasury -= cost; c.legitimacy -= 1.5 * (lvl - (c.mob || 0)); }
-  c.mob = lvl; return {ok: true, msg: `Movilización: ${MOB_LEVELS[lvl].name}.`};
+  c.mob = lvl;
+  if (lvl === 4 && prevMob < 4) { const n = spawnLevies(c); if (n && (!c.ai || c.tag === G.player)) notify('war', `¡Movilización total! ${n} levas de campesinos mal armados se alzan por todo el país para defenderlo.`, c.capital); }
+  else if (lvl < 4 && prevMob === 4) disbandLevies(c);
+  return {ok: true, msg: `Movilización: ${MOB_LEVELS[lvl].name}.`};
 }
 // efectos mensuales de la movilización
 function mobilizationMonth(c) {
   const m = c.mob || 0; if (!m) return;
+  if (m === 4) spawnLevies(c);
   c.radicals = Math.min(0.9, c.radicals + 0.0025 * m); c.legitimacy -= 0.25 * m;
   if (!c.ai) c.treasury -= c.stats.income * 0.12 * m;
   if (c.ai && !c.wars.length && Math.random() < 0.35) c.mob = Math.max(0, m - 1);       // la IA desmoviliza en paz
@@ -249,7 +254,7 @@ function sideStats(b, ids, isAttacker) {
       const info = DIVS[d.t];
       if (n < BATTLE_WIDTH + (terr.mnt > 0.4 ? -2 : 0)) {
         const tm = trainMod(d);
-        const str = d.s * (0.55 + 0.45 * d.o / info.org) * tm * (typeof equipMod === 'function' ? equipMod(a.tag, d.t) : 1);
+        const str = d.s * (0.55 + 0.45 * d.o / info.org) * tm * (d.lv ? (isAttacker ? 0.55 : 0.75) : typeof equipMod === 'function' ? equipMod(a.tag, d.t) : 1);
         const um = 1 + (d.t === 'cav' ? gm.cav + (ST.cavAtt || 0) : d.t === 'art' ? gm.art + (ST.artAtt || 0) : 0);
         F += info.att * str * am * um; T += info.def * str * dm * (isAttacker ? 1 : terr.def);
         n++; tr += tm; if (d.t === 'art') art++; if (d.t === 'cav') cav++;
@@ -424,7 +429,8 @@ function militaryDay() {
     const loc = stateCapitalProv(sid);
     let a = G.armies.find(x => x.tag === r.tag && x.loc === loc && !x.battle && x.divs.length < MAX_DIVS_ARMY && !x.path.length);
     if (!a) a = mkArmy(r.tag, loc, []);
-    a.divs.push(mkDivision(r.type));
+    const nd = mkDivision(r.type, r.lv ? 0 : undefined); if (r.lv) { nd.lv = true; nd.s = 0.8; nd.o = DIVS[r.type].org * 0.6; }
+    a.divs.push(nd);
     if (r.tag === G.player) notify('war', `Nueva división de ${DIVS[r.type].name.toLowerCase()} en ${G.S[sid].name}.`, sid);
   }
   G.wars.forEach(w => { w.score = computeWarScore(w); });
@@ -486,6 +492,39 @@ function sideStrength(list) { let t = 0; list.forEach(tag => armiesOf(tag).forEa
 
 /* ---------- reclutamiento ---------- */
 function recruitCost(c, type) { return Math.round(DIVS[type].cost * moneyPerPoint(c)); }
+/* ---------- levas de campesinos (movilización total) ---------- */
+const LEVY_MAX = 70;
+function spawnLevies(c) {
+  let made = 0; const have = new Set(); G.armies.forEach(a => { if (a.tag === c.tag && a.levy) have.add(provState(a.loc)); });
+  let total = levyCount(c.tag);
+  c.states.forEach(sid => {
+    if (total >= LEVY_MAX || have.has(sid)) return; const s = G.S[sid]; if ((s.occ || 0) >= 0.5 || (s.pops.peasants || 0) < MEN_PER_DIV * 2) return;
+    const pid = stateCapitalProv(sid); const by = G.P[pid].by; if (by && hostileTags(c.tag, by)) return;
+    const k = (s.pops.peasants || 0) > MEN_PER_DIV * 14 ? 2 : 1, divs = [];
+    for (let i = 0; i < k; i++) { const d = mkDivision('inf', 0); d.lv = true; d.s = 0.8; d.o = DIVS.inf.org * 0.6; divs.push(d); }
+    s.pops.peasants -= MEN_PER_DIV * 0.6 * k;
+    const a = mkArmy(c.tag, pid, divs, `Leva de ${s.name}`); a.levy = true; a.mode = 'hold'; a.gen = newGeneral(); total += k; made += k;
+  });
+  return made;
+}
+function disbandLevies(c) {
+  G.armies.forEach(a => { if (a.tag !== c.tag || !a.levy || a.battle) return; const s = G.S[provState(a.loc)]; if (s && s.owner === a.tag) s.pops.peasants += a.divs.length * MEN_PER_DIV * 0.5; a.divs = []; a._dead = true; });
+  G.armies = G.armies.filter(a => !a._dead);
+}
+function canLevy(c, sid) {
+  const s = G.S[sid]; if (!s || s.owner !== c.tag) return 'Ese estado no es tuyo.';
+  if (levyCount(c.tag) >= Math.max(3, Math.floor(divLimit(c) * 0.5))) return 'Demasiadas levas: sube la movilización para poder alzar más.';
+  if ((s.pops.peasants || 0) < MEN_PER_DIV * 2) return 'No hay suficientes campesinos.';
+  if (c.treasury < levyCost(c)) return 'No tienes fondos suficientes.';
+  return null;
+}
+const levyCost = c => Math.round(recruitCost(c, 'inf') * 0.35);
+function levy(c, sid) {
+  const err = canLevy(c, sid); if (err) return {ok: false, msg: err};
+  c.treasury -= levyCost(c); G.S[sid].pops.peasants -= MEN_PER_DIV * 0.6;
+  G.recruits.push({tag: c.tag, state: sid, type: 'inf', lv: true, days: Math.ceil(DIVS.inf.days * 0.4)});
+  return {ok: true};
+}
 function canRecruit(c, sid, type) {
   const s = G.S[sid];
   if (!s || s.owner !== c.tag) return 'Ese estado no es tuyo.';

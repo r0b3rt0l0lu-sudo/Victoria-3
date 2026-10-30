@@ -14,8 +14,8 @@ const EQ_POLICY = [
 function eqNeedAll() {
   const out = {};
   const add = (tag, type) => { const o = out[tag] = out[tag] || {rifles: 0, cannons: 0, horses: 0, gunpowder: 0}; const n = DIV_NEEDS[type]; for (const g in n) o[g] += n[g]; };
-  G.armies.forEach(a => a.divs.forEach(d => add(a.tag, d.t)));
-  G.recruits.forEach(r => add(r.tag, r.type));
+  G.armies.forEach(a => a.divs.forEach(d => { if (!d.lv) add(a.tag, d.t); }));
+  G.recruits.forEach(r => { if (!r.lv) add(r.tag, r.type); });
   return out;
 }
 function eqNeedOf(tag) { return eqNeedAll()[tag] || {rifles: 0, cannons: 0, horses: 0, gunpowder: 0}; }
@@ -33,6 +33,22 @@ function eqCheck(c, type) {
   return miss.length ? 'Falta equipo para otra división: ' + miss.join(', ') + '. Fabrícalo o compra más.' : null;
 }
 function takeEquipForDiv(c, type) { return null; }
+/* compra de emergencia en el mercado exterior (recargo del 30%) */
+const EQ_RUSH = 1.3;
+function eqMissing(c, type) { const need = eqNeedOf(c.tag), n = DIV_NEEDS[type], m = {}; for (const g in n) { const miss = Math.max(0, need[g] + n[g] * 0.8 - ((c.eq || {})[g] || 0)); if (miss > 0) m[g] = miss; } return m; }
+function eqMissingCost(m) { let t = 0; for (const g in m) t += m[g] * G.price[g] * EQ_RUSH; return Math.round(t); }
+function buyEquipFor(c, type) {
+  const m = eqMissing(c, type), cost = eqMissingCost(m); if (!cost) return {ok: false, msg: 'Ya tienes equipo de sobra para otra división.'};
+  if (c.treasury < cost) return {ok: false, msg: `Comprar el equipo cuesta ${money(cost)} y no tienes fondos.`};
+  c.treasury -= cost; for (const g in m) { c.eq[g] = (c.eq[g] || 0) + m[g]; G.milD[g] = (G.milD[g] || 0) + m[g]; }
+  return {ok: true, msg: `Equipo comprado para una división de ${DIVS[type].name.toLowerCase()} (${money(cost)}).`};
+}
+function buyGood(c, g) {
+  const need = eqNeedOf(c.tag), lot = Math.max(1000, Math.round((need[g] || 0) * 0.2 / 100) * 100), cost = Math.round(lot * G.price[g] * EQ_RUSH);
+  if (c.treasury < cost) return {ok: false, msg: `Un lote de ${EQ_NAME[g]} cuesta ${money(cost)} y no tienes fondos.`};
+  c.treasury -= cost; c.eq[g] = (c.eq[g] || 0) + lot; G.milD[g] = (G.milD[g] || 0) + lot;
+  return {ok: true, msg: `Compras ${fmtN(lot, 0)} de ${EQ_NAME[g]} por ${money(cost)}.`};
+}
 function equipMod(tag, type) {
   const c = G.C[tag]; if (!c || !c.eqFill) return 1;
   let f = 1; for (const g in DIV_NEEDS[type]) f = Math.min(f, c.eqFill[g] === undefined ? 1 : c.eqFill[g]);

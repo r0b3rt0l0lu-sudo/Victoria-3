@@ -84,3 +84,8 @@
 - `src/battleviz.js`: al abrir una batalla se ve el campo con cada división como un grupo de soldados individuales (infantería, caballería, artillería) con movimiento propio, humo, disparos, cañonazos, bajas, lluvia, barra de dominio y avisos de eventos (carga de caballería, carga desesperada, cañoneo, pánico, refuerzos). En las retiradas los soldados huyen dispersos.
 - Estrategias por ejército (`STRATS` en military.js): asalto frontal, flanqueo, aguardar en los altos, cañoneo y asalto, hostigamiento, carga masiva. Modifican ataque/defensa/bajas y se representan en el campo. La IA elige (`chooseStrategy`); el jugador fija la suya en el panel de batalla o de ejército.
 - Rediseño según vídeos de referencia: la batalla se abre en una ventana grande (lienzo 1440×600), cada soldado se dibuja como cajita y cada división forma un bloque con banderín; flechas curvas grandes para flanqueos/cargas/pánico y círculos brillantes en los momentos clave. Mientras está abierta se pausa el tiempo y el render 3D (`R.skip3d`); botón «Continuar la batalla» para verla avanzar. Al cerrar se restaura el estado.
+
+## Sesión: levas, compra de equipo y rendiciones
+- Compra urgente de equipo (pólvora, fusiles…) con recargo del 30% por bien o para una división completa; tarjeta de levas de campesinos (sin cuarteles ni equipo, mal entrenadas, no cuentan para el límite de divisiones).
+- Movilización total: levas de campesinos (`spawnLevies`) por todos los estados, débiles pero útiles para defender; se disuelven al bajar de nivel.
+- Rendiciones menos agresivas: un ejército sólo se considera cercado si no tiene ninguna provincia propia libre a su lado y se rinde a los 60 días; capitulación del país más exigente (jugador: 8 semanas).

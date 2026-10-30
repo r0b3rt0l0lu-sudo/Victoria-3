@@ -55,10 +55,10 @@ function supplyDay() {
       a.divs = a.divs.filter(d => d.s > 0.04); if (!a.divs.length) { a._dead = true; return; }
     }
     // cerco: sin suministro durante semanas -> rendición
-    if (l < 0.06 && !a.battle && hostileHere(a)) {
+    if (l < 0.06 && !a.battle && hostileHere(a) && !MAP.provs[a.loc].nb.some(q => controlled(a.tag, q) && !armiesAt(q).some(e => hostileTags(a.tag, e.tag))) && !(controlled(a.tag, a.loc) && !armiesAt(a.loc).some(e => hostileTags(a.tag, e.tag)))) {
       a.cut = (a.cut || 0) + 1;
-      if (a.cut === 12 && a.tag === G.player) notify('war', `¡${a.name} está aislado y sin suministros en ${provName(a.loc)}! Rompe el cerco o se rendirá.`, provState(a.loc));
-      if (a.cut >= 24) dead.push(a);
+      if (a.cut === 25 && a.tag === G.player) notify('war', `¡${a.name} está aislado y sin suministros en ${provName(a.loc)}! Rompe el cerco o se rendirá.`, provState(a.loc));
+      if (a.cut >= 60) dead.push(a);
     } else a.cut = Math.max(0, (a.cut || 0) - 2);
   });
   dead.forEach(a => {
@@ -99,11 +99,11 @@ function capitalLost(tag, enemies) { const c = G.C[tag]; const s = G.S[c.capital
 function capitulationCheck(w) {
   for (const [lead, mine, theirs, winner] of [[w.def, w.defAll, w.attAll, w.att], [w.att, w.attAll, w.defAll, w.def]]) {
     const c = G.C[lead], sh = occShare(lead, theirs), cap = capitalLost(lead, theirs);
-    const cond = (cap && sh > 0.4) || sh > 0.68 || ((c.wear || 0) >= 97 && sh > 0.2);
+    const cond = (cap && sh > 0.5) || sh > 0.75 || ((c.wear || 0) >= 97 && sh > 0.3);
     if (!cond) { w['capT' + lead] = 0; continue; }
     w['capT' + lead] = (w['capT' + lead] || 0) + 1;
-    if (!c.ai && w['capT' + lead] === 1) notify('war', `¡Tu situación es desesperada! ${sh > 0.5 ? 'Más de la mitad' : 'Gran parte'} de tu país está ocupado${cap ? ' y has perdido la capital' : ''}. Si no cambia en 3 semanas, capitularás.`, c.capital);
-    if (w['capT' + lead] >= (c.ai ? 2 : 4)) {
+    if (!c.ai && w['capT' + lead] === 1) notify('war', `¡Tu situación es desesperada! ${sh > 0.5 ? 'Más de la mitad' : 'Gran parte'} de tu país está ocupado${cap ? ' y has perdido la capital' : ''}. Si no cambia en 7 semanas, capitularás.`, c.capital);
+    if (w['capT' + lead] >= (c.ai ? 3 : 8)) {
       notify('war', `¡${c.name} capitula! ${G.C[winner].name} gana la guerra.`, c.capital);
       c.wear = Math.max(0, (c.wear || 0) - 30); c.legitimacy -= 10; cnt(G.C[winner], 'capitulations');
       endWar(w, winner); return true;

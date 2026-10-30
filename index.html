@@ -427,6 +427,7 @@ svg.orders line.arrow.sea{stroke:#6aa8e8;stroke-width:3.5}.atoken.sea{background
 #battlepanel{width:min(1240px,96vw)!important;top:2.5vh!important;max-height:95vh!important;overflow-y:auto}
 #bmap{display:block;width:auto;max-width:100%;max-height:60vh;margin:6px auto}
 .bvplay{margin-left:auto;margin-right:8px;background:#7a5a1f;color:#fff;border:1px solid #e0b04a;border-radius:5px;padding:4px 10px;cursor:pointer}
+.mini{margin-left:6px;padding:0 6px;font-size:11px;background:#2a2e35;color:#eee;border:1px solid #666;border-radius:4px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -3844,7 +3845,8 @@ const armyById = id => G.armies.find(a => a.id === id);
 function armyStr(a) { let t = 0; a.divs.forEach(d => t += d.s); return a.divs.length ? t / a.divs.length : 0; }
 function armyOrg(a) { let t = 0; a.divs.forEach(d => t += d.o / DIVS[d.t].org); return a.divs.length ? t / a.divs.length : 0; }
 function armyMen(a) { let t = 0; a.divs.forEach(d => t += d.s * MEN_PER_DIV); return Math.round(t); }
-function countDivs(tag) { let n = 0; G.armies.forEach(a => { if (a.tag === tag) n += a.divs.length; }); G.recruits.forEach(r => { if (r.tag === tag) n++; }); return n; }
+function countDivs(tag) { let n = 0; G.armies.forEach(a => { if (a.tag === tag) a.divs.forEach(d => { if (!d.lv) n++; }); }); G.recruits.forEach(r => { if (r.tag === tag && !r.lv) n++; }); return n; }
+function levyCount(tag) { let n = 0; G.armies.forEach(a => { if (a.tag === tag) a.divs.forEach(d => { if (d.lv) n++; }); }); G.recruits.forEach(r => { if (r.tag === tag && r.lv) n++; }); return n; }
 const MOB_LEVELS = [
   {name: 'Solo soldados profesionales', pct: 0, desc: 'Solo se recluta con la población de soldados de los cuarteles.'},
   {name: 'Voluntarios', pct: 0.01, desc: 'Movilizas un 1% de la población. Efecto económico leve.'},
@@ -3855,13 +3857,17 @@ const MOB_LEVELS = [
 function divLimit(c) { return Math.max(0, Math.floor((c.stats.soldiers + c.stats.pop * MOB_LEVELS[c.mob || 0].pct) / MEN_PER_DIV)); }
 const mobK = c => (1 - 0.04 * (c.mob || 0)) * (typeof wearK === 'function' ? wearK(c) : 1);
 function setMobilization(c, lvl) {
-  lvl = clamp(lvl | 0, 0, 4); if (lvl === (c.mob || 0)) return {ok: false, msg: ''};
+  lvl = clamp(lvl | 0, 0, 4); if (lvl === (c.mob || 0)) return {ok: false, msg: ''}; const prevMob = c.mob || 0;
   if (lvl > (c.mob || 0)) { const cost = c.stats.income * 0.5 * (lvl - (c.mob || 0)); if (!c.ai && c.treasury < cost) return {ok: false, msg: 'No tienes fondos para movilizar.'}; if (!c.ai) c.treasury -= cost; c.legitimacy -= 1.5 * (lvl - (c.mob || 0)); }
-  c.mob = lvl; return {ok: true, msg: `Movilización: ${MOB_LEVELS[lvl].name}.`};
+  c.mob = lvl;
+  if (lvl === 4 && prevMob < 4) { const n = spawnLevies(c); if (n && (!c.ai || c.tag === G.player)) notify('war', `¡Movilización total! ${n} levas de campesinos mal armados se alzan por todo el país para defenderlo.`, c.capital); }
+  else if (lvl < 4 && prevMob === 4) disbandLevies(c);
+  return {ok: true, msg: `Movilización: ${MOB_LEVELS[lvl].name}.`};
 }
 // efectos mensuales de la movilización
 function mobilizationMonth(c) {
   const m = c.mob || 0; if (!m) return;
+  if (m === 4) spawnLevies(c);
   c.radicals = Math.min(0.9, c.radicals + 0.0025 * m); c.legitimacy -= 0.25 * m;
   if (!c.ai) c.treasury -= c.stats.income * 0.12 * m;
   if (c.ai && !c.wars.length && Math.random() < 0.35) c.mob = Math.max(0, m - 1);       // la IA desmoviliza en paz
@@ -3997,7 +4003,7 @@ function sideStats(b, ids, isAttacker) {
       const info = DIVS[d.t];
       if (n < BATTLE_WIDTH + (terr.mnt > 0.4 ? -2 : 0)) {
         const tm = trainMod(d);
-        const str = d.s * (0.55 + 0.45 * d.o / info.org) * tm * (typeof equipMod === 'function' ? equipMod(a.tag, d.t) : 1);
+        const str = d.s * (0.55 + 0.45 * d.o / info.org) * tm * (d.lv ? (isAttacker ? 0.55 : 0.75) : typeof equipMod === 'function' ? equipMod(a.tag, d.t) : 1);
         const um = 1 + (d.t === 'cav' ? gm.cav + (ST.cavAtt || 0) : d.t === 'art' ? gm.art + (ST.artAtt || 0) : 0);
         F += info.att * str * am * um; T += info.def * str * dm * (isAttacker ? 1 : terr.def);
         n++; tr += tm; if (d.t === 'art') art++; if (d.t === 'cav') cav++;
@@ -4172,7 +4178,8 @@ function militaryDay() {
     const loc = stateCapitalProv(sid);
     let a = G.armies.find(x => x.tag === r.tag && x.loc === loc && !x.battle && x.divs.length < MAX_DIVS_ARMY && !x.path.length);
     if (!a) a = mkArmy(r.tag, loc, []);
-    a.divs.push(mkDivision(r.type));
+    const nd = mkDivision(r.type, r.lv ? 0 : undefined); if (r.lv) { nd.lv = true; nd.s = 0.8; nd.o = DIVS[r.type].org * 0.6; }
+    a.divs.push(nd);
     if (r.tag === G.player) notify('war', `Nueva división de ${DIVS[r.type].name.toLowerCase()} en ${G.S[sid].name}.`, sid);
   }
   G.wars.forEach(w => { w.score = computeWarScore(w); });
@@ -4234,6 +4241,39 @@ function sideStrength(list) { let t = 0; list.forEach(tag => armiesOf(tag).forEa
 
 /* ---------- reclutamiento ---------- */
 function recruitCost(c, type) { return Math.round(DIVS[type].cost * moneyPerPoint(c)); }
+/* ---------- levas de campesinos (movilización total) ---------- */
+const LEVY_MAX = 70;
+function spawnLevies(c) {
+  let made = 0; const have = new Set(); G.armies.forEach(a => { if (a.tag === c.tag && a.levy) have.add(provState(a.loc)); });
+  let total = levyCount(c.tag);
+  c.states.forEach(sid => {
+    if (total >= LEVY_MAX || have.has(sid)) return; const s = G.S[sid]; if ((s.occ || 0) >= 0.5 || (s.pops.peasants || 0) < MEN_PER_DIV * 2) return;
+    const pid = stateCapitalProv(sid); const by = G.P[pid].by; if (by && hostileTags(c.tag, by)) return;
+    const k = (s.pops.peasants || 0) > MEN_PER_DIV * 14 ? 2 : 1, divs = [];
+    for (let i = 0; i < k; i++) { const d = mkDivision('inf', 0); d.lv = true; d.s = 0.8; d.o = DIVS.inf.org * 0.6; divs.push(d); }
+    s.pops.peasants -= MEN_PER_DIV * 0.6 * k;
+    const a = mkArmy(c.tag, pid, divs, `Leva de ${s.name}`); a.levy = true; a.mode = 'hold'; a.gen = newGeneral(); total += k; made += k;
+  });
+  return made;
+}
+function disbandLevies(c) {
+  G.armies.forEach(a => { if (a.tag !== c.tag || !a.levy || a.battle) return; const s = G.S[provState(a.loc)]; if (s && s.owner === a.tag) s.pops.peasants += a.divs.length * MEN_PER_DIV * 0.5; a.divs = []; a._dead = true; });
+  G.armies = G.armies.filter(a => !a._dead);
+}
+function canLevy(c, sid) {
+  const s = G.S[sid]; if (!s || s.owner !== c.tag) return 'Ese estado no es tuyo.';
+  if (levyCount(c.tag) >= Math.max(3, Math.floor(divLimit(c) * 0.5))) return 'Demasiadas levas: sube la movilización para poder alzar más.';
+  if ((s.pops.peasants || 0) < MEN_PER_DIV * 2) return 'No hay suficientes campesinos.';
+  if (c.treasury < levyCost(c)) return 'No tienes fondos suficientes.';
+  return null;
+}
+const levyCost = c => Math.round(recruitCost(c, 'inf') * 0.35);
+function levy(c, sid) {
+  const err = canLevy(c, sid); if (err) return {ok: false, msg: err};
+  c.treasury -= levyCost(c); G.S[sid].pops.peasants -= MEN_PER_DIV * 0.6;
+  G.recruits.push({tag: c.tag, state: sid, type: 'inf', lv: true, days: Math.ceil(DIVS.inf.days * 0.4)});
+  return {ok: true};
+}
 function canRecruit(c, sid, type) {
   const s = G.S[sid];
   if (!s || s.owner !== c.tag) return 'Ese estado no es tuyo.';
@@ -4612,10 +4652,10 @@ function supplyDay() {
       a.divs = a.divs.filter(d => d.s > 0.04); if (!a.divs.length) { a._dead = true; return; }
     }
     // cerco: sin suministro durante semanas -> rendición
-    if (l < 0.06 && !a.battle && hostileHere(a)) {
+    if (l < 0.06 && !a.battle && hostileHere(a) && !MAP.provs[a.loc].nb.some(q => controlled(a.tag, q) && !armiesAt(q).some(e => hostileTags(a.tag, e.tag))) && !(controlled(a.tag, a.loc) && !armiesAt(a.loc).some(e => hostileTags(a.tag, e.tag)))) {
       a.cut = (a.cut || 0) + 1;
-      if (a.cut === 12 && a.tag === G.player) notify('war', `¡${a.name} está aislado y sin suministros en ${provName(a.loc)}! Rompe el cerco o se rendirá.`, provState(a.loc));
-      if (a.cut >= 24) dead.push(a);
+      if (a.cut === 25 && a.tag === G.player) notify('war', `¡${a.name} está aislado y sin suministros en ${provName(a.loc)}! Rompe el cerco o se rendirá.`, provState(a.loc));
+      if (a.cut >= 60) dead.push(a);
     } else a.cut = Math.max(0, (a.cut || 0) - 2);
   });
   dead.forEach(a => {
@@ -4656,11 +4696,11 @@ function capitalLost(tag, enemies) { const c = G.C[tag]; const s = G.S[c.capital
 function capitulationCheck(w) {
   for (const [lead, mine, theirs, winner] of [[w.def, w.defAll, w.attAll, w.att], [w.att, w.attAll, w.defAll, w.def]]) {
     const c = G.C[lead], sh = occShare(lead, theirs), cap = capitalLost(lead, theirs);
-    const cond = (cap && sh > 0.4) || sh > 0.68 || ((c.wear || 0) >= 97 && sh > 0.2);
+    const cond = (cap && sh > 0.5) || sh > 0.75 || ((c.wear || 0) >= 97 && sh > 0.3);
     if (!cond) { w['capT' + lead] = 0; continue; }
     w['capT' + lead] = (w['capT' + lead] || 0) + 1;
-    if (!c.ai && w['capT' + lead] === 1) notify('war', `¡Tu situación es desesperada! ${sh > 0.5 ? 'Más de la mitad' : 'Gran parte'} de tu país está ocupado${cap ? ' y has perdido la capital' : ''}. Si no cambia en 3 semanas, capitularás.`, c.capital);
-    if (w['capT' + lead] >= (c.ai ? 2 : 4)) {
+    if (!c.ai && w['capT' + lead] === 1) notify('war', `¡Tu situación es desesperada! ${sh > 0.5 ? 'Más de la mitad' : 'Gran parte'} de tu país está ocupado${cap ? ' y has perdido la capital' : ''}. Si no cambia en 7 semanas, capitularás.`, c.capital);
+    if (w['capT' + lead] >= (c.ai ? 3 : 8)) {
       notify('war', `¡${c.name} capitula! ${G.C[winner].name} gana la guerra.`, c.capital);
       c.wear = Math.max(0, (c.wear || 0) - 30); c.legitimacy -= 10; cnt(G.C[winner], 'capitulations');
       endWar(w, winner); return true;
@@ -4685,8 +4725,8 @@ const EQ_POLICY = [
 function eqNeedAll() {
   const out = {};
   const add = (tag, type) => { const o = out[tag] = out[tag] || {rifles: 0, cannons: 0, horses: 0, gunpowder: 0}; const n = DIV_NEEDS[type]; for (const g in n) o[g] += n[g]; };
-  G.armies.forEach(a => a.divs.forEach(d => add(a.tag, d.t)));
-  G.recruits.forEach(r => add(r.tag, r.type));
+  G.armies.forEach(a => a.divs.forEach(d => { if (!d.lv) add(a.tag, d.t); }));
+  G.recruits.forEach(r => { if (!r.lv) add(r.tag, r.type); });
   return out;
 }
 function eqNeedOf(tag) { return eqNeedAll()[tag] || {rifles: 0, cannons: 0, horses: 0, gunpowder: 0}; }
@@ -4704,6 +4744,22 @@ function eqCheck(c, type) {
   return miss.length ? 'Falta equipo para otra división: ' + miss.join(', ') + '. Fabrícalo o compra más.' : null;
 }
 function takeEquipForDiv(c, type) { return null; }
+/* compra de emergencia en el mercado exterior (recargo del 30%) */
+const EQ_RUSH = 1.3;
+function eqMissing(c, type) { const need = eqNeedOf(c.tag), n = DIV_NEEDS[type], m = {}; for (const g in n) { const miss = Math.max(0, need[g] + n[g] * 0.8 - ((c.eq || {})[g] || 0)); if (miss > 0) m[g] = miss; } return m; }
+function eqMissingCost(m) { let t = 0; for (const g in m) t += m[g] * G.price[g] * EQ_RUSH; return Math.round(t); }
+function buyEquipFor(c, type) {
+  const m = eqMissing(c, type), cost = eqMissingCost(m); if (!cost) return {ok: false, msg: 'Ya tienes equipo de sobra para otra división.'};
+  if (c.treasury < cost) return {ok: false, msg: `Comprar el equipo cuesta ${money(cost)} y no tienes fondos.`};
+  c.treasury -= cost; for (const g in m) { c.eq[g] = (c.eq[g] || 0) + m[g]; G.milD[g] = (G.milD[g] || 0) + m[g]; }
+  return {ok: true, msg: `Equipo comprado para una división de ${DIVS[type].name.toLowerCase()} (${money(cost)}).`};
+}
+function buyGood(c, g) {
+  const need = eqNeedOf(c.tag), lot = Math.max(1000, Math.round((need[g] || 0) * 0.2 / 100) * 100), cost = Math.round(lot * G.price[g] * EQ_RUSH);
+  if (c.treasury < cost) return {ok: false, msg: `Un lote de ${EQ_NAME[g]} cuesta ${money(cost)} y no tienes fondos.`};
+  c.treasury -= cost; c.eq[g] = (c.eq[g] || 0) + lot; G.milD[g] = (G.milD[g] || 0) + lot;
+  return {ok: true, msg: `Compras ${fmtN(lot, 0)} de ${EQ_NAME[g]} por ${money(cost)}.`};
+}
 function equipMod(tag, type) {
   const c = G.C[tag]; if (!c || !c.eqFill) return 1;
   let f = 1; for (const g in DIV_NEEDS[type]) f = Math.min(f, c.eqFill[g] === undefined ? 1 : c.eqFill[g]);
@@ -6033,9 +6089,13 @@ WINDOWS.military = {title: 'Ejército y guerra', icon: '⚔️', render() {
     body = `<div class="cols"><div class="col wide"><div class="card"><h3>Reclutar divisiones</h3>
       <div class="kv"><span>Divisiones (incl. en instrucción)</span><b class="${ndiv >= lim ? 'bad' : ''}">${ndiv} / ${lim}</b></div>
       <p class="hint">Cada división moviliza ${fmtN(MEN_PER_DIV, 0)} soldados de la población campesina del estado y cuesta dinero. Se necesitan Cuarteles en el estado y capacidad militar suficiente.</p>
-      ${states.length ? `<table class="tbl"><thead><tr><th>Estado</th><th class="r">Cuarteles</th><th class="r">Campesinos</th>${Object.keys(DIVS).map(k => `<th class="r">${DIVS[k].icon} ${DIVS[k].name}<br><small>${money(recruitCost(c, k))} · ${DIVS[k].days} d</small></th>`).join('')}</tr></thead><tbody>${states.map(id => { const s = G.S[id]; return `<tr><td data-act="focus" data-id="${id}"><b>${s.name}</b></td><td class="r">${s.b.barracks}</td><td class="r">${fmtN(s.pops.peasants || 0, 1)}</td>${Object.keys(DIVS).map(k => { const e = canRecruit(c, id, k); return `<td class="r"><button data-act="recruit" data-id="${id}" data-t="${k}" ${e ? 'disabled' : ''} ${e ? `data-tip="${escA(e)}"` : ''}>＋ Reclutar</button></td>`; }).join('')}</tr>`; }).join('')}</tbody></table>` : '<p class="hint bad">No tienes Cuarteles. Constrúyelos en el panel de un estado → Edificios.</p>'}</div></div>
+      ${states.length ? `<table class="tbl"><thead><tr><th>Estado</th><th class="r">Cuarteles</th><th class="r">Campesinos</th>${Object.keys(DIVS).map(k => `<th class="r">${DIVS[k].icon} ${DIVS[k].name}<br><small>${money(recruitCost(c, k))} · ${DIVS[k].days} d</small></th>`).join('')}</tr></thead><tbody>${states.map(id => { const s = G.S[id]; return `<tr><td data-act="focus" data-id="${id}"><b>${s.name}</b></td><td class="r">${s.b.barracks}</td><td class="r">${fmtN(s.pops.peasants || 0, 1)}</td>${Object.keys(DIVS).map(k => { const e = canRecruit(c, id, k); return `<td class="r"><button data-act="recruit" data-id="${id}" data-t="${k}" ${e ? 'disabled' : ''} ${e ? `data-tip="${escA(e)}"` : ''}>＋ Reclutar</button></td>`; }).join('')}</tr>`; }).join('')}</tbody></table>` : '<p class="hint bad">No tienes Cuarteles. Constrúyelos en el panel de un estado → Edificios.</p>'}</div>
+      <div class="card"><h3>💰 Comprar equipo para nuevas divisiones</h3><p class="hint">Si te falta equipo (fusiles, cañones, caballos, <b>pólvora</b>…) puedes comprar de golpe lo que falta para una división más, con un 30% de recargo sobre el precio de mercado; o fabricarlo con tus industrias (Salitre → Pólvora, Hierro → Fusiles…).</p>
+      <div class="btnrow">${Object.keys(DIVS).map(k => { const m = eqMissing(c, k), cost = eqMissingCost(m); return `<button data-act="buyeqdiv" data-t="${k}" ${cost ? '' : 'disabled'} data-tip="${escA(cost ? Object.keys(m).map(g => EQ_NAME[g] + ' ' + fmtN(m[g], 0)).join(', ') : 'Ya tienes equipo de sobra')}">${DIVS[k].icon} ${DIVS[k].name}: ${cost ? money(cost) : 'listo'}</button>`; }).join('')}</div></div>
+      <div class="card"><h3>🌾 Levas de campesinos (mal entrenadas)</h3><p class="hint">Reclutas campesinos con armas improvisadas: <b>sin cuarteles ni equipo</b>, ${money(levyCost(c))} y ${Math.ceil(DIVS.inf.days * 0.4)} días, pero combaten mal (ataque −45%, defensa −25%, sin entrenamiento). Valen para defender. Levas: <b>${levyCount(c.tag)} / ${Math.max(3, Math.floor(lim * 0.5))}</b> (no cuentan como divisiones). Con <b>Movilización total</b> surgen solas por todo el país.</p>
+      <table class="tbl"><tbody>${c.states.slice().sort((a, b) => (G.S[b].pops.peasants || 0) - (G.S[a].pops.peasants || 0)).slice(0, 8).map(id => { const s = G.S[id], e = canLevy(c, id); return `<tr><td><b>${s.name}</b></td><td class="r">${fmtN(s.pops.peasants || 0, 1)} campesinos</td><td class="r"><button data-act="levy" data-id="${id}" ${e ? 'disabled' : ''} ${e ? `data-tip="${escA(e)}"` : ''}>＋ Leva</button></td></tr>`; }).join('')}</tbody></table></div></div>
       <div class="col"><div class="card"><h3>Equipo militar</h3>
-      ${(() => { const need = eqNeedOf(c.tag); return EQ_GOODS.map(g => { const have = (c.eq || {})[g] || 0, nd = need[g] || 0, f = nd ? have / nd : 1; return `<div class="kv sm"><span>${GOOD[g].icon} ${GOOD[g].name} <small class="dim">· £${f1(G.price[g])}</small></span><b class="${f < 0.8 ? 'bad' : f < 1 ? 'warn' : ''}">${fmtN(have, 0)} / ${fmtN(nd, 0)}</b></div>${bar(Math.min(1, f), 1, f < 0.8 ? 'bad' : f < 1 ? 'warn' : 'good')}`; }).join(''); })()}
+      ${(() => { const need = eqNeedOf(c.tag); return EQ_GOODS.map(g => { const have = (c.eq || {})[g] || 0, nd = need[g] || 0, f = nd ? have / nd : 1; return `<div class="kv sm"><span>${GOOD[g].icon} ${GOOD[g].name} <small class="dim">· £${f1(G.price[g])}</small></span><b class="${f < 0.8 ? 'bad' : f < 1 ? 'warn' : ''}">${fmtN(have, 0)} / ${fmtN(nd, 0)} <button class="mini" data-act="buygood" data-g="${g}" data-tip="Compra urgente en el mercado exterior (+30% de recargo)">＋ Comprar</button></b></div>${bar(Math.min(1, f), 1, f < 0.8 ? 'bad' : f < 1 ? 'warn' : 'good')}`; }).join(''); })()}
       <div class="btnrow">${EQ_POLICY.map((p, i) => `<button data-act="eqpol" data-n="${i}" class="${(c.eqPolicy || 0) === i ? 'on' : ''}" data-tip="${escA(p.desc + ' Gasto máx. ' + Math.round(p.budget * 100) + '% de los ingresos.')}">${p.name}</button>`).join('')}</div>
       <p class="hint">Las divisiones necesitan fusiles, cañones, caballos y pólvora que fabrican tus industrias o que compras en el mercado mundial. Si faltan, las tropas rinden menos y no puedes reclutar más. Por cada nivel de la política se compra más equipo.</p></div>
       <div class="card"><h3>Movilización de la población</h3>
@@ -6370,6 +6430,9 @@ const ACT = {
   propa: d => { const r = buyPropaganda(me(), d.k); toast(r.ok ? '📢' : '⚠️', r.msg); renderWindow(); },
   mob: d => { const r = setMobilization(me(), +d.n); if (r.msg) toast(r.ok ? '🪖' : '⚠️', r.msg); renderWindow(); },
   eqpol: d => { me().eqPolicy = +d.n; renderWindow(); },
+  buygood: d => { const r = buyGood(me(), d.g); toast(r.ok ? '💰' : '⚠️', r.msg); renderWindow(); updateHud(); },
+  buyeqdiv: d => { const r = buyEquipFor(me(), d.t); toast(r.ok ? '💰' : '⚠️', r.msg); renderWindow(); updateHud(); },
+  levy: d => { const r = levy(me(), +d.id); toast(r.ok ? '🌾' : '⚠️', r.ok ? `Alzas una leva de campesinos en ${G.S[+d.id].name}.` : r.msg); renderWindow(); },
   recruit: d => { const r = recruit(me(), +d.id, d.t); toast(r.ok ? '🪖' : '⚠️', r.ok ? `Reclutando ${DIVS[d.t].name} en ${G.S[+d.id].name}.` : r.msg); renderWindow(); }
 };
 function refreshDiploMap() { if (R.mode === 'diplomacy' || R.mode === 'blocs') fullRepaint(); }
@@ -6603,7 +6666,7 @@ function renderArmyPanel() {
   <div class="kv"><span>Fuerza</span><b>${Math.round(armyStr(a) * 100)}%</b></div>${bar(armyStr(a), 1, '')}
   <div class="kv"><span>Organización</span><b>${Math.round(armyOrg(a) * 100)}%</b></div>${bar(armyOrg(a), 1, 'warn')}
   <div class="kv"><span>Entrenamiento</span><b>${trainName(armyTrain(a))} (${Math.round(armyTrain(a) * 100)}%) · rinde ×${(0.75 + 0.5 * armyTrain(a)).toFixed(2)}</b></div>${bar(armyTrain(a), 1, 'blue')}
-  <div class="kv"><span>Suministro</span><b class="${(a.sup === undefined ? 1 : a.sup) < 0.5 ? 'bad' : ''}">${Math.round((a.sup === undefined ? 1 : a.sup) * 100)}%${a.cut > 0 ? ` · ⚠ cercado ${a.cut}/24 d` : ''}</b></div>${bar(a.sup === undefined ? 1 : a.sup, 1, (a.sup === undefined ? 1 : a.sup) < 0.5 ? 'bad' : 'good')}
+  <div class="kv"><span>Suministro</span><b class="${(a.sup === undefined ? 1 : a.sup) < 0.5 ? 'bad' : ''}">${Math.round((a.sup === undefined ? 1 : a.sup) * 100)}%${a.cut > 0 ? ` · ⚠ cercado ${a.cut}/60 d` : ''}</b></div>${bar(a.sup === undefined ? 1 : a.sup, 1, (a.sup === undefined ? 1 : a.sup) < 0.5 ? 'bad' : 'good')}
   <div class="kv"><span>Hombres</span><b>${fmtN(armyMen(a), 0)}</b></div>
   <div class="kv"><span>Composición</span><b>${Object.keys(cnt).map(k => DIVS[k].icon + ' ' + cnt[k]).join(' · ')}</b></div>
   <div class="kv"><span>Atrincheramiento</span><b>${'■'.repeat(Math.round(a.dig || 0))}${'□'.repeat(6 - Math.round(a.dig || 0))}</b></div>
@@ -8401,6 +8464,7 @@ const MANUAL = [
 <h4>Participantes</h4><p>Al declarar la guerra, los <b>aliados</b> y los miembros de bloques militares de cada bando son llamados (aceptan con una probabilidad según relaciones). Los <b>garantes</b> del defensor y sus <b>vasallos</b> también se suman. Se informa de quién entra.</p>
 <h4>Divisiones y reclutamiento</h4><p>Un ejército se compone de <b>divisiones</b> de 8.000 hombres: <b>infantería</b> (barata, fuerte en defensa), <b>caballería</b> (rápida) y <b>artillería</b> (mucho ataque, lenta y frágil). Se reclutan en <b>Ejército y guerra → Reclutamiento</b> en estados con <b>Cuarteles</b>: cuestan dinero y 8.000 campesinos del estado, y tardan 24–42 días en instruirse. El máximo de divisiones depende de los soldados de tu país (soldados ÷ 8.000). Hasta 12 divisiones forman un ejército, al mando de un <b>general</b> aleatorio con Ataque, Defensa y Logística que gana experiencia.</p>
 <h4>Mover ejércitos</h4><p>Cada ejército aparece como una ficha con bandera y nº de divisiones. <b>Clic</b> en la ficha (o en la lista) para seleccionarlo y abrir su panel; después <b>clic derecho</b> sobre un estado para ordenar el movimiento: el ejército sigue una ruta por los estados vecinos (se dibuja punteada) y tarda según el terreno, la velocidad de sus divisiones y la logística. Puedes detenerlo, enviarlo a la capital, dividirlo, fusionarlo con otro del mismo estado o disolverlo (devuelve parte de los soldados). No se puede cruzar el territorio de países con pacto de no agresión, garantía o alianza, ni de vasallos o bloque.</p>
+<h4>Levas y compra de equipo</h4><p>En <b>Reclutamiento</b> puedes <b>comprar el equipo</b> que falta para una división (con un 30% de recargo) o un lote de cualquier bien (pólvora, fusiles…) cuando la producción propia no basta. También puedes alzar <b>levas de campesinos</b>: divisiones baratas, rápidas y sin cuarteles ni equipo, pero mal entrenadas (atacan −45%, defienden −25%) que sirven para defender. Con la <b>Movilización total</b> aparecen levas automáticamente en todos tus estados; al bajar de nivel se disuelven.</p>
 <h4>Movilización</h4><p>En <b>Reclutamiento</b> eliges el nivel de movilización: solo soldados profesionales (barracones), voluntarios (1% de la población), servicio limitado (2,5%), conscripción (5%) o movilización total (10%). Más movilización permite más divisiones, pero reduce la producción (−4% por nivel), cuesta dinero cada mes y genera malestar y pérdida de legitimidad. Cada división tiene además un <b>mantenimiento semanal</b> (más caro en guerra).</p>
 <h4>Otras formas de mover</h4><p>Además del clic derecho: botón <b>🎯 Mover</b> en el panel del ejército y clic izquierdo en el destino, o <b>Mayús + clic</b>. Con <b>Ctrl/Mayús + clic</b> sobre otras fichas propias formas un grupo que se mueve a la vez. Si el destino contiene un ejército enemigo, tus ejércitos lo <b>persiguen</b> y corrigen su ruta cada pocos días. Todos los ejércitos (tuyos y enemigos) se mueven con la misma fórmula; las rutas enemigas se dibujan en rojo y las fichas se desplazan suavemente entre provincias.</p>
 <h4>Sucesos y minimapa de batalla</h4><p>El panel de batalla incluye un <b>minimapa táctico</b> con las divisiones de cada bando (en primera línea o en reserva), la línea del frente que avanza o retrocede y flechas de avance. Cada día puede ocurrir algo aleatorio: <b>cañoneo</b> preparatorio de la artillería, <b>cargas de caballería</b>, <b>cargas desesperadas</b> del bando que pierde (muy dañinas para ambos), <b>flanqueos</b>, <b>pánico</b>, refuerzos o lluvia. Se muestran en el minimapa y en el registro.</p>
@@ -8433,7 +8497,7 @@ const MANUAL = [
 <p>Para llegar a islas o costas sin camino terrestre construye <b>transportes</b> en un estado con puerto (Ejército → Frentes → Transportes); cada uno lleva 2 divisiones. Selecciona un ejército que esté en una provincia con puerto, pulsa <b>⚓ Desembarco</b> y haz clic en una costa enemiga, sin dueño o aliada (hasta unos 75° de distancia). El plan concentra los ejércitos en el puerto 14 días, embarca y navega; al llegar, las tropas desembarcan con un 45% menos de organización y un 25% menos de ataque durante 6 días. Reciben suministro por mar 45 días; si capturan un puerto, quedan conectadas. Los transportes vuelven al puerto tras la operación. No hay combates navales: la supremacía naval no se tiene en cuenta.</p>`},
 {id: 'logistics', title: '16b. Suministro, cercos, cansancio y capitulación', html: `
 <h4>Suministro</h4><p>Cada país tiene una <b>red de suministro</b> que parte de su capital y de sus puertos y se extiende por las provincias que controla; los <b>ferrocarriles</b> (infraestructura) alargan su alcance y aumentan cuántas divisiones puede mantener cada provincia. Fuera de tu red (en territorio enemigo o neutral) el suministro cae unos 30% por provincia. Un ejército con menos del 50% de suministro pierde organización y fuerza cada día y combate peor; amontonar demasiadas divisiones en una provincia también reduce el suministro. El panel del ejército muestra su suministro actual.</p>
-<h4>Cercos</h4><p>Un ejército sin ninguna conexión de suministro rodeado de enemigos está <b>cercado</b>: tras unas semanas se <b>rinde</b> y el bando contrario suma puntos de guerra. Rompe el cerco antes, o evita adentrarte demasiado sin carreteras ni ferrocarriles. Si pierdes la capital, tu red se reconstruye desde tus puertos o tu estado más poblado.</p>
+<h4>Cercos</h4><p>Un ejército sin ninguna conexión de suministro rodeado de enemigos está <b>cercado</b>: tras unas <b>nueve semanas</b> sin salida posible se <b>rinde</b> (si hay una provincia propia libre al lado no se considera cercado) y el bando contrario suma puntos de guerra. Rompe el cerco antes, o evita adentrarte demasiado sin carreteras ni ferrocarriles. Si pierdes la capital, tu red se reconstruye desde tus puertos o tu estado más poblado.</p>
 <h4>Cansancio de guerra</h4><p>Las bajas y los meses de guerra elevan el <b>cansancio de guerra</b>; en paz se recupera. Por encima de 35 restan legitimidad y suben el malestar, reducen la producción y pueden provocar <b>motines</b> (disturbios) por encima de 60.</p>
 <h4>Capitulación</h4><p>Si el líder de un bando pierde la capital y más del 40% de su país (o más del 68% sin perder la capital, o está agotado por la guerra), tiene unas semanas para revertirlo; después <b>capitula</b> y la guerra termina con victoria del enemigo.</p>
 <h4>Crisis diplomáticas</h4><p>En el diálogo de guerra puedes abrir una <b>crisis diplomática</b> (la mitad de influencia). Durante 3 meses los aliados, garantes y bloques de ambos lados toman partido. El defensor, si es mucho más débil, puede <b>ceder</b> y aceptar tus exigencias sin combatir; si no, estalla la guerra con todos los apoyos alineados. El agresor puede retirarse (−8 prestigio) o declarar la guerra antes de tiempo. Consulta Diplomacia → <b>Crisis</b>.</p>`},

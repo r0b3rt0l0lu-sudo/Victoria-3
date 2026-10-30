@@ -1938,7 +1938,7 @@ function initBorderOverlay() {
   g.strokeStyle = 'rgba(12,14,16,.40)'; g.lineWidth = 0.95; strokeLines(g, by(1), OVS);                 // estados
   R.ovTex = new THREE.CanvasTexture(R.ovCv); R.ovTex.anisotropy = Math.min(8, R.renderer.capabilities.getMaxAnisotropy());
   const mat = new THREE.MeshBasicMaterial({map: R.ovTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3});
-  R.ov = new THREE.Mesh(R.mesh.geometry, mat); R.ov.renderOrder = 0; R.scene.add(R.ov);
+  R.ov = new THREE.Group(); R.chunks.forEach(c => { const m = new THREE.Mesh(c.geo, mat); m.renderOrder = 0; R.ov.add(m); }); R.scene.add(R.ov);
   R.ovSig = null; redrawOverlay(true);
 }
 function redrawOverlay(force) {
@@ -4742,12 +4742,16 @@ const EQ_POLICY = [
   {name: 'Economía de guerra', mult: 1.8, budget: 0.5, desc: 'Máxima compra de armas y pólvora, a costa del presupuesto.'}
 ];
 // necesidades de equipo de todos los países (una sola pasada)
+let _eqNeed = null, _eqNeedKey = '';
+// necesidades de equipo de todos los países; se guardan en caché durante el día (se recalcula si cambian los ejércitos o las divisiones en instrucción)
 function eqNeedAll() {
+  const key = G.date.t + '|' + G.armies.length + '|' + G.recruits.length + '|' + (G.recruits.length ? G.recruits[G.recruits.length - 1].days : 0);
+  if (_eqNeed && key === _eqNeedKey) return _eqNeed;
   const out = {};
   const add = (tag, type) => { const o = out[tag] = out[tag] || {rifles: 0, cannons: 0, horses: 0, gunpowder: 0, mgs: 0}; const n = DIV_NEEDS[type]; for (const g in n) o[g] = (o[g] || 0) + n[g]; };
   G.armies.forEach(a => a.divs.forEach(d => { if (!d.lv) add(a.tag, d.t); }));
   G.recruits.forEach(r => { if (!r.lv) add(r.tag, r.type); });
-  return out;
+  _eqNeed = out; _eqNeedKey = key; return out;
 }
 function eqNeedOf(tag) { return eqNeedAll()[tag] || {rifles: 0, cannons: 0, horses: 0, gunpowder: 0, mgs: 0}; }
 function initEquipment() {
@@ -4981,7 +4985,7 @@ function initRenderer(canvas) {
   const W = MAP_W, H = MAP_H;
   R.canvas = canvas;
   R.renderer = new THREE.WebGLRenderer({canvas, antialias: (window.devicePixelRatio || 1) < 1.5, preserveDrawingBuffer: false, powerPreference: 'high-performance'});
-  R.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+  R.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
   R.scene = new THREE.Scene();
   R.scene.background = new THREE.Color(0x14222c);
   R.camera = new THREE.PerspectiveCamera(32, 1, 0.5, 900);
@@ -4997,14 +5001,15 @@ function initRenderer(canvas) {
   R.tex.magFilter = THREE.LinearFilter;
   // geometría con relieve
   const nx = 720, nz = 288;
-  const geo = new THREE.BufferGeometry();
-  const pos = new Float32Array((nx + 1) * (nz + 1) * 3), uv = new Float32Array((nx + 1) * (nz + 1) * 2);
   const hgt = MAP.height;
   const hs = (px, py) => {
     px = clamp(px, 0, W - 1.001); py = clamp(py, 0, H - 1.001);
     const x0 = px | 0, y0 = py | 0, fx = px - x0, fy = py - y0, i = y0 * W + x0;
     return (hgt[i] * (1 - fx) + hgt[i + 1] * fx) * (1 - fy) + (hgt[i + W] * (1 - fx) + hgt[i + W + 1] * fx) * fy;
   };
+  // rejilla completa (para calcular normales continuas) y troceado en bloques con niveles de detalle (LOD) y recorte por cámara
+  const full = new THREE.BufferGeometry();
+  const pos = new Float32Array((nx + 1) * (nz + 1) * 3), uv = new Float32Array((nx + 1) * (nz + 1) * 2);
   let k = 0, u = 0;
   for (let j = 0; j <= nz; j++) for (let i = 0; i <= nx; i++) {
     const fx = i / nx, fy = j / nz;
@@ -5018,22 +5023,37 @@ function initRenderer(canvas) {
     const a = j * (nx + 1) + i, b = a + 1, c = a + nx + 1, d = c + 1;
     idx[q++] = a; idx[q++] = c; idx[q++] = b; idx[q++] = b; idx[q++] = c; idx[q++] = d;
   }
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  geo.setIndex(new THREE.BufferAttribute(idx, 1));
-  geo.computeVertexNormals();
+  full.setAttribute('position', new THREE.BufferAttribute(pos, 3)); full.setIndex(new THREE.BufferAttribute(idx, 1)); full.computeVertexNormals();
+  const nor = full.attributes.normal.array;
+  const CX = 6, CZ = 4, cw = nx / CX, ch = nz / CZ;           // 6×4 bloques de 120×72 celdas (divisibles por 4)
+  R.lodIdx = [1, 2, 4].map(st => { const ids = []; for (let j = 0; j < ch; j += st) for (let i = 0; i < cw; i += st) { const a = j * (cw + 1) + i, b = a + st, c = a + st * (cw + 1), d = c + st; ids.push(a, c, b, b, c, d); } return new THREE.BufferAttribute(new Uint16Array(ids), 1); });
+  R.chunks = []; const group = new THREE.Group();
+  const mat0 = new THREE.MeshLambertMaterial({map: R.tex});
+  for (let cz = 0; cz < CZ; cz++) for (let cx = 0; cx < CX; cx++) {
+    const vp = new Float32Array((cw + 1) * (ch + 1) * 3), vn = new Float32Array((cw + 1) * (ch + 1) * 3), vu = new Float32Array((cw + 1) * (ch + 1) * 2); let a3 = 0, a2 = 0;
+    for (let j = 0; j <= ch; j++) for (let i = 0; i <= cw; i++) {
+      const g = (cz * ch + j) * (nx + 1) + (cx * cw + i);
+      vp[a3] = pos[g * 3]; vp[a3 + 1] = pos[g * 3 + 1]; vp[a3 + 2] = pos[g * 3 + 2]; vn[a3] = nor[g * 3]; vn[a3 + 1] = nor[g * 3 + 1]; vn[a3 + 2] = nor[g * 3 + 2]; a3 += 3;
+      vu[a2++] = uv[g * 2]; vu[a2++] = uv[g * 2 + 1];
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(vp, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(vn, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(vu, 2));
+    geo.setIndex(R.lodIdx[0]); geo.computeBoundingSphere(); geo.boundingSphere.radius += 2;
+    R.chunks.push({geo}); const m = new THREE.Mesh(geo, mat0); group.add(m);
+  }
+  R.lod = 0;
   // textura de detalle que se repite: oculta el aspecto pixelado al acercar la cámara
   const dc = document.createElement('canvas'); dc.width = dc.height = 128; const dg = dc.getContext('2d'), di = dg.createImageData(128, 128);
   for (let y = 0; y < 128; y++) for (let x = 0; x < 128; x++) { const v = 0.5 * hash2(x, y, 41) + 0.5 * vnoise(x / 6, y / 6, 43); const o = (y * 128 + x) * 4; di.data[o] = di.data[o + 1] = di.data[o + 2] = v * 255; di.data[o + 3] = 255; }
   dg.putImageData(di, 0, 0); R.detail = new THREE.CanvasTexture(dc); R.detail.wrapS = R.detail.wrapT = THREE.RepeatWrapping;
-  const mat = new THREE.MeshLambertMaterial({map: R.tex});
+  const mat = mat0;
   mat.onBeforeCompile = sh => {
     sh.uniforms.detailMap = {value: R.detail}; R.detailU = sh.uniforms;
     sh.uniforms.detailK = {value: 1}; 
     sh.fragmentShader = sh.fragmentShader.replace('#include <map_pars_fragment>', '#include <map_pars_fragment>\nuniform sampler2D detailMap; uniform float detailK;')
       .replace('#include <map_fragment>', '#include <map_fragment>\n float dt = texture2D(detailMap, vMapUv * vec2(130.0, 52.0)).r; float dt2 = texture2D(detailMap, vMapUv * vec2(21.0, 8.4)).r; diffuseColor.rgb *= 1.0 + detailK * ((dt - 0.5) * 0.28 + (dt2 - 0.5) * 0.18);');
   };
-  R.mesh = new THREE.Mesh(geo, mat);
+  R.mesh = group;
   R.scene.add(R.mesh);
   R.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
   const dl = new THREE.DirectionalLight(0xfff0d8, 0.78); dl.position.set(-60, 90, -40); R.scene.add(dl);
@@ -5078,13 +5098,23 @@ function animateMap(t) {
   const k = clamp((R.cam.dist - 45) / 70, 0, 1); R.cloudMesh.material.opacity = 0.42 * k; R.cloudMesh.visible = k > 0.02;
   return true;
 }
+// resolución: la calidad fija el máximo y la escala adaptativa la baja si la tarjeta gráfica no da abasto
+function basePixelRatio() { const q = R.quality === 'bajo' ? 0.85 : R.quality === 'alto' ? 1.75 : 1.25; return Math.min(window.devicePixelRatio || 1, q) * (R.resScale || 1); }
 function resizeRenderer() {
   const w = window.innerWidth, h = window.innerHeight;
+  R.renderer.setPixelRatio(basePixelRatio());
   R.renderer.setSize(w, h, false);
   R.camera.aspect = w / h; R.camera.updateProjectionMatrix();
   R.dirty = true; R.labelsDirty = true;
 }
 
+// nivel de detalle del terreno según la distancia de la cámara (todos los bloques igual: sin grietas entre ellos)
+function updateTerrainLOD() {
+  if (!R.chunks) return;
+  const d = R.cam.dist, lod = (R.quality === 'bajo' ? d > 60 ? 2 : d > 35 ? 1 : 0 : R.quality === 'alto' ? d > 190 ? 2 : d > 105 ? 1 : 0 : d > 150 ? 2 : d > 80 ? 1 : 0);
+  if (lod === R.lod) return; R.lod = lod;
+  R.chunks.forEach(c => c.geo.setIndex(R.lodIdx[lod]));
+}
 function updateCamera() {
   const c = R.cam;
   c.dist = clamp(c.dist, 6, 420);
@@ -5095,6 +5125,7 @@ function updateCamera() {
   R.camera.position.set(c.tx + Math.sin(c.yaw) * st * c.dist, ct * c.dist, c.tz + Math.cos(c.yaw) * st * c.dist);
   R.camera.lookAt(c.tx, 0, c.tz);
   R.camera.updateMatrixWorld();
+  updateTerrainLOD();
 }
 
 function screenToWorld(cx, cy) {
@@ -5127,8 +5158,8 @@ function camZoom(f) { zoomAt(R.canvas.clientWidth / 2, R.canvas.clientHeight / 2
 function camHome() { R.cam.tx = 12; R.cam.tz = -52; R.cam.dist = 130; R.cam.tilt = 0.78; R.cam.yaw = 0; camChanged(); }
 function camRotate(d) { R.cam.yaw += d; camChanged(); }
 function camTilt(d) { R.cam.tilt += d; camChanged(); }
-function loadMapPrefs() { try { const p = JSON.parse(localStorage.getItem('victoria-map-prefs') || '{}'); R.wheelMode = p.wheelMode || 'zoom'; R.edgeScroll = !!p.edgeScroll; } catch (e) { R.wheelMode = 'zoom'; R.edgeScroll = false; } }
-function saveMapPrefs() { try { localStorage.setItem('victoria-map-prefs', JSON.stringify({wheelMode: R.wheelMode, edgeScroll: R.edgeScroll})); } catch (e) {} }
+function loadMapPrefs() { try { const p = JSON.parse(localStorage.getItem('victoria-map-prefs') || '{}'); R.wheelMode = p.wheelMode || 'zoom'; R.edgeScroll = !!p.edgeScroll; R.quality = ['bajo', 'medio', 'alto'].includes(p.quality) ? p.quality : 'medio'; } catch (e) { R.wheelMode = 'zoom'; R.edgeScroll = false; } }
+function saveMapPrefs() { try { localStorage.setItem('victoria-map-prefs', JSON.stringify({wheelMode: R.wheelMode, edgeScroll: R.edgeScroll, quality: R.quality})); } catch (e) {} }
 
 function setupControls() {
   const cv = R.canvas; const pts = new Map(); let drag = null, pinch = null;
@@ -5454,7 +5485,7 @@ function drawMinimap() {
   if (ok) { ctx.closePath(); ctx.stroke(); }
 }
 
-let _lastT = 0;
+let _lastT = 0; R.rn = 0;
 function frame_(t) {
   const dt = Math.min(0.1, (t - _lastT) / 1000); _lastT = t;
   if (R.skip3d) { if (window.onFrame) window.onFrame(t); requestAnimationFrame(frame_); return; }
@@ -5464,6 +5495,13 @@ function frame_(t) {
   if (R.dirty || R.labelsDirty) {
     updateCamera(); if (typeof updateCityVisibility === 'function') updateCityVisibility();
     const t0 = performance.now(); R.renderer.render(R.scene, R.camera);
+    if (++R.rn % 24 === 0 && t > 6000 && !R.noAdapt) {            // cada cierto tiempo se mide la carga real de la GPU para ajustar la resolución
+      try { R.renderer.getContext().finish(); } catch (e) {}
+      const g = performance.now() - t0; R.gpuMs = (R.gpuMs || g) * 0.6 + g * 0.4;
+      const sc = R.resScale || 1; let ns = sc;
+      if (R.gpuMs > 26 && sc > 0.56) ns = Math.max(0.56, sc - 0.12); else if (R.gpuMs < 9 && sc < 1) ns = Math.min(1, sc + 0.08);
+      if (Math.abs(ns - sc) > 0.01) { R.resScale = ns; resizeRenderer(); }
+    }
     R.renderMs = (R.renderMs || 10) * 0.9 + (performance.now() - t0) * 0.1;
     if (R.anim && R.renderMs > 45 && t > 8000) { R.anim = false; R.waterMesh.visible = false; R.cloudMesh.visible = false; if (typeof syncCamBtns === 'function') syncCamBtns(); }
     if (R.labelsDirty) { updateLabels(); R.labelsDirty = false; }
@@ -5760,6 +5798,7 @@ function buildHud() {
     <button data-act="tiltu" title="Inclinar más (R)">⤒</button><button data-act="tiltd" title="Inclinar menos (F)">⤓</button>
     <button data-act="wheelmode" id="btn-wheel" title="Rueda del ratón: zoom o desplazar">🖱️</button>
     <button data-act="animtoggle" id="btn-anim" title="Animaciones del mapa: agua y nubes">≈</button>
+    <button data-act="quality" id="btn-quality" title="Calidad gráfica (bajo / medio / alto)">Q</button>
     <button data-act="edgescroll" id="btn-edge" title="Desplazar al acercar el ratón al borde de la pantalla">⇱</button>
   </div>
   <div id="mapctl">
@@ -5771,7 +5810,7 @@ function buildHud() {
   $('#crest').innerHTML = '';
   syncCamBtns(); iconize($('#hud'));
 }
-function syncCamBtns() { const an = $('#btn-anim'); if (an) an.classList.toggle('on', !!R.anim); const w = $('#btn-wheel'), e2 = $('#btn-edge'); if (w) { w.classList.toggle('on', R.wheelMode === 'pan'); w.innerHTML = icon(R.wheelMode === 'pan' ? 'hand' : 'mouse'); } if (e2) e2.classList.toggle('on', !!R.edgeScroll); }
+function syncCamBtns() { const an = $('#btn-anim'); if (an) an.classList.toggle('on', !!R.anim); const w = $('#btn-wheel'), e2 = $('#btn-edge'); if (w) { w.classList.toggle('on', R.wheelMode === 'pan'); w.innerHTML = icon(R.wheelMode === 'pan' ? 'hand' : 'mouse'); } if (e2) e2.classList.toggle('on', !!R.edgeScroll); const qb = $('#btn-quality'); if (qb) qb.textContent = ({bajo: 'B', medio: 'M', alto: 'A'})[R.quality || 'medio']; }
 function minimapJump(e) {
   const r = e.currentTarget.getBoundingClientRect();
   const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
@@ -6452,6 +6491,7 @@ const ACT = {
   rotl: () => camRotate(0.3), rotr: () => camRotate(-0.3), tiltu: () => camTilt(0.15), tiltd: () => camTilt(-0.15),
   wheelmode: () => { R.wheelMode = R.wheelMode === 'zoom' ? 'pan' : 'zoom'; saveMapPrefs(); syncCamBtns(); toast('🖱️', R.wheelMode === 'zoom' ? 'La rueda del ratón o del panel táctil hace zoom.' : 'La rueda o el panel táctil desplaza el mapa (pellizca para hacer zoom).'); },
   animtoggle: () => { R.anim = !R.anim; if (R.waterMesh) { R.waterMesh.visible = R.anim; R.cloudMesh.visible = R.anim; } R.renderMs = 10; R.dirty = true; syncCamBtns(); toast('≈', R.anim ? 'Animaciones del mapa activadas.' : 'Animaciones desactivadas (más fluidez).'); },
+  quality: () => { const q = ['bajo', 'medio', 'alto']; R.quality = q[(q.indexOf(R.quality || 'medio') + 1) % 3]; R.resScale = 1; saveMapPrefs(); syncCamBtns(); resizeRenderer(); updateTerrainLOD(); R.lod = -1; updateTerrainLOD(); toast('🎞️', 'Calidad gráfica: ' + R.quality + (R.quality === 'bajo' ? ' (más fluidez).' : R.quality === 'alto' ? ' (más detalle).' : '.')); },
   edgescroll: () => { R.edgeScroll = !R.edgeScroll; saveMapPrefs(); syncCamBtns(); toast('⇱', R.edgeScroll ? 'Desplazamiento por los bordes activado.' : 'Desplazamiento por los bordes desactivado.'); },
   gomenu: () => { if (confirm('¿Volver al menú principal?\n\nLa partida se guardará automáticamente (puedes retomarla con «Continuar»).')) { try { doSave(true); } catch (e) {} location.reload(); } },
   save: () => doSave(),
@@ -9671,6 +9711,7 @@ const MANUAL = [
 <h4>Mover ejércitos</h4><p>Cada ejército aparece como una ficha con bandera y nº de divisiones. <b>Clic</b> en la ficha (o en la lista) para seleccionarlo y abrir su panel; después <b>clic derecho</b> sobre un estado para ordenar el movimiento: el ejército sigue una ruta por los estados vecinos (se dibuja punteada) y tarda según el terreno, la velocidad de sus divisiones y la logística. Puedes detenerlo, enviarlo a la capital, dividirlo, fusionarlo con otro del mismo estado o disolverlo (devuelve parte de los soldados). No se puede cruzar el territorio de países con pacto de no agresión, garantía o alianza, ni de vasallos o bloque.</p>
 <h4>Levas y compra de equipo</h4><p>En <b>Reclutamiento</b> puedes <b>comprar el equipo</b> que falta para una división (con un 30% de recargo) o un lote de cualquier bien (pólvora, fusiles…) cuando la producción propia no basta. También puedes alzar <b>levas de campesinos</b>: divisiones baratas, rápidas y sin cuarteles ni equipo, pero mal entrenadas (atacan −45%, defienden −25%) que sirven para defender. Con la <b>Movilización total</b> aparecen levas automáticamente en todos tus estados; al bajar de nivel se disuelven.</p>
 <h4>Movilización</h4><p>En <b>Reclutamiento</b> eliges el nivel de movilización: solo soldados profesionales (barracones), voluntarios (1% de la población), servicio limitado (2,5%), conscripción (5%) o movilización total (10%). Más movilización permite más divisiones, pero reduce la producción (−4% por nivel), cuesta dinero cada mes y genera malestar y pérdida de legitimidad. Cada división tiene además un <b>mantenimiento semanal</b> (más caro en guerra).</p>
+<h4>Fluidez y calidad gráfica</h4><p>El botón <b>Q</b> del lateral derecho alterna la calidad gráfica: <b>B</b>ajo (más fluidez), <b>M</b>edio y <b>A</b>lto. El terreno usa niveles de detalle según el zoom y solo se dibuja lo que ve la cámara, y la resolución baja sola si tu tarjeta gráfica no da abasto.</p>
 <h4>Selección rápida</h4><p>Con un ejército tuyo seleccionado, basta un <b>clic izquierdo</b> en cualquier territorio para enviarlo allí (Mayús + clic añade un punto de ruta; <b>Esc</b> o clic en el mar deselecciona). Con el <b>botón derecho pulsado, arrastra un recuadro</b> sobre el mapa y todos tus ejércitos de esa zona quedan seleccionados.</p>
 <h4>Niebla de guerra</h4><p>Al empezar sólo conoces la parte del mundo cercana a ti: un país pequeño ve poco; una gran potencia, casi todo. Las tropas de otros países sólo se ven en tu territorio (o el de tus aliados), junto a tus ejércitos o a través de agentes. Planes de frente: al dibujarlos se activan solos; los ataques se lanzan tras unas dos semanas de concentración.</p>
 <h4>Inteligencia</h4><p>En <b>Ejército y guerra → Inteligencia</b> eliges el nivel del servicio secreto (cuesta un % de tus ingresos). Te avisa de los ataques de la IA contra ti (y con nivel 3+ puede frustrarlos), detecta tropas junto a la frontera, y te da agentes que puedes enviar al extranjero: con dos agentes ves todo el país; con uno puedes <b>robar sus tácticas</b> y combatir un 12% mejor contra él durante 60 días. Si fallan, pierdes el agente y la relación. Tras una guerra, los ejércitos aliados vuelven solos a casa.</p>

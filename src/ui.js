@@ -104,6 +104,7 @@ function buildHud() {
     <button data-act="tiltu" title="Inclinar más (R)">⤒</button><button data-act="tiltd" title="Inclinar menos (F)">⤓</button>
     <button data-act="wheelmode" id="btn-wheel" title="Rueda del ratón: zoom o desplazar">🖱️</button>
     <button data-act="animtoggle" id="btn-anim" title="Animaciones del mapa: agua y nubes">≈</button>
+    <button data-act="quality" id="btn-quality" title="Calidad gráfica (bajo / medio / alto)">Q</button>
     <button data-act="edgescroll" id="btn-edge" title="Desplazar al acercar el ratón al borde de la pantalla">⇱</button>
   </div>
   <div id="mapctl">
@@ -115,7 +116,7 @@ function buildHud() {
   $('#crest').innerHTML = '';
   syncCamBtns(); iconize($('#hud'));
 }
-function syncCamBtns() { const an = $('#btn-anim'); if (an) an.classList.toggle('on', !!R.anim); const w = $('#btn-wheel'), e2 = $('#btn-edge'); if (w) { w.classList.toggle('on', R.wheelMode === 'pan'); w.innerHTML = icon(R.wheelMode === 'pan' ? 'hand' : 'mouse'); } if (e2) e2.classList.toggle('on', !!R.edgeScroll); }
+function syncCamBtns() { const an = $('#btn-anim'); if (an) an.classList.toggle('on', !!R.anim); const w = $('#btn-wheel'), e2 = $('#btn-edge'); if (w) { w.classList.toggle('on', R.wheelMode === 'pan'); w.innerHTML = icon(R.wheelMode === 'pan' ? 'hand' : 'mouse'); } if (e2) e2.classList.toggle('on', !!R.edgeScroll); const qb = $('#btn-quality'); if (qb) qb.textContent = ({bajo: 'B', medio: 'M', alto: 'A'})[R.quality || 'medio']; }
 function minimapJump(e) {
   const r = e.currentTarget.getBoundingClientRect();
   const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
@@ -796,6 +797,7 @@ const ACT = {
   rotl: () => camRotate(0.3), rotr: () => camRotate(-0.3), tiltu: () => camTilt(0.15), tiltd: () => camTilt(-0.15),
   wheelmode: () => { R.wheelMode = R.wheelMode === 'zoom' ? 'pan' : 'zoom'; saveMapPrefs(); syncCamBtns(); toast('🖱️', R.wheelMode === 'zoom' ? 'La rueda del ratón o del panel táctil hace zoom.' : 'La rueda o el panel táctil desplaza el mapa (pellizca para hacer zoom).'); },
   animtoggle: () => { R.anim = !R.anim; if (R.waterMesh) { R.waterMesh.visible = R.anim; R.cloudMesh.visible = R.anim; } R.renderMs = 10; R.dirty = true; syncCamBtns(); toast('≈', R.anim ? 'Animaciones del mapa activadas.' : 'Animaciones desactivadas (más fluidez).'); },
+  quality: () => { const q = ['bajo', 'medio', 'alto']; R.quality = q[(q.indexOf(R.quality || 'medio') + 1) % 3]; R.resScale = 1; saveMapPrefs(); syncCamBtns(); resizeRenderer(); updateTerrainLOD(); R.lod = -1; updateTerrainLOD(); toast('🎞️', 'Calidad gráfica: ' + R.quality + (R.quality === 'bajo' ? ' (más fluidez).' : R.quality === 'alto' ? ' (más detalle).' : '.')); },
   edgescroll: () => { R.edgeScroll = !R.edgeScroll; saveMapPrefs(); syncCamBtns(); toast('⇱', R.edgeScroll ? 'Desplazamiento por los bordes activado.' : 'Desplazamiento por los bordes desactivado.'); },
   gomenu: () => { if (confirm('¿Volver al menú principal?\n\nLa partida se guardará automáticamente (puedes retomarla con «Continuar»).')) { try { doSave(true); } catch (e) {} location.reload(); } },
   save: () => doSave(),

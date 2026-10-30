@@ -126,3 +126,10 @@
 ### Resultado de la simulación de 80 años (1836-1916, todos los países con IA, sin errores de JavaScript)
 - Aviación: nadie la tiene antes de 1903; hacia 1911 aparece el primer escuadrón y en 1915 siete países operan 47 escuadrones. Marina: de ~600 fragatas de vela en 1840 a acorazados desde 1860, cruceros y submarinos hacia 1900-1907 y dreadnoughts desde 1911.
 - Estallan guerras todo el periodo (~19 distintas). Mundo: de ~62 a ~28 países, la mayor potencia llega a 37 estados (no se produce una conquista de medio mundo). **Limitación**: en algunas ejecuciones una potencia (p. ej. Francia) acaba reducida a 1-4 estados; el comportamiento viene del juego base (la comparativa con la versión anterior también muestra colapsos de grandes potencias) y queda pendiente un ajuste fino de la IA de paz y alianzas.
+
+## Sesión: fluidez
+- Terreno troceado en 6×4 bloques con **niveles de detalle** según el zoom (3 LOD sin grietas) y **recorte por cámara**: el triángulo por fotograma baja de ~864.000 a ~240.000 en la vista inicial (~82.000 alejado) y la malla ya no se dibuja dos veces (el overlay de fronteras comparte los bloques). Con cámara cerca solo se dibujan los bloques visibles.
+- **Resolución adaptativa**: cada 24 fotogramas se mide la carga real de la GPU (`finish`) y se ajusta la escala de resolución entre 56 % y 100 %; botón **Q** de calidad (bajo/medio/alto) guardado en las preferencias; ratio de píxeles máximo 1,25.
+- Caché diaria de `eqNeedAll` (era el 30 % del coste del parte semanal): `warWeek` pasa de ~7,5 ms a ~3,5 ms de media.
+- Herramientas: `tools/perfil.js` y `tools/perfil_vivo.js` (perfil de CPU de la simulación y del juego en marcha).
+- Medido en este entorno (sin GPU real): coste de render por fotograma 62 ms → 12,6 ms en la vista inicial; simulación 3,6-4,3 ms por día; sin errores en las pruebas de humo, de sistemas militares y de resistencia.

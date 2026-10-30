@@ -75,7 +75,7 @@ function initBorderOverlay() {
   g.strokeStyle = 'rgba(12,14,16,.40)'; g.lineWidth = 0.95; strokeLines(g, by(1), OVS);                 // estados
   R.ovTex = new THREE.CanvasTexture(R.ovCv); R.ovTex.anisotropy = Math.min(8, R.renderer.capabilities.getMaxAnisotropy());
   const mat = new THREE.MeshBasicMaterial({map: R.ovTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3});
-  R.ov = new THREE.Mesh(R.mesh.geometry, mat); R.ov.renderOrder = 0; R.scene.add(R.ov);
+  R.ov = new THREE.Group(); R.chunks.forEach(c => { const m = new THREE.Mesh(c.geo, mat); m.renderOrder = 0; R.ov.add(m); }); R.scene.add(R.ov);
   R.ovSig = null; redrawOverlay(true);
 }
 function redrawOverlay(force) {

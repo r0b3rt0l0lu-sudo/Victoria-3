@@ -11,12 +11,16 @@ const EQ_POLICY = [
   {name: 'Economía de guerra', mult: 1.8, budget: 0.5, desc: 'Máxima compra de armas y pólvora, a costa del presupuesto.'}
 ];
 // necesidades de equipo de todos los países (una sola pasada)
+let _eqNeed = null, _eqNeedKey = '';
+// necesidades de equipo de todos los países; se guardan en caché durante el día (se recalcula si cambian los ejércitos o las divisiones en instrucción)
 function eqNeedAll() {
+  const key = G.date.t + '|' + G.armies.length + '|' + G.recruits.length + '|' + (G.recruits.length ? G.recruits[G.recruits.length - 1].days : 0);
+  if (_eqNeed && key === _eqNeedKey) return _eqNeed;
   const out = {};
   const add = (tag, type) => { const o = out[tag] = out[tag] || {rifles: 0, cannons: 0, horses: 0, gunpowder: 0, mgs: 0}; const n = DIV_NEEDS[type]; for (const g in n) o[g] = (o[g] || 0) + n[g]; };
   G.armies.forEach(a => a.divs.forEach(d => { if (!d.lv) add(a.tag, d.t); }));
   G.recruits.forEach(r => { if (!r.lv) add(r.tag, r.type); });
-  return out;
+  _eqNeed = out; _eqNeedKey = key; return out;
 }
 function eqNeedOf(tag) { return eqNeedAll()[tag] || {rifles: 0, cannons: 0, horses: 0, gunpowder: 0, mgs: 0}; }
 function initEquipment() {

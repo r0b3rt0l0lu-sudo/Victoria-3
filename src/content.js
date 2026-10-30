@@ -146,6 +146,7 @@ EVENTS.push(
 // Selección con pesos, contexto y espaciado mínimo
 function randomEvents() {
   const c = G.C[G.player];
+  if (!c || !c.states.length) return;
   if (G.pendingEvent) return;
   if (G.lastEventT !== undefined && G.date.t - G.lastEventT < 40) return;
   if (Math.random() > 0.24) return;

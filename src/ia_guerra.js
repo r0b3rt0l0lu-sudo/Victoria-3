@@ -83,6 +83,11 @@ function aiWarStep(t) {
   // un ejército enemigo presiona mi territorio si ya está en él (o en su frontera) o su ruta entra en él
   const pressing = eArmies.filter(e => provOwner(e.loc) === t || (e.path && e.path.length && e.path.slice(0, 4).some(q => provOwner(q) === t)));
   const imminent = (p, r) => pressing.some(e => provDist(e.loc, p) <= (r || 9) || (e.path && e.path.slice(0, 4).includes(p)));
+  /* ---- 0. OPERACIONES: maniobras coordinadas (pinza, señuelo, emboscada, defensa elástica, golpe de mano) ---- */
+  if (typeof aiOps === 'function') {
+    const used = aiOps(t, {c, m, doc, free, total, ratio, V, D, war, enemies, eArmies, pressing, capProvs, orders});
+    used.forEach(id => committed.add(id));
+  }
   /* ---- 1a. INTERCEPTAR invasores en mi territorio cuando hay superioridad (defensa activa) ---- */
   const intruders = eArmies.filter(e => provOwner(e.loc) === t && !e.battle || (provOwner(e.loc) === t && e.battle)).sort((x, y) => (V.get(y.loc) || 0) + armyPow(y) * 0.1 - (V.get(x.loc) || 0) - armyPow(x) * 0.1);
   const avgV0 = [...V.values()].reduce((x, y) => x + y, 0) / Math.max(1, V.size);
@@ -145,26 +150,8 @@ function aiWarStep(t) {
   /* ---- 3. OFENSIVA: ejes de ataque contra objetivos valiosos ---- */
   const striking = free.filter(a => !committed.has(a.id));
   if (!striking.length) return;
-  const strike = striking.reduce((n, a) => n + armyPow(a), 0);
-  const req = 1.45 - 0.7 * doc.aggr - (m.war.idle > 6 ? 0.25 : 0) - (ratio > 1.5 ? 0.15 : 0);      // superioridad local exigida
-  const cx = striking.reduce((n, a) => n + MAP.provs[a.loc].lon * armyPow(a), 0) / Math.max(1e-6, strike), cy = striking.reduce((n, a) => n + MAP.provs[a.loc].lat * armyPow(a), 0) / Math.max(1e-6, strike);
-  // objetivos candidatos: provincias enemigas junto a lo mío, la capital enemiga y los objetivos de guerra
-  const cand = new Map(); const addC = p => { if (!cand.has(p)) cand.set(p, 1); };
-  striking.forEach(a => { MAP.provs[a.loc].nb.forEach(q => { if (!mineProv(t, q) && canEnter(t, q) && (hostileTags(t, provOwner(q)) || (G.P[q].by && hostileTags(t, G.P[q].by)))) addC(q); }); });
-  enemies.forEach(e => { const ce = G.C[e]; if (ce.capital >= 0) MAP.stats[ce.capital].provs.slice(0, 1).forEach(addC); });
-  if (war) (war.targets || []).concat(war.cTargets || []).forEach(sid => { if (G.S[sid].owner !== t && hostileTags(t, G.S[sid].owner)) MAP.stats[sid].provs.slice(0, 2).forEach(addC); else if (G.S[sid].owner === t && G.S[sid].occ > 0) MAP.stats[sid].provs.forEach(p => { if (G.P[p].by && hostileTags(t, G.P[p].by)) addC(p); }); });
-  // mis provincias ocupadas por el enemigo: reconquistarlas
-  G.P.forEach((pr, p) => { if (pr.by && hostileTags(t, pr.by) && provOwner(p) === t) addC(p); });
-  const objs = [];
-  cand.forEach((_, p) => {
-    if (mineProv(t, p) && !(G.P[p].by && hostileTags(t, G.P[p].by))) return;
-    const own = provOwner(p), en = G.P[p].by && hostileTags(t, G.P[p].by) ? G.P[p].by : own;
-    const v = own === t ? (V.get(p) || 1) * 1.4 + 3 : aiEnemyValue(p, own, war);
-    const dist = Math.hypot(MAP.provs[p].lon - cx, MAP.provs[p].lat - cy), opp = aiEnemyPower(t, p, 9) + 0.8;
-    const feas = clamp(strike / (req * opp), 0, 1.4), claim = (G.aiClaim && G.aiClaim[p] && G.aiClaim[p].t !== t && G.date.t - G.aiClaim[p].d < 8) ? 0.5 : 1;
-    objs.push({p, v, dist, opp, feas, en, score: v / (1 + dist / 14) * (0.15 + feas) * claim});
-  });
-  objs.sort((x, y) => y.score - x.score);
+  const ctxO = {V, war, enemies, doc, m, ratio};
+  const {objs, strike, req} = aiObjs(t, striking, ctxO);
   { const k = m.war.obj !== undefined ? objs.findIndex(o => o.p === m.war.obj) : -1; if (k > 0 && objs[k].score >= objs[0].score * 0.66 && objs[k].feas >= 0.3) { const o = objs.splice(k, 1)[0]; objs.unshift(o); } if (objs[0]) m.war.obj = objs[0].p; }   // persistencia del objetivo: no se cambia de eje por variaciones pequeñas
   m.war.dbg = {ratio: +ratio.toFixed(2), strike: +strike.toFixed(1), req: +req.toFixed(2), nObjs: objs.length, top: objs[0] ? {p: objs[0].p, sc: +objs[0].score.toFixed(2), feas: +objs[0].feas.toFixed(2), opp: +objs[0].opp.toFixed(1), v: +objs[0].v.toFixed(1)} : null, free: striking.length, def: committed.size, t: G.date.t};
   if (!objs.length) { m.war.idle++; // sin objetivo a la vista: avanzar hacia la provincia enemiga más cercana
@@ -211,6 +198,31 @@ function aiWarStep(t) {
     }
     left = left.filter(a => !grp.includes(a)); axes++; m.war.idle = 0; m.war.axisT = m.war.axisT || G.date.t;
   }
+}
+/* ---------- objetivos ofensivos candidatos (capital enemiga, objetivos de guerra, provincias contiguas, reconquistas) ---------- */
+function aiObjs(t, striking, ctx) {
+  const {V, war, enemies, doc, m, ratio} = ctx;
+  const strike = striking.reduce((n, a) => n + armyPow(a), 0);
+  const req = 1.45 - 0.7 * doc.aggr - (m.war.idle > 6 ? 0.25 : 0) - (ratio > 1.5 ? 0.15 : 0);      // superioridad local exigida
+  const cx = striking.reduce((n, a) => n + MAP.provs[a.loc].lon * armyPow(a), 0) / Math.max(1e-6, strike), cy = striking.reduce((n, a) => n + MAP.provs[a.loc].lat * armyPow(a), 0) / Math.max(1e-6, strike);
+  // objetivos candidatos: provincias enemigas junto a lo mío, la capital enemiga y los objetivos de guerra
+  const cand = new Map(); const addC = p => { if (!cand.has(p)) cand.set(p, 1); };
+  striking.forEach(a => { MAP.provs[a.loc].nb.forEach(q => { if (!mineProv(t, q) && canEnter(t, q) && (hostileTags(t, provOwner(q)) || (G.P[q].by && hostileTags(t, G.P[q].by)))) addC(q); }); });
+  enemies.forEach(e => { const ce = G.C[e]; if (ce.capital >= 0) MAP.stats[ce.capital].provs.slice(0, 1).forEach(addC); });
+  if (war) (war.targets || []).concat(war.cTargets || []).forEach(sid => { if (G.S[sid].owner !== t && hostileTags(t, G.S[sid].owner)) MAP.stats[sid].provs.slice(0, 2).forEach(addC); else if (G.S[sid].owner === t && G.S[sid].occ > 0) MAP.stats[sid].provs.forEach(p => { if (G.P[p].by && hostileTags(t, G.P[p].by)) addC(p); }); });
+  // mis provincias ocupadas por el enemigo: reconquistarlas
+  G.P.forEach((pr, p) => { if (pr.by && hostileTags(t, pr.by) && provOwner(p) === t) addC(p); });
+  const objs = [];
+  cand.forEach((_, p) => {
+    if (mineProv(t, p) && !(G.P[p].by && hostileTags(t, G.P[p].by))) return;
+    const own = provOwner(p), en = G.P[p].by && hostileTags(t, G.P[p].by) ? G.P[p].by : own;
+    const v = own === t ? (V.get(p) || 1) * 1.4 + 3 : aiEnemyValue(p, own, war);
+    const dist = Math.hypot(MAP.provs[p].lon - cx, MAP.provs[p].lat - cy), opp = aiEnemyPower(t, p, 9) + 0.8;
+    const feas = clamp(strike / (req * opp), 0, 1.4), claim = (G.aiClaim && G.aiClaim[p] && G.aiClaim[p].t !== t && G.date.t - G.aiClaim[p].d < 8) ? 0.5 : 1;
+    objs.push({p, v, dist, opp, feas, en, score: v / (1 + dist / 14) * (0.15 + feas) * claim});
+  });
+  objs.sort((x, y) => y.score - x.score);
+  return {objs, strike, req};
 }
 function aiWarAll() {
   if (!G.aiClaim || G.date.t % 120 === 0) G.aiClaim = {};

@@ -122,3 +122,7 @@
 - Las misiones de escolta tienen efecto agregado, no convoyes individuales; el bombardeo no destruye niveles de edificio, solo reduce su producción.
 - Sigue habiendo conquistas fuertes de la IA en 80 años (herencia del juego base: el mundo pasa de ~62 a ~30 países).
 - Pendientes de antes: fog of war completa por ejército individual, guerra civil real.
+
+### Resultado de la simulación de 80 años (1836-1916, todos los países con IA, sin errores de JavaScript)
+- Aviación: nadie la tiene antes de 1903; hacia 1911 aparece el primer escuadrón y en 1915 siete países operan 47 escuadrones. Marina: de ~600 fragatas de vela en 1840 a acorazados desde 1860, cruceros y submarinos hacia 1900-1907 y dreadnoughts desde 1911.
+- Estallan guerras todo el periodo (~19 distintas). Mundo: de ~62 a ~28 países, la mayor potencia llega a 37 estados (no se produce una conquista de medio mundo). **Limitación**: en algunas ejecuciones una potencia (p. ej. Francia) acaba reducida a 1-4 estados; el comportamiento viene del juego base (la comparativa con la versión anterior también muestra colapsos de grandes potencias) y queda pendiente un ajuste fino de la IA de paz y alianzas.

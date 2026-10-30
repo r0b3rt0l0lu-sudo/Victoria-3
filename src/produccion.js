@@ -58,7 +58,7 @@ function linesWeek() {
       let out = L.f * K.rate * L.eff;
       const g = K.eq, cap = Math.max(K.rate * 4, (need[g] || 0) * 3, g === 'ships' ? 1800 : g === 'aircraft' ? 700 : 0);       // no se acumula sin límite
       const stock = c.eq[g] || 0; out = Math.max(0, Math.min(out, cap - stock));
-      const R = clamp(G.ratio[g] === undefined ? 1 : G.ratio[g], 0, 1);
+      const R = Math.max(clamp(G.ratio[g] === undefined ? 1 : G.ratio[g], 0, 1), g === 'aircraft' || g === 'mgs' ? 0.7 : 0);      // los arsenales producen aviones y ametralladoras aunque la industria civil no abastezca
       G.milD[g] = (G.milD[g] || 0) + out;
       out *= R;
       const price = G.price[g] || GOOD[g].base, cost = out * price * 0.95;

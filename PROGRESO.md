@@ -95,3 +95,30 @@
 - Los planes de frente se activan solos al crearse (ataque automático tras ~2 semanas de concentración); si no hay selección, usan los ejércitos libres.
 - Las tropas de aliados/ex-enemigos en tierra ajena sin guerra compartida vuelven solas a casa (`homeWeek`).
 - Clic en un territorio con un ejército seleccionado lo mueve; clic derecho + arrastrar selecciona todos los ejércitos del recuadro (rotar cámara: botón central o Mayús+arrastrar). Esc deselecciona.
+
+## Sesión: Militar 2 (aviación, marina, doctrinas, plantillas, producción, resistencia, mariscales)
+
+> Nota de arquitectura: el encargo hablaba de esbuild + TypeScript, `src/juego/`, `data/*.json`, `globales.d.ts` y scripts `npm`. Este repositorio es JavaScript plano (`src/*.js` → `build.py` → `index.html` y `juego-ligero.html`), así que se adaptó: módulos nuevos en `src/` registrados en el `order` de `build.py`, datos como constantes JS, guardado en `saveExtra/loadExtra` (`G.mx`) y `c.m2` por país con valores por defecto. Equivalencias: `npm run build` → `python3 build.py`; `npm run comprobar` → `python3 tools/comprobar.py` (sintaxis de todo el código); `npm run prueba` → `node tools/prueba.js` y `tools/prueba_mil2.js`, `prueba_guerra.js`, `prueba_resist.js`, `prueba_aviacion.js`; simulación de 80 años → `node tools/simular80.js`. No existe `fijar-referencia` (no hay partida de referencia).
+
+### Hecho
+- [x] **Aviación** (`aviacion.js`): bienes *Motores* y *Aviones*; edificios *Fábrica de Motores* y *Fábrica Aeronáutica* (acero, motores, tela); tecnologías Era 3 *Aviación Militar* (1903), *Cazas* (1910) y *Bombarderos* (1911); escuadrones de hasta 100 aviones desde el inventario nacional, desplegados en regiones aéreas (grupos de estados vecinos); misiones superioridad, apoyo cercano, bombardeo estratégico e intercepción; pérdidas en combate aéreo; `airBonus` (hasta +25%), `airCas` (daño directo en batallas) y reconocimiento aéreo en la niebla.
+- [x] **Marina** (`marina.js`): *Astilleros*, buques fragata de vela/vapor, acorazado, crucero, submarino y dreadnought por tecnología; flotas con almirante en 20 zonas marítimas; misiones patrulla, bloqueo, escolta e incursión; batallas navales automáticas; `blockadeScore` (±22 puntos de guerra) y pérdida de ingresos/suministro; los desembarcos sufren pérdidas si el enemigo domina la zona (`navalLandingAttrition`); flotas iniciales históricas y construcción por la IA.
+- [x] **Doctrinas** (`doctrinas.js`): experiencia terrestre (combates y entrenamiento), naval y aérea; árbol con ramas excluyentes (defensa en profundidad, ofensiva móvil, fuego superior, movilización de masas; superioridad aérea o bombardeo estratégico; flota de batalla o guerra de corso); `docMod(tag, clave)` con `att/atk/def/org/spd/cost/air/intc/bomb/cas/nav/navdef/raid`.
+- [x] **Plantillas** (`plantillas.js`): hasta 9 batallones (infantería, caballería, artillería, ingenieros, ametralladoras, motorizados, blindados); estadísticas, anchura de combate (afecta a cuántas divisiones combaten a la vez), velocidad, coste y equipo; reclutamiento por plantilla; plantillas predefinidas de la IA que se actualizan con la tecnología.
+- [x] **Producción por líneas** (`produccion.js`): fábricas militares asignadas a líneas (fusiles, artillería, munición, ametralladoras, aviones, buques); eficiencia 10 %→100 % que cae al cambiar de modelo; generaciones de equipo por tecnología con penalización del equipo antiguo; ventana con déficit; asignación automática de la IA.
+- [x] **Resistencia y niebla** (`resistencia.js`, `intel.js`): resistencia por provincia ocupada según la cultura (estado de origen/perfil), guarniciones, penalización de suministro y levantamientos; reconocimiento aéreo en la niebla.
+- [x] **Mariscales** (`mariscales.js`): grupos de ejércitos y frentes con bonificación de ataque/defensa y preparación del plan más rápida (el plan da hasta +15 %).
+- [x] Manual (sección 16f), pestañas nuevas en Ejército y guerra (Plantillas, Producción, Aviación, Marina, Doctrinas, Ocupación, Mariscales), guardado/carga con compatibilidad de partidas antiguas.
+
+### Decisiones de diseño
+- Las plantillas se registran como tipos en `DIVS` (`T<TAG>_<n>`) para no tocar el combate; `dKind(d)` da el arma principal.
+- Los arsenales (líneas) compran insumos en el mercado y dejan el equipo en el inventario; aviones y ametralladoras se producen con un suelo de abastecimiento del 70 % para que la IA no dependa de que la industria civil construya fábricas aeronáuticas. La IA invierte en fábricas aeronáuticas/de motores/ametralladoras con la tecnología.
+- La cultura se aproxima con el estado de origen del territorio y el perfil cultural de su dueño original.
+- Mantenimiento de buques y precios calibrados tras detectar que una flota enorme arruinaba el tesoro de la IA (Francia en bancarrota ⇒ sin ejército).
+- Ajustes de equilibrio de la IA: no declara conquistas por encima de 34 estados ni ataca a países ya en 2 guerras; prioriza tecnologías militares clave (grandes potencias).
+
+### Pendiente / limitaciones
+- No hay batallas navales visuales ni mapa de zonas marítimas en el mapa 3D (solo en las pestañas).
+- Las misiones de escolta tienen efecto agregado, no convoyes individuales; el bombardeo no destruye niveles de edificio, solo reduce su producción.
+- Sigue habiendo conquistas fuertes de la IA en 80 años (herencia del juego base: el mundo pasa de ~62 a ~30 países).
+- Pendientes de antes: fog of war completa por ejército individual, guerra civil real.

@@ -86,14 +86,26 @@ function airDay() {
 }
 
 /* ---------- IA ---------- */
+// política industrial de la IA: invierte en fábricas aeronáuticas y de motores cuando dispone de la tecnología
+function aiMilIndustry(c) {
+  const lv = k => c.states.reduce((n, id) => n + (G.S[id].b[k] || 0), 0);
+  const want = {aeroworks: c.rank <= 8 ? 3 : c.rank <= 20 ? 1.5 : 0, enginew: c.rank <= 8 ? 2 : c.rank <= 20 ? 1 : 0, mgworks: c.rank <= 20 ? 1 : 0};
+  const tech = {aeroworks: 'military_aviation', enginew: 'internal_comb', mgworks: 'machine_guns'};
+  for (const k in want) {
+    if (!want[k] || !hasTech(c, tech[k]) || lv(k) >= want[k]) continue;
+    const sid = c.states.filter(id => (G.S[id].cap[k] || 0) - (G.S[id].b[k] || 0) >= 0.5).sort((a, b) => (G.S[b].cap[k] || 0) - (G.S[a].cap[k] || 0))[0];
+    if (sid !== undefined && c.treasury > BLD[k].cost * 400) { G.S[sid].b[k] = (G.S[sid].b[k] || 0) + 0.5; c.treasury -= BLD[k].cost * 200; }
+  }
+}
 function aviationAI(c) {
+  if (c.rank <= 20) aiMilIndustry(c);
   if (!hasTech(c, 'military_aviation') || !c.states.length) return;
   const M = mx(), mine = M.sq.filter(s => s.tag === c.tag), atWar = c.wars.length > 0;
   const types = airTypesOf(c); if (!types.length) return;
   // refuerzos
   mine.forEach(s => { if (s.n < SQ_MAX * 0.7) sqReinforce(c, s); });
   // nuevo escuadrón
-  const cap = Math.min(14, 2 + Math.floor((c.stats.indLevels || 0) / 20));
+  const cap = Math.min(16, 3 + Math.floor((c.stats.indLevels || 0) / 12));
   if (mine.length < cap && (c.eq.aircraft || 0) >= 40) {
     const nf = mine.filter(s => s.type === 'fighter').length, nb = mine.length - nf;
     const type = types.includes('bomber') && (nf > nb * 1.5 || !types.includes('fighter')) ? 'bomber' : (types.includes('fighter') ? 'fighter' : 'bomber');

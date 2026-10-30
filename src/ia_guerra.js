@@ -78,7 +78,18 @@ function aiWarStep(t) {
   const eArmies = G.armies.filter(e => !e.sea && hostileTags(t, e.tag));
   // un ejército enemigo presiona mi territorio si ya está en él (o en su frontera) o su ruta entra en él
   const pressing = eArmies.filter(e => mineProv(t, e.loc) || MAP.provs[e.loc].nb.some(q => provOwner(q) === t) || (e.path && e.path.slice(0, 5).some(q => provOwner(q) === t)));
-  const imminent = p => pressing.some(e => provDist(e.loc, p) <= 14 || (e.path && e.path.slice(0, 5).includes(p)));
+  const imminent = (p, r) => pressing.some(e => provDist(e.loc, p) <= (r || 9) || (e.path && e.path.slice(0, 4).includes(p)));
+  /* ---- 1a. INTERCEPTAR invasores en mi territorio cuando hay superioridad (defensa activa) ---- */
+  const intruders = eArmies.filter(e => provOwner(e.loc) === t && !e.battle || (provOwner(e.loc) === t && e.battle)).sort((x, y) => (V.get(y.loc) || 0) + armyPow(y) * 0.1 - (V.get(x.loc) || 0) - armyPow(x) * 0.1);
+  let intercepts = 0;
+  intruders.forEach(e => {
+    if (intercepts >= 2) return;
+    const epw = eArmies.filter(o => provDist(o.loc, e.loc) < 4).reduce((n, o) => n + armyPow(o), 0), need = epw * 1.25;
+    const pool = free.filter(a => !committed.has(a.id) && provDist(a.loc, e.loc) < 45).sort((a, b) => provDist(a.loc, e.loc) - provDist(b.loc, e.loc));
+    const avail = pool.reduce((n, a) => n + armyPow(a), 0); if (avail < need * 0.95) return;                    // sin superioridad no se sale a su encuentro
+    let got = 0; for (const a of pool) { if (got >= need) break; if (orders(a, e.loc, 'int')) { committed.add(a.id); got += armyPow(a); } }
+    if (got > 0) intercepts++;
+  });
   const nodes = []; D.forEach((danger, p) => {
     if (provOwner(p) !== t || danger < 0.8) return;                              // solo se defiende lo propio
     const cap = capProvs.includes(p), imp = (V.get(p) || 0.3) * (cap ? doc.capW : 1);
@@ -86,14 +97,16 @@ function aiWarStep(t) {
   });
   nodes.sort((x, y) => y.score - x.score);
   const avgV = [...V.values()].reduce((x, y) => x + y, 0) / Math.max(1, V.size);
-  let defNodes = 0;
+  let defNodes = 0; const pressTotal = pressing.reduce((n, e) => n + armyPow(e), 0);
   nodes.forEach(nd => {
-    if (defNodes >= 3 || !imminent(nd.p)) return;
+    if (usedDef >= pressTotal * 1.3 + 1) return;                                // la defensa total nunca supera 1,3 × la fuerza que presiona
+    if (defNodes >= 3 || !imminent(nd.p, nd.cap ? 9 : 7)) return;
     const worthIt = nd.cap || nd.imp >= avgV * 1.8 || nd.imp >= 6;               // las provincias inútiles no merecen un ejército
     if (!worthIt) return;
-    const near = pressing.filter(e => provDist(e.loc, nd.p) <= 16).reduce((n, e) => n + armyPow(e), 0);
+    const near = pressing.filter(e => provDist(e.loc, nd.p) <= 11).reduce((n, e) => n + armyPow(e), 0);
     if (near < 0.8) return;
-    const need = near * (nd.cap ? 1.4 : 1.15); let got = 0;
+    const need = near * (nd.cap ? 1.3 : 1.1); let got = 0;
+    if (!nd.cap && free.some(a => committed.has(a.id) && a.ai && a.ai.task === 'int' && provDist(a.loc, nd.p) < 10)) return;
     const limit = nd.cap ? total * 0.85 : total * 0.5;                           // reserva para la ofensiva salvo amenaza máxima
     const cand = free.filter(a => !committed.has(a.id)).sort((a, b) => provDist(a.loc, nd.p) - provDist(b.loc, nd.p));
     let usedHere = 0;

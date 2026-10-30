@@ -62,7 +62,7 @@ function initRenderer(canvas) {
   const W = MAP_W, H = MAP_H;
   R.canvas = canvas;
   R.renderer = new THREE.WebGLRenderer({canvas, antialias: (window.devicePixelRatio || 1) < 1.5, preserveDrawingBuffer: false, powerPreference: 'high-performance'});
-  R.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
+  R.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   R.scene = new THREE.Scene();
   R.scene.background = new THREE.Color(0x14222c);
   R.camera = new THREE.PerspectiveCamera(32, 1, 0.5, 900);
@@ -176,7 +176,7 @@ function animateMap(t) {
   return true;
 }
 // resolución: la calidad fija el máximo y la escala adaptativa la baja si la tarjeta gráfica no da abasto
-function basePixelRatio() { const q = R.quality === 'bajo' ? 0.85 : R.quality === 'alto' ? 1.75 : 1.25; return Math.min(window.devicePixelRatio || 1, q) * (R.resScale || 1); }
+function basePixelRatio() { const q = R.quality === 'bajo' ? 1 : R.quality === 'alto' ? 2 : 1.5; return Math.min(window.devicePixelRatio || 1, q) * (R.resScale || 1); }
 function resizeRenderer() {
   const w = window.innerWidth, h = window.innerHeight;
   R.renderer.setPixelRatio(basePixelRatio());
@@ -188,7 +188,7 @@ function resizeRenderer() {
 // nivel de detalle del terreno según la distancia de la cámara (todos los bloques igual: sin grietas entre ellos)
 function updateTerrainLOD() {
   if (!R.chunks) return;
-  const d = R.cam.dist, lod = (R.quality === 'bajo' ? d > 60 ? 2 : d > 35 ? 1 : 0 : R.quality === 'alto' ? d > 190 ? 2 : d > 105 ? 1 : 0 : d > 150 ? 2 : d > 80 ? 1 : 0);
+  const d = R.cam.dist, lod = (R.quality === 'bajo' ? d > 60 ? 2 : d > 35 ? 1 : 0 : R.quality === 'alto' ? d > 230 ? 2 : d > 150 ? 1 : 0 : d > 170 ? 2 : d > 105 ? 1 : 0);
   if (lod === R.lod) return; R.lod = lod;
   R.chunks.forEach(c => c.geo.setIndex(R.lodIdx[lod]));
 }

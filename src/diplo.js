@@ -482,10 +482,10 @@ function aiFabricate(c) {
 }
 function aiWarsNew() {
   if (G.wars.length >= 3) return;
-  const cand = G.tags.filter(t => t !== NONE && alive(t) && G.C[t].rank <= 16 && !G.C[t].wars.length && !G.C[t].overlord);
+  const cand = G.tags.filter(t => t !== NONE && alive(t) && G.C[t].rank <= 16 && !G.C[t].wars.length && !G.C[t].overlord && G.C[t].states.length <= 34);
   if (!cand.length || Math.random() > 0.13 * (G.diff >= 3 ? 1.3 : 1)) return;
   const a = pick(cand), A = G.C[a];
-  const tg = G.tags.filter(t => t !== NONE && t !== a && alive(t) && !warBlockers(a, t) && armyPower(G.C[t]) * 1.5 < armyPower(A) && relOf(a, t) < 25 && !G.C[t].overlord);
+  const tg = G.tags.filter(t => t !== NONE && t !== a && alive(t) && !warBlockers(a, t) && armyPower(G.C[t]) * 1.5 < armyPower(A) && relOf(a, t) < 25 && !G.C[t].overlord && G.C[t].wars.length < 2);
   if (!tg.length) return;
   const d = pick(tg), D = G.C[d];
   const cl = claimedStates(A, d);

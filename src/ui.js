@@ -967,6 +967,8 @@ function doLoad(fromStart) {
 
 /* ---------- bucle principal ---------- */
 const SPEED_MS = [0, 1300, 750, 380, 170, 60];
+// con una batalla abierta en el panel el tiempo corre despacio (≥ 1,8 s por día) para que dé tiempo a ver el combate
+const dayMs = () => (UI.battle && R.skip3d) ? Math.max(1800, SPEED_MS[UI.speed] || 1800) : SPEED_MS[UI.speed];
 let _gt = 0;
 window.onFrame = function (t) {
   if (!UI.started) return;
@@ -974,8 +976,8 @@ window.onFrame = function (t) {
   if (!G.paused && !G.pendingEvent) {
     UI.acc += Math.min(dt, 200);
     let n = 0;
-    while (UI.acc >= SPEED_MS[UI.speed] && n < 40) {
-      UI.acc -= SPEED_MS[UI.speed]; const m0 = G.date.m;
+    while (UI.acc >= dayMs() && n < 40) {
+      UI.acc -= dayMs(); const m0 = G.date.m;
       advanceDay(); n++;
       if (G.date.m !== m0 && R.mode !== 'political' && R.mode !== 'terrain') R.needPaint = true;
       if (G.date.m !== m0 && G.date.m === 0) doSave(true);

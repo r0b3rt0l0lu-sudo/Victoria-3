@@ -16,7 +16,7 @@ function bvSync(V, b) {
       seen.add(it.d); let g = V.groups.get(it.d);
       if (!g) {
         g = {d: it.d, side, type: dKind(it.d), units: [], color: G.C[it.a.tag].color};
-        const nf = BV_FIGS[g.type]; for (let k = 0; k < nf; k++) { const u = {g, side, type: g.type, k, x: side === 'A' ? -20 : BV_W + 20, y: BV_H / 2, vx: 0, vy: 0, alive: true, dying: 0, flee: 0, face: side === 'A' ? 0 : Math.PI, flash: 0, ph: Math.random() * 6.28}; g.units.push(u); V.units.push(u); }
+        const nf = BV_FIGS[g.type]; for (let k = 0; k < nf; k++) { const u = {g, side, type: g.type, k, x: (side === 'A' ? BV_W * 0.16 : BV_W * 0.84) + rnd(-14, 14), y: BV_H / 2 + rnd(-70, 70), vx: 0, vy: 0, alive: true, dying: 0, flee: 0, face: side === 'A' ? 0 : Math.PI, flash: 0, ph: Math.random() * 6.28}; g.units.push(u); V.units.push(u); }
         V.groups.set(it.d, g);
       }
       g.front = i < nFront; g.idx = i; g.n = g.front ? nFront : list.length - nFront; g.ri = g.front ? i : i - nFront;
@@ -54,7 +54,7 @@ function bvStrat(b, side) { return (side === 'A' ? b.strA : b.strB) || 'frontal'
 // posición de la línea de cada bando según estrategia y momento
 function bvLine(V, b, side) {
   const x0 = BV_W / 2 + V.adv * 85, st = bvStrat(b, side), att = b.att === side, dir = side === 'A' ? 1 : -1;
-  const frac = clamp((performance.now() - V.dayT) / Math.max(400, (UI.speed ? SPEED_MS[UI.speed] : 750)), 0, 1), dday = b.day - 1 + frac;
+  const frac = clamp((performance.now() - V.dayT) / Math.max(400, dayMs()), 0, 1), dday = b.day - 1 + frac;
   let gap = 34;
   if (st === 'frontal') gap = att ? 24 + 11 * Math.sin(V.t * 1.6) : 36;
   else if (st === 'hold') gap = att ? 52 : 52 + 22;
@@ -82,7 +82,7 @@ function bvFrame(V, b, ctx, now) {
   const lines = {A: bvLine(V, b, 'A'), B: bvLine(V, b, 'B')};
   ['A', 'B'].forEach(s => { if (V.boost[s] > 0) V.boost[s] -= dt; if (V.panic[s] > 0) V.panic[s] -= dt; if (V.man[s]) { V.man[s].t += dt; if (V.man[s].t > V.man[s].dur) V.man[s] = null; } });
   if (V.rain > 0) V.rain -= dt;
-  const frac = clamp((now - V.dayT) / Math.max(400, (UI.speed ? SPEED_MS[UI.speed] : 750)), 0, 1);
+  const frac = clamp((now - V.dayT) / Math.max(400, dayMs()), 0, 1);
   // ---- movimiento de los soldados ----
   V.units.forEach(u => {
     if (u.dying > 0) { u.dying -= dt; return; }

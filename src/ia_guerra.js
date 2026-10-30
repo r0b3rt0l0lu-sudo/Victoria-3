@@ -71,23 +71,31 @@ function aiWarStep(t) {
   const V = aiProvValues(t), D = aiDanger(t), war = G.wars.find(w => w.attAll.includes(t) || w.defAll.includes(t));
   const capProvs = c.capital >= 0 ? MAP.stats[c.capital].provs : [], capP = capProvs[0];
   const committed = new Set(); let usedDef = 0;
+  const prevTask = new Map(mine.map(a => [a.id, a.ai && a.ai.task]));
+  const defShare = clamp(0.9 - 0.25 * ratio + 0.2 * doc.fort + 0.1 * doc.depth - 0.15 * doc.aggr, 0.12, 0.9);   // cuanto más fuerte, menos se defiende y más se ataca
+  const budget = total * defShare;
   const orders = (a, dest, task) => { if (a.battle) return false; if (a.path.length && a.ai && a.ai.task === task && a.dest !== undefined && a.dest !== null && provDist(a.dest, dest) < 5) return true; if (a.dest === dest && a.path.length) { a.ai = {task, dest}; return true; } if (a.loc === dest) { a.ai = {task, dest}; if (!a.path.length && task === 'def' && a.mode !== 'hold') setMode(a, 'hold'); return true; } const r = orderMove(a, dest); if (r.ok) a.ai = {task, dest}; return r.ok; };
 
   /* ---- 1. DEFENSA: capital y provincias valiosas con amenaza INMINENTE ---- */
   free.forEach(a => { a.ai = null; });                                            // las órdenes se reevalúan en cada ciclo
+  const attacking = a => (prevTask.get(a.id) === 'atk' || prevTask.get(a.id) === 'rally') && a.path.length > 0;
   const eArmies = G.armies.filter(e => !e.sea && hostileTags(t, e.tag));
   // un ejército enemigo presiona mi territorio si ya está en él (o en su frontera) o su ruta entra en él
-  const pressing = eArmies.filter(e => mineProv(t, e.loc) || MAP.provs[e.loc].nb.some(q => provOwner(q) === t) || (e.path && e.path.slice(0, 5).some(q => provOwner(q) === t)));
+  const pressing = eArmies.filter(e => provOwner(e.loc) === t || (e.path && e.path.length && e.path.slice(0, 4).some(q => provOwner(q) === t)));
   const imminent = (p, r) => pressing.some(e => provDist(e.loc, p) <= (r || 9) || (e.path && e.path.slice(0, 4).includes(p)));
   /* ---- 1a. INTERCEPTAR invasores en mi territorio cuando hay superioridad (defensa activa) ---- */
   const intruders = eArmies.filter(e => provOwner(e.loc) === t && !e.battle || (provOwner(e.loc) === t && e.battle)).sort((x, y) => (V.get(y.loc) || 0) + armyPow(y) * 0.1 - (V.get(x.loc) || 0) - armyPow(x) * 0.1);
+  const avgV0 = [...V.values()].reduce((x, y) => x + y, 0) / Math.max(1, V.size);
   let intercepts = 0;
   intruders.forEach(e => {
     if (intercepts >= 2) return;
     const epw = eArmies.filter(o => provDist(o.loc, e.loc) < 4).reduce((n, o) => n + armyPow(o), 0), need = epw * 1.25;
-    const pool = free.filter(a => !committed.has(a.id) && provDist(a.loc, e.loc) < 45).sort((a, b) => provDist(a.loc, e.loc) - provDist(b.loc, e.loc));
+    const valuable = (V.get(e.loc) || 0) >= avgV0 * 3 || capProvs.some(q => provDist(q, e.loc) < 3.5);
+    if (epw < Math.max(14, total * (valuable ? 0.08 : 0.2))) return;               // no se persiguen partidas insignificantes
+    if (usedDef + need > budget * (valuable ? 1.6 : 1)) return;
+    const pool = free.filter(a => !committed.has(a.id) && !attacking(a) && provDist(a.loc, e.loc) < 45).sort((a, b) => provDist(a.loc, e.loc) - provDist(b.loc, e.loc));
     const avail = pool.reduce((n, a) => n + armyPow(a), 0); if (avail < need * 0.95) return;                    // sin superioridad no se sale a su encuentro
-    let got = 0; for (const a of pool) { if (got >= need) break; if (orders(a, e.loc, 'int')) { committed.add(a.id); got += armyPow(a); } }
+    let got = 0; for (const a of pool) { if (got >= need) break; if (orders(a, e.loc, 'int')) { committed.add(a.id); got += armyPow(a); usedDef += armyPow(a); } }
     if (got > 0) intercepts++;
   });
   const nodes = []; D.forEach((danger, p) => {
@@ -104,11 +112,11 @@ function aiWarStep(t) {
     const worthIt = nd.cap || nd.imp >= avgV * 1.8 || nd.imp >= 6;               // las provincias inútiles no merecen un ejército
     if (!worthIt) return;
     const near = pressing.filter(e => provDist(e.loc, nd.p) <= 11).reduce((n, e) => n + armyPow(e), 0);
-    if (near < 0.8) return;
+    if (near < Math.max(0.8, total * (nd.cap ? 0.3 : 0.4))) return;                // las incursiones pequeñas las contiene la guarnición, no el ejército
     const need = near * (nd.cap ? 1.3 : 1.1); let got = 0;
     if (!nd.cap && free.some(a => committed.has(a.id) && a.ai && a.ai.task === 'int' && provDist(a.loc, nd.p) < 10)) return;
-    const limit = nd.cap ? total * 0.85 : total * 0.5;                           // reserva para la ofensiva salvo amenaza máxima
-    const cand = free.filter(a => !committed.has(a.id)).sort((a, b) => provDist(a.loc, nd.p) - provDist(b.loc, nd.p));
+    const limit = nd.cap ? Math.max(budget, Math.min(total * 0.85, near * 1.3)) : budget;   // reserva para la ofensiva salvo amenaza máxima sobre la capital
+    const cand = free.filter(a => !committed.has(a.id) && (nd.cap || !attacking(a))).sort((a, b) => provDist(a.loc, nd.p) - provDist(b.loc, nd.p));
     let usedHere = 0;
     for (const a of cand) {
       if (got >= need) break; const pw = armyPow(a);
@@ -119,7 +127,7 @@ function aiWarStep(t) {
     if (usedHere > 0) defNodes++;
   });
   // guarnición mínima de la capital cuando el enemigo se acerca de verdad
-  if (capP !== undefined && imminent(capP) && !free.some(a => committed.has(a.id) && a.ai && a.ai.dest === capP)) {
+  if (capP !== undefined && imminent(capP, 8) && !free.some(a => committed.has(a.id) && a.ai && a.ai.dest === capP)) {
     const cand = free.filter(a => !committed.has(a.id)).sort((a, b) => provDist(a.loc, capP) - provDist(b.loc, capP))[0];
     if (cand && orders(cand, capP, 'def')) committed.add(cand.id);
   }
@@ -157,11 +165,27 @@ function aiWarStep(t) {
     objs.push({p, v, dist, opp, feas, en, score: v / (1 + dist / 14) * (0.15 + feas) * claim});
   });
   objs.sort((x, y) => y.score - x.score);
+  { const k = m.war.obj !== undefined ? objs.findIndex(o => o.p === m.war.obj) : -1; if (k > 0 && objs[k].score >= objs[0].score * 0.66 && objs[k].feas >= 0.3) { const o = objs.splice(k, 1)[0]; objs.unshift(o); } if (objs[0]) m.war.obj = objs[0].p; }   // persistencia del objetivo: no se cambia de eje por variaciones pequeñas
   m.war.dbg = {ratio: +ratio.toFixed(2), strike: +strike.toFixed(1), req: +req.toFixed(2), nObjs: objs.length, top: objs[0] ? {p: objs[0].p, sc: +objs[0].score.toFixed(2), feas: +objs[0].feas.toFixed(2), opp: +objs[0].opp.toFixed(1), v: +objs[0].v.toFixed(1)} : null, free: striking.length, def: committed.size, t: G.date.t};
   if (!objs.length) { m.war.idle++; // sin objetivo a la vista: avanzar hacia la provincia enemiga más cercana
     const eList = enemyProvList(t, enemies); striking.forEach(a => { if (a.path.length) return; let best = null, bd = 1e9; eList.forEach(pid => { const d = provDist(a.loc, pid); if (d < bd) { bd = d; best = pid; } }); if (best !== null && best !== a.loc) orders(a, best, 'adv'); }); return; }
-  // ejes: se reparte la fuerza entre los mejores objetivos, cada uno con la fuerza necesaria
-  let left = striking.slice(), axes = 0; const maxAxes = c.rank <= 6 ? 3 : 2;
+  /* ---- 3a. TEMPO: cada ejército ocupa de inmediato la provincia enemiga contigua mejor y alcanzable (como un buen general de vanguardia) ---- */
+  let left0 = striking.slice(); const taken = new Set(), usedOpp = new Set();
+  striking.sort((a, b) => armyPow(b) - armyPow(a)).forEach(a => {
+    if (a.battle || (a.path.length && a.ai === null && prevTask.get(a.id) === 'atk' && a.dest !== undefined && a.dest !== null && !mineProv(t, a.dest) && !(G.P[a.dest].by && sameSide(t, G.P[a.dest].by)))) { if (!a.battle) usedOpp.add(a.id); return; }   // ya va a ocupar algo: no se le cambia la orden
+    let best = null, bs = 0;
+    const friendsNear = free.filter(o => o !== a && provDist(o.loc, a.loc) < 5).reduce((n, o) => n + armyPow(o), 0), myPow = armyPow(a) + friendsNear * 0.6;
+    MAP.provs[a.loc].nb.forEach(q => {
+      if (!canEnter(t, q) || taken.has(q)) return; const own = provOwner(q), by = G.P[q].by;
+      const enemyHeld = (hostileTags(t, own) && !(by && sameSide(t, by))) || (by && hostileTags(t, by) && !sameSide(t, by)); if (!enemyHeld) return;
+      const opp = aiEnemyPower(t, q, 2); if (opp * (1.15 - 0.3 * doc.aggr + 0.15) > myPow) return;                // solo con superioridad local
+      const sc = (aiEnemyValue(q, own, war) + 2) / (1 + opp * 0.5) * (own === t ? 1.4 : 1); if (sc > bs) { bs = sc; best = q; }
+    });
+    if (best !== null && orders(a, best, 'atk')) { taken.add(best); usedOpp.add(a.id); }
+  });
+  left0 = striking.filter(a => !usedOpp.has(a.id));
+  // ejes: se reparte la fuerza restante entre los mejores objetivos, cada uno con la fuerza necesaria
+  let left = left0.slice(), axes = 0; const maxAxes = c.rank <= 6 ? 3 : 2;
   for (const o of objs) {
     if (!left.length || axes >= maxAxes) break;
     const need = Math.max(1.2, o.opp * req * 1.1); const grp = []; let pw = 0;
@@ -173,21 +197,20 @@ function aiWarStep(t) {
     const lead = grp[0], path = findPath(lead, o.p);
     let rally = lead.loc; if (path && path.length) { for (let i = 0; i < path.length; i++) { if (!mineProv(t, path[i]) && !(G.P[path[i]].by && sameSide(t, G.P[path[i]].by))) { rally = i > 0 ? path[i - 1] : lead.loc; break; } rally = path[i]; } }
     const assembled = grp.filter(a => provDist(a.loc, rally) < 1.5).reduce((n, a) => n + armyPow(a), 0), waited = (G.date.t - (m.war.axisT || 0)) > 14;
-    const advance = assembled >= pw * 0.7 || (m.war.idle > 8) || waited || o.opp < 1.5 || grp.every(a => provDist(a.loc, rally) < 1.5);
+    const advance = assembled >= pw * 0.7 || (m.war.idle > 8) || waited || o.opp < 1.5 || o.feas >= 1.2 || grp.every(a => provDist(a.loc, rally) < 1.5);
     G.aiClaim = G.aiClaim || {}; G.aiClaim[o.p] = {t, d: G.date.t};
-    grp.forEach(a => { orders(a, advance ? o.p : rally, advance ? 'atk' : 'rally'); });
+    grp.forEach(a => {
+      if (!advance) { orders(a, rally, 'rally'); return; }
+      // se avanza ocupando provincia a provincia por la ruta (la ocupación exige permanecer unos días): primer eslabón hostil aún no ocupado
+      let tgt = o.p; if (a.loc !== o.p) { const pa = findPath(a, o.p); if (pa && pa.length) { for (const q of pa) { const held = G.P[q].by && sameSide(t, G.P[q].by); const hostile = hostileTags(t, provOwner(q)) || (G.P[q].by && hostileTags(t, G.P[q].by)); if (hostile && !held) { tgt = q; break; } } } }
+      orders(a, tgt, 'atk');
+    });
     if (!advance) { // reunir en un solo ejército en el punto de reunión
       const here = grp.filter(a => a.loc === rally && !a.battle).sort((x, y) => y.divs.length - x.divs.length);
       for (let i = 1; i < here.length; i++) if (here[0].divs.length + here[i].divs.length <= MAX_DIVS_ARMY) { mergeArmies(here[0], here[i]); }
     }
     left = left.filter(a => !grp.includes(a)); axes++; m.war.idle = 0; m.war.axisT = m.war.axisT || G.date.t;
   }
-  // el resto: golpes de oportunidad contra provincias enemigas vacías o débiles cerca
-  left.forEach(a => {
-    if (a.path.length) return; let best = null, bs = 0;
-    MAP.provs[a.loc].nb.forEach(q => { if (!canEnter(t, q)) return; const own = provOwner(q), enemyHeld = hostileTags(t, own) || (G.P[q].by && hostileTags(t, G.P[q].by)); if (!enemyHeld) return; const opp = aiEnemyPower(t, q, 2); if (opp * 1.2 > armyPow(a)) return; const s = aiEnemyValue(q, own, war) / (1 + opp); if (s > bs) { bs = s; best = q; } });
-    if (best !== null) orders(a, best, 'opp');
-  });
 }
 function aiWarAll() {
   if (!G.aiClaim || G.date.t % 120 === 0) G.aiClaim = {};

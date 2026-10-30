@@ -2638,7 +2638,7 @@ function researchStep(c, warm) {
       const av = TECHS.filter(t => techAvailable(c, t));
       if (av.length) {
         // la IA prefiere lo barato y lo de su especialidad; ocasionalmente elige al azar
-        const mk = t => t.cost * (0.8 + Math.random() * 0.5) * (t.cat === 'Militar' ? (c.rank <= 14 ? 0.5 : 0.8) : 1);
+        const mk = t => t.cost * (0.8 + Math.random() * 0.5) * (typeof MIL_PRIORITY !== 'undefined' && MIL_PRIORITY.has(t.id) && c.rank <= 16 ? 0.3 : t.cat === 'Militar' ? (c.rank <= 14 ? 0.5 : 0.8) : 1);
         av.sort((a, b) => mk(a) - mk(b));
         c.research = av[0].id;
       }
@@ -8097,6 +8097,8 @@ const MX_TABS = [];          // {id, label, html()}: pestañas añadidas a «Ej�
   let iv = 0; for (const g in b.inputs) iv += b.inputs[g] * GOOD[g].base;
   b.outAmt = (iv + VA_PER_WORKER * b.workersPerLevel) / GOOD[b.out].base;
 });
+// tecnologías que la IA de las grandes potencias prioriza para tener aviación, marina y ejércitos modernos hacia 1914
+const MIL_PRIORITY = new Set(['steel_artillery', 'machine_guns', 'quick_firing', 'bessemer', 'machine_tools', 'electricity', 'internal_comb', 'military_aviation', 'fighters', 'bombers', 'motorization', 'steam_frigate', 'ironclad', 'cruisers', 'submarines', 'dreadnought', 'bolt_action', 'breech_loaders', 'general_staff', 'steamships', 'trench_warfare']);
 const MIL_BUILDINGS = ['armory', 'foundry', 'powder', 'mgworks', 'aeroworks', 'shipyard', 'enginew'];
 
 /* ---------- tecnologías nuevas ---------- */

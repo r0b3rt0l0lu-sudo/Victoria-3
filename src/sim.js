@@ -674,7 +674,7 @@ function researchStep(c, warm) {
       const av = TECHS.filter(t => techAvailable(c, t));
       if (av.length) {
         // la IA prefiere lo barato y lo de su especialidad; ocasionalmente elige al azar
-        const mk = t => t.cost * (0.8 + Math.random() * 0.5) * (t.cat === 'Militar' ? (c.rank <= 14 ? 0.5 : 0.8) : 1);
+        const mk = t => t.cost * (0.8 + Math.random() * 0.5) * (typeof MIL_PRIORITY !== 'undefined' && MIL_PRIORITY.has(t.id) && c.rank <= 16 ? 0.3 : t.cat === 'Militar' ? (c.rank <= 14 ? 0.5 : 0.8) : 1);
         av.sort((a, b) => mk(a) - mk(b));
         c.research = av[0].id;
       }

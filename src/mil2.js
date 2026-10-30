@@ -25,6 +25,8 @@ const MX_TABS = [];          // {id, label, html()}: pestañas añadidas a «Ej�
   let iv = 0; for (const g in b.inputs) iv += b.inputs[g] * GOOD[g].base;
   b.outAmt = (iv + VA_PER_WORKER * b.workersPerLevel) / GOOD[b.out].base;
 });
+// tecnologías que la IA de las grandes potencias prioriza para tener aviación, marina y ejércitos modernos hacia 1914
+const MIL_PRIORITY = new Set(['steel_artillery', 'machine_guns', 'quick_firing', 'bessemer', 'machine_tools', 'electricity', 'internal_comb', 'military_aviation', 'fighters', 'bombers', 'motorization', 'steam_frigate', 'ironclad', 'cruisers', 'submarines', 'dreadnought', 'bolt_action', 'breech_loaders', 'general_staff', 'steamships', 'trench_warfare']);
 const MIL_BUILDINGS = ['armory', 'foundry', 'powder', 'mgworks', 'aeroworks', 'shipyard', 'enginew'];
 
 /* ---------- tecnologías nuevas ---------- */

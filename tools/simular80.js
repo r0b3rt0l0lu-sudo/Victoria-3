@@ -15,7 +15,8 @@ const { chromium } = require('playwright');
     const ships = {}; mx().fl.forEach(f => f.ships.forEach(s => { ships[s.t] = (ships[s.t] || 0) + 1; }));
     const cnt = {}; G.wars.forEach(w => window._seenWars.add(w.id));
     const big = ['GBR', 'FRA', 'RUS', 'PRU', 'AUS', 'USA', 'JAP', 'OTT', 'ITA', 'GER'].filter(t => G.C[t] && G.C[t].states.length).map(t => { const c = G.C[t]; return t + '[st' + c.states.length + ' div' + countDivs(t) + ' fl' + fleetsOf(t).reduce((n, f) => n + f.ships.length, 0) + ' ac' + mx().sq.filter(s => s.tag === t).reduce((n, s) => n + s.n, 0) + ' m' + marOf(t).length + ' d' + (mc(c).doc.land || '-') + ']'; });
-    return G.date.y + ' paises=' + alive.length + ' guerras=' + G.wars.length + ' (vistas ' + window._seenWars.size + ') top=' + top.join(',') + ' | buques ' + JSON.stringify(ships) + ' | escuadrones ' + mx().sq.length + ' | ' + big.join(' ');
+    const av = ['military_aviation', 'fighters', 'bombers', 'dreadnought', 'motorization'].map(k => k.slice(0, 4) + ':' + alive.filter(t => G.C[t].techs.has(k)).length).join(' '); const ac = alive.filter(t => mx().sq.some(s => s.tag === t)).length;
+    return G.date.y + ' tec[' + av + '] paisesConAviacion=' + ac + ' paises=' + alive.length + ' guerras=' + G.wars.length + ' (vistas ' + window._seenWars.size + ') top=' + top.join(',') + ' | buques ' + JSON.stringify(ships) + ' | escuadrones ' + mx().sq.length + ' | ' + big.join(' ');
   });
   let y = 0;
   while (y < years) {

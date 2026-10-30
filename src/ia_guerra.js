@@ -73,36 +73,40 @@ function aiWarStep(t) {
   const committed = new Set(); let usedDef = 0;
   const orders = (a, dest, task) => { if (a.battle) return false; if (a.path.length && a.ai && a.ai.task === task && a.dest !== undefined && a.dest !== null && provDist(a.dest, dest) < 5) return true; if (a.dest === dest && a.path.length) { a.ai = {task, dest}; return true; } if (a.loc === dest) { a.ai = {task, dest}; if (!a.path.length && task === 'def' && a.mode !== 'hold') setMode(a, 'hold'); return true; } const r = orderMove(a, dest); if (r.ok) a.ai = {task, dest}; return r.ok; };
 
-  /* ---- 1. DEFENSA: capital y provincias valiosas amenazadas ---- */
+  /* ---- 1. DEFENSA: capital y provincias valiosas con amenaza INMINENTE ---- */
+  free.forEach(a => { a.ai = null; });                                            // las órdenes se reevalúan en cada ciclo
+  const eArmies = G.armies.filter(e => !e.sea && hostileTags(t, e.tag));
+  // un ejército enemigo presiona mi territorio si ya está en él (o en su frontera) o su ruta entra en él
+  const pressing = eArmies.filter(e => mineProv(t, e.loc) || MAP.provs[e.loc].nb.some(q => provOwner(q) === t) || (e.path && e.path.slice(0, 5).some(q => provOwner(q) === t)));
+  const imminent = p => pressing.some(e => provDist(e.loc, p) <= 14 || (e.path && e.path.slice(0, 5).includes(p)));
   const nodes = []; D.forEach((danger, p) => {
-    if (!mineProv(t, p) || provOwner(p) !== t) return;                       // solo se defiende lo propio
+    if (provOwner(p) !== t || danger < 0.8) return;                              // solo se defiende lo propio
     const cap = capProvs.includes(p), imp = (V.get(p) || 0.3) * (cap ? doc.capW : 1);
-    if (danger < 0.8) return;
     nodes.push({p, danger, imp, score: imp * Math.min(danger, imp * 4 + danger * 0.3), cap});
   });
   nodes.sort((x, y) => y.score - x.score);
   const avgV = [...V.values()].reduce((x, y) => x + y, 0) / Math.max(1, V.size);
   let defNodes = 0;
   nodes.forEach(nd => {
-    if (defNodes >= 3) return;
-    const worthIt = nd.cap || nd.imp >= avgV * 1.5 || nd.imp >= 4;           // las provincias inútiles no merecen un ejército
+    if (defNodes >= 3 || !imminent(nd.p)) return;
+    const worthIt = nd.cap || nd.imp >= avgV * 1.8 || nd.imp >= 6;               // las provincias inútiles no merecen un ejército
     if (!worthIt) return;
-    const near = aiEnemyPower(t, nd.p, 12);
+    const near = pressing.filter(e => provDist(e.loc, nd.p) <= 16).reduce((n, e) => n + armyPow(e), 0);
     if (near < 0.8) return;
-    let need = near * (nd.cap ? 1.5 : 1.2), got = 0;
-    // ya hay tropas allí?
-    free.forEach(a => { if (!committed.has(a.id) && provDist(a.loc, nd.p) < 1.5) { got += armyPow(a); } });
+    const need = near * (nd.cap ? 1.4 : 1.15); let got = 0;
+    const limit = nd.cap ? total * 0.85 : total * 0.5;                           // reserva para la ofensiva salvo amenaza máxima
     const cand = free.filter(a => !committed.has(a.id)).sort((a, b) => provDist(a.loc, nd.p) - provDist(b.loc, nd.p));
-    const cap = nd.cap ? 1 : 0.7;                                            // salvo la capital, no se compromete más del 70% de la fuerza
+    let usedHere = 0;
     for (const a of cand) {
-      if (got >= need) break; if (usedDef + armyPow(a) > total * cap && !nd.cap) break;
-      if (!nd.cap && provDist(a.loc, nd.p) > 40) continue;
-      if (orders(a, nd.p, 'def')) { committed.add(a.id); got += armyPow(a); usedDef += armyPow(a); }
+      if (got >= need) break; const pw = armyPow(a);
+      if (usedDef + pw > limit && got > 0) break;
+      if (provDist(a.loc, nd.p) > (nd.cap ? 60 : 30)) continue;
+      if (orders(a, nd.p, 'def')) { committed.add(a.id); got += pw; usedDef += pw; usedHere += pw; }
     }
-    if (got > 0) defNodes++;
+    if (usedHere > 0) defNodes++;
   });
   // guarnición mínima de la capital cuando el enemigo se acerca de verdad
-  if (capP !== undefined && (D.get(capP) || 0) > 1.5 && !free.some(a => committed.has(a.id) && a.ai && a.ai.dest === capP)) {
+  if (capP !== undefined && imminent(capP) && !free.some(a => committed.has(a.id) && a.ai && a.ai.dest === capP)) {
     const cand = free.filter(a => !committed.has(a.id)).sort((a, b) => provDist(a.loc, capP) - provDist(b.loc, capP))[0];
     if (cand && orders(cand, capP, 'def')) committed.add(cand.id);
   }
@@ -140,6 +144,7 @@ function aiWarStep(t) {
     objs.push({p, v, dist, opp, feas, en, score: v / (1 + dist / 14) * (0.15 + feas) * claim});
   });
   objs.sort((x, y) => y.score - x.score);
+  m.war.dbg = {ratio: +ratio.toFixed(2), strike: +strike.toFixed(1), req: +req.toFixed(2), nObjs: objs.length, top: objs[0] ? {p: objs[0].p, sc: +objs[0].score.toFixed(2), feas: +objs[0].feas.toFixed(2), opp: +objs[0].opp.toFixed(1), v: +objs[0].v.toFixed(1)} : null, free: striking.length, def: committed.size, t: G.date.t};
   if (!objs.length) { m.war.idle++; // sin objetivo a la vista: avanzar hacia la provincia enemiga más cercana
     const eList = enemyProvList(t, enemies); striking.forEach(a => { if (a.path.length) return; let best = null, bd = 1e9; eList.forEach(pid => { const d = provDist(a.loc, pid); if (d < bd) { bd = d; best = pid; } }); if (best !== null && best !== a.loc) orders(a, best, 'adv'); }); return; }
   // ejes: se reparte la fuerza entre los mejores objetivos, cada uno con la fuerza necesaria

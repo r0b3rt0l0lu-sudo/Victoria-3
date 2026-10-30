@@ -9576,6 +9576,7 @@ function proposePeaceTo(w, from, to, dir, ids) {   // propuesta de la IA al juga
   void opts; void P; return true;
 }
 function peaceOffersWeek() {
+  if (G.noOffers) return;                  // (las pruebas comparativas de la IA de guerra lo desactivan)
   G.wars.slice().forEach(w => {
     if (w.auto || w.weeks < 6 || w.weeks - (w.poT || -99) < 8) return;
     const a = w.att, d = w.def; if (!alive(a) || !alive(d)) return;

@@ -22,7 +22,7 @@ const { chromium } = require('playwright');
   for (const [a, b] of chosen) for (const m of modes) {
     const [va, vb] = m.split(':').map(Number);
     const r = await page.evaluate(({txt, a, b, va, vb, days}) => {
-      loadData(txt); G.paused = true; G.C[G.player].ai = true; G.tags.forEach(t => { if (t !== NONE) G.C[t].aiV = 1; }); G.C[a].aiV = va === 1 ? 1 : 2; G.C[b].aiV = vb === 1 ? 1 : 2; G.C[a].aiOps = va === 3; G.C[b].aiOps = vb === 3;
+      loadData(txt); G.noOffers = true; G.paused = true; G.C[G.player].ai = true; G.tags.forEach(t => { if (t !== NONE) G.C[t].aiV = 1; }); G.C[a].aiV = va === 1 ? 1 : 2; G.C[b].aiV = vb === 1 ? 1 : 2; G.C[a].aiOps = va === 3; G.C[b].aiOps = vb === 3;
       // si alguno tiene tratado de alianza/protección se ignora: guerra limpia entre los dos
       G.pacts = G.pacts.filter(p => ![a, b].includes(p.a) && ![a, b].includes(p.b)); G.C[a].bloc = G.C[b].bloc = null; G.C[a].overlord = G.C[b].overlord = null;
       const targets = reachableStates(a, b).slice(0, 3).map(x => x.id); const w0 = declareWar(a, b, targets.length ? 'conquest' : 'humiliate', targets, {free: true}); if (w0 && w0.ok === false) return {skip: w0.msg};

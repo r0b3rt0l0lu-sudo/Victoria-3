@@ -160,7 +160,7 @@ function docRaid(tag) { let m = 0; mx().fl.forEach(f => { if (f.mission === 'rai
 function navalMonth(c) {
   const M = mx(); if (c.tag === NONE) return;
   const fl = M.fl.filter(f => f.tag === c.tag); let up = 0; fl.forEach(f => f.ships.forEach(s => { up += SHIP_TYPES[s.t].up; }));
-  if (up) c.treasury -= up * moneyPerPoint(c) / 6;
+  if (up) c.treasury -= up * moneyPerPoint(c) / 200;
   if (!c.wars.length && !M.fl.some(f => f.mission === 'raid' || f.mission === 'blockade')) return;
   const inc = Math.max(0, c.stats.income) * 4.3, blk = blockadeFrac(c.tag), rd = raidLoss(c.tag);
   const loss = inc * (0.22 * blk + 0.07 * rd); if (loss > 0) { c.treasury -= loss; c.wearV = (c.wearV || 0) + (blk + rd) * 0.6; if (c.tag === G.player && loss > inc * 0.02) notify('war', `El ${blk > 0 ? 'bloqueo' : 'comercio enemigo'} te cuesta ${money(loss)} este mes.`); }

@@ -9148,6 +9148,8 @@ const AI_DOC = {
   JAP: {aggr: .9, capW: 1, depth: 0, fort: .2},
   CHN: {aggr: .3, capW: 1, depth: .8, fort: .2}
 };
+// parámetros de calibración de la IA (ajustados con torneos; ver tools/prueba_ia.js)
+const AI_TUNE = {tempo: 0.15, defBase: 0.9, reqBase: 1.45, ratioDef: 0.25};
 const aiDoc = c => AI_DOC[c.tag] || {aggr: c.rank <= 12 ? .6 : .4, capW: 1.2, depth: .2, fort: c.rank > 20 ? .6 : .3};
 const armyPow = a => { let p = 0; a.divs.forEach(d => { const i = DIVS[d.t] || DIVS.inf; p += d.s * (i.att + i.def) * (0.55 + 0.45 * d.o / i.org); }); return p; };
 const mineProv = (t, pid) => { const o = provOwner(pid), by = G.P[pid].by; return (by && sameSide(t, by)) || ((o === t || (o !== NONE && sameSide(t, o))) && !(by && !sameSide(t, by))); };
@@ -9201,7 +9203,7 @@ function aiWarStep(t) {
   const capProvs = c.capital >= 0 ? MAP.stats[c.capital].provs : [], capP = capProvs[0];
   const committed = new Set(); let usedDef = 0;
   const prevTask = new Map(mine.map(a => [a.id, a.ai && a.ai.task]));
-  const defShare = clamp(0.9 - 0.25 * ratio + 0.2 * doc.fort + 0.1 * doc.depth - 0.15 * doc.aggr, 0.12, 0.9);   // cuanto más fuerte, menos se defiende y más se ataca
+  const defShare = clamp((G.aiTune || AI_TUNE).defBase - (G.aiTune || AI_TUNE).ratioDef * ratio + 0.2 * doc.fort + 0.1 * doc.depth - 0.15 * doc.aggr, 0.12, 0.9);   // cuanto más fuerte, menos se defiende y más se ataca
   const budget = total * defShare;
   const orders = (a, dest, task) => { if (a.battle) return false; if (a.path.length && a.ai && a.ai.task === task && a.dest !== undefined && a.dest !== null && provDist(a.dest, dest) < 5) return true; if (a.dest === dest && a.path.length) { a.ai = {task, dest}; return true; } if (a.loc === dest) { a.ai = {task, dest}; if (!a.path.length && task === 'def' && a.mode !== 'hold') setMode(a, 'hold'); return true; } const r = orderMove(a, dest); if (r.ok) a.ai = {task, dest}; return r.ok; };
 
@@ -9294,7 +9296,7 @@ function aiWarStep(t) {
     MAP.provs[a.loc].nb.forEach(q => {
       if (!canEnter(t, q) || taken.has(q)) return; const own = provOwner(q), by = G.P[q].by;
       const enemyHeld = (hostileTags(t, own) && !(by && sameSide(t, by))) || (by && hostileTags(t, by) && !sameSide(t, by)); if (!enemyHeld) return;
-      const opp = aiEnemyPower(t, q, 2); if (opp * (1.15 - 0.3 * doc.aggr + 0.15) > myPow) return;                // solo con superioridad local
+      const opp = aiEnemyPower(t, q, 2); if (opp * (1.15 - 0.3 * doc.aggr + (G.aiTune || AI_TUNE).tempo) > myPow) return;                // solo con superioridad local
       const sc = (aiEnemyValue(q, own, war) + 2) / (1 + opp * 0.5) * (own === t ? 1.4 : 1); if (sc > bs) { bs = sc; best = q; }
     });
     if (best !== null && orders(a, best, 'atk')) { taken.add(best); usedOpp.add(a.id); }
@@ -9332,7 +9334,7 @@ function aiWarStep(t) {
 function aiObjs(t, striking, ctx) {
   const {V, war, enemies, doc, m, ratio} = ctx;
   const strike = striking.reduce((n, a) => n + armyPow(a), 0);
-  const req = 1.45 - 0.7 * doc.aggr - (m.war.idle > 6 ? 0.25 : 0) - (ratio > 1.5 ? 0.15 : 0);      // superioridad local exigida
+  const req = (G.aiTune || AI_TUNE).reqBase - 0.7 * doc.aggr - (m.war.idle > 6 ? 0.25 : 0) - (ratio > 1.5 ? 0.15 : 0);      // superioridad local exigida
   const cx = striking.reduce((n, a) => n + MAP.provs[a.loc].lon * armyPow(a), 0) / Math.max(1e-6, strike), cy = striking.reduce((n, a) => n + MAP.provs[a.loc].lat * armyPow(a), 0) / Math.max(1e-6, strike);
   // objetivos candidatos: provincias enemigas junto a lo mío, la capital enemiga y los objetivos de guerra
   const cand = new Map(); const addC = p => { if (!cand.has(p)) cand.set(p, 1); };

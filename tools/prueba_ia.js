@@ -3,7 +3,7 @@
 // Uso: node tools/prueba_ia.js [días] [parejas] [A:B ...]   (ej. node tools/prueba_ia.js 500 10 1:2)
 const { chromium } = require('playwright');
 (async () => {
-  const days = +(process.argv[2] || 500), maxPairs = +(process.argv[3] || 10), modes = (process.argv.slice(4).length ? process.argv.slice(4) : ['1:1', '2:2', '1:2', '2:1']);
+  const tune = process.env.TUNE ? JSON.parse(process.env.TUNE) : null; const days = +(process.argv[2] || 500), maxPairs = +(process.argv[3] || 10), modes = (process.argv.slice(4).length ? process.argv.slice(4) : ['1:1', '2:2', '1:2', '2:1']);
   const browser = await chromium.launch({args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--enable-webgl']});
   const page = await browser.newPage({viewport: {width: 1000, height: 600}});
   let errs = 0; page.on('pageerror', e => { errs++; console.log('[pageerror]', e.message.slice(0, 300), (e.stack || '').split('\n').slice(0, 3).join('|')); });
@@ -21,8 +21,8 @@ const { chromium } = require('playwright');
   const vsm = {}; const agg = {}, vs = {n: 0, occN: 0, occO: 0, casN: 0, casO: 0, capN: 0, capO: 0, statN: 0, statO: 0, divN: 0, divO: 0, idleN: 0, idleO: 0, offN: 0, offO: 0};
   for (const [a, b] of chosen) for (const m of modes) {
     const [va, vb] = m.split(':').map(Number);
-    const r = await page.evaluate(({txt, a, b, va, vb, days}) => {
-      loadData(txt); G.noOffers = true; G.paused = true; G.C[G.player].ai = true; G.tags.forEach(t => { if (t !== NONE) G.C[t].aiV = 1; }); G.C[a].aiV = va === 1 ? 1 : 2; G.C[b].aiV = vb === 1 ? 1 : 2; G.C[a].aiOps = va === 3; G.C[b].aiOps = vb === 3;
+    const r = await page.evaluate(({txt, a, b, va, vb, days, tune}) => {
+      loadData(txt); G.noOffers = true; G.aiTune = tune ? Object.assign({tempo: 0.15, defBase: 0.9, reqBase: 1.45, ratioDef: 0.25}, tune) : null; G.paused = true; G.C[G.player].ai = true; G.tags.forEach(t => { if (t !== NONE) G.C[t].aiV = 1; }); G.C[a].aiV = va === 1 ? 1 : 2; G.C[b].aiV = vb === 1 ? 1 : 2; G.C[a].aiOps = va === 3; G.C[b].aiOps = vb === 3;
       // si alguno tiene tratado de alianza/protección se ignora: guerra limpia entre los dos
       G.pacts = G.pacts.filter(p => ![a, b].includes(p.a) && ![a, b].includes(p.b)); G.C[a].bloc = G.C[b].bloc = null; G.C[a].overlord = G.C[b].overlord = null;
       const targets = reachableStates(a, b).slice(0, 3).map(x => x.id); const w0 = declareWar(a, b, targets.length ? 'conquest' : 'humiliate', targets, {free: true}); if (w0 && w0.ok === false) return {skip: w0.msg};
@@ -50,7 +50,7 @@ const { chromium } = require('playwright');
       [a, b].forEach(t => { const s = st[t]; res[t] = {v: t === a ? va : vb, capExp: s.capExp, misalloc: s.misalloc, idleFrac: +(s.idle / Math.max(1, s.armyDays)).toFixed(3), offFrac: +(s.offDays / Math.max(1, s.armyDays)).toFixed(3), useless: s.useless, capOcc: s.capOccDays, occ: occ(t), cas: Math.round((G.C[t].cnt && G.C[t].cnt.casualties) || 0), divs: countDivs(t), states: G.C[t].states.length}; });
       const wl = G.battleLog || []; res.battles = wl.length;
       return res;
-    }, {txt: snap, a, b, va, vb, days});
+    }, {txt: snap, a, b, va, vb, days, tune});
     if (r.skip) { console.log(a, b, 'omitida', r.skip); continue; }
     const key = m; agg[key] = agg[key] || {n: 0, capExp: 0, misalloc: 0, idle: 0, off: 0, useless: 0, occFor: 0, occAgainst: 0, ends: 0, capOcc: 0};
     const A = agg[key]; A.n++; ['a', 'b'].forEach((k, i) => { const t = i ? b : a, o = i ? a : b; A.capExp += r[t].capExp; A.misalloc += r[t].misalloc; A.idle += r[t].idleFrac; A.off += r[t].offFrac; A.useless += r[t].useless; A.capOcc += r[t].capOcc; A.occFor += r[t].occ; A.occAgainst += r[o].occ; });

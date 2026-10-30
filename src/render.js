@@ -528,6 +528,7 @@ function drawMinimap() {
 let _lastT = 0;
 function frame_(t) {
   const dt = Math.min(0.1, (t - _lastT) / 1000); _lastT = t;
+  if (R.skip3d) { if (window.onFrame) window.onFrame(t); requestAnimationFrame(frame_); return; }
   keyboardPan(dt);
   if (R.cityMesh === undefined && G.S && G.S.length && MAP.provs) { try { buildCities(); } catch (e) { console.warn(e); } R.cityMesh = R.cityMesh || null; R.dirty = true; }
   if ((R.anim || R.smokeOn || (G.battles && G.battles.length)) && t - (R.lastAnim || 0) > 55) { R.lastAnim = t; if (R.anim && animateMap(t)) R.dirty = true; R.smokeOn = updateSmoke(t); if (R.smokeOn) R.dirty = true; updateCityVisibility(); if (G.armies && G.armies.length && (R.cam.dist < 62 || R.figsShown)) updateArmyMeshes(t); }

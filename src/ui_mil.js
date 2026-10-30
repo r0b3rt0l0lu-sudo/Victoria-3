@@ -183,7 +183,7 @@ function renderBattlePanel() {
   const root = $('#battlepanel'); if (!root) return;
   let b = UI.battle ? G.battles.find(x => x.id === UI.battle) : null;
   if (!b && UI.battle && G.lastEnded && G.lastEnded.id === UI.battle) b = G.lastEnded;
-  if (!b) { root.classList.remove('open'); root.innerHTML = ''; root.dataset.bid = ''; UI.battle = null; return; }
+  if (!b) { root.classList.remove('open'); root.innerHTML = ''; root.dataset.bid = ''; UI.battle = null; if (R.skip3d) { R.skip3d = false; R.dirty = true; R.labelsDirty = true; G.paused = R.bvPrevPause !== false; } return; }
   const done = !!b.ended;
   const side = (ids, isAtt, tag0) => {
     const as = ids.map(armyById).filter(Boolean); let men = 0, nd = 0, str = 0, org = 0; const types = {};
@@ -212,10 +212,12 @@ function renderBattlePanel() {
   root.classList.add('open');
   if (root.dataset.bid !== String(b.id)) {
     root.dataset.bid = b.id; root._sb = '';
-    root.innerHTML = `<div class="sp-head"><div><h2 id="bt-title"></h2><small id="bt-sub"></small></div><button class="x" data-act="closebattle">✕</button></div>
-    <canvas id="bmap" width="${BV_W}" height="${BV_H}"></canvas><div id="bt-strat"></div><div id="bt-stats"></div><div id="bt-hist"></div><div id="bt-log" class="blog"></div>`;
+    root.innerHTML = `<div class="sp-head"><div><h2 id="bt-title"></h2><small id="bt-sub"></small></div><button class="bvplay" data-act="bvpause"></button><button class="x" data-act="closebattle">✕</button></div>
+    <canvas id="bmap" width="${BV_W * 2}" height="${BV_H * 2}"></canvas><div id="bt-strat"></div><div id="bt-stats"></div><div id="bt-hist"></div><div id="bt-log" class="blog"></div>`;
     R.bviz = null;
+    if (!R.skip3d) { R.skip3d = true; R.bvPrevPause = G.paused; G.paused = true; }
   }
+  const pb = $('.bvplay'); if (pb) pb.textContent = G.paused ? '▶ Continuar la batalla' : '⏸ Pausar';
   $('#bt-title').textContent = '⚔ Batalla de ' + provName(b.prov);
   $('#bt-sub').textContent = `${done ? 'Batalla finalizada' : 'Día ' + b.day} · ${BIOME_NAMES[pv.biome] || ''} · defensa ×${terr.def.toFixed(2)} · movilidad ×${terr.move.toFixed(2)}`;
   const mySide = [['A', A], ['B', B]].find(([k, S]) => S.tag === G.player), sn = k => STRATS[b['str' + k]] || STRATS.frontal;
@@ -288,6 +290,7 @@ function drawBattleMap(cv, b, A, B) {
 
 /* ---------- acciones ---------- */
 Object.assign(ACT, {
+  bvpause: () => { G.paused = !G.paused; if (!G.paused && UI.speed < 2) UI.speed = 2; renderBattlePanel(); },
   battlestrat: d => { const b = G.battles.find(x => x.id === UI.battle); if (!b) return; [...b.A, ...b.B].map(armyById).filter(a => a && a.tag === G.player).forEach(a => { a.strat = d.s || null; }); updateStrategies(b); renderBattlePanel(); },
   armystrat: d => { selectedArmies().forEach(a => { a.strat = d.s || null; }); renderArmyPanel(); },
   optfm: () => { UI.optFm = !UI.optFm; const l = selectedArmies(); l.forEach(a => { if (a.path.length) a.fm = UI.optFm; }); renderArmyPanel(); },

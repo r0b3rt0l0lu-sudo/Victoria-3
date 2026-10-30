@@ -367,8 +367,8 @@ svg.orders line.arrow{stroke:#e8644f;stroke-width:3;opacity:.8}svg.orders line.a
 
 #vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 55%,rgba(5,10,14,.38) 100%)}
 
-#confdlg{position:fixed;inset:0;display:none;background:rgba(5,9,12,.6);z-index:60;align-items:center;justify-content:center;pointer-events:auto}
-#confdlg.open{display:flex}#confdlg .wd{width:min(980px,calc(100vw - 30px));max-height:calc(100vh - 40px);display:flex;flex-direction:column;background:linear-gradient(180deg,#27323b,#1b232a);border:1px solid var(--gold);border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.8)}
+#confdlg,#peacedlg{position:fixed;inset:0;display:none;background:rgba(5,9,12,.6);z-index:60;align-items:center;justify-content:center;pointer-events:auto}
+#confdlg.open,#peacedlg.open{display:flex}#confdlg .wd,#peacedlg .wd{width:min(980px,calc(100vw - 30px));max-height:calc(100vh - 40px);display:flex;flex-direction:column;background:linear-gradient(180deg,#27323b,#1b232a);border:1px solid var(--gold);border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.8)}
 .cfrow{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid rgba(201,166,87,.2);border-radius:6px;margin:4px 0;cursor:pointer;background:rgba(0,0,0,.15)}.cfrow.on{border-color:var(--gold2);background:rgba(201,166,87,.14)}.cfrow .cfl{flex:1}.cfrow .cfc{min-width:50px;text-align:right;color:var(--gold2)}.cfrow select{background:#232e37;color:var(--text,#e8e0c8);border:1px solid var(--goldd);border-radius:4px}
 
 svg.orders line.arrow.sea{stroke:#6aa8e8;stroke-width:3.5}.atoken.sea{background:rgba(24,48,70,.95);border-color:#6aa8e8}
@@ -2193,6 +2193,7 @@ function advanceDay() {
   econDay();
   militaryDay(); natDay();
   if (d.t % 2 === 0) aiMilitary();
+  if (typeof aiWarAll === 'function') aiWarAll();
   if (monthly) monthlyTick();
   dailyEvents();
 }
@@ -3437,7 +3438,7 @@ function warWeek() {
     else if (!humans && w.weeks > 176) endWar(w, null);
     else if (humans && w.weeks > 240 && Math.abs(w.score) < 25) endWar(w, null);
   }
-  milEconWeek(); if (typeof mil2Week === 'function') mil2Week(); aiRecruitWeek(); aiTrainWeek(); aiLandingWeek(); if (typeof intelWeek === 'function') intelWeek(); if (typeof homeWeek === 'function') homeWeek();
+  milEconWeek(); if (typeof mil2Week === 'function') mil2Week(); aiRecruitWeek(); aiTrainWeek(); aiLandingWeek(); if (typeof intelWeek === 'function') intelWeek(); if (typeof peaceOffersWeek === 'function') peaceOffersWeek(); if (typeof homeWeek === 'function') homeWeek();
 }
 
 /* ---------- paz y resultado ---------- */
@@ -3651,7 +3652,7 @@ function diploMonth() {
   recalcTradeLoss();
   G.tags.forEach(t => { if (t !== NONE) stepFabricate(G.C[t]); });
   // propuestas pendientes caducan
-  G.proposals = G.proposals.filter(pp => G.date.t - pp.t < 180 && alive(pp.from));
+  G.proposals = G.proposals.filter(pp => G.date.t - pp.t < 180 && alive(pp.from) && (pp.type !== 'peace' || (G.date.t - pp.t < 60 && G.wars.some(w => w.id === pp.wid))));
   // IA
   G.tags.forEach(t => {
     const c = G.C[t]; if (t === NONE || !c.ai || !c.states.length) return;
@@ -4344,7 +4345,7 @@ function aiMilitary() {
   const armiesAt = pid => byP.get(pid) || [];
   G.tags.forEach(t => {
     if (t === NONE) return; const c = G.C[t];
-    if (!c.ai || !c.wars.length) return;
+    if (!c.ai || !c.wars.length || (c.aiV || 2) !== 1) return;
     const enemies = G.tags.filter(o => hostileTags(t, o));
     if (!enemies.length) return;
     const mine = armiesOf(t).filter(a => !a.battle);
@@ -6089,7 +6090,7 @@ WINDOWS.diplomacy = {title: 'Diplomacia', icon: '🤝', render() {
      ${actions}</div></div></div>`;
   } else if (t === 'pacts') {
     const mine = pactsOf(G.player);
-    body = `${G.proposals.length ? `<div class="card"><h3>Propuestas recibidas</h3>${G.proposals.map(pp => `<div class="kv"><span>${flag(pp.from, 'sm')} <b>${G.C[pp.from].name}</b> propone ${pp.type === 'bloc' ? 'que ingreses en su bloque' : PACTS[pp.type].icon + ' ' + PACTS[pp.type].name.toLowerCase()}</span><span><button data-act="propyes" data-id="${pp.id}">Aceptar</button> <button data-act="propno" data-id="${pp.id}">Rechazar</button></span></div>`).join('')}</div>` : ''}
+    body = `${G.proposals.filter(pp => pp.type === 'peace').map(pp => peaceProposalHtml(pp)).join('')}${G.proposals.some(pp => pp.type !== 'peace') ? `<div class="card"><h3>Propuestas recibidas</h3>${G.proposals.filter(pp => pp.type !== 'peace').map(pp => `<div class="kv"><span>${flag(pp.from, 'sm')} <b>${G.C[pp.from].name}</b> propone ${pp.type === 'bloc' ? 'que ingreses en su bloque' : PACTS[pp.type].icon + ' ' + PACTS[pp.type].name.toLowerCase()}</span><span><button data-act="propyes" data-id="${pp.id}">Aceptar</button> <button data-act="propno" data-id="${pp.id}">Rechazar</button></span></div>`).join('')}</div>` : ''}
     <div class="card"><h3>Mis acuerdos</h3>${mine.length ? `<table class="tbl"><thead><tr><th>Acuerdo</th><th>Con</th><th>Desde</th><th>Caduca</th><th></th></tr></thead><tbody>${mine.map(p => { const o2 = p.a === G.player ? p.b : p.a; const dir = PACTS[p.type].mutual ? '' : (p.a === G.player ? ' (tú → ellos)' : ' (ellos → tú)'); return `<tr><td>${pactLabel(p)}${dir}</td><td>${flag(o2, 'sm')} ${G.C[o2].name}</td><td>${MONTHS_CAP[p.since.m].slice(0, 3)} ${p.since.y}</td><td>${p.until ? p.until.y : '—'}</td><td class="r"><button data-act="breakpact" data-id="${p.id}">Romper</button></td></tr>`; }).join('')}</tbody></table>` : '<p class="hint">No tienes ningún acuerdo. Selecciona un país en la pestaña Potencias para proponer alianzas, garantías, tratados comerciales…</p>'}</div>
     <div class="card"><h3>Tipos de acuerdo</h3>${Object.keys(PACTS).map(k => `<div class="kv sm"><span><b>${PACTS[k].icon} ${PACTS[k].name}</b> — ${PACTS[k].desc}</span><b>${PACTS[k].cost} infl.</b></div>`).join('')}</div>`;
   } else if (t === 'blocs') {
@@ -6188,7 +6189,7 @@ WINDOWS.military = {title: 'Ejército y guerra', icon: '⚔️', render() {
       <div class="wbar"><b style="width:${(w.score + 100) / 2}%"></b></div>
       <div class="kv"><span>Fuerza: ${fmtN(w.pa || 0, 0)} vs ${fmtN(w.pd || 0, 0)} · Batallas ganadas ${bws.att}–${bws.def}</span><b class="${score >= 0 ? 'good' : 'bad'}">Puntuación ${sgn(score, 0)}</b></div>
       <div class="kv sm"><span>Ejércitos propios / enemigos</span><b>${fc} / ${ec}</b></div>
-      <div class="btnrow"><button data-act="peace" data-id="${w.id}">🕊️ ${po.label}</button><button data-act="focus" data-id="${w.targets[0] ?? w.cTargets[0] ?? G.C[w.def].capital}">📍 Ver el frente</button></div></div>`;
+      <div class="btnrow"><button data-act="peace" data-id="${w.id}">🕊️ ${po.label}</button><button data-act="poopen" data-id="${w.id}">📜 Negociar paz…</button><button data-act="focus" data-id="${w.targets[0] ?? w.cTargets[0] ?? G.C[w.def].capital}">📍 Ver el frente</button></div></div>`;
     }).join('') : '<p class="hint">Tu país está en paz. Declara una guerra desde Diplomacia → Potencias. La puntuación de guerra depende ahora de los estados <b>ocupados</b> por tus ejércitos y de las batallas ganadas.</p>'}</div></div>
     <div class="col"><div class="card"><h3>Batallas en curso</h3>${G.battles.length ? G.battles.slice(0, 14).map(b => { const ta = (armyById(b.A[0]) || {}).tag, tb = (armyById(b.B[0]) || {}).tag; return ta && tb ? `<div class="kv sm clk" data-act="focus" data-id="${b.state}"><span>${flag(ta, 'sm')} vs ${flag(tb, 'sm')} ${G.S[b.state].name}</span><b>día ${b.day}</b></div>` : ''; }).join('') : '<p class="hint">No hay batallas.</p>'}</div>
     <div class="card"><h3>Otras guerras</h3>${G.wars.filter(w => !myWars.includes(w)).map(w => `<div class="kv"><span>${CBS[w.cb].icon} ${flag(w.att, 'sm')} ${G.C[w.att].name} → ${flag(w.def, 'sm')} ${G.C[w.def].name}</span><span><b>${sgn(w.score, 0)}</b> <button data-act="focus" data-id="${w.targets[0] ?? G.C[w.def].capital}">📍</button></span></div>`).join('') || '<p class="hint">No hay otras guerras.</p>'}</div></div></div>`;
@@ -6661,6 +6662,8 @@ function doLoad(fromStart) {
 
 /* ---------- bucle principal ---------- */
 const SPEED_MS = [0, 1300, 750, 380, 170, 60];
+// con una batalla abierta en el panel el tiempo corre despacio (≥ 1,8 s por día) para que dé tiempo a ver el combate
+const dayMs = () => (UI.battle && R.skip3d) ? Math.max(1800, SPEED_MS[UI.speed] || 1800) : SPEED_MS[UI.speed];
 let _gt = 0;
 window.onFrame = function (t) {
   if (!UI.started) return;
@@ -6668,8 +6671,8 @@ window.onFrame = function (t) {
   if (!G.paused && !G.pendingEvent) {
     UI.acc += Math.min(dt, 200);
     let n = 0;
-    while (UI.acc >= SPEED_MS[UI.speed] && n < 40) {
-      UI.acc -= SPEED_MS[UI.speed]; const m0 = G.date.m;
+    while (UI.acc >= dayMs() && n < 40) {
+      UI.acc -= dayMs(); const m0 = G.date.m;
       advanceDay(); n++;
       if (G.date.m !== m0 && R.mode !== 'political' && R.mode !== 'terrain') R.needPaint = true;
       if (G.date.m !== m0 && G.date.m === 0) doSave(true);
@@ -7034,7 +7037,7 @@ function bvSync(V, b) {
       seen.add(it.d); let g = V.groups.get(it.d);
       if (!g) {
         g = {d: it.d, side, type: dKind(it.d), units: [], color: G.C[it.a.tag].color};
-        const nf = BV_FIGS[g.type]; for (let k = 0; k < nf; k++) { const u = {g, side, type: g.type, k, x: side === 'A' ? -20 : BV_W + 20, y: BV_H / 2, vx: 0, vy: 0, alive: true, dying: 0, flee: 0, face: side === 'A' ? 0 : Math.PI, flash: 0, ph: Math.random() * 6.28}; g.units.push(u); V.units.push(u); }
+        const nf = BV_FIGS[g.type]; for (let k = 0; k < nf; k++) { const u = {g, side, type: g.type, k, x: (side === 'A' ? BV_W * 0.16 : BV_W * 0.84) + rnd(-14, 14), y: BV_H / 2 + rnd(-70, 70), vx: 0, vy: 0, alive: true, dying: 0, flee: 0, face: side === 'A' ? 0 : Math.PI, flash: 0, ph: Math.random() * 6.28}; g.units.push(u); V.units.push(u); }
         V.groups.set(it.d, g);
       }
       g.front = i < nFront; g.idx = i; g.n = g.front ? nFront : list.length - nFront; g.ri = g.front ? i : i - nFront;
@@ -7072,7 +7075,7 @@ function bvStrat(b, side) { return (side === 'A' ? b.strA : b.strB) || 'frontal'
 // posición de la línea de cada bando según estrategia y momento
 function bvLine(V, b, side) {
   const x0 = BV_W / 2 + V.adv * 85, st = bvStrat(b, side), att = b.att === side, dir = side === 'A' ? 1 : -1;
-  const frac = clamp((performance.now() - V.dayT) / Math.max(400, (UI.speed ? SPEED_MS[UI.speed] : 750)), 0, 1), dday = b.day - 1 + frac;
+  const frac = clamp((performance.now() - V.dayT) / Math.max(400, dayMs()), 0, 1), dday = b.day - 1 + frac;
   let gap = 34;
   if (st === 'frontal') gap = att ? 24 + 11 * Math.sin(V.t * 1.6) : 36;
   else if (st === 'hold') gap = att ? 52 : 52 + 22;
@@ -7100,7 +7103,7 @@ function bvFrame(V, b, ctx, now) {
   const lines = {A: bvLine(V, b, 'A'), B: bvLine(V, b, 'B')};
   ['A', 'B'].forEach(s => { if (V.boost[s] > 0) V.boost[s] -= dt; if (V.panic[s] > 0) V.panic[s] -= dt; if (V.man[s]) { V.man[s].t += dt; if (V.man[s].t > V.man[s].dur) V.man[s] = null; } });
   if (V.rain > 0) V.rain -= dt;
-  const frac = clamp((now - V.dayT) / Math.max(400, (UI.speed ? SPEED_MS[UI.speed] : 750)), 0, 1);
+  const frac = clamp((now - V.dayT) / Math.max(400, dayMs()), 0, 1);
   // ---- movimiento de los soldados ----
   V.units.forEach(u => {
     if (u.dying > 0) { u.dying -= dt; return; }
@@ -7626,17 +7629,19 @@ function applyConference(c) {
     else if (o.type === 'vassal') { makeSubject(c.winner, c.loseLead); cnt(W, 'vassalsMade'); notes.push('vasallaje'); }
   });
   const att = c.winner === w.att;
+  if (c.negotiated) { W.prestige += 3 + gained.length * 2; cnt(W, 'statesGained', gained.length); L.prestige = Math.max(0, L.prestige - 3); L.wear = Math.max(0, (L.wear || 0) - 25); W.wear = Math.max(0, (W.wear || 0) - 15); }
+  else {
   W.prestige += 6 + gained.length * 4; cnt(W, 'statesGained', gained.length); cnt(W, 'warsWon'); if (!att) cnt(W, 'defended');
-  L.prestige = Math.max(0, L.prestige - 8); L.legitimacy -= 4; L.wear = Math.max(0, (L.wear || 0) - 20);
+  L.prestige = Math.max(0, L.prestige - 8); L.legitimacy -= 4; L.wear = Math.max(0, (L.wear || 0) - 20); }
   c.winAll.forEach(t => { if (t !== c.winner && alive(t)) G.C[t].prestige += 3; });
   addRel(c.winner, c.loseLead, att ? 20 : 10);
-  const txt = att ? `${W.name} vence a ${L.name}` : `${W.name} repele la invasión de ${L.name}`;
+  const txt = c.negotiated ? `paz negociada entre ${W.name} y ${L.name}` : att ? `${W.name} vence a ${L.name}` : `${W.name} repele la invasión de ${L.name}`;
   notify('war', `Conferencia de paz: ${txt}${gained.length ? ' y se anexiona ' + gained.join(', ') : ''}${notes.length ? '. Además: ' + notes.join(', ') : ''}.`, c.pick.size && gained.length ? c.opts.find(o => o.type === 'state' && c.pick.has(o.id)).sid : undefined);
   G.tags.forEach(t => { if (t !== NONE) G.C[t].legitimacy = clamp(G.C[t].legitimacy, 0, 100); });
   recalcHostile(); evacuateForeignArmies(); if (typeof fullRepaint === 'function' && gained.length) fullRepaint();
 }
 const loseAllHas = (c, tag) => c.loseAll.includes(tag);
-function endWar(w, winner) {
+function endWar(w, winner, preset) {
   const idx = G.wars.indexOf(w); if (idx >= 0) G.wars.splice(idx, 1);
   const conf = winner !== null && !w.auto ? buildConference(w, winner) : null;      // antes de borrar las ocupaciones
   clearOccupationKeep(w);
@@ -7644,6 +7649,7 @@ function endWar(w, winner) {
   const A = G.C[w.att], D = G.C[w.def];
   if (winner === null) { notify('war', `${A.name} y ${D.name} firman una paz blanca.`); addRel(w.att, w.def, 25); return; }
   if (w.auto) { settleLegacy(w, winner); return; }
+  if (preset && conf) { conf.pick = new Set(preset.ids); conf.negotiated = !!preset.negotiated; applyConference(conf); return; }
   const humanLead = !G.C[winner].ai && typeof openConference === 'function' && !G.headless;
   if (humanLead) { G.confQueue = G.confQueue || []; G.confQueue.push(conf); if (!G.conf) nextConference(); }
   else { aiPickDemands(conf); applyConference(conf); }
@@ -9114,6 +9120,556 @@ Object.assign(ACT, {
   marfront: (d, el) => { const f = (G.fronts || []).find(x => x.id === +d.id); if (f) { const m = el && el.value ? mx().mar.find(x => x.id === +el.value) : null; f.mar = m ? m.id : null; } renderWindow(); }
 });
 
+/* ===== IA DE GUERRA (v2) =====
+   Sustituye a la IA terrestre voraz de cada ejército por una planificación estratégica por país:
+   1. Valora las provincias (capital, industria y población, puertos, objetivos de guerra) y calcula el PELIGRO que suponen los ejércitos
+      enemigos (distancia, destino y ruta previstos).
+   2. DEFENSA con sentido: protege primero la capital y las provincias de más valor amenazadas; no malgasta tropas en territorios
+      inútiles ni abandona el corazón del país por una incursión menor. Solo manda la fuerza necesaria (1,2-1,4 × el peligro).
+   3. OFENSIVA coordinada: elige ejes de ataque contra objetivos valiosos (capital enemiga, objetivos de guerra, industria, puertos),
+      concentra los ejércitos en un punto de reunión y avanza en bloque cuando hay superioridad; no se queda pasiva.
+   4. Retirada ordenada si está en inferioridad local, y doctrina histórica por país (agresividad, defensa en profundidad, capital).
+   La versión antigua sigue disponible con c.aiV = 1 (para pruebas comparativas). */
+const AI_DOC = {
+  PRU: {aggr: .85, capW: 1.2, depth: 0, fort: .2},      // ofensiva rápida contra la capital rival (estilo Moltke/Schlieffen)
+  FRA: {aggr: .75, capW: 1.4, depth: .1, fort: .3},     // élan ofensivo, pero París es el centro de todo
+  AUS: {aggr: .55, capW: 1.1, depth: .2, fort: .3},     // ejército cauto con varios frentes
+  RUS: {aggr: .55, capW: .8, depth: .8, fort: .1},      // defensa en profundidad: cede espacio y contraataca
+  GBR: {aggr: .45, capW: 1, depth: 0, fort: .2},        // potencia naval, ejército pequeño
+  OTT: {aggr: .4, capW: 1.5, depth: .3, fort: .7},      // defensa de Constantinopla y los Estrechos
+  USA: {aggr: .7, capW: .8, depth: .2, fort: .1},
+  JAP: {aggr: .9, capW: 1, depth: 0, fort: .2},
+  CHN: {aggr: .3, capW: 1, depth: .8, fort: .2}
+};
+// parámetros de calibración de la IA (ajustados con torneos; ver tools/prueba_ia.js)
+const AI_TUNE = {tempo: 0.15, defBase: 0.9, reqBase: 1.45, ratioDef: 0.25};
+const aiDoc = c => AI_DOC[c.tag] || {aggr: c.rank <= 12 ? .6 : .4, capW: 1.2, depth: .2, fort: c.rank > 20 ? .6 : .3};
+const armyPow = a => { let p = 0; a.divs.forEach(d => { const i = DIVS[d.t] || DIVS.inf; p += d.s * (i.att + i.def) * (0.55 + 0.45 * d.o / i.org); }); return p; };
+const mineProv = (t, pid) => { const o = provOwner(pid), by = G.P[pid].by; return (by && sameSide(t, by)) || ((o === t || (o !== NONE && sameSide(t, o))) && !(by && !sameSide(t, by))); };
+
+/* ---------- valor de las provincias de un país ---------- */
+function aiProvValues(tag) {
+  const c = G.C[tag], V = new Map(); let tot = 0;
+  c.states.forEach(sid => tot += G.S[sid].gdp + 1);
+  const capProv = c.capital >= 0 ? MAP.stats[c.capital].provs : [];
+  c.states.forEach(sid => { const s = G.S[sid], ps = MAP.stats[sid].provs, base = (s.gdp + 1) / Math.max(1, tot) * 100 / ps.length; ps.forEach(pid => { let v = base + (MAP.provs[pid].port ? 1.2 : 0) + (s.city ? 0.8 : 0); if (sid === c.capital) v += 6; V.set(pid, v); }); });
+  if (capProv.length) { const cp = capProv[0]; V.set(cp, (V.get(cp) || 0) + 25); }
+  return V;
+}
+function aiEnemyValue(pid, enemyTag, war) {
+  const s = G.S[provState(pid)], c = G.C[s.owner]; if (!c || s.owner === NONE) return 0.5;
+  let tot = 0; c.states.forEach(sid => tot += G.S[sid].gdp + 1);
+  let v = (s.gdp + 1) / Math.max(1, tot) * 100 / Math.max(1, MAP.stats[s.id].provs.length) + (MAP.provs[pid].port ? 1.5 : 0) + (s.city ? 1 : 0);
+  if (s.id === c.capital) v += 14 + (MAP.stats[s.id].provs[0] === pid ? 40 : 0);
+  if (war && war.targets && war.targets.includes(s.id)) v += 22;
+  return v;
+}
+
+/* ---------- peligro ---------- */
+function aiDanger(t) {
+  const D = new Map(), add = (p, v) => D.set(p, (D.get(p) || 0) + v);
+  G.armies.forEach(e => {
+    if (e.sea || !hostileTags(t, e.tag)) return; const pw = armyPow(e); if (pw <= 0) return;
+    // alcance: 4 provincias a la redonda con peso decreciente, y el destino/ruta previstos del ejército
+    const seen = new Map([[e.loc, 0]]); let fr = [e.loc]; add(e.loc, pw);
+    for (let d = 1; d <= 4; d++) { const nx = []; fr.forEach(p => MAP.provs[p].nb.forEach(q => { if (!seen.has(q)) { seen.set(q, d); nx.push(q); add(q, pw / (1 + d * 0.9)); } })); fr = nx; }
+    if (e.path && e.path.length) e.path.slice(0, 5).forEach((p, i) => add(p, pw * (0.9 - i * 0.12)));
+  });
+  return D;
+}
+function aiEnemyPower(t, pid, rad) {   // fuerza enemiga en la provincia y a distancia ≤ rad (grados)
+  let p = 0; G.armies.forEach(e => { if (e.sea || !hostileTags(t, e.tag)) return; const d = e.loc === pid ? 0 : provDist(e.loc, pid); if (d <= rad) p += armyPow(e) * (d <= 1 ? 1 : 0.6); });
+  return p;
+}
+
+/* ---------- paso estratégico por país ---------- */
+function aiWarStep(t) {
+  const c = G.C[t], doc = aiDoc(c), m = mc(c); m.war = m.war || {axes: [], idle: 0, last: 0};
+  const enemies = G.tags.filter(o => o !== NONE && hostileTags(t, o) && G.C[o].states.length); if (!enemies.length) return;
+  const mine = armiesOf(t).filter(a => !a.sea && !a.landing && a.divs.length);
+  if (!mine.length) return;
+  const free = mine.filter(a => !a.battle);
+  const total = mine.reduce((n, a) => n + armyPow(a), 0), foe = G.armies.filter(e => hostileTags(t, e.tag) && !e.sea).reduce((n, e) => n + armyPow(e), 0);
+  const allyPow = G.armies.filter(a => a.tag !== t && sameSide(t, a.tag) && !hostileTags(t, a.tag) && !a.sea && a.tag !== NONE && G.C[a.tag].wars.some(x => enemies.includes(x))).reduce((n, a) => n + armyPow(a), 0);
+  const ratio = (total + allyPow * 0.7) / Math.max(1, foe);
+  const V = aiProvValues(t), D = aiDanger(t), war = G.wars.find(w => w.attAll.includes(t) || w.defAll.includes(t));
+  const capProvs = c.capital >= 0 ? MAP.stats[c.capital].provs : [], capP = capProvs[0];
+  const committed = new Set(); let usedDef = 0;
+  const prevTask = new Map(mine.map(a => [a.id, a.ai && a.ai.task]));
+  const defShare = clamp((G.aiTune || AI_TUNE).defBase - (G.aiTune || AI_TUNE).ratioDef * ratio + 0.2 * doc.fort + 0.1 * doc.depth - 0.15 * doc.aggr, 0.12, 0.9);   // cuanto más fuerte, menos se defiende y más se ataca
+  const budget = total * defShare;
+  const orders = (a, dest, task) => { if (a.battle) return false; if (a.path.length && a.ai && a.ai.task === task && a.dest !== undefined && a.dest !== null && provDist(a.dest, dest) < 5) return true; if (a.dest === dest && a.path.length) { a.ai = {task, dest}; return true; } if (a.loc === dest) { a.ai = {task, dest}; if (!a.path.length && task === 'def' && a.mode !== 'hold') setMode(a, 'hold'); return true; } const r = orderMove(a, dest); if (r.ok) a.ai = {task, dest}; return r.ok; };
+
+  /* ---- 1. DEFENSA: capital y provincias valiosas con amenaza INMINENTE ---- */
+  free.forEach(a => { a.ai = null; });                                            // las órdenes se reevalúan en cada ciclo
+  const attacking = a => (prevTask.get(a.id) === 'atk' || prevTask.get(a.id) === 'rally') && a.path.length > 0;
+  const eArmies = G.armies.filter(e => !e.sea && hostileTags(t, e.tag));
+  // un ejército enemigo presiona mi territorio si ya está en él (o en su frontera) o su ruta entra en él
+  const pressing = eArmies.filter(e => provOwner(e.loc) === t || (e.path && e.path.length && e.path.slice(0, 4).some(q => provOwner(q) === t)));
+  const imminent = (p, r) => pressing.some(e => provDist(e.loc, p) <= (r || 9) || (e.path && e.path.slice(0, 4).includes(p)));
+  /* ---- 0. OPERACIONES: maniobras coordinadas (pinza, señuelo, emboscada, defensa elástica, golpe de mano) ---- */
+  if (typeof aiOps === 'function') {
+    const used = aiOps(t, {c, m, doc, free, total, ratio, V, D, war, enemies, eArmies, pressing, capProvs, orders});
+    used.forEach(id => committed.add(id));
+  }
+  /* ---- 1a. INTERCEPTAR invasores en mi territorio cuando hay superioridad (defensa activa) ---- */
+  const intruders = eArmies.filter(e => provOwner(e.loc) === t && !e.battle || (provOwner(e.loc) === t && e.battle)).sort((x, y) => (V.get(y.loc) || 0) + armyPow(y) * 0.1 - (V.get(x.loc) || 0) - armyPow(x) * 0.1);
+  const avgV0 = [...V.values()].reduce((x, y) => x + y, 0) / Math.max(1, V.size);
+  let intercepts = 0;
+  intruders.forEach(e => {
+    if (intercepts >= 2) return;
+    const epw = eArmies.filter(o => provDist(o.loc, e.loc) < 4).reduce((n, o) => n + armyPow(o), 0), need = epw * 1.25;
+    const valuable = (V.get(e.loc) || 0) >= avgV0 * 3 || capProvs.some(q => provDist(q, e.loc) < 3.5);
+    if (epw < Math.max(14, total * (valuable ? 0.08 : 0.2))) return;               // no se persiguen partidas insignificantes
+    if (usedDef + need > budget * (valuable ? 1.6 : 1)) return;
+    const pool = free.filter(a => !committed.has(a.id) && !attacking(a) && provDist(a.loc, e.loc) < 45).sort((a, b) => provDist(a.loc, e.loc) - provDist(b.loc, e.loc));
+    const avail = pool.reduce((n, a) => n + armyPow(a), 0); if (avail < need * 0.95) return;                    // sin superioridad no se sale a su encuentro
+    let got = 0; for (const a of pool) { if (got >= need) break; if (orders(a, e.loc, 'int')) { committed.add(a.id); got += armyPow(a); usedDef += armyPow(a); } }
+    if (got > 0) intercepts++;
+  });
+  const nodes = []; D.forEach((danger, p) => {
+    if (provOwner(p) !== t || danger < 0.8) return;                              // solo se defiende lo propio
+    const cap = capProvs.includes(p), imp = (V.get(p) || 0.3) * (cap ? doc.capW : 1);
+    nodes.push({p, danger, imp, score: imp * Math.min(danger, imp * 4 + danger * 0.3), cap});
+  });
+  nodes.sort((x, y) => y.score - x.score);
+  const avgV = [...V.values()].reduce((x, y) => x + y, 0) / Math.max(1, V.size);
+  let defNodes = 0; const pressTotal = pressing.reduce((n, e) => n + armyPow(e), 0);
+  nodes.forEach(nd => {
+    if (usedDef >= pressTotal * 1.3 + 1) return;                                // la defensa total nunca supera 1,3 × la fuerza que presiona
+    if (defNodes >= 3 || !imminent(nd.p, nd.cap ? 9 : 7)) return;
+    const worthIt = nd.cap || nd.imp >= avgV * 1.8 || nd.imp >= 6;               // las provincias inútiles no merecen un ejército
+    if (!worthIt) return;
+    const near = pressing.filter(e => provDist(e.loc, nd.p) <= 11).reduce((n, e) => n + armyPow(e), 0);
+    if (near < Math.max(0.8, total * (nd.cap ? 0.3 : 0.4))) return;                // las incursiones pequeñas las contiene la guarnición, no el ejército
+    const need = near * (nd.cap ? 1.3 : 1.1); let got = 0;
+    if (!nd.cap && free.some(a => committed.has(a.id) && a.ai && a.ai.task === 'int' && provDist(a.loc, nd.p) < 10)) return;
+    const limit = nd.cap ? Math.max(budget, Math.min(total * 0.85, near * 1.3)) : budget;   // reserva para la ofensiva salvo amenaza máxima sobre la capital
+    const cand = free.filter(a => !committed.has(a.id) && (nd.cap || !attacking(a))).sort((a, b) => provDist(a.loc, nd.p) - provDist(b.loc, nd.p));
+    let usedHere = 0;
+    for (const a of cand) {
+      if (got >= need) break; const pw = armyPow(a);
+      if (usedDef + pw > limit && got > 0) break;
+      if (provDist(a.loc, nd.p) > (nd.cap ? 60 : 30)) continue;
+      if (orders(a, nd.p, 'def')) { committed.add(a.id); got += pw; usedDef += pw; usedHere += pw; }
+    }
+    if (usedHere > 0) defNodes++;
+  });
+  // guarnición mínima de la capital cuando el enemigo se acerca de verdad
+  if (capP !== undefined && imminent(capP, 8) && !free.some(a => committed.has(a.id) && a.ai && a.ai.dest === capP)) {
+    const cand = free.filter(a => !committed.has(a.id)).sort((a, b) => provDist(a.loc, capP) - provDist(b.loc, capP))[0];
+    if (cand && orders(cand, capP, 'def')) committed.add(cand.id);
+  }
+
+  /* ---- 2. RETIRADA ordenada de los ejércitos en clara inferioridad ---- */
+  free.forEach(a => {
+    if (committed.has(a.id) || a.path.length > 0) return;
+    const local = aiEnemyPower(t, a.loc, 3), mineLocal = free.filter(o => provDist(o.loc, a.loc) < 4).reduce((n, o) => n + armyPow(o), 0);
+    if (local > mineLocal * 1.8 && !capProvs.includes(a.loc) && !(V.get(a.loc) > avgV * 3)) {
+      const friends = free.filter(o => o !== a && provDist(o.loc, a.loc) < 25 && armyPow(o) >= armyPow(a) * 0.8).sort((x, y) => armyPow(y) - armyPow(x))[0];
+      const dest = friends ? friends.loc : nearestOwnProv(t, a.loc); if (dest !== null && dest !== a.loc && orders(a, dest, 'retreat')) committed.add(a.id);
+    }
+  });
+
+  /* ---- 3. OFENSIVA: ejes de ataque contra objetivos valiosos ---- */
+  const striking = free.filter(a => !committed.has(a.id));
+  if (!striking.length) return;
+  const ctxO = {V, war, enemies, doc, m, ratio};
+  const {objs, strike, req} = aiObjs(t, striking, ctxO);
+  { const k = m.war.obj !== undefined ? objs.findIndex(o => o.p === m.war.obj) : -1; if (k > 0 && objs[k].score >= objs[0].score * 0.66 && objs[k].feas >= 0.3) { const o = objs.splice(k, 1)[0]; objs.unshift(o); } if (objs[0]) m.war.obj = objs[0].p; }   // persistencia del objetivo: no se cambia de eje por variaciones pequeñas
+  m.war.dbg = {ratio: +ratio.toFixed(2), strike: +strike.toFixed(1), req: +req.toFixed(2), nObjs: objs.length, top: objs[0] ? {p: objs[0].p, sc: +objs[0].score.toFixed(2), feas: +objs[0].feas.toFixed(2), opp: +objs[0].opp.toFixed(1), v: +objs[0].v.toFixed(1)} : null, free: striking.length, def: committed.size, t: G.date.t};
+  if (!objs.length) { m.war.idle++; // sin objetivo a la vista: avanzar hacia la provincia enemiga más cercana
+    const eList = enemyProvList(t, enemies); striking.forEach(a => { if (a.path.length) return; let best = null, bd = 1e9; eList.forEach(pid => { const d = provDist(a.loc, pid); if (d < bd) { bd = d; best = pid; } }); if (best !== null && best !== a.loc) orders(a, best, 'adv'); }); return; }
+  /* ---- 3a. TEMPO: cada ejército ocupa de inmediato la provincia enemiga contigua mejor y alcanzable (como un buen general de vanguardia) ---- */
+  let left0 = striking.slice(); const taken = new Set(), usedOpp = new Set();
+  striking.sort((a, b) => armyPow(b) - armyPow(a)).forEach(a => {
+    if (a.battle || (a.path.length && a.ai === null && prevTask.get(a.id) === 'atk' && a.dest !== undefined && a.dest !== null && !mineProv(t, a.dest) && !(G.P[a.dest].by && sameSide(t, G.P[a.dest].by)))) { if (!a.battle) usedOpp.add(a.id); return; }   // ya va a ocupar algo: no se le cambia la orden
+    let best = null, bs = 0;
+    const friendsNear = free.filter(o => o !== a && provDist(o.loc, a.loc) < 5).reduce((n, o) => n + armyPow(o), 0), myPow = armyPow(a) + friendsNear * 0.6;
+    MAP.provs[a.loc].nb.forEach(q => {
+      if (!canEnter(t, q) || taken.has(q)) return; const own = provOwner(q), by = G.P[q].by;
+      const enemyHeld = (hostileTags(t, own) && !(by && sameSide(t, by))) || (by && hostileTags(t, by) && !sameSide(t, by)); if (!enemyHeld) return;
+      const opp = aiEnemyPower(t, q, 2); if (opp * (1.15 - 0.3 * doc.aggr + (G.aiTune || AI_TUNE).tempo) > myPow) return;                // solo con superioridad local
+      const sc = (aiEnemyValue(q, own, war) + 2) / (1 + opp * 0.5) * (own === t ? 1.4 : 1); if (sc > bs) { bs = sc; best = q; }
+    });
+    if (best !== null && orders(a, best, 'atk')) { taken.add(best); usedOpp.add(a.id); }
+  });
+  left0 = striking.filter(a => !usedOpp.has(a.id));
+  // ejes: se reparte la fuerza restante entre los mejores objetivos, cada uno con la fuerza necesaria
+  let left = left0.slice(), axes = 0; const maxAxes = c.rank <= 6 ? 3 : 2;
+  for (const o of objs) {
+    if (!left.length || axes >= maxAxes) break;
+    const need = Math.max(1.2, o.opp * req * 1.1); const grp = []; let pw = 0;
+    left.sort((a, b) => provDist(a.loc, o.p) - provDist(b.loc, o.p));
+    for (const a of left) { if (pw >= need * 1.25 && grp.length) break; grp.push(a); pw += armyPow(a); }
+    if (pw < need * 0.6 && axes > 0) continue;                        // sin fuerza suficiente para un segundo eje
+    if (pw < need * 0.75 && m.war.idle < 4 && o.opp > 4) { m.war.idle++; /* espera refuerzos: concentra en el punto de reunión */ }
+    // punto de reunión: última provincia propia antes de entrar en territorio enemigo en la ruta al objetivo
+    const lead = grp[0], path = findPath(lead, o.p);
+    let rally = lead.loc; if (path && path.length) { for (let i = 0; i < path.length; i++) { if (!mineProv(t, path[i]) && !(G.P[path[i]].by && sameSide(t, G.P[path[i]].by))) { rally = i > 0 ? path[i - 1] : lead.loc; break; } rally = path[i]; } }
+    const assembled = grp.filter(a => provDist(a.loc, rally) < 1.5).reduce((n, a) => n + armyPow(a), 0), waited = (G.date.t - (m.war.axisT || 0)) > 14;
+    const advance = assembled >= pw * 0.7 || (m.war.idle > 8) || waited || o.opp < 1.5 || o.feas >= 1.2 || grp.every(a => provDist(a.loc, rally) < 1.5);
+    G.aiClaim = G.aiClaim || {}; G.aiClaim[o.p] = {t, d: G.date.t};
+    grp.forEach(a => {
+      if (!advance) { orders(a, rally, 'rally'); return; }
+      // se avanza ocupando provincia a provincia por la ruta (la ocupación exige permanecer unos días): primer eslabón hostil aún no ocupado
+      let tgt = o.p; if (a.loc !== o.p) { const pa = findPath(a, o.p); if (pa && pa.length) { for (const q of pa) { const held = G.P[q].by && sameSide(t, G.P[q].by); const hostile = hostileTags(t, provOwner(q)) || (G.P[q].by && hostileTags(t, G.P[q].by)); if (hostile && !held) { tgt = q; break; } } } }
+      orders(a, tgt, 'atk');
+    });
+    if (!advance) { // reunir en un solo ejército en el punto de reunión
+      const here = grp.filter(a => a.loc === rally && !a.battle).sort((x, y) => y.divs.length - x.divs.length);
+      for (let i = 1; i < here.length; i++) if (here[0].divs.length + here[i].divs.length <= MAX_DIVS_ARMY) { mergeArmies(here[0], here[i]); }
+    }
+    left = left.filter(a => !grp.includes(a)); axes++; m.war.idle = 0; m.war.axisT = m.war.axisT || G.date.t;
+  }
+}
+/* ---------- objetivos ofensivos candidatos (capital enemiga, objetivos de guerra, provincias contiguas, reconquistas) ---------- */
+function aiObjs(t, striking, ctx) {
+  const {V, war, enemies, doc, m, ratio} = ctx;
+  const strike = striking.reduce((n, a) => n + armyPow(a), 0);
+  const req = (G.aiTune || AI_TUNE).reqBase - 0.7 * doc.aggr - (m.war.idle > 6 ? 0.25 : 0) - (ratio > 1.5 ? 0.15 : 0);      // superioridad local exigida
+  const cx = striking.reduce((n, a) => n + MAP.provs[a.loc].lon * armyPow(a), 0) / Math.max(1e-6, strike), cy = striking.reduce((n, a) => n + MAP.provs[a.loc].lat * armyPow(a), 0) / Math.max(1e-6, strike);
+  // objetivos candidatos: provincias enemigas junto a lo mío, la capital enemiga y los objetivos de guerra
+  const cand = new Map(); const addC = p => { if (!cand.has(p)) cand.set(p, 1); };
+  striking.forEach(a => { MAP.provs[a.loc].nb.forEach(q => { if (!mineProv(t, q) && canEnter(t, q) && (hostileTags(t, provOwner(q)) || (G.P[q].by && hostileTags(t, G.P[q].by)))) addC(q); }); });
+  enemies.forEach(e => { const ce = G.C[e]; if (ce.capital >= 0) MAP.stats[ce.capital].provs.slice(0, 1).forEach(addC); });
+  if (war) (war.targets || []).concat(war.cTargets || []).forEach(sid => { if (G.S[sid].owner !== t && hostileTags(t, G.S[sid].owner)) MAP.stats[sid].provs.slice(0, 2).forEach(addC); else if (G.S[sid].owner === t && G.S[sid].occ > 0) MAP.stats[sid].provs.forEach(p => { if (G.P[p].by && hostileTags(t, G.P[p].by)) addC(p); }); });
+  // mis provincias ocupadas por el enemigo: reconquistarlas
+  G.P.forEach((pr, p) => { if (pr.by && hostileTags(t, pr.by) && provOwner(p) === t) addC(p); });
+  const objs = [];
+  cand.forEach((_, p) => {
+    if (mineProv(t, p) && !(G.P[p].by && hostileTags(t, G.P[p].by))) return;
+    const own = provOwner(p), en = G.P[p].by && hostileTags(t, G.P[p].by) ? G.P[p].by : own;
+    const v = own === t ? (V.get(p) || 1) * 1.4 + 3 : aiEnemyValue(p, own, war);
+    const dist = Math.hypot(MAP.provs[p].lon - cx, MAP.provs[p].lat - cy), opp = aiEnemyPower(t, p, 9) + 0.8;
+    const feas = clamp(strike / (req * opp), 0, 1.4), claim = (G.aiClaim && G.aiClaim[p] && G.aiClaim[p].t !== t && G.date.t - G.aiClaim[p].d < 8) ? 0.5 : 1;
+    objs.push({p, v, dist, opp, feas, en, score: v / (1 + dist / 14) * (0.15 + feas) * claim});
+  });
+  objs.sort((x, y) => y.score - x.score);
+  return {objs, strike, req};
+}
+function aiWarAll() {
+  if (!G.aiClaim || G.date.t % 120 === 0) G.aiClaim = {};
+  G.tags.forEach(t => { if (t === NONE) return; const c = G.C[t]; if (!c.ai || !c.wars.length || (c.aiV || 2) === 1) return; if ((G.date.t + c.id) % 3 !== 0) return; aiWarStep(t); });
+}
+
+/* ===== IA DE GUERRA: OPERACIONES ESTRATÉGICAS =====
+   Maniobras coordinadas de varios ejércitos que la IA planifica sobre el estado general de la guerra. Cada operación reserva sus
+   ejércitos (roles) y avanza por fases hasta cumplir su objetivo o fracasar por tiempo:
+   · PINZA ......... dos grupos convergen sobre el mismo objetivo desde provincias distintas y llegan sincronizados (sin ataques por goteo).
+   · SEÑUELO ....... un grupo pequeño amaga contra un punto fuerte para fijar las reservas enemigas mientras el grueso golpea el punto débil.
+   · EMBOSCADA ..... (defensa) un cebo débil atrae a la pila enemiga a un terreno elegido, y el grueso, oculto en una provincia contigua, cae sobre ella.
+   · DEFENSA ELÁSTICA (defensa en profundidad, estilo ruso) se cede espacio hacia un punto de reunión del interior y se contraataca cuando el enemigo se estira.
+   · GOLPE DE MANO . (doctrina agresiva) fuerza rápida directa a una capital enemiga mal defendida. */
+const OP_MAX_AGE = 60;
+const OP_MAX_WAIT = {ambush: 26, elastic: 40, feint: 30, pincer: 40, blitz: 45};
+function opEta(a, dest) { const p = findPath(a, dest); if (!p || !p.length) return 0; let d = 0, prev = a.loc; p.forEach(q => { d += hopDays(a, prev, q); prev = q; }); return d; }
+const opArmies = ids => ids.map(armyById).filter(a => a && !a.sea);
+const opPow = ids => opArmies(ids).reduce((n, a) => n + armyPow(a), 0);
+const opHeld = (t, p) => !!(G.P[p].by && sameSide(t, G.P[p].by));
+const opHostile = (t, p) => hostileTags(t, provOwner(p)) && !opHeld(t, p) || !!(G.P[p].by && hostileTags(t, G.P[p].by) && !sameSide(t, G.P[p].by));
+// siguiente provincia hostil sin ocupar en la ruta hacia el objetivo (se avanza ocupando)
+function opNextHop(t, a, final) { if (a.loc === final) return final; const pa = findPath(a, final); if (pa && pa.length) for (const q of pa) if (opHostile(t, q)) return q; return final; }
+const opAng = (o, q) => Math.atan2(MAP.provs[q].lat - MAP.provs[o].lat, MAP.provs[q].lon - MAP.provs[o].lon);
+
+function opAlive(t, op) {
+  if (G.date.t - op.t0 > OP_MAX_AGE) return false;
+  if (op.ph === 'wait' && G.date.t - op.t0 > (OP_MAX_WAIT[op.k] || 30)) return false;
+  const ids = [].concat(...(op.roles || []).map(r => r.ids)); op.roles.forEach(r => { r.ids = r.ids.filter(id => { const a = armyById(id); return a && a.tag === t; }); });
+  if (op.roles.some(r => r.must && !r.ids.length)) return false;
+  void ids;
+  if (op.k === 'pincer' || op.k === 'blitz' || op.k === 'feint') { const o = op.k === 'feint' ? op.o2 : op.p; if (opHeld(t, o)) return false; if (!hostileTags(t, provOwner(o)) && !(G.P[o].by && hostileTags(t, G.P[o].by))) return false; }
+  return true;
+}
+function opRole(op, name) { return op.roles.find(r => r.n === name); }
+
+/* ---------- ejecución de cada tipo ---------- */
+function opRun(t, op, ctx, used) {
+  const {orders, eArmies, capProvs} = ctx;
+  op.roles.forEach(r => r.ids.forEach(id => used.add(id)));
+  const A = name => opArmies(opRole(op, name) ? opRole(op, name).ids : []);
+  if (op.k === 'pincer') {
+    const g0 = A('g0'), g1 = A('g1'); const gs = [g0, g1];
+    if (op.ph === 'assemble') {
+      gs.forEach((g, i) => g.forEach(a => { if (!a.battle) orders(a, op.stage[i], 'op'); }));
+      const ready = gs.map((g, i) => g.reduce((n, a) => n + (provDist(a.loc, op.stage[i]) < 1.5 ? armyPow(a) : 0), 0) >= g.reduce((n, a) => n + armyPow(a), 0) * 0.7);
+      if ((ready[0] && ready[1]) || G.date.t - op.t0 > 25) {
+        op.ph = 'go'; const eta = gs.map(g => Math.max(0, ...g.map(a => opEta(a, op.p)))); const mx2 = Math.max(...eta);
+        op.start = eta.map(e => G.date.t + (mx2 - e));                    // el grupo más cercano espera para llegar a la vez que el más lejano
+      }
+    } else {
+      gs.forEach((g, i) => g.forEach(a => { if (a.battle) return; if (G.date.t >= op.start[i]) { orders(a, opNextHop(t, a, op.p), 'op'); } else if (a.loc === op.stage[i] && a.mode !== 'hold') setMode(a, 'hold'); }));
+    }
+  } else if (op.k === 'feint') {
+    const dec = A('decoy'), main = A('main'); const dsOk = dec.some(a => provDist(a.loc, op.stage) < 1.5);
+    const foe = eArmies.filter(e => provDist(e.loc, op.stage) < 5).reduce((n, e) => n + armyPow(e), 0);
+    dec.forEach(a => { if (a.battle) return;
+      if (foe > armyPow(a) * 1.5 && dsOk) { const back = nearestOwnProv(t, a.loc); if (back !== null && back !== a.loc) orders(a, back, 'op'); }          // el señuelo no combate: se repliega ante una pila superior
+      else { orders(a, op.stage, 'op'); if (a.loc === op.stage && a.mode !== 'hold') { setMode(a, 'hold'); a.strat = 'skirmish'; } } });
+    if (op.ph === 'prep' && (dsOk || G.date.t - op.t0 > 3)) op.ph = 'go';
+    if (op.ph === 'go') main.forEach(a => { if (!a.battle) orders(a, opNextHop(t, a, op.o2), 'op'); });
+    else main.forEach(a => { if (!a.battle && a.path.length === 0 && provDist(a.loc, op.o2) > 12) { const rl = op.rally; if (rl !== undefined) orders(a, rl, 'op'); } });
+  } else if (op.k === 'ambush') {
+    const bait = A('bait'), main = A('main'); const S = eArmies.filter(e => provDist(e.loc, op.pb) < 9).sort((x, y) => armyPow(y) - armyPow(x))[0];
+    bait.forEach(a => { if (!a.battle) { orders(a, op.pb, 'op'); if (a.loc === op.pb && a.mode !== 'hold') { setMode(a, 'hold'); a.strat = 'hold'; } } });
+    const engaged = bait.some(a => a.battle) || (S && provDist(S.loc, op.pb) < 1.5);
+    if (engaged && op.ph === 'wait') op.ph = 'strike';
+    if (op.ph === 'wait') main.forEach(a => { if (!a.battle) { orders(a, op.pa, 'op'); if (a.loc === op.pa && a.mode !== 'hold') setMode(a, 'hold'); } });
+    else { const tgt = S ? S.loc : op.pb; main.forEach(a => { if (!a.battle) orders(a, tgt, 'op'); }); if (!S && G.date.t - op.tS > 6) op.t0 = -1e9; }
+    if (op.ph === 'strike' && !op.tS) op.tS = G.date.t;
+  } else if (op.k === 'elastic') {
+    const all = A('all'), foes = eArmies; const near = foes.filter(e => provDist(e.loc, op.f) < 22);
+    const mine = all.reduce((n, a) => n + armyPow(a), 0), np = near.reduce((n, e) => n + armyPow(e), 0), stretched = near.some(e => (e.sup !== undefined && e.sup < 0.55) || provDist(e.loc, op.from) > 18);
+    if (op.ph === 'wait' && (np > 0 && (mine >= np * 1.25 || (stretched && mine >= np * 0.9)))) op.ph = 'counter';
+    if (op.ph === 'wait') all.forEach(a => { if (!a.battle) { orders(a, op.f, 'op'); if (a.loc === op.f && a.mode !== 'hold') setMode(a, 'hold'); } });
+    else { const tgt = near.sort((x, y) => provDist(x.loc, op.f) - provDist(y.loc, op.f))[0]; if (!tgt) op.t0 = -1e9; else all.forEach(a => { if (!a.battle) orders(a, tgt.loc, 'op'); }); }
+  } else if (op.k === 'blitz') {
+    A('raid').forEach(a => { if (!a.battle) orders(a, opNextHop(t, a, op.p), 'op'); });
+  }
+  // los ejércitos a los que la operación no ha podido dar una orden válida vuelven al control normal (nada de ejércitos parados)
+  op.roles.forEach(r => { r.ids = r.ids.filter(id => { const a = armyById(id); if (!a) return false; if (a.battle || a.path.length || (a.ai && a.ai.task === 'op')) return true; used.delete(id); return false; }); });
+}
+
+/* ---------- planificación ---------- */
+function opPlan(t, ctx, used) {
+  const {c, m, doc, free, total, ratio, V, war, enemies, eArmies, pressing, capProvs} = ctx;
+  const pool = free.filter(a => !used.has(a.id) && !a.battle && a.divs.length);
+  if (pool.length < 2) return null;
+  const mk = (k, extra) => Object.assign({k, id: (m.war.opId = (m.war.opId || 0) + 1), t0: G.date.t, roles: [], ph: 'wait'}, extra);
+  const pw = a => armyPow(a), sortBy = (arr, f) => arr.slice().sort((x, y) => f(x) - f(y));
+  const poolPow = pool.reduce((n, a) => n + pw(a), 0), cx = pool.reduce((n, a) => n + MAP.provs[a.loc].lon, 0) / pool.length, cy = pool.reduce((n, a) => n + MAP.provs[a.loc].lat, 0) / pool.length;
+  const {objs} = aiObjs(t, pool, {V, war, enemies, doc, m, ratio});
+  const S = pressing.slice().sort((x, y) => armyPow(y) - armyPow(x))[0];
+  const roll = Math.random() * 1.15;                                         // no todas las ocasiones se aprovechan: a veces basta con el plan normal
+  // --- EMBOSCADA: inferioridad y una pila enemiga que entra en mi territorio ---
+  if (ratio < 1.05 && S && armyPow(S) >= total * 0.22 && pool.length >= 3 && roll < 0.8) {
+    const nbMine = MAP.provs[S.loc].nb.filter(q => provOwner(q) === t && !capProvs.includes(q) && canEnter(t, q));
+    const pbList = (provOwner(S.loc) === t ? nbMine : (S.path || []).slice(0, 4).filter(q => provOwner(q) === t)).concat(provOwner(S.loc) === t ? [] : []);
+    const pb = sortBy(pbList, q => -(MAP.provs[q].terr.def))[0];
+    if (pb !== undefined) {
+      const pas = MAP.provs[pb].nb.filter(q => provOwner(q) === t && q !== S.loc && canEnter(t, q)); const pa = sortBy(pas, q => -provDist(q, S.loc))[0];
+      if (pa !== undefined) {
+        const sorted = sortBy(pool, a => provDist(a.loc, pb)); const bait = sorted.slice().sort((x, y) => pw(x) - pw(y))[0]; const main = sorted.filter(a => a !== bait);
+        const mainPow = main.reduce((n, a) => n + pw(a), 0);
+        if (mainPow + pw(bait) >= armyPow(S) * 0.85) return mk('ambush', {pb, pa, roles: [{n: 'bait', ids: [bait.id], must: true}, {n: 'main', ids: main.map(a => a.id), must: true}]});
+      }
+    }
+  }
+  // --- DEFENSA ELÁSTICA: doctrina de defensa en profundidad y clara inferioridad ---
+  if (doc.depth >= 0.6 && ratio < 0.9 && S && pool.length >= 2 && roll < 0.9) {
+    const mineProvs = []; c.states.forEach(sid => MAP.stats[sid].provs.forEach(p => { if (provOwner(p) === t) mineProvs.push(p); }));
+    const away = mineProvs.filter(p => provDist(p, S.loc) > 12 && (V.get(p) || 0) >= 1).sort((x, y) => (V.get(y) || 0) / (1 + provDist(y, capProvs[0] ?? y) / 20) - (V.get(x) || 0) / (1 + provDist(x, capProvs[0] ?? x) / 20));
+    const f = away[0]; if (f !== undefined) return mk('elastic', {f, from: S.loc, roles: [{n: 'all', ids: pool.map(a => a.id), must: true}]});
+  }
+  if (ratio < 0.9) return null;
+  // --- GOLPE DE MANO sobre la capital enemiga mal defendida ---
+  if (doc.aggr >= 0.75 && pool.length >= 2 && roll < 0.5) {
+    for (const e of enemies) { const ce = G.C[e]; if (ce.capital < 0) continue; const cp = MAP.stats[ce.capital].provs[0]; const opp = aiEnemyPower(t, cp, 9);
+      if (opp < poolPow * 0.45 && Math.hypot(MAP.provs[cp].lon - cx, MAP.provs[cp].lat - cy) < 70 && findPath(pool[0], cp)) {
+        const fast = sortBy(pool, a => -(Math.min(...a.divs.map(d => DIVS[d.t].spd)))).slice(0, Math.max(2, Math.ceil(pool.length * 0.4)));
+        if (fast.reduce((n, a) => n + pw(a), 0) >= Math.max(2, opp * 1.4) && opEta(fast[0], cp) <= 40) return mk('blitz', {p: cp, roles: [{n: 'raid', ids: fast.map(a => a.id), must: true}]});
+      } }
+  }
+  if (pool.length < 3 || !objs.length) return null;
+  // --- SEÑUELO: el mejor objetivo está muy defendido; se amaga allí y se golpea el flanco débil ---
+  const o1 = objs.find(o => o.opp > poolPow * 0.5);
+  if (o1 && roll < 0.7 && ratio < 2.4) {
+    const o2 = objs.find(o => o.p !== o1.p && o.opp < o1.opp * 0.5 && provDist(o.p, o1.p) > 8 && o.feas >= 0.7 && o.v >= 2);
+    if (o2) {
+      const small = sortBy(pool, a => pw(a)).find(a => pw(a) >= poolPow * 0.1 && pw(a) <= poolPow * 0.35);
+      if (small) {
+        const stages = MAP.provs[o1.p].nb.filter(q => mineProv(t, q) || opHeld(t, q)); const stage = sortBy(stages, q => provDist(q, small.loc))[0];
+        const main = pool.filter(a => a !== small);
+        if (stage !== undefined && main.length) return mk('feint', {o1: o1.p, o2: o2.p, stage, ph: 'prep', rally: nearestOwnProv(t, small.loc), roles: [{n: 'decoy', ids: [small.id]}, {n: 'main', ids: main.map(a => a.id), must: true}]});
+      }
+    }
+  }
+  // --- PINZA: gran superioridad contra un objetivo defendido ---
+  const tgt = objs.find(o => o.opp > 3) || objs[0];
+  if (tgt && ratio >= 1.15 && pool.length >= 3 && poolPow >= tgt.opp * 1.5 && roll < 0.85) {
+    const nbs = MAP.provs[tgt.p].nb.filter(q => canEnter(t, q) && !opHostile(t, q));            // provincias de partida: propias o ya ocupadas
+    let best = null, bd = 0; for (let i = 0; i < nbs.length; i++) for (let j = i + 1; j < nbs.length; j++) { let d = Math.abs(opAng(tgt.p, nbs[i]) - opAng(tgt.p, nbs[j])); d = Math.min(d, 2 * Math.PI - d); if (d > bd) { bd = d; best = [nbs[i], nbs[j]]; } }
+    if (best && bd > 1.4) {
+      const sorted = sortBy(pool, a => provDist(a.loc, best[0]) - provDist(a.loc, best[1])); const half = Math.ceil(sorted.length / 2);
+      const g0 = sorted.slice(0, half), g1 = sorted.slice(half); if (g0.length && g1.length) return mk('pincer', {p: tgt.p, stage: best, ph: 'assemble', roles: [{n: 'g0', ids: g0.map(a => a.id), must: true}, {n: 'g1', ids: g1.map(a => a.id), must: true}]});
+    }
+  }
+  return null;
+}
+// punto de entrada: devuelve los ids de los ejércitos reservados por operaciones
+function aiOps(t, ctx) {
+  const m = ctx.m; m.war.ops = (m.war.ops || []).filter(op => opAlive(t, op)); const used = new Set();
+  // si la capital corre peligro, se abortan las operaciones ofensivas: la defensa de la capital manda
+  const capP = ctx.capProvs[0], capDanger = capP !== undefined && ctx.pressing.filter(e => provDist(e.loc, capP) <= 12).reduce((n, e) => n + armyPow(e), 0) >= ctx.total * 0.18;
+  if (capDanger) m.war.ops = m.war.ops.filter(op => op.k === 'ambush' || op.k === 'elastic');
+  ctx.capDanger = capDanger;
+  m.war.ops.forEach(op => opRun(t, op, ctx, used));
+  if (m.war.ops.length < 1 && !capDanger && G.date.t - (m.war.opT || -99) >= 12 && (ctx.c.aiOps !== false)) {
+    const op = opPlan(t, ctx, used); if (op) { m.war.ops.push(op); m.war.opT = G.date.t; m.war.opLog = (m.war.opLog || []).concat([op.k]).slice(-12); opRun(t, op, ctx, used); }
+  }
+  return used;
+}
+
+/* ===== OFERTAS DE PAZ INTERMEDIAS =====
+   Durante una guerra, tanto el jugador como la IA pueden proponer un acuerdo de paz sin esperar a una victoria total:
+   · EXIGIR   (quien va ganando) pide territorios ocupados, reparaciones, humillación…; el rival acepta si le sale a cuenta.
+   · OFRECER  (quien va perdiendo) cede territorios o paga para acabar con la guerra.
+   · PAZ BLANCA cuando ninguno puede imponerse.
+   Las condiciones usan las mismas partidas y costes en puntos de guerra que la conferencia de paz. La aceptación depende de la
+   puntuación de guerra, el cansancio, el peligro para la capital y el carácter del país. Un acuerdo aceptado termina la guerra. */
+const scoreFor = (w, tag) => w.attAll.includes(tag) ? w.score : -w.score;
+const warPrincipal = (w, tag) => w.attAll.includes(tag) ? w.att : w.def;
+const otherPrincipal = (w, tag) => warPrincipal(w, tag) === w.att ? w.def : w.att;
+const capThreat = tag => { const c = G.C[tag]; if (c.capital < 0) return 0; const s = G.S[c.capital]; if (s.owner === tag && s.occ >= 1) return 2; if (s.owner === tag && s.occ > 0) return 1; return 0; };
+
+// términos disponibles para un acuerdo entre vencedor W y pagador P
+function offerOptions(w, W) { return buildConference(w, W).opts; }
+function offerCostOf(opts, ids) { return opts.reduce((n, o) => n + (ids.includes(o.id) ? o.cost : 0), 0); }
+
+// evaluación de un acuerdo: ¿lo aceptaría el otro bando? dir: 'demand' (W exige a P) | 'offer' (P ofrece a W) | 'white'
+function offerEval(w, W, P, ids, dir) {
+  const opts = offerOptions(w, W), cost = offerCostOf(opts, ids), sW = scoreFor(w, W), wearP = G.C[P].wear || 0, wearW = G.C[W].wear || 0;
+  const docW = typeof aiDoc === 'function' ? aiDoc(G.C[W]) : {aggr: .5};
+  const mercyP = 6 + wearP * 0.24 + capThreat(P) * 9 + Math.max(0, w.weeks - 30) * 0.1;           // lo dispuesto que está P a ceder para acabar
+  if (dir === 'white' || !ids.length) {
+    const need = 22 + (wearP + wearW) * 0.14 + Math.min(20, w.weeks * 0.12);
+    const ok = Math.abs(sW) <= need;
+    return {accept: ok, cost: 0, have: need, need: Math.abs(sW), reason: ok ? '' : `Aún creen que pueden ${sW > 0 ? 'resistir' : 'imponerse'} (diferencia de ${Math.round(Math.abs(sW))} puntos frente a ${Math.round(need)} tolerables).`};
+  }
+  if (dir === 'demand') {
+    const have = Math.max(0, sW) * 0.92 + mercyP;
+    return {accept: cost <= have + 1e-6, cost, have, need: cost, reason: cost <= have ? '' : `Las exigencias (${cost} pts) superan lo que tu posición justifica (${Math.round(have)} pts).`};
+  }
+  // P ofrece a W: W acepta si lo que recibe compensa lo que cree poder lograr
+  const want = Math.max(0, sW) * (0.5 + docW.aggr * 0.12) + 3 - wearW * 0.12 - capThreat(W) * 4;
+  const ok = cost >= want - 1e-6 && sW < 92;
+  return {accept: ok, cost, have: cost, need: Math.max(0, want), reason: ok ? '' : `No les basta: esperan al menos ${Math.round(Math.max(0, want))} pts y se les ofrecen ${cost}.`};
+}
+
+// aplica un acuerdo aceptado: la guerra termina y se ejecutan las condiciones elegidas
+function offerApply(w, W, P, ids) {
+  const tag = G.C[W].name + ' y ' + G.C[P].name; void tag;
+  if (!ids.length) { endWar(w, null); return; }
+  endWar(w, W, {ids, negotiated: true});
+}
+
+/* ---------- IA: construye propuestas ---------- */
+function aiBuildDemand(w, W, P, limit) {
+  const conf = buildConference(w, W); conf.budget = Math.max(0, limit); conf.pick = new Set(); aiPickDemands(conf);
+  return [...conf.pick];
+}
+function aiBuildOffer(w, W, P) {      // P (el que pierde) ofrece lo mínimo que W aceptaría
+  const opts = offerOptions(w, W), sW = scoreFor(w, W), docW = typeof aiDoc === 'function' ? aiDoc(G.C[W]) : {aggr: .5};
+  const want = Math.max(0, sW) * (0.5 + docW.aggr * 0.12) + 3 - (G.C[W].wear || 0) * 0.12 - capThreat(W) * 4;
+  const ids = []; let cost = 0; const order = opts.slice().sort((a, b) => ((a.type === 'state' ? (a.occ >= 0.5 ? 0 : 1) : 2) - (b.type === 'state' ? (b.occ >= 0.5 ? 0 : 1) : 2)) || (a.cost - b.cost));
+  for (const o of order) { if (cost >= want * 1.05) break; if (o.type === 'law' || o.type === 'vassal' || o.type === 'demil') continue; if (o.type === 'reps' && ids.includes('reps8') && o.id === 'reps16') continue; ids.push(o.id); cost += o.cost; }
+  return cost >= want ? ids : null;
+}
+function proposePeaceTo(w, from, to, dir, ids) {   // propuesta de la IA al jugador
+  if (G.proposals.some(p => p.type === 'peace' && p.wid === w.id)) return false;
+  G.proposals.push({id: G.nextId++, from, to, type: 'peace', wid: w.id, dir, ids, t: G.date.t});
+  const W = dir === 'offer' ? to : from, P = dir === 'offer' ? from : to; const opts = offerOptions(w, W);
+  notify('diplo', `✉️ ${G.C[from].name} te ${dir === 'white' ? 'propone una paz blanca' : dir === 'offer' ? 'ofrece la paz con concesiones' : 'exige condiciones de paz'} (${ids.length} condiciones). Revisa Diplomacia → Acuerdos.`);
+  void opts; void P; return true;
+}
+function peaceOffersWeek() {
+  if (G.noOffers) return;                  // (las pruebas comparativas de la IA de guerra lo desactivan)
+  G.wars.slice().forEach(w => {
+    if (w.auto || w.weeks < 6 || w.weeks - (w.poT || -99) < 8) return;
+    const a = w.att, d = w.def; if (!alive(a) || !alive(d)) return;
+    // la IA que está perdiendo y cansada ofrece concesiones; la que gana exige; en tablas, paz blanca
+    const sides = [a, d].filter(t => G.C[t].ai);
+    for (const S of sides) {
+      const O = otherPrincipal(w, S), me = scoreFor(w, S), wear = G.C[S].wear || 0, cth = capThreat(S);
+      if (G.proposals.some(p => p.type === 'peace' && p.wid === w.id)) break;
+      const wantsOut = (me <= -22 && (wear > 22 || cth)) || wear >= 70 || cth >= 2 || (me <= -8 && w.weeks > 60);
+      const winning = me >= 22 && (wear > 15 || w.weeks > 16);
+      const stale = Math.abs(me) < 18 && w.weeks > 32 && wear > 30 && (G.C[O].wear || 0) > 25;
+      let dir = null, ids = null;
+      if (wantsOut && Math.random() < 0.6) { dir = 'offer'; ids = aiBuildOffer(w, O, S); }
+      else if (winning && Math.random() < 0.28) { const have = me * 0.92 + 6 + (G.C[O].wear || 0) * 0.24 + capThreat(O) * 9; ids = aiBuildDemand(w, S, O, Math.min(me * 0.8, have * 0.95)); if (ids.length) dir = 'demand'; }
+      else if (stale && Math.random() < 0.4) { dir = 'white'; ids = []; }
+      if (!dir || (ids === null)) continue; w.poT = w.weeks;
+      if (G.C[O].ai || O !== G.player) {
+        // la otra parte es IA: se resuelve directamente
+        const W = dir === 'offer' ? O : S, P = dir === 'offer' ? S : O; const r = offerEval(w, W, P, ids, dir);
+        if (r.accept) { notify('war', `✉️ ${G.C[S].name} y ${G.C[O].name} firman la paz${ids.length ? ' con concesiones' : ' blanca'}.`); offerApply(w, W, P, ids); return; }
+      } else {
+        if (dir === 'white' || ids.length) proposePeaceTo(w, S, O, dir, ids);
+      }
+      break;
+    }
+  });
+}
+
+/* ---------- interfaz: diálogo de propuesta ---------- */
+function ensurePeaceDlg() { let r = document.getElementById('peacedlg'); if (!r) { r = document.createElement('div'); r.id = 'peacedlg'; document.body.appendChild(r); } return r; }
+function openPeaceOffer(wid, dir, preset) {
+  const w = G.wars.find(x => x.id === wid); if (!w) return;
+  const me = warPrincipal(w, G.player), sc = scoreFor(w, G.player);
+  UI.po = {wid, dir: dir || (sc >= 15 ? 'demand' : sc <= -15 ? 'offer' : 'white'), pick: new Set(preset || []), me};
+  if (!UI.po.pick.size && UI.po.dir === 'offer') { const W = otherPrincipal(w, me), ids = aiBuildOffer(w, W, me); (ids || []).forEach(i => UI.po.pick.add(i)); }
+  G.paused = true; renderPeaceOffer();
+}
+function closePeaceOffer() { UI.po = null; const r = document.getElementById('peacedlg'); if (r) { r.classList.remove('open'); r.innerHTML = ''; } }
+function renderPeaceOffer() {
+  const po = UI.po, root = ensurePeaceDlg(); if (!po) { closePeaceOffer(); return; }
+  const w = G.wars.find(x => x.id === po.wid); if (!w) { closePeaceOffer(); return; }
+  const me = warPrincipal(w, G.player), foe = otherPrincipal(w, me), dir = po.dir, W = dir === 'offer' ? foe : me, P = dir === 'offer' ? me : foe;
+  const opts = dir === 'white' ? [] : offerOptions(w, W), ids = [...po.pick].filter(i => opts.some(o => o.id === i)), cost = offerCostOf(opts, ids);
+  const ev = dir === 'white' ? offerEval(w, me, foe, [], 'white') : offerEval(w, W, P, ids, dir), sc = scoreFor(w, G.player);
+  const label = o => confLabel({winner: W, loseLead: P}, o);
+  const row = o => `<label class="cfrow ${po.pick.has(o.id) ? 'on' : ''}"><input type="checkbox" data-act="popick" data-id="${o.id}" ${po.pick.has(o.id) ? 'checked' : ''}>
+    <span class="cfl">${label(o)}${o.type === 'state' ? `<small class="dim"> · ${fmtN(o.pop, 1)} hab. · ${o.target ? '🎯 objetivo de guerra · ' : ''}${o.occ >= 0.5 ? 'ocupado' : o.occ > 0 ? 'ocupado en parte' : 'sin ocupar'}</small>` : ''}</span><b class="cfc">${o.cost} pts</b></label>`;
+  const states = opts.filter(o => o.type === 'state'), others = opts.filter(o => o.type !== 'state' && o.type !== 'law');
+  const pct = dir === 'white' ? clamp(0.5 + (ev.have - ev.need) / 30, 0, 1) : clamp(0.5 + (ev.have - ev.need) / Math.max(10, ev.have), 0, 1);
+  root.classList.add('open');
+  root.innerHTML = `<div class="wd"><div class="whead"><span class="wicon">📜</span><h2>Propuesta de paz — ${w.name || CBS[w.cb].name}</h2></div>
+  <div class="wd-body"><div class="cols"><div class="col wide">
+    <div class="notice">${flag(me, 'sm')} <b>${G.C[me].name}</b> frente a ${flag(foe, 'sm')} <b>${G.C[foe].name}</b> · puntuación de guerra <b class="${sc >= 0 ? 'good' : 'bad'}">${sgn(sc, 0)}</b> · semana ${w.weeks}</div>
+    <div class="btnrow"><button class="${dir === 'demand' ? 'on' : ''}" data-act="podir" data-d="demand">⚔ Exigir condiciones</button><button class="${dir === 'offer' ? 'on' : ''}" data-act="podir" data-d="offer">🏳 Ofrecer concesiones</button><button class="${dir === 'white' ? 'on' : ''}" data-act="podir" data-d="white">🕊 Paz blanca</button></div>
+    ${dir === 'white' ? '<p class="hint">Ambos bandos dejan las armas sin cambios de fronteras. La aceptan quienes ven la guerra sin salida.</p>' : `<h4 class="sub">${dir === 'demand' ? 'Territorios que exiges (ocupados o tus objetivos de guerra)' : 'Territorios que cedes'}</h4>${states.length ? states.map(row).join('') : '<p class="hint">No hay territorios que puedan entrar en el acuerdo.</p>'}
+    <h4 class="sub">Otras condiciones</h4>${others.map(row).join('')}`}
+  </div><div class="col">
+    <div class="card"><h3>Probabilidad de aceptación</h3>${bar(pct, 1, pct > 0.5 ? '' : 'warn', Math.round(pct * 100) + '%')}
+    <div class="kv sm"><span>${dir === 'demand' ? 'Coste de tus exigencias' : dir === 'offer' ? 'Valor de tus concesiones' : 'Diferencia de fuerzas'}</span><b>${dir === 'white' ? Math.round(ev.need) : cost + ' pts'}</b></div>
+    <div class="kv sm"><span>${dir === 'demand' ? 'Lo que tu posición justifica' : dir === 'offer' ? 'Lo que esperan recibir' : 'Tolerancia'}</span><b>${Math.round(dir === 'offer' ? ev.need : ev.have)}</b></div>
+    <p class="hint">${ev.accept ? '✅ Con estas condiciones es probable que acepten.' : '⚠️ ' + ev.reason}</p>
+    <div class="btnrow"><button class="primary" data-act="posend" ${dir !== 'white' && !ids.length ? 'disabled' : ''}>✉️ Enviar propuesta</button><button data-act="poclose">Cancelar</button></div></div>
+    <div class="card"><h3>Consejos</h3><p class="hint">Si vas ganando, exige territorios ya ocupados (cuestan menos). Si pierdes, ofrece lo que el enemigo ocupa y ya perderías. El cansancio de guerra y la amenaza sobre la capital hacen al rival más dispuesto a ceder. Si rechazan, vuelve a intentarlo en unas semanas.</p></div>
+  </div></div></div></div>`;
+}
+// respuesta a una propuesta de la IA al jugador
+function peaceProposalHtml(pp) {
+  const w = G.wars.find(x => x.id === pp.wid); if (!w) return '';
+  const W = pp.dir === 'offer' ? pp.to : pp.from, opts = offerOptions(w, W), labs = pp.ids.map(i => opts.find(o => o.id === i)).filter(Boolean).map(o => confLabel({winner: W, loseLead: pp.dir === 'offer' ? pp.from : pp.to}, o));
+  return `<div class="card"><h3>✉️ Propuesta de paz de ${flag(pp.from, 'sm')} ${G.C[pp.from].name}</h3><p class="hint">${pp.dir === 'white' ? 'Propone una <b>paz blanca</b>: nadie cambia de fronteras.' : pp.dir === 'offer' ? 'Ofrece la paz y te <b>concede</b>:' : 'Propone la paz si <b>aceptas</b>:'}</p>${labs.map(l => `<div class="kv sm"><span>• ${l}</span></div>`).join('')}
+    <div class="btnrow"><button class="primary" data-act="propeace" data-id="${pp.id}">Aceptar y terminar la guerra</button><button data-act="ponego" data-id="${pp.id}">Negociar</button><button data-act="propno" data-id="${pp.id}">Rechazar</button></div></div>`;
+}
+function respondPeace(id, accept) {
+  const i = G.proposals.findIndex(p => p.id === id && p.type === 'peace'); if (i < 0) return; const pp = G.proposals[i]; G.proposals.splice(i, 1);
+  const w = G.wars.find(x => x.id === pp.wid); if (!w) return;
+  if (!accept) { addRel(G.player, pp.from, -2); return; }
+  const W = pp.dir === 'offer' ? pp.to : pp.from, P = pp.dir === 'offer' ? pp.from : pp.to;
+  notify('war', `Aceptas la paz con ${G.C[pp.from].name}.`); offerApply(w, W, P, pp.ids);
+}
+Object.assign(ACT, {
+  poopen: d => openPeaceOffer(+d.id),
+  podir: d => { const po = UI.po; if (!po) return; po.dir = d.d; po.pick = new Set(); const w = G.wars.find(x => x.id === po.wid); if (w && d.d === 'offer') { const ids = aiBuildOffer(w, otherPrincipal(w, po.me), po.me); (ids || []).forEach(i => po.pick.add(i)); } renderPeaceOffer(); },
+  popick: (d, el) => { const po = UI.po; if (!po) return; if (el.checked) po.pick.add(d.id); else po.pick.delete(d.id); renderPeaceOffer(); },
+  poclose: () => { closePeaceOffer(); G.paused = false; updateHud(); },
+  posend: () => {
+    const po = UI.po; if (!po) return; const w = G.wars.find(x => x.id === po.wid); if (!w) { closePeaceOffer(); return; }
+    const me = po.me, foe = otherPrincipal(w, me), dir = po.dir, W = dir === 'offer' ? foe : me, P = dir === 'offer' ? me : foe, ids = dir === 'white' ? [] : [...po.pick];
+    w.pcool = w.pcool || {}; if (G.date.t - (w.pcool[foe] || -99) < 14) { toast('⏳', `${G.C[foe].name} no quiere volver a negociar tan pronto (espera unas semanas).`); return; }
+    const ev = offerEval(w, W, P, ids, dir);
+    if (ev.accept) { closePeaceOffer(); notify('war', `✉️ ${G.C[foe].name} acepta la propuesta de paz.`); offerApply(w, W, P, ids); G.paused = false; updateHud(); renderWindow && renderWindow(); }
+    else { w.pcool[foe] = G.date.t; toast('✉️', `${G.C[foe].name} rechaza la propuesta. ${ev.reason}`); closePeaceOffer(); G.paused = false; updateHud(); }
+  },
+  propeace: d => { respondPeace(+d.id, true); renderWindow(); },
+  ponego: d => { const pp = G.proposals.find(p => p.id === +d.id); if (!pp) return; const w = G.wars.find(x => x.id === pp.wid); G.proposals = G.proposals.filter(p => p !== pp); if (w) openPeaceOffer(w.id, pp.dir === 'offer' ? 'demand' : pp.dir === 'demand' ? 'offer' : 'white'); }
+});
+
 /* ===== EVENTOS AMPLIADOS, RASGOS NACIONALES Y LOGROS ===== */
 const cnt = (c, k, n) => { c.cnt = c.cnt || {}; c.cnt[k] = (c.cnt[k] || 0) + (n === undefined ? 1 : n); return c.cnt[k]; };
 const cntOf = (c, k) => (c.cnt && c.cnt[k]) || 0;
@@ -9712,6 +10268,8 @@ const MANUAL = [
 <h4>Levas y compra de equipo</h4><p>En <b>Reclutamiento</b> puedes <b>comprar el equipo</b> que falta para una división (con un 30% de recargo) o un lote de cualquier bien (pólvora, fusiles…) cuando la producción propia no basta. También puedes alzar <b>levas de campesinos</b>: divisiones baratas, rápidas y sin cuarteles ni equipo, pero mal entrenadas (atacan −45%, defienden −25%) que sirven para defender. Con la <b>Movilización total</b> aparecen levas automáticamente en todos tus estados; al bajar de nivel se disuelven.</p>
 <h4>Movilización</h4><p>En <b>Reclutamiento</b> eliges el nivel de movilización: solo soldados profesionales (barracones), voluntarios (1% de la población), servicio limitado (2,5%), conscripción (5%) o movilización total (10%). Más movilización permite más divisiones, pero reduce la producción (−4% por nivel), cuesta dinero cada mes y genera malestar y pérdida de legitimidad. Cada división tiene además un <b>mantenimiento semanal</b> (más caro en guerra).</p>
 <h4>Fluidez y calidad gráfica</h4><p>El botón <b>Q</b> del lateral derecho alterna la calidad gráfica: <b>B</b>ajo (más fluidez), <b>M</b>edio y <b>A</b>lto. El terreno usa niveles de detalle según el zoom y solo se dibuja lo que ve la cámara, y la resolución baja sola si tu tarjeta gráfica no da abasto.</p>
+<h4>Ofertas de paz intermedias</h4><p>En <b>Ejército y guerra → Guerras</b>, el botón <b>📜 Negociar paz…</b> abre una propuesta sin esperar a la victoria total. Puedes <b>exigir</b> condiciones si vas ganando (territorios ocupados o tus objetivos de guerra, reparaciones, humillación, concesiones comerciales, desmilitarización), <b>ofrecer</b> concesiones si pierdes (ceder lo que el enemigo ocupa, pagar) o proponer una <b>paz blanca</b>. El cuadro te indica la <b>probabilidad de aceptación</b>: depende de la puntuación de guerra, el cansancio de guerra, el peligro para la capital, la duración de la guerra y el carácter del país. Si rechazan, espera unas semanas. La IA también te propone paces (llegan a Diplomacia → Acuerdos): puedes aceptar, rechazar o <b>negociar</b> con una contraoferta, y firma paces entre sí para no alargar guerras sin salida.</p>
+<h4>Cómo piensa la IA en la guerra</h4><p>Cada país en guerra valora sus provincias (capital, industria, puertos, objetivos de guerra) y calcula el peligro de los ejércitos enemigos. <b>Defiende</b> primero la capital y lo que más vale, sin malgastar tropas en territorios inútiles, e <b>intercepta</b> a los invasores cuando tiene superioridad. <b>Ataca</b> con ejércitos concentrados contra objetivos valiosos y ocupa provincia a provincia. Además planifica <b>maniobras</b>: <i>pinza</i> (dos grupos que llegan a la vez), <i>señuelo</i> (un amago que fija las reservas mientras el grueso golpea otro punto), <i>emboscada</i> (un cebo atrae a la pila enemiga a un terreno elegido), <i>defensa elástica</i> (ceder espacio y contraatacar, típico de Rusia y China) y <i>golpe de mano</i> contra una capital mal defendida (Prusia, Japón). Cada país tiene su doctrina histórica: agresividad, peso de la capital y defensa en profundidad.</p>
 <h4>Selección rápida</h4><p>Con un ejército tuyo seleccionado, basta un <b>clic izquierdo</b> en cualquier territorio para enviarlo allí (Mayús + clic añade un punto de ruta; <b>Esc</b> o clic en el mar deselecciona). Con el <b>botón derecho pulsado, arrastra un recuadro</b> sobre el mapa y todos tus ejércitos de esa zona quedan seleccionados.</p>
 <h4>Niebla de guerra</h4><p>Al empezar sólo conoces la parte del mundo cercana a ti: un país pequeño ve poco; una gran potencia, casi todo. Las tropas de otros países sólo se ven en tu territorio (o el de tus aliados), junto a tus ejércitos o a través de agentes. Planes de frente: al dibujarlos se activan solos; los ataques se lanzan tras unas dos semanas de concentración.</p>
 <h4>Inteligencia</h4><p>En <b>Ejército y guerra → Inteligencia</b> eliges el nivel del servicio secreto (cuesta un % de tus ingresos). Te avisa de los ataques de la IA contra ti (y con nivel 3+ puede frustrarlos), detecta tropas junto a la frontera, y te da agentes que puedes enviar al extranjero: con dos agentes ves todo el país; con uno puedes <b>robar sus tácticas</b> y combatir un 12% mejor contra él durante 60 días. Si fallan, pierdes el agente y la relación. Tras una guerra, los ejércitos aliados vuelven solos a casa.</p>

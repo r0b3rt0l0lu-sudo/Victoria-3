@@ -62,17 +62,19 @@ function applyConference(c) {
     else if (o.type === 'vassal') { makeSubject(c.winner, c.loseLead); cnt(W, 'vassalsMade'); notes.push('vasallaje'); }
   });
   const att = c.winner === w.att;
+  if (c.negotiated) { W.prestige += 3 + gained.length * 2; cnt(W, 'statesGained', gained.length); L.prestige = Math.max(0, L.prestige - 3); L.wear = Math.max(0, (L.wear || 0) - 25); W.wear = Math.max(0, (W.wear || 0) - 15); }
+  else {
   W.prestige += 6 + gained.length * 4; cnt(W, 'statesGained', gained.length); cnt(W, 'warsWon'); if (!att) cnt(W, 'defended');
-  L.prestige = Math.max(0, L.prestige - 8); L.legitimacy -= 4; L.wear = Math.max(0, (L.wear || 0) - 20);
+  L.prestige = Math.max(0, L.prestige - 8); L.legitimacy -= 4; L.wear = Math.max(0, (L.wear || 0) - 20); }
   c.winAll.forEach(t => { if (t !== c.winner && alive(t)) G.C[t].prestige += 3; });
   addRel(c.winner, c.loseLead, att ? 20 : 10);
-  const txt = att ? `${W.name} vence a ${L.name}` : `${W.name} repele la invasión de ${L.name}`;
+  const txt = c.negotiated ? `paz negociada entre ${W.name} y ${L.name}` : att ? `${W.name} vence a ${L.name}` : `${W.name} repele la invasión de ${L.name}`;
   notify('war', `Conferencia de paz: ${txt}${gained.length ? ' y se anexiona ' + gained.join(', ') : ''}${notes.length ? '. Además: ' + notes.join(', ') : ''}.`, c.pick.size && gained.length ? c.opts.find(o => o.type === 'state' && c.pick.has(o.id)).sid : undefined);
   G.tags.forEach(t => { if (t !== NONE) G.C[t].legitimacy = clamp(G.C[t].legitimacy, 0, 100); });
   recalcHostile(); evacuateForeignArmies(); if (typeof fullRepaint === 'function' && gained.length) fullRepaint();
 }
 const loseAllHas = (c, tag) => c.loseAll.includes(tag);
-function endWar(w, winner) {
+function endWar(w, winner, preset) {
   const idx = G.wars.indexOf(w); if (idx >= 0) G.wars.splice(idx, 1);
   const conf = winner !== null && !w.auto ? buildConference(w, winner) : null;      // antes de borrar las ocupaciones
   clearOccupationKeep(w);
@@ -80,6 +82,7 @@ function endWar(w, winner) {
   const A = G.C[w.att], D = G.C[w.def];
   if (winner === null) { notify('war', `${A.name} y ${D.name} firman una paz blanca.`); addRel(w.att, w.def, 25); return; }
   if (w.auto) { settleLegacy(w, winner); return; }
+  if (preset && conf) { conf.pick = new Set(preset.ids); conf.negotiated = !!preset.negotiated; applyConference(conf); return; }
   const humanLead = !G.C[winner].ai && typeof openConference === 'function' && !G.headless;
   if (humanLead) { G.confQueue = G.confQueue || []; G.confQueue.push(conf); if (!G.conf) nextConference(); }
   else { aiPickDemands(conf); applyConference(conf); }

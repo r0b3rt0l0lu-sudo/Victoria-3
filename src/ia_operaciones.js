@@ -83,7 +83,7 @@ function opPlan(t, ctx, used) {
   const poolPow = pool.reduce((n, a) => n + pw(a), 0), cx = pool.reduce((n, a) => n + MAP.provs[a.loc].lon, 0) / pool.length, cy = pool.reduce((n, a) => n + MAP.provs[a.loc].lat, 0) / pool.length;
   const {objs} = aiObjs(t, pool, {V, war, enemies, doc, m, ratio});
   const S = pressing.slice().sort((x, y) => armyPow(y) - armyPow(x))[0];
-  const roll = Math.random();
+  const roll = Math.random() * 1.15;                                         // no todas las ocasiones se aprovechan: a veces basta con el plan normal
   // --- EMBOSCADA: inferioridad y una pila enemiga que entra en mi territorio ---
   if (ratio < 1.05 && S && armyPow(S) >= total * 0.22 && pool.length >= 3 && roll < 0.8) {
     const nbMine = MAP.provs[S.loc].nb.filter(q => provOwner(q) === t && !capProvs.includes(q) && canEnter(t, q));
@@ -142,8 +142,12 @@ function opPlan(t, ctx, used) {
 // punto de entrada: devuelve los ids de los ejércitos reservados por operaciones
 function aiOps(t, ctx) {
   const m = ctx.m; m.war.ops = (m.war.ops || []).filter(op => opAlive(t, op)); const used = new Set();
+  // si la capital corre peligro, se abortan las operaciones ofensivas: la defensa de la capital manda
+  const capP = ctx.capProvs[0], capDanger = capP !== undefined && ctx.pressing.filter(e => provDist(e.loc, capP) <= 12).reduce((n, e) => n + armyPow(e), 0) >= ctx.total * 0.18;
+  if (capDanger) m.war.ops = m.war.ops.filter(op => op.k === 'ambush' || op.k === 'elastic');
+  ctx.capDanger = capDanger;
   m.war.ops.forEach(op => opRun(t, op, ctx, used));
-  if (m.war.ops.length < 2 && G.date.t - (m.war.opT || -99) >= 8 && (ctx.c.aiOps !== false)) {
+  if (m.war.ops.length < 1 && !capDanger && G.date.t - (m.war.opT || -99) >= 12 && (ctx.c.aiOps !== false)) {
     const op = opPlan(t, ctx, used); if (op) { m.war.ops.push(op); m.war.opT = G.date.t; m.war.opLog = (m.war.opLog || []).concat([op.k]).slice(-12); opRun(t, op, ctx, used); }
   }
   return used;

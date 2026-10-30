@@ -361,8 +361,8 @@ svg.orders line.arrow{stroke:#e8644f;stroke-width:3;opacity:.8}svg.orders line.a
 
 #vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 55%,rgba(5,10,14,.38) 100%)}
 
-#confdlg{position:fixed;inset:0;display:none;background:rgba(5,9,12,.6);z-index:60;align-items:center;justify-content:center;pointer-events:auto}
-#confdlg.open{display:flex}#confdlg .wd{width:min(980px,calc(100vw - 30px));max-height:calc(100vh - 40px);display:flex;flex-direction:column;background:linear-gradient(180deg,#27323b,#1b232a);border:1px solid var(--gold);border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.8)}
+#confdlg,#peacedlg{position:fixed;inset:0;display:none;background:rgba(5,9,12,.6);z-index:60;align-items:center;justify-content:center;pointer-events:auto}
+#confdlg.open,#peacedlg.open{display:flex}#confdlg .wd,#peacedlg .wd{width:min(980px,calc(100vw - 30px));max-height:calc(100vh - 40px);display:flex;flex-direction:column;background:linear-gradient(180deg,#27323b,#1b232a);border:1px solid var(--gold);border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.8)}
 .cfrow{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid rgba(201,166,87,.2);border-radius:6px;margin:4px 0;cursor:pointer;background:rgba(0,0,0,.15)}.cfrow.on{border-color:var(--gold2);background:rgba(201,166,87,.14)}.cfrow .cfl{flex:1}.cfrow .cfc{min-width:50px;text-align:right;color:var(--gold2)}.cfrow select{background:#232e37;color:var(--text,#e8e0c8);border:1px solid var(--goldd);border-radius:4px}
 
 svg.orders line.arrow.sea{stroke:#6aa8e8;stroke-width:3.5}.atoken.sea{background:rgba(24,48,70,.95);border-color:#6aa8e8}

@@ -215,7 +215,7 @@ function warWeek() {
     else if (!humans && w.weeks > 176) endWar(w, null);
     else if (humans && w.weeks > 240 && Math.abs(w.score) < 25) endWar(w, null);
   }
-  milEconWeek(); if (typeof mil2Week === 'function') mil2Week(); aiRecruitWeek(); aiTrainWeek(); aiLandingWeek(); if (typeof intelWeek === 'function') intelWeek(); if (typeof homeWeek === 'function') homeWeek();
+  milEconWeek(); if (typeof mil2Week === 'function') mil2Week(); aiRecruitWeek(); aiTrainWeek(); aiLandingWeek(); if (typeof intelWeek === 'function') intelWeek(); if (typeof peaceOffersWeek === 'function') peaceOffersWeek(); if (typeof homeWeek === 'function') homeWeek();
 }
 
 /* ---------- paz y resultado ---------- */
@@ -429,7 +429,7 @@ function diploMonth() {
   recalcTradeLoss();
   G.tags.forEach(t => { if (t !== NONE) stepFabricate(G.C[t]); });
   // propuestas pendientes caducan
-  G.proposals = G.proposals.filter(pp => G.date.t - pp.t < 180 && alive(pp.from));
+  G.proposals = G.proposals.filter(pp => G.date.t - pp.t < 180 && alive(pp.from) && (pp.type !== 'peace' || (G.date.t - pp.t < 60 && G.wars.some(w => w.id === pp.wid))));
   // IA
   G.tags.forEach(t => {
     const c = G.C[t]; if (t === NONE || !c.ai || !c.states.length) return;

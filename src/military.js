@@ -593,7 +593,7 @@ function aiMilitary() {
   const armiesAt = pid => byP.get(pid) || [];
   G.tags.forEach(t => {
     if (t === NONE) return; const c = G.C[t];
-    if (!c.ai || !c.wars.length) return;
+    if (!c.ai || !c.wars.length || (c.aiV || 2) !== 1) return;
     const enemies = G.tags.filter(o => hostileTags(t, o));
     if (!enemies.length) return;
     const mine = armiesOf(t).filter(a => !a.battle);

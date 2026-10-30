@@ -236,6 +236,7 @@ function advanceDay() {
   econDay();
   militaryDay(); natDay();
   if (d.t % 2 === 0) aiMilitary();
+  if (typeof aiWarAll === 'function') aiWarAll();
   if (monthly) monthlyTick();
   dailyEvents();
 }

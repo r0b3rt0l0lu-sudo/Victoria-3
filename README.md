@@ -61,19 +61,16 @@ Abre **`index.html`** en un navegador moderno (Chrome, Edge o Firefox con WebGL)
 ## Estructura del proyecto
 
 ```
-src/geo.js      contornos, cordilleras, biomas y listado de estados/países
-src/data.js     bienes, edificios, profesiones, grupos de interés, leyes, tecnologías, objetivos
-src/mapgen.js   relieve, biomas, asignación de estados (Dijkstra), bordes y rango de frente
-src/sim.js      simulación económica por etapas, política, IA, tecnología, guardado
-src/crisis.js   crisis económicas, patrocinio de grupos, cambios de gobierno
-src/diplo.js    pactos, bloques, casus belli, vasallos, guerras, IA diplomática
-src/military.js divisiones, ejércitos, movimiento, batallas, ocupación, IA militar
-src/manual.js   manual del juego
-src/render.js   escena three.js, cámara, pintado del mapa, etiquetas y minimapa
-src/ui.js       HUD, ventanas, panel de estado, pantalla de inicio
+src/*.js        ~41 módulos (≈10,3 k líneas): datos y mapa (geo, data, mapgen, provinces), economía y política (sim, crisis,
+                politics2, national, content), diplomacia y paz (diplo, coalition, peace, ofertas_paz), militar (military, mil2,
+                logistics, aviacion, marina, landing, doctrinas, plantillas, produccion, ...), IA de guerra (ia_guerra,
+                ia_operaciones), render y gráficos (render, render3d, graficos, navalviz, battleviz, ...), rendimiento, UI y manual
 src/style.css   estilo visual
+tools/          pruebas y simulaciones (Playwright/Node)
+docs/           PWA instalable (generada por build.py)
 vendor/three.min.js   three.js r152
 build.py        genera index.html a partir de src/ y vendor/
+ESTADO.md       estado de situación del proyecto
 ```
 
 Para regenerar el archivo tras editar el código: `python3 build.py` (genera `index.html`, autónomo) o `python3 build.py --light` (genera `juego-ligero.html`, ~0,4 MB, carga three.js desde un CDN y necesita Internet).

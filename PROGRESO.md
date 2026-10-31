@@ -15,14 +15,9 @@
 - **Ventana «Ejército y guerra»**: Ejércitos, Reclutamiento, Guerras (con batallas) y Fuerzas armadas.
 - Guardado/carga con ejércitos, batallas y reclutas; manual y README actualizados.
 
-## Parte 2 — PENDIENTE
-- Provincias (dividir los estados en unidades menores para el movimiento y la ocupación).
-- Suministro y logística (líneas de suministro, desgaste fuera de territorio propio).
-- Aviación y marina (flotas, bloqueos, transporte).
-- Producción de equipamiento (fusiles, cañones, etc.) y su efecto en las divisiones.
-- Frentes dibujados con flechas y asignación de ejércitos a frentes.
-- Doctrinas y árbol nacional.
-- Equilibrado: la frecuencia de batallas de la IA entre países es baja (≈ 0,5 batallas/año en simulación).
+## Parte 2 — (antes pendiente, ahora HECHO)
+Provincias, suministro/logística, aviación, marina, producción de equipo, doctrinas y árbol nacional están implementados.
+Para el estado actual completo véase `ESTADO.md`.
 
 ## Compilación
 `python3 build.py` → `index.html` (autónomo). `python3 build.py --light` → `juego-ligero.html` (three.js por CDN, necesita Internet).
@@ -32,7 +27,7 @@
   (5 días), línea de frente dibujada entre provincias ocupadas y libres, A* sobre provincias, atrincheramiento, muerte de generales,
   experiencia militar y cansancio de guerra (datos), guardado v2.
 - HECHO: **iconos SVG** (`src/icons.js`) en HUD, menú, cámara, modos de mapa y ventanas + pulido visual general (CSS).
-- PENDIENTE: suministro, producción de equipo, doctrinas, aviación, marina, frentes/planes, árbol nacional, ventanas nuevas.
+- (Lo que entonces estaba pendiente se completó en sesiones posteriores; véase `ESTADO.md`.)
 
 ## Cambios de la última sesión
 - Movimiento: modo «🎯 Mover» (clic izquierdo), Mayús+clic, grupos con Ctrl/Mayús+clic en fichas, **persecución** de ejércitos enemigos

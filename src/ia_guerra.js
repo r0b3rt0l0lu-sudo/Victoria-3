@@ -20,7 +20,7 @@ const AI_DOC = {
   CHN: {aggr: .3, capW: 1, depth: .8, fort: .2}
 };
 // parámetros de calibración de la IA (ajustados con torneos; ver tools/prueba_ia.js)
-const AI_TUNE = {tempo: 0.15, defBase: 0.9, reqBase: 1.45, ratioDef: 0.25};
+const AI_TUNE = {tempo: 0.0, defBase: 0.9, reqBase: 1.45, ratioDef: 0.4};   // calibrado en los torneos (más ofensiva cuanto más fuerte es el país, sin descuidar la capital)
 const aiDoc = c => AI_DOC[c.tag] || {aggr: c.rank <= 12 ? .6 : .4, capW: 1.2, depth: .2, fort: c.rank > 20 ? .6 : .3};
 const armyPow = a => { let p = 0; a.divs.forEach(d => { const i = DIVS[d.t] || DIVS.inf; p += d.s * (i.att + i.def) * (0.55 + 0.45 * d.o / i.org); }); return p; };
 const mineProv = (t, pid) => { const o = provOwner(pid), by = G.P[pid].by; return (by && sameSide(t, by)) || ((o === t || (o !== NONE && sameSide(t, o))) && !(by && !sameSide(t, by))); };

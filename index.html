@@ -9775,7 +9775,7 @@ function buildShipMeshes() {
 }
 function updateShipMeshes(t) {
   if (!G.mx || !G.mx.fl) return; if (!R.ships3d) { try { buildShipMeshes(); } catch (e) { console.warn(e); R.ships3d = {off: true}; return; } } if (R.ships3d.off) return;
-  const S = R.ships3d, show = R.cam.dist < 120 && R.showFigs !== false, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
+  const S = R.ships3d, show = R.cam.dist < 38 && R.showFigs !== false, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
   const n = {sail: 0, steam: 0};
   if (show) {
     const cw = R.canvas.clientWidth, ch = R.canvas.clientHeight, groups = new Map(), idx = {};

@@ -619,7 +619,7 @@ function privateInvest(c, warm) {
     const p = c.projects[i];
     if (p.wk <= 0) { const s = G.S[p.state]; s.b[p.bld] = (s.b[p.bld] || 0) + 1; c.projects.splice(i, 1); }
   }
-  c.investPool = Math.min(c.investPool, Math.max(5e6, 1500 * CP_MULT * moneyPerPoint(c)));   // el tope escala con el coste de los proyectos (antes un tope fijo impedía construir a los países grandes)
+  c.investPool = Math.min(c.investPool, Math.max(5e6, 900 * CP_MULT * moneyPerPoint(c)));   // el tope escala con el coste de los proyectos (antes un tope fijo impedía construir a los países grandes)
   let guard = 0;
   while (c.investPool > 0 && guard++ < 4) {
     const cand = pickInvestment(c);

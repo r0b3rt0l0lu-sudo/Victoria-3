@@ -17,7 +17,7 @@ const { chromium } = require('playwright');
     const bad = (k, m) => { window._issues[k] = (window._issues[k] || 0) + 1; if (window._issues[k] === 1) issues.push(m); };
     GOODS.forEach(g => { const p = G.price[g.id]; if (!isFinite(p) || p <= 0 || p > g.base * 40) bad('price_' + g.id, `precio ${g.id}=${p} (base ${g.base})`); });
     alive.forEach(t => { const c = G.C[t];
-      if (!isFinite(c.treasury)) bad('nan_tr_' + t, `${t} tesorería NaN`); else if (Math.abs(c.treasury) > 5e10) bad('tr_big_' + t, `${t} tesorería ${c.treasury.toExponential(2)}`);
+      if (!isFinite(c.treasury)) bad('nan_tr_' + t, `${t} tesorería NaN`); else if (Math.abs(c.treasury) > 400 * Math.max(1e6, c.stats.gdp)) bad('tr_big_' + t, `${t} tesorería ${c.treasury.toExponential(2)}`);
       ['legitimacy', 'prestige', 'influence', 'radicals', 'infamy'].forEach(k => { if (c[k] != null && !isFinite(c[k])) bad('nan_' + k + t, `${t}.${k} NaN`); });
       if (c.stats.pop !== c.stats.pop || c.stats.gdp !== c.stats.gdp) bad('nan_stats_' + t, `${t} stats NaN`);
       if (c.legitimacy < -50 || c.legitimacy > 200) bad('leg_' + t, `${t} legitimidad ${c.legitimacy}`);

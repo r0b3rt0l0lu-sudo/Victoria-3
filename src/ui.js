@@ -797,7 +797,7 @@ const ACT = {
   rotl: () => camRotate(0.3), rotr: () => camRotate(-0.3), tiltu: () => camTilt(0.15), tiltd: () => camTilt(-0.15),
   wheelmode: () => { R.wheelMode = R.wheelMode === 'zoom' ? 'pan' : 'zoom'; saveMapPrefs(); syncCamBtns(); toast('🖱️', R.wheelMode === 'zoom' ? 'La rueda del ratón o del panel táctil hace zoom.' : 'La rueda o el panel táctil desplaza el mapa (pellizca para hacer zoom).'); },
   animtoggle: () => { R.anim = !R.anim; if (R.waterMesh) { R.waterMesh.visible = R.anim; R.cloudMesh.visible = R.anim; } R.renderMs = 10; R.dirty = true; syncCamBtns(); toast('≈', R.anim ? 'Animaciones del mapa activadas.' : 'Animaciones desactivadas (más fluidez).'); },
-  quality: () => { const q = ['bajo', 'medio', 'alto']; R.quality = q[(q.indexOf(R.quality || 'medio') + 1) % 3]; R.resScale = 1; saveMapPrefs(); syncCamBtns(); resizeRenderer(); updateTerrainLOD(); R.lod = -1; updateTerrainLOD(); toast('🎞️', 'Calidad gráfica: ' + R.quality + (R.quality === 'bajo' ? ' (más fluidez).' : R.quality === 'alto' ? ' (más detalle).' : '.')); },
+  quality: () => { const q = ['bajo', 'medio', 'alto']; const nq = q[(q.indexOf(R.quality || 'medio') + 1) % 3]; R.qualityManual = true; R.resScale = 1; applyQuality(nq, 'Calidad gráfica: ' + nq + (nq === 'bajo' ? ' (más fluidez).' : nq === 'alto' ? ' (más detalle).' : '.')); saveMapPrefs(); },
   edgescroll: () => { R.edgeScroll = !R.edgeScroll; saveMapPrefs(); syncCamBtns(); toast('⇱', R.edgeScroll ? 'Desplazamiento por los bordes activado.' : 'Desplazamiento por los bordes desactivado.'); },
   gomenu: () => { if (confirm('¿Volver al menú principal?\n\nLa partida se guardará automáticamente (puedes retomarla con «Continuar»).')) { try { doSave(true); } catch (e) {} location.reload(); } },
   save: () => doSave(),
@@ -975,10 +975,11 @@ window.onFrame = function (t) {
   const dt = t - _gt; _gt = t;
   if (!G.paused && !G.pendingEvent) {
     UI.acc += Math.min(dt, 200);
-    let n = 0;
+    let n = 0; const tb = performance.now();
     while (UI.acc >= dayMs() && n < 40) {
       UI.acc -= dayMs(); const m0 = G.date.m;
       advanceDay(); n++;
+      if (n >= 1 && performance.now() - tb > (typeof simBudgetMs === 'function' ? simBudgetMs() : 14)) { UI.acc = Math.min(UI.acc, dayMs() * 1.5); break; }       // presupuesto de tiempo: el resto de días pasa al siguiente fotograma
       if (G.date.m !== m0 && R.mode !== 'political' && R.mode !== 'terrain') R.needPaint = true;
       if (G.date.m !== m0 && G.date.m === 0) doSave(true);
       if (G.pendingEvent) break;

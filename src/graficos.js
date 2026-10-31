@@ -29,18 +29,18 @@ function buildFoamTexture() {
 function upgradeWater() {
   if (!R.waterMesh || R._waterUp) return; R._waterUp = true;
   const foam = buildFoamTexture(), w = 360, d = LAT_TOP - LAT_BOT;
-  R.waterU.foam = {value: foam}; R.waterU.ext = {value: new THREE.Vector2(w, d)};
+  R.waterU.foamK = {value: R.lowEnd ? 0 : 1}; R.waterU.foam = {value: foam}; R.waterU.ext = {value: new THREE.Vector2(w, d)};
   const wm = new THREE.ShaderMaterial({
     uniforms: R.waterU, transparent: true, depthWrite: false,
     vertexShader: 'varying vec2 vP; varying vec2 vUv; void main(){ vP = position.xz; vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-    fragmentShader: 'uniform float t; uniform sampler2D foam; varying vec2 vP; varying vec2 vUv; void main(){ ' +
+    fragmentShader: 'uniform float t; uniform float foamK; uniform sampler2D foam; varying vec2 vP; varying vec2 vUv; void main(){ ' +
       'float a = sin(vP.x*1.7 + t*0.9 + sin(vP.y*0.8 + t*0.4)*1.6) * sin(vP.y*2.1 - t*0.7 + sin(vP.x*0.6 - t*0.3)*1.3); float s = smoothstep(0.62, 1.0, a);' +
       'float d = texture2D(foam, vec2(vUv.x, vUv.y)).r * 9.8;' +               // distancia a la costa en píxeles del mapa
       'float sea = step(0.01, d);' +
       'float wave = sin(d*2.4 - t*1.5 + sin(vP.x*3.0+t*0.5)*0.9);' +
       'float band = (1.0 - smoothstep(0.0, 3.4, d)) * (0.5 + 0.5*wave);' +
       'float edge = (1.0 - smoothstep(0.0, 1.1, d + 0.3*sin(vP.x*9.0 + t*1.2)));' +
-      'float fo = clamp(band*0.5 + edge*0.55, 0.0, 1.0) * sea;' +
+      'float fo = clamp(band*0.5 + edge*0.55, 0.0, 1.0) * sea * foamK;' +
       'float glint = smoothstep(0.93, 1.0, sin(vP.x*5.3 + t*1.9) * sin(vP.y*4.7 - t*1.4)) * 0.18 * sea;' +
       'vec3 col = mix(vec3(0.75,0.9,1.0), vec3(1.0), fo); float al = s*0.2*sea + fo*0.5 + glint + (sin(vP.x*0.35 + t*0.15)*0.5+0.5)*0.03*sea; gl_FragColor = vec4(col, clamp(al, 0.0, 0.85)); }'
   });
@@ -61,7 +61,7 @@ function buildChimneys() {
 }
 // humo: se emite desde algunas chimeneas cercanas a la cámara (se llama desde updateSmoke)
 function chimneySmoke() {
-  if (!R.chimItems || !R.chimItems.length || !R.puffs || R.cam.dist > 55) return false; let any = false;
+  if (!R.chimItems || !R.chimItems.length || !R.puffs || R.cam.dist > 55 || R.lowEnd) return false; let any = false;
   const cx = R.cam.tx, cz = R.cam.tz, r = Math.max(10, R.cam.dist * 0.7);
   for (let n = 0; n < 4; n++) { const c = R.chimItems[Math.floor(Math.random() * R.chimItems.length)]; if (Math.abs(c.x - cx) > r || Math.abs(c.z - cz) > r * 0.8) continue;
     const pf = R.puffs.find(p => !p.alive && !p.fire); if (!pf) break; pf.alive = true; pf.age = 0; pf.life = 2.2 + Math.random() * 1.2; pf.x = c.x; pf.z = c.z; pf.y = c.y + c.h; pf.sp.visible = true; pf.small = true; any = true; }
@@ -76,7 +76,7 @@ function buildPlanes() {
 }
 function updatePlanes(t) {
   if (!G.mx || !G.mx.sq) return; if (!R.planeMesh) { try { buildPlanes(); } catch (e) { R.planeMesh = null; return; } }
-  const show = R.cam.dist < 130, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3(3.2, 3.2, 3.2), up = new THREE.Vector3(0, 1, 0); let n = 0;
+  const show = R.cam.dist < 130 && !R.lowEnd, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3(3.2, 3.2, 3.2), up = new THREE.Vector3(0, 1, 0); let n = 0;
   if (show) { const myRegs = new Set(); G.mx.sq.forEach(s => { if (s.tag === G.player) myRegs.add(s.reg); }); G.C[G.player].states.forEach(sid => myRegs.add(airRegOf(sid)));
     G.mx.sq.forEach(s => { if (s.n <= 0 || n >= 118) return; const mine = s.tag === G.player || sameSide(G.player, s.tag); if (!mine && !myRegs.has(s.reg)) return; const reg = airReg(s.reg); const k = Math.min(4, 1 + Math.floor(s.n / 35));
       for (let i = 0; i < k && n < 118; i++) { const an = t / (1500 + (s.id % 5) * 300) + i * 6.283 / k + s.id, R0 = 1.4 + (s.id % 3) * 0.6 + i * 0.2; p.set(reg.lon + Math.cos(an) * R0 * 1.6, 1.3 + Math.sin(t / 900 + i) * 0.06, -reg.lat + Math.sin(an) * R0); q.setFromAxisAngle(up, -an - Math.PI / 2); m4.compose(p, q, sc); R.planeMesh.setMatrixAt(n++, m4); } }); }

@@ -61,7 +61,7 @@ function stateFill(s) {
 function initRenderer(canvas) {
   const W = MAP_W, H = MAP_H;
   R.canvas = canvas;
-  R.renderer = new THREE.WebGLRenderer({canvas, antialias: (window.devicePixelRatio || 1) < 1.5, preserveDrawingBuffer: false, powerPreference: 'high-performance'});
+  R.renderer = new THREE.WebGLRenderer({canvas, antialias: (window.devicePixelRatio || 1) < 1.5 && !(typeof lowSpecGuess === 'function' && lowSpecGuess()), preserveDrawingBuffer: false, powerPreference: 'high-performance'});
   R.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   R.scene = new THREE.Scene();
   R.scene.background = new THREE.Color(0x14222c);
@@ -236,8 +236,8 @@ function camZoom(f) { zoomAt(R.canvas.clientWidth / 2, R.canvas.clientHeight / 2
 function camHome() { R.cam.tx = 12; R.cam.tz = -52; R.cam.dist = 130; R.cam.tilt = 0.78; R.cam.yaw = 0; camChanged(); }
 function camRotate(d) { R.cam.yaw += d; camChanged(); }
 function camTilt(d) { R.cam.tilt += d; camChanged(); }
-function loadMapPrefs() { try { const p = JSON.parse(localStorage.getItem('victoria-map-prefs') || '{}'); R.wheelMode = p.wheelMode || 'zoom'; R.edgeScroll = !!p.edgeScroll; R.quality = ['bajo', 'medio', 'alto'].includes(p.quality) ? p.quality : 'medio'; } catch (e) { R.wheelMode = 'zoom'; R.edgeScroll = false; } }
-function saveMapPrefs() { try { localStorage.setItem('victoria-map-prefs', JSON.stringify({wheelMode: R.wheelMode, edgeScroll: R.edgeScroll, quality: R.quality})); } catch (e) {} }
+function loadMapPrefs() { try { const p = JSON.parse(localStorage.getItem('victoria-map-prefs') || '{}'); R.wheelMode = p.wheelMode || 'zoom'; R.edgeScroll = !!p.edgeScroll; R.quality = ['bajo', 'medio', 'alto'].includes(p.quality) ? p.quality : 'medio'; R.qualityManual = !!p.qm; R.lowEnd = R.quality === 'bajo' && R.qualityManual; } catch (e) { R.wheelMode = 'zoom'; R.edgeScroll = false; } }
+function saveMapPrefs() { try { localStorage.setItem('victoria-map-prefs', JSON.stringify({wheelMode: R.wheelMode, edgeScroll: R.edgeScroll, quality: R.quality, qm: !!R.qualityManual})); } catch (e) {} }
 
 function setupControls() {
   const cv = R.canvas; const pts = new Map(); let drag = null, pinch = null;
@@ -567,19 +567,22 @@ function drawMinimap() {
 let _lastT = 0; R.rn = 0;
 function frame_(t) {
   const dt = Math.min(0.1, (t - _lastT) / 1000); _lastT = t;
+  if (typeof pageHidden === 'function' && pageHidden()) { requestAnimationFrame(frame_); return; }
   if (R.skip3d) { if (window.onFrame) window.onFrame(t); requestAnimationFrame(frame_); return; }
+  if (t > 1200 && !R._aqDone && typeof autoQualityInit === 'function') autoQualityInit();
   keyboardPan(dt);
   if (t - (R._gT || 0) > 250 && typeof graphicsTick === 'function') { R._gT = t; graphicsTick(t); }
   if (R.cityMesh === undefined && G.S && G.S.length && MAP.provs) { try { buildCities(); } catch (e) { console.warn(e); } R.cityMesh = R.cityMesh || null; R.dirty = true; }
-  if ((R.anim || R.smokeOn || (G.battles && G.battles.length)) && t - (R.lastAnim || 0) > 55) { R.lastAnim = t; if (R.anim && animateMap(t)) R.dirty = true; R.smokeOn = updateSmoke(t); if (R.smokeOn) R.dirty = true; updateCityVisibility(); if (G.armies && G.armies.length && (R.cam.dist < 62 || R.figsShown)) updateArmyMeshes(t); }
+  if ((R.anim || R.smokeOn || (G.battles && G.battles.length)) && t - (R.lastAnim || 0) > (R.lowEnd ? 110 : 55)) { R.lastAnim = t; if (R.anim && animateMap(t)) R.dirty = true; R.smokeOn = updateSmoke(t); if (R.smokeOn) R.dirty = true; updateCityVisibility(); if (G.armies && G.armies.length && (R.cam.dist < 62 || R.figsShown)) updateArmyMeshes(t); }
   if (R.dirty || R.labelsDirty) {
     updateCamera(); if (typeof updateCityVisibility === 'function') updateCityVisibility();
     const t0 = performance.now(); R.renderer.render(R.scene, R.camera);
+    if (R.bench) { try { R.renderer.getContext().finish(); } catch (e) {} benchSample(performance.now() - t0); }
     if (++R.rn % 24 === 0 && t > 6000 && !R.noAdapt) {            // cada cierto tiempo se mide la carga real de la GPU para ajustar la resolución
       try { R.renderer.getContext().finish(); } catch (e) {}
       const g = performance.now() - t0; R.gpuMs = (R.gpuMs || g) * 0.6 + g * 0.4;
       const sc = R.resScale || 1; let ns = sc;
-      if (R.gpuMs > 26 && sc > 0.56) ns = Math.max(0.56, sc - 0.12); else if (R.gpuMs < 9 && sc < 1) ns = Math.min(1, sc + 0.08);
+      if (R.gpuMs > 26 && sc > (R.lowEnd ? 0.5 : 0.56)) ns = Math.max(R.lowEnd ? 0.5 : 0.56, sc - 0.12); else if (R.gpuMs < 9 && sc < 1) ns = Math.min(1, sc + 0.08);
       if (Math.abs(ns - sc) > 0.01) { R.resScale = ns; resizeRenderer(); }
     }
     R.renderMs = (R.renderMs || 10) * 0.9 + (performance.now() - t0) * 0.1;

@@ -5000,7 +5000,7 @@ function stateFill(s) {
 function initRenderer(canvas) {
   const W = MAP_W, H = MAP_H;
   R.canvas = canvas;
-  R.renderer = new THREE.WebGLRenderer({canvas, antialias: (window.devicePixelRatio || 1) < 1.5, preserveDrawingBuffer: false, powerPreference: 'high-performance'});
+  R.renderer = new THREE.WebGLRenderer({canvas, antialias: (window.devicePixelRatio || 1) < 1.5 && !(typeof lowSpecGuess === 'function' && lowSpecGuess()), preserveDrawingBuffer: false, powerPreference: 'high-performance'});
   R.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   R.scene = new THREE.Scene();
   R.scene.background = new THREE.Color(0x14222c);
@@ -5175,8 +5175,8 @@ function camZoom(f) { zoomAt(R.canvas.clientWidth / 2, R.canvas.clientHeight / 2
 function camHome() { R.cam.tx = 12; R.cam.tz = -52; R.cam.dist = 130; R.cam.tilt = 0.78; R.cam.yaw = 0; camChanged(); }
 function camRotate(d) { R.cam.yaw += d; camChanged(); }
 function camTilt(d) { R.cam.tilt += d; camChanged(); }
-function loadMapPrefs() { try { const p = JSON.parse(localStorage.getItem('victoria-map-prefs') || '{}'); R.wheelMode = p.wheelMode || 'zoom'; R.edgeScroll = !!p.edgeScroll; R.quality = ['bajo', 'medio', 'alto'].includes(p.quality) ? p.quality : 'medio'; } catch (e) { R.wheelMode = 'zoom'; R.edgeScroll = false; } }
-function saveMapPrefs() { try { localStorage.setItem('victoria-map-prefs', JSON.stringify({wheelMode: R.wheelMode, edgeScroll: R.edgeScroll, quality: R.quality})); } catch (e) {} }
+function loadMapPrefs() { try { const p = JSON.parse(localStorage.getItem('victoria-map-prefs') || '{}'); R.wheelMode = p.wheelMode || 'zoom'; R.edgeScroll = !!p.edgeScroll; R.quality = ['bajo', 'medio', 'alto'].includes(p.quality) ? p.quality : 'medio'; R.qualityManual = !!p.qm; R.lowEnd = R.quality === 'bajo' && R.qualityManual; } catch (e) { R.wheelMode = 'zoom'; R.edgeScroll = false; } }
+function saveMapPrefs() { try { localStorage.setItem('victoria-map-prefs', JSON.stringify({wheelMode: R.wheelMode, edgeScroll: R.edgeScroll, quality: R.quality, qm: !!R.qualityManual})); } catch (e) {} }
 
 function setupControls() {
   const cv = R.canvas; const pts = new Map(); let drag = null, pinch = null;
@@ -5506,19 +5506,22 @@ function drawMinimap() {
 let _lastT = 0; R.rn = 0;
 function frame_(t) {
   const dt = Math.min(0.1, (t - _lastT) / 1000); _lastT = t;
+  if (typeof pageHidden === 'function' && pageHidden()) { requestAnimationFrame(frame_); return; }
   if (R.skip3d) { if (window.onFrame) window.onFrame(t); requestAnimationFrame(frame_); return; }
+  if (t > 1200 && !R._aqDone && typeof autoQualityInit === 'function') autoQualityInit();
   keyboardPan(dt);
   if (t - (R._gT || 0) > 250 && typeof graphicsTick === 'function') { R._gT = t; graphicsTick(t); }
   if (R.cityMesh === undefined && G.S && G.S.length && MAP.provs) { try { buildCities(); } catch (e) { console.warn(e); } R.cityMesh = R.cityMesh || null; R.dirty = true; }
-  if ((R.anim || R.smokeOn || (G.battles && G.battles.length)) && t - (R.lastAnim || 0) > 55) { R.lastAnim = t; if (R.anim && animateMap(t)) R.dirty = true; R.smokeOn = updateSmoke(t); if (R.smokeOn) R.dirty = true; updateCityVisibility(); if (G.armies && G.armies.length && (R.cam.dist < 62 || R.figsShown)) updateArmyMeshes(t); }
+  if ((R.anim || R.smokeOn || (G.battles && G.battles.length)) && t - (R.lastAnim || 0) > (R.lowEnd ? 110 : 55)) { R.lastAnim = t; if (R.anim && animateMap(t)) R.dirty = true; R.smokeOn = updateSmoke(t); if (R.smokeOn) R.dirty = true; updateCityVisibility(); if (G.armies && G.armies.length && (R.cam.dist < 62 || R.figsShown)) updateArmyMeshes(t); }
   if (R.dirty || R.labelsDirty) {
     updateCamera(); if (typeof updateCityVisibility === 'function') updateCityVisibility();
     const t0 = performance.now(); R.renderer.render(R.scene, R.camera);
+    if (R.bench) { try { R.renderer.getContext().finish(); } catch (e) {} benchSample(performance.now() - t0); }
     if (++R.rn % 24 === 0 && t > 6000 && !R.noAdapt) {            // cada cierto tiempo se mide la carga real de la GPU para ajustar la resolución
       try { R.renderer.getContext().finish(); } catch (e) {}
       const g = performance.now() - t0; R.gpuMs = (R.gpuMs || g) * 0.6 + g * 0.4;
       const sc = R.resScale || 1; let ns = sc;
-      if (R.gpuMs > 26 && sc > 0.56) ns = Math.max(0.56, sc - 0.12); else if (R.gpuMs < 9 && sc < 1) ns = Math.min(1, sc + 0.08);
+      if (R.gpuMs > 26 && sc > (R.lowEnd ? 0.5 : 0.56)) ns = Math.max(R.lowEnd ? 0.5 : 0.56, sc - 0.12); else if (R.gpuMs < 9 && sc < 1) ns = Math.min(1, sc + 0.08);
       if (Math.abs(ns - sc) > 0.01) { R.resScale = ns; resizeRenderer(); }
     }
     R.renderMs = (R.renderMs || 10) * 0.9 + (performance.now() - t0) * 0.1;
@@ -5681,7 +5684,7 @@ function updateArmyMeshes(t) {
   if (typeof updatePlanes === 'function') updatePlanes(t);
   if (!G.armies || !MAP.provs) return;
   if (!R.figs) { try { buildFigures(); } catch (e) { console.warn(e); R.figs = null; R.figsOff = true; return; } }
-  const show = R.cam.dist < 62 && R.showFigs !== false; R.figsShown = show;
+  const show = R.cam.dist < (R.lowEnd ? 42 : 62) && R.showFigs !== false; R.figsShown = show;
   const n = {inf: 0, cav: 0, art: 0}, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3(1, 1, 1), c = new THREE.Color(), up = new THREE.Vector3(0, 1, 0);
   if (show) {
     const cw = R.canvas.clientWidth, ch = R.canvas.clientHeight, perProv = {};
@@ -6513,7 +6516,7 @@ const ACT = {
   rotl: () => camRotate(0.3), rotr: () => camRotate(-0.3), tiltu: () => camTilt(0.15), tiltd: () => camTilt(-0.15),
   wheelmode: () => { R.wheelMode = R.wheelMode === 'zoom' ? 'pan' : 'zoom'; saveMapPrefs(); syncCamBtns(); toast('🖱️', R.wheelMode === 'zoom' ? 'La rueda del ratón o del panel táctil hace zoom.' : 'La rueda o el panel táctil desplaza el mapa (pellizca para hacer zoom).'); },
   animtoggle: () => { R.anim = !R.anim; if (R.waterMesh) { R.waterMesh.visible = R.anim; R.cloudMesh.visible = R.anim; } R.renderMs = 10; R.dirty = true; syncCamBtns(); toast('≈', R.anim ? 'Animaciones del mapa activadas.' : 'Animaciones desactivadas (más fluidez).'); },
-  quality: () => { const q = ['bajo', 'medio', 'alto']; R.quality = q[(q.indexOf(R.quality || 'medio') + 1) % 3]; R.resScale = 1; saveMapPrefs(); syncCamBtns(); resizeRenderer(); updateTerrainLOD(); R.lod = -1; updateTerrainLOD(); toast('🎞️', 'Calidad gráfica: ' + R.quality + (R.quality === 'bajo' ? ' (más fluidez).' : R.quality === 'alto' ? ' (más detalle).' : '.')); },
+  quality: () => { const q = ['bajo', 'medio', 'alto']; const nq = q[(q.indexOf(R.quality || 'medio') + 1) % 3]; R.qualityManual = true; R.resScale = 1; applyQuality(nq, 'Calidad gráfica: ' + nq + (nq === 'bajo' ? ' (más fluidez).' : nq === 'alto' ? ' (más detalle).' : '.')); saveMapPrefs(); },
   edgescroll: () => { R.edgeScroll = !R.edgeScroll; saveMapPrefs(); syncCamBtns(); toast('⇱', R.edgeScroll ? 'Desplazamiento por los bordes activado.' : 'Desplazamiento por los bordes desactivado.'); },
   gomenu: () => { if (confirm('¿Volver al menú principal?\n\nLa partida se guardará automáticamente (puedes retomarla con «Continuar»).')) { try { doSave(true); } catch (e) {} location.reload(); } },
   save: () => doSave(),
@@ -6691,10 +6694,11 @@ window.onFrame = function (t) {
   const dt = t - _gt; _gt = t;
   if (!G.paused && !G.pendingEvent) {
     UI.acc += Math.min(dt, 200);
-    let n = 0;
+    let n = 0; const tb = performance.now();
     while (UI.acc >= dayMs() && n < 40) {
       UI.acc -= dayMs(); const m0 = G.date.m;
       advanceDay(); n++;
+      if (n >= 1 && performance.now() - tb > (typeof simBudgetMs === 'function' ? simBudgetMs() : 14)) { UI.acc = Math.min(UI.acc, dayMs() * 1.5); break; }       // presupuesto de tiempo: el resto de días pasa al siguiente fotograma
       if (G.date.m !== m0 && R.mode !== 'political' && R.mode !== 'terrain') R.needPaint = true;
       if (G.date.m !== m0 && G.date.m === 0) doSave(true);
       if (G.pendingEvent) break;
@@ -9950,18 +9954,18 @@ function buildFoamTexture() {
 function upgradeWater() {
   if (!R.waterMesh || R._waterUp) return; R._waterUp = true;
   const foam = buildFoamTexture(), w = 360, d = LAT_TOP - LAT_BOT;
-  R.waterU.foam = {value: foam}; R.waterU.ext = {value: new THREE.Vector2(w, d)};
+  R.waterU.foamK = {value: R.lowEnd ? 0 : 1}; R.waterU.foam = {value: foam}; R.waterU.ext = {value: new THREE.Vector2(w, d)};
   const wm = new THREE.ShaderMaterial({
     uniforms: R.waterU, transparent: true, depthWrite: false,
     vertexShader: 'varying vec2 vP; varying vec2 vUv; void main(){ vP = position.xz; vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-    fragmentShader: 'uniform float t; uniform sampler2D foam; varying vec2 vP; varying vec2 vUv; void main(){ ' +
+    fragmentShader: 'uniform float t; uniform float foamK; uniform sampler2D foam; varying vec2 vP; varying vec2 vUv; void main(){ ' +
       'float a = sin(vP.x*1.7 + t*0.9 + sin(vP.y*0.8 + t*0.4)*1.6) * sin(vP.y*2.1 - t*0.7 + sin(vP.x*0.6 - t*0.3)*1.3); float s = smoothstep(0.62, 1.0, a);' +
       'float d = texture2D(foam, vec2(vUv.x, vUv.y)).r * 9.8;' +               // distancia a la costa en píxeles del mapa
       'float sea = step(0.01, d);' +
       'float wave = sin(d*2.4 - t*1.5 + sin(vP.x*3.0+t*0.5)*0.9);' +
       'float band = (1.0 - smoothstep(0.0, 3.4, d)) * (0.5 + 0.5*wave);' +
       'float edge = (1.0 - smoothstep(0.0, 1.1, d + 0.3*sin(vP.x*9.0 + t*1.2)));' +
-      'float fo = clamp(band*0.5 + edge*0.55, 0.0, 1.0) * sea;' +
+      'float fo = clamp(band*0.5 + edge*0.55, 0.0, 1.0) * sea * foamK;' +
       'float glint = smoothstep(0.93, 1.0, sin(vP.x*5.3 + t*1.9) * sin(vP.y*4.7 - t*1.4)) * 0.18 * sea;' +
       'vec3 col = mix(vec3(0.75,0.9,1.0), vec3(1.0), fo); float al = s*0.2*sea + fo*0.5 + glint + (sin(vP.x*0.35 + t*0.15)*0.5+0.5)*0.03*sea; gl_FragColor = vec4(col, clamp(al, 0.0, 0.85)); }'
   });
@@ -9982,7 +9986,7 @@ function buildChimneys() {
 }
 // humo: se emite desde algunas chimeneas cercanas a la cámara (se llama desde updateSmoke)
 function chimneySmoke() {
-  if (!R.chimItems || !R.chimItems.length || !R.puffs || R.cam.dist > 55) return false; let any = false;
+  if (!R.chimItems || !R.chimItems.length || !R.puffs || R.cam.dist > 55 || R.lowEnd) return false; let any = false;
   const cx = R.cam.tx, cz = R.cam.tz, r = Math.max(10, R.cam.dist * 0.7);
   for (let n = 0; n < 4; n++) { const c = R.chimItems[Math.floor(Math.random() * R.chimItems.length)]; if (Math.abs(c.x - cx) > r || Math.abs(c.z - cz) > r * 0.8) continue;
     const pf = R.puffs.find(p => !p.alive && !p.fire); if (!pf) break; pf.alive = true; pf.age = 0; pf.life = 2.2 + Math.random() * 1.2; pf.x = c.x; pf.z = c.z; pf.y = c.y + c.h; pf.sp.visible = true; pf.small = true; any = true; }
@@ -9997,7 +10001,7 @@ function buildPlanes() {
 }
 function updatePlanes(t) {
   if (!G.mx || !G.mx.sq) return; if (!R.planeMesh) { try { buildPlanes(); } catch (e) { R.planeMesh = null; return; } }
-  const show = R.cam.dist < 130, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3(3.2, 3.2, 3.2), up = new THREE.Vector3(0, 1, 0); let n = 0;
+  const show = R.cam.dist < 130 && !R.lowEnd, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3(3.2, 3.2, 3.2), up = new THREE.Vector3(0, 1, 0); let n = 0;
   if (show) { const myRegs = new Set(); G.mx.sq.forEach(s => { if (s.tag === G.player) myRegs.add(s.reg); }); G.C[G.player].states.forEach(sid => myRegs.add(airRegOf(sid)));
     G.mx.sq.forEach(s => { if (s.n <= 0 || n >= 118) return; const mine = s.tag === G.player || sameSide(G.player, s.tag); if (!mine && !myRegs.has(s.reg)) return; const reg = airReg(s.reg); const k = Math.min(4, 1 + Math.floor(s.n / 35));
       for (let i = 0; i < k && n < 118; i++) { const an = t / (1500 + (s.id % 5) * 300) + i * 6.283 / k + s.id, R0 = 1.4 + (s.id % 3) * 0.6 + i * 0.2; p.set(reg.lon + Math.cos(an) * R0 * 1.6, 1.3 + Math.sin(t / 900 + i) * 0.06, -reg.lat + Math.sin(an) * R0); q.setFromAxisAngle(up, -an - Math.PI / 2); m4.compose(p, q, sc); R.planeMesh.setMatrixAt(n++, m4); } }); }
@@ -10032,6 +10036,58 @@ function graphicsTick(t) {
   if (G.date.m !== R._chimMonth && R.cityItems) { R._chimMonth = G.date.m; try { buildChimneys(); } catch (e) {} }
   updateSeason(); applyShadows(); updateShadowFrustum();
 }
+
+/* ===== RENDIMIENTO: detección del equipo, perfil de calidad automático, prueba de velocidad y presupuesto de tiempo =====
+   Pensado para equipos modestos (Chromebooks, portátiles con GPU integrada): al arrancar se detecta el hardware, se elige un perfil
+   de calidad, se confirma con una breve medición de fotogramas reales y, durante la partida, la resolución se ajusta sola.
+   Si el jugador cambia la calidad con el botón Q, su elección manda siempre. */
+function hwProbe() {
+  const ua = navigator.userAgent || '', cores = navigator.hardwareConcurrency || 2, mem = navigator.deviceMemory || 4;
+  return {cros: /CrOS/.test(ua), android: /Android/.test(ua), cores, mem, dpr: window.devicePixelRatio || 1, webgpu: !!navigator.gpu, w: screen.width, h: screen.height, touch: navigator.maxTouchPoints > 1};
+}
+// ¿equipo modesto? (decidido antes de crear el contexto 3D: sirve para desactivar el antialiasing)
+function lowSpecGuess() { const h = hwProbe(); return h.cros || h.android || h.mem <= 4 || h.cores <= 4; }
+function gpuName() { try { const gl = R.renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info'); return ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : String(gl.getParameter(gl.RENDERER)); } catch (e) { return ''; } }
+// perfil por hardware: 'bajo' | 'medio' | 'alto'
+function profileFor(h, gpu) {
+  const g = (gpu || '').toLowerCase();
+  if (/swiftshader|llvmpipe|software|basic render/.test(g)) return 'bajo';
+  const weak = /intel.*(hd|uhd|graphics 5|graphics 6)|mali|adreno|powervr|videocore|apple gpu|vivante/.test(g) || h.mem <= 4 || h.cores <= 4 || h.cros;
+  const strong = /(nvidia|geforce|rtx|gtx|radeon rx|radeon pro|apple m[0-9]|iris xe|arc )/.test(g) && h.cores >= 8 && h.mem >= 8 && !h.cros;
+  return strong ? 'alto' : weak ? 'bajo' : 'medio';
+}
+const QRANK = {bajo: 0, medio: 1, alto: 2};
+function applyQuality(q, why) {
+  R.quality = q; R.lowEnd = q === 'bajo'; R.resScale = R.lowEnd ? Math.min(R.resScale || 1, 0.85) : 1;
+  if (R.tex) R.tex.anisotropy = R.lowEnd ? 1 : Math.min(8, R.renderer.capabilities.getMaxAnisotropy());
+  if (R.waterU && R.waterU.foamK) R.waterU.foamK.value = R.lowEnd ? 0 : 1;
+  R.lod = -1; if (typeof resizeRenderer === 'function') resizeRenderer(); if (typeof updateTerrainLOD === 'function') updateTerrainLOD();
+  if (typeof syncCamBtns === 'function') syncCamBtns(); R.dirty = true; R.labelsDirty = true;
+  if (why && typeof toast === 'function') toast('🎞️', why);
+}
+// prueba de velocidad con fotogramas reales (se llama desde el bucle de dibujado en los primeros fotogramas)
+function benchStart() { R.bench = {n: 0, ms: [], t0: performance.now()}; R.noAdapt = true; }
+function benchSample(g) {
+  const b = R.bench; if (!b) return; b.ms.push(g); if (++b.n < 14) return;
+  const s = b.ms.slice(3).sort((x, y) => x - y), med = s[s.length >> 1]; R.bench = null; R.noAdapt = false; R.benchMs = med;
+  const hw = hwProbe(), gpu = gpuName(), prof = profileFor(hw, gpu); let q = prof;
+  if (med > 60) { q = 'bajo'; R.resScale = 0.6; } else if (med > 24) q = 'bajo'; else if (med > 11 && QRANK[q] > 1) q = 'medio'; else if (med < 5 && prof === 'medio' && hw.cores >= 6 && !hw.cros) q = 'medio';
+  try { localStorage.setItem('victoria-autoq', JSON.stringify({q, gpu, med: Math.round(med), t: Date.now()})); } catch (e) {}
+  if (!R.qualityManual) applyQuality(q, `Calidad gráfica ajustada automáticamente a «${q}» (${gpu ? gpu.replace(/\(.*?\)/g, '').slice(0, 38) : 'GPU'}; ${Math.round(med)} ms por fotograma). Puedes cambiarla con el botón Q.`);
+  R.hw = {hw, gpu, prof, med};
+}
+// al arrancar: usa el resultado guardado si es reciente (y del mismo equipo); si no, mide
+function autoQualityInit() {
+  if (R.qualityManual || R._aqDone) return; R._aqDone = true;
+  const hw = hwProbe(), gpu = gpuName(); R.hw = {hw, gpu, prof: profileFor(hw, gpu)};
+  let saved = null; try { saved = JSON.parse(localStorage.getItem('victoria-autoq') || 'null'); } catch (e) {}
+  if (saved && saved.gpu === gpu && Date.now() - saved.t < 14 * 864e5) { applyQuality(saved.q); return; }
+  applyQuality(R.hw.prof); benchStart();
+}
+// presupuesto de tiempo de la simulación por fotograma: si los días tardan demasiado, el resto pasa al siguiente fotograma
+const simBudgetMs = () => R.lowEnd ? 9 : 14;
+// el dibujado se salta si la pestaña no está visible
+const pageHidden = () => typeof document !== 'undefined' && document.hidden;
 
 /* ===== EVENTOS AMPLIADOS, RASGOS NACIONALES Y LOGROS ===== */
 const cnt = (c, k, n) => { c.cnt = c.cnt || {}; c.cnt[k] = (c.cnt[k] || 0) + (n === undefined ? 1 : n); return c.cnt[k]; };
@@ -10631,6 +10687,8 @@ const MANUAL = [
 <h4>Levas y compra de equipo</h4><p>En <b>Reclutamiento</b> puedes <b>comprar el equipo</b> que falta para una división (con un 30% de recargo) o un lote de cualquier bien (pólvora, fusiles…) cuando la producción propia no basta. También puedes alzar <b>levas de campesinos</b>: divisiones baratas, rápidas y sin cuarteles ni equipo, pero mal entrenadas (atacan −45%, defienden −25%) que sirven para defender. Con la <b>Movilización total</b> aparecen levas automáticamente en todos tus estados; al bajar de nivel se disuelven.</p>
 <h4>Movilización</h4><p>En <b>Reclutamiento</b> eliges el nivel de movilización: solo soldados profesionales (barracones), voluntarios (1% de la población), servicio limitado (2,5%), conscripción (5%) o movilización total (10%). Más movilización permite más divisiones, pero reduce la producción (−4% por nivel), cuesta dinero cada mes y genera malestar y pérdida de legitimidad. Cada división tiene además un <b>mantenimiento semanal</b> (más caro en guerra).</p>
 <h4>Gráficos del mapa</h4><p>El mapa 3D tiene <b>estaciones</b>: la nieve avanza en invierno desde el norte y las montañas, y los tonos cambian en primavera y otoño (el sol baja en invierno). Las costas muestran <b>espuma</b> y el mar destellos. Los estados industrializados tienen <b>chimeneas</b> que echan humo (más cuanta más industria), los escuadrones aéreos sobrevuelan sus regiones y los estados bombardeados arden. En calidad <b>Alta</b> (botón Q) se añaden <b>sombras suaves</b>.</p>
+<h4>Equipos modestos y Chromebooks</h4><p>Al arrancar, el juego <b>detecta tu equipo</b> (núcleos, memoria, tarjeta gráfica, ChromeOS) y elige un perfil de calidad; después <b>mide unos fotogramas reales</b> para confirmarlo y recuerda el resultado. En perfil <b>bajo</b> usa menos resolución, sin antialiasing, sin espuma ni humo de chimeneas ni aviones, menos figuras en el mapa y animaciones más espaciadas. Si cambias la calidad con el botón <b>Q</b>, tu elección manda siempre. Además la simulación respeta un <b>presupuesto de tiempo por fotograma</b> (si los días tardan demasiado, el resto pasa al siguiente fotograma: el mapa no se congela) y el dibujado se detiene si la pestaña no se ve.</p>
+<h4>Instalar como aplicación (PWA)</h4><p>La carpeta <code>docs/</code> contiene una versión instalable: aloja su contenido en una web (por ejemplo con GitHub Pages) y ábrela en Chrome: aparecerá el botón <b>Instalar</b> en la barra de direcciones. Se abre en su propia ventana a pantalla completa y <b>funciona sin conexión</b>.</p>
 <h4>Fluidez y calidad gráfica</h4><p>El botón <b>Q</b> del lateral derecho alterna la calidad gráfica: <b>B</b>ajo (más fluidez), <b>M</b>edio y <b>A</b>lto. El terreno usa niveles de detalle según el zoom y solo se dibuja lo que ve la cámara, y la resolución baja sola si tu tarjeta gráfica no da abasto.</p>
 <h4>Ofertas de paz intermedias</h4><p>En <b>Ejército y guerra → Guerras</b>, el botón <b>📜 Negociar paz…</b> abre una propuesta sin esperar a la victoria total. Puedes <b>exigir</b> condiciones si vas ganando (territorios ocupados o tus objetivos de guerra, reparaciones, humillación, concesiones comerciales, desmilitarización), <b>ofrecer</b> concesiones si pierdes (ceder lo que el enemigo ocupa, pagar) o proponer una <b>paz blanca</b>. El cuadro te indica la <b>probabilidad de aceptación</b>: depende de la puntuación de guerra, el cansancio de guerra, el peligro para la capital, la duración de la guerra y el carácter del país. Si rechazan, espera unas semanas. La IA también te propone paces (llegan a Diplomacia → Acuerdos): puedes aceptar, rechazar o <b>negociar</b> con una contraoferta, y firma paces entre sí para no alargar guerras sin salida.</p>
 <h4>Cómo piensa la IA en la guerra</h4><p>Cada país en guerra valora sus provincias (capital, industria, puertos, objetivos de guerra) y calcula el peligro de los ejércitos enemigos. <b>Defiende</b> primero la capital y lo que más vale, sin malgastar tropas en territorios inútiles, e <b>intercepta</b> a los invasores cuando tiene superioridad. <b>Ataca</b> con ejércitos concentrados contra objetivos valiosos y ocupa provincia a provincia. Además planifica <b>maniobras</b>: <i>pinza</i> (dos grupos que llegan a la vez), <i>señuelo</i> (un amago que fija las reservas mientras el grueso golpea otro punto), <i>emboscada</i> (un cebo atrae a la pila enemiga a un terreno elegido), <i>defensa elástica</i> (ceder espacio y contraatacar, típico de Rusia y China) y <i>golpe de mano</i> contra una capital mal defendida (Prusia, Japón). Cada país tiene su doctrina histórica: agresividad, peso de la capital y defensa en profundidad.</p>

@@ -142,7 +142,7 @@ function updateArmyMeshes(t) {
   if (typeof updatePlanes === 'function') updatePlanes(t);
   if (!G.armies || !MAP.provs) return;
   if (!R.figs) { try { buildFigures(); } catch (e) { console.warn(e); R.figs = null; R.figsOff = true; return; } }
-  const show = R.cam.dist < 62 && R.showFigs !== false; R.figsShown = show;
+  const show = R.cam.dist < (R.lowEnd ? 42 : 62) && R.showFigs !== false; R.figsShown = show;
   const n = {inf: 0, cav: 0, art: 0}, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3(1, 1, 1), c = new THREE.Color(), up = new THREE.Vector3(0, 1, 0);
   if (show) {
     const cw = R.canvas.clientWidth, ch = R.canvas.clientHeight, perProv = {};

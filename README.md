@@ -82,3 +82,9 @@ Para regenerar el archivo tras editar el código: `python3 build.py` (genera `in
 
 La geografía es una aproximación esquemática (no un mapa histórico exacto), el mercado es único y global, y la economía,
 la IA y las guerras están muy simplificadas respecto al juego original.
+
+
+## Chromebooks y equipos modestos
+- El juego detecta el hardware al arrancar y elige solo la calidad gráfica (botón **Q** para cambiarla a mano). Perfil «bajo»: menos resolución, sin antialiasing, sin espuma de costa, humo de chimeneas ni aviones.
+- **Versión instalable (PWA)**: `python3 build.py` genera `docs/` (index.html, manifiesto, service worker e iconos). Para alojarla gratis: GitHub → Settings → Pages → «Deploy from a branch» → rama con `docs/` → carpeta `/docs`. Abre la URL en Chrome (ChromeOS incluido) y pulsa **Instalar**; después funciona sin conexión y a pantalla completa.
+- Ajustes de ChromeOS que ayudan: aceleración por hardware activada en `chrome://settings/system`, comprobar en `chrome://gpu` que WebGL está acelerado, cerrar otras pestañas, desactivar el ahorro de memoria para el juego y jugar enchufado.

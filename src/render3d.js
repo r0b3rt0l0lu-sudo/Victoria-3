@@ -107,12 +107,12 @@ function updateSmoke(t) {
   });
   R.puffs.forEach(pf => {
     if (!pf.alive) return; alive = true; pf.age += dtS; const k = pf.age / pf.life;
-    if (k >= 1) { pf.alive = false; pf.sp.visible = false; return; }
-    const sz = (pf.fire ? 0.8 + k * 0.7 : 1.2 + k * 2.8) * zs;
+    if (k >= 1) { pf.alive = false; pf.sp.visible = false; pf.small = false; return; }
+    const sz = (pf.fire ? 0.8 + k * 0.7 : 1.2 + k * 2.8) * zs * (pf.small ? 0.32 : 1);
     pf.sp.scale.set(sz, sz, 1); pf.sp.position.set(pf.x + k * 0.8 * zs * 0.4, pf.y + (pf.fire ? k * 0.3 : 0.3 + k * 2.4 * Math.min(2, zs)), pf.z);
     pf.sp.material.opacity = pf.fire ? (1 - k) * 0.9 : Math.sin(Math.min(1, k * 3) * 1.57) * (1 - k) * 0.92;
   });
-  const nvs = typeof navalSmoke === 'function' && navalSmoke();
+  const nvs = (typeof navalSmoke === 'function' && navalSmoke()) | (typeof chimneySmoke === 'function' && chimneySmoke()) | (typeof bombFire === 'function' && bombFire());
   return alive || nvs || (G.battles && G.battles.length > 0);
 }
 function updateCityColors() {
@@ -139,6 +139,7 @@ function buildFigures() {
 }
 function updateArmyMeshes(t) {
   if (typeof updateShipMeshes === 'function') updateShipMeshes(t);
+  if (typeof updatePlanes === 'function') updatePlanes(t);
   if (!G.armies || !MAP.provs) return;
   if (!R.figs) { try { buildFigures(); } catch (e) { console.warn(e); R.figs = null; R.figsOff = true; return; } }
   const show = R.cam.dist < 62 && R.showFigs !== false; R.figsShown = show;

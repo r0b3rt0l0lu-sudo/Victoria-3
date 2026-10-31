@@ -92,7 +92,7 @@ function initRenderer(canvas) {
     const fx = i / nx, fy = j / nz;
     const lon = -180 + fx * 360, lat = LAT_TOP - fy * (LAT_TOP - LAT_BOT);
     const h = hs(fx * (W - 1), fy * (H - 1));
-    pos[k++] = lon; pos[k++] = (h > 0 ? h * R.exag : h * 0.35); pos[k++] = -lat;
+    pos[k++] = lon; pos[k++] = (h > 0 ? h * R.exag : h * 0.35); pos[k++] = -lat; if (h * R.exag > (R.hMax || 0)) R.hMax = h * R.exag;
     uv[u++] = fx; uv[u++] = 1 - fy;
   }
   const idx = new Uint32Array(nx * nz * 6); let q = 0;
@@ -126,9 +126,10 @@ function initRenderer(canvas) {
   const mat = mat0;
   mat.onBeforeCompile = sh => {
     sh.uniforms.detailMap = {value: R.detail}; R.detailU = sh.uniforms;
-    sh.uniforms.detailK = {value: 1}; 
-    sh.fragmentShader = sh.fragmentShader.replace('#include <map_pars_fragment>', '#include <map_pars_fragment>\nuniform sampler2D detailMap; uniform float detailK;')
-      .replace('#include <map_fragment>', '#include <map_fragment>\n float dt = texture2D(detailMap, vMapUv * vec2(130.0, 52.0)).r; float dt2 = texture2D(detailMap, vMapUv * vec2(21.0, 8.4)).r; diffuseColor.rgb *= 1.0 + detailK * ((dt - 0.5) * 0.28 + (dt2 - 0.5) * 0.18);');
+    sh.uniforms.detailK = {value: 1}; sh.uniforms.snowK = {value: 0}; sh.uniforms.seasonTint = {value: new THREE.Vector3(1, 1, 1)}; sh.uniforms.hMax = {value: Math.max(0.5, R.hMax || 1)};
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vW;').replace('#include <begin_vertex>', '#include <begin_vertex>\n vW = position;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <map_pars_fragment>', '#include <map_pars_fragment>\nuniform sampler2D detailMap; uniform float detailK; varying vec3 vW; uniform float snowK; uniform vec3 seasonTint; uniform float hMax;')
+      .replace('#include <map_fragment>', '#include <map_fragment>\n float dt = texture2D(detailMap, vMapUv * vec2(130.0, 52.0)).r; float dt2 = texture2D(detailMap, vMapUv * vec2(21.0, 8.4)).r; diffuseColor.rgb *= 1.0 + detailK * ((dt - 0.5) * 0.28 + (dt2 - 0.5) * 0.18);\n float lnd = step(0.004, vW.y); float la = abs(vW.z); float sn = snowK * 0.62 * smoothstep(46.0, 66.0, la) + 0.85 * smoothstep(0.8 * hMax, 0.97 * hMax, vW.y) * (0.3 + 0.7 * snowK) + snowK * 0.3 * smoothstep(0.55 * hMax, 0.8 * hMax, vW.y) + smoothstep(68.0, 80.0, la) * 0.45; diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * seasonTint, lnd); diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.94, 0.96, 1.0), clamp(sn, 0.0, 1.0) * 0.72 * lnd);');
   };
   R.mesh = group;
   R.scene.add(R.mesh);
@@ -568,6 +569,7 @@ function frame_(t) {
   const dt = Math.min(0.1, (t - _lastT) / 1000); _lastT = t;
   if (R.skip3d) { if (window.onFrame) window.onFrame(t); requestAnimationFrame(frame_); return; }
   keyboardPan(dt);
+  if (t - (R._gT || 0) > 250 && typeof graphicsTick === 'function') { R._gT = t; graphicsTick(t); }
   if (R.cityMesh === undefined && G.S && G.S.length && MAP.provs) { try { buildCities(); } catch (e) { console.warn(e); } R.cityMesh = R.cityMesh || null; R.dirty = true; }
   if ((R.anim || R.smokeOn || (G.battles && G.battles.length)) && t - (R.lastAnim || 0) > 55) { R.lastAnim = t; if (R.anim && animateMap(t)) R.dirty = true; R.smokeOn = updateSmoke(t); if (R.smokeOn) R.dirty = true; updateCityVisibility(); if (G.armies && G.armies.length && (R.cam.dist < 62 || R.figsShown)) updateArmyMeshes(t); }
   if (R.dirty || R.labelsDirty) {

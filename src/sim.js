@@ -470,6 +470,7 @@ function econB(i0, i1) {
 }
 
 // Fase C: precios, inventarios y presupuesto de los países
+const MIL_GLUT = new Set(['ships', 'gunpowder', 'horses', 'saltpeter', 'cannons', 'rifles']);
 function econEnd() {
   const S = G.S, price = G.price, C = G.C, D = ECX.D, P = ECX.P, cstat = ECX.cstat, warm = ECX.warm;
   const vol = warm ? 1 : diffP().vol;
@@ -492,6 +493,8 @@ function econEnd() {
     if (mp > 0.95) S.forEach(s => { const Pp = popTotal(s); const u = s.unemp / Math.max(1, Pp * WF); if (u > 0.06) { const k = 1 + 0.008 * Math.min(1, u * 1.5); BUILDINGS.forEach(b => { if (b.out && s.b[b.id] > 0 && !b.tech) s.b[b.id] = Math.min(s.cap[b.id], s.b[b.id] * k); }); } });
     BUILDINGS.forEach(b => { if (!b.out) return; const f = clamp(Math.pow(D[b.out] / Math.max(P[b.out], 1), 0.35), 0.94, 1.05); S.forEach(s => { if (s.b[b.id] > 0) s.b[b.id] = Math.min(s.cap[b.id], s.b[b.id] * f); }); });
   }
+  // los edificios militares que producen muy por encima de la demanda mundial se van desmantelando poco a poco (reconversión de la industria)
+  if (!warm) BUILDINGS.forEach(b => { if (!b.out || !MIL_GLUT.has(b.out)) return; const r = D[b.out] / Math.max(P[b.out], 1); if (r >= 0.5) return; const f = r < 0.1 ? 0.97 : 0.99; S.forEach(s => { if (s.b[b.id] > 0.3) s.b[b.id] = Math.max(0.3, s.b[b.id] * f); }); });
   const dp = diffP();
   G.tags.forEach(t => {
     const c = C[t], cs = cstat[t];
@@ -616,7 +619,7 @@ function privateInvest(c, warm) {
     const p = c.projects[i];
     if (p.wk <= 0) { const s = G.S[p.state]; s.b[p.bld] = (s.b[p.bld] || 0) + 1; c.projects.splice(i, 1); }
   }
-  c.investPool = Math.min(c.investPool, 5e6);
+  c.investPool = Math.min(c.investPool, Math.max(5e6, 1500 * CP_MULT * moneyPerPoint(c)));   // el tope escala con el coste de los proyectos (antes un tope fijo impedía construir a los países grandes)
   let guard = 0;
   while (c.investPool > 0 && guard++ < 4) {
     const cand = pickInvestment(c);
@@ -724,7 +727,7 @@ function monthlyTick(init) {
     if (c.ai) aiMonth(c);
     if (!init) { journal(c); traitMonth(c); if (!c.ai) achMonth(c); }
   });
-  if (!init) { randomEvents(); stepColonizeAll(); diploMonth(); crisisMonth(); dcrisisMonth(); coalitionsMonth(); }
+  if (!init) { randomEvents(); stepColonizeAll(); diploMonth(); crisisMonth(); dcrisisMonth(); coalitionsMonth(); if (typeof histMonth === 'function') histMonth(); }
   // crecimiento de población (mensual)
   G.S.forEach(s => {
     const c = G.C[s.owner];

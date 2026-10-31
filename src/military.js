@@ -240,7 +240,7 @@ function sideStats(b, ids, isAttacker) {
   const pv = MAP.provs[b.prov]; const terr = pv.terr;
   ids.forEach(id => {
     const a = armyById(id); if (!a) return;
-    const c = G.C[a.tag], gm = genMods(a.gen);
+    const c = G.C[a.tag], gm = genMods(a.gen), mm = typeof morMod === 'function' ? morMod(a) : 1;
     const dm0 = typeof docMod === 'function' ? docMod : () => 0;
     const air = typeof airBonus === 'function' ? airBonus(a.tag, b.state) : 0;
     const mb = typeof marBonus === 'function' ? marBonus(a) : {att: 0, def: 0, plan: 0};
@@ -249,8 +249,8 @@ function sideStats(b, ids, isAttacker) {
     const landPen = a.landed && G.date.t - a.landed < 6 ? 0.75 : 1;
     const dig = isAttacker ? 0 : Math.min(6, a.dig || 0) * 0.04 * (a.mode === 'hold' || a.mode === 'dig' ? 1.25 : 1);
     const stl = typeof intelStealBonus === 'function' && sideKey ? intelStealBonus(a.tag, sideKey === 'A' ? b.B0 : b.A0) : 0;
-    const am = (1 + mb.att + stl + stAtt + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup * landPen;
-    const dm = (1 + mb.def + stl + stDef + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + gm.def + dm0(a.tag, 'def') + air + dig) * sup;
+    const am = (1 + mb.att + stl + stAtt + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup * landPen * mm;
+    const dm = (1 + mb.def + stl + stDef + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + gm.def + dm0(a.tag, 'def') + air + dig) * sup * mm;
     brave += gm.brave; gun += gm.art;
     a.divs.forEach(d => {
       const info = DIVS[d.t];
@@ -334,6 +334,7 @@ function battleDay(b) {
   };
   const lostB = apply(B, dmg(rAB), ev.xB, ev.cB * sb.cas), lostA = apply(A, dmg(rBA), ev.xA, ev.cA * sa.cas);
   b.lostA = (b.lostA || 0) + lostA; b.lostB = (b.lostB || 0) + lostB;
+  if (typeof morBattle === 'function') morBattle(A, B, rAB, rBA, lostA, lostB);
   A.forEach(a => bleed(a.tag, lostA / Math.max(1, A.length))); B.forEach(a => bleed(a.tag, lostB / Math.max(1, B.length)));
   b.rA = rBA; b.rB = rAB; b.orgA = sa.org; b.orgB = sb.org; b.sa = {F: sa.F, T: sa.T, n: sa.n, tr: sa.tr}; b.sb = {F: sb.F, T: sb.T, n: sb.n, tr: sb.tr};
   b.adv = clamp((b.adv || 0) + (rAB - rBA) * 0.09, -1, 1);
@@ -342,7 +343,7 @@ function battleDay(b) {
   const A2 = b.A.map(armyById).filter(Boolean), B2 = b.B.map(armyById).filter(Boolean);
   const oA = A2.length ? sideStats(b, b.A, true).org : 0, oB = B2.length ? sideStats(b, b.B, true).org : 0;
   if (!A2.length || !B2.length) { endBattle(b, A2.length ? 'A' : 'B'); return; }
-  const th = list => list.some(a => a.mode === 'hold') ? 0.08 : 0.18;       // «mantener posición» resiste hasta el final
+  const th = list => list.some(a => a.mode === 'hold') ? 0.08 : (typeof morRetreatTh === 'function' ? morRetreatTh(list) : 0.18);       // «mantener posición» resiste hasta el final
   if (b.day >= 5 && (oA < th(A2) || oB < th(B2))) endBattle(b, oA < oB ? 'B' : 'A');
 }
 // Bajas: se restan de la población de reclutamiento del país y suben el cansancio de guerra
@@ -361,7 +362,9 @@ function endBattle(b, winner) {
   b.ended = true; G.lastEnded = b;
   const win = (winner === 'A' ? b.A : b.B).map(armyById).filter(Boolean), lose = (winner === 'A' ? b.B : b.A).map(armyById).filter(Boolean);
   win.forEach(a => { a.battle = null; a.rest = 0; a.gen.xp += 8; gainXp(a.tag, 1.5); if (a.gen.xp >= a.gen.lvl * 30 && a.gen.lvl < 5) { a.gen.xp = 0; a.gen.lvl++; const k = pick(['atk', 'def', 'log']); a.gen[k] = Math.min(5, a.gen[k] + 1); if (a.tag === G.player) notify('war', `${a.gen.name} sube a nivel ${a.gen.lvl}.`); } });
-  lose.forEach(a => { a.battle = null; gainXp(a.tag, 0.5); retreatArmy(a, b); generalFate(a, b); });
+  win.forEach(a => { if (typeof armyMor === 'function') a.mor = Math.min(1, armyMor(a) + 0.06); });
+  lose.forEach(a => { a.battle = null; gainXp(a.tag, 0.5); retreatArmy(a, b); generalFate(a, b); if (typeof armyMor === 'function') a.mor = Math.max(0, armyMor(a) - 0.12); });
+  if (typeof battlePrisoners === 'function') battlePrisoners(b, winner, win, lose);
   const wt = win[0] ? win[0].tag : null, lt = lose[0] ? lose[0].tag : null;
   if (wt && lt) G.wars.forEach(w => { const wa = w.attAll.includes(wt) && w.defAll.includes(lt), wd = w.defAll.includes(wt) && w.attAll.includes(lt); if (wa || wd) { w.bw = w.bw || {att: 0, def: 0}; if (wa) w.bw.att++; else w.bw.def++; } });
   if (win[0] && (win[0].tag === G.player || (lose[0] && lose[0].tag === G.player))) notify('war', `Batalla de ${provName(b.prov)}: victoria de ${G.C[wt].name}.`, b.state);
@@ -381,6 +384,7 @@ function retreatArmy(a, b) {
   if (dest === null) dest = nb.sort((x, y) => (sidesOwn(provOwner(y)) ? 1 : 0) - (sidesOwn(provOwner(x)) ? 1 : 0))[0] ?? null;
   a.path = []; a.dig = 0;
   if (dest === null) {      // rodeado: pierde parte de la fuerza y se rinde parcialmente
+    a._encircled = true;
     a.divs.forEach(d => { d.s *= 0.7; d.o *= 0.4; });
     a.divs = a.divs.filter(d => d.s > 0.1);
     const home = nearestOwnProv(a.tag, a.loc); if (home !== null) a.loc = home;
@@ -402,6 +406,7 @@ function militaryDay() {
   recalcHostileIfNeeded();
   if (typeof intelDay === 'function') intelDay();
   if (typeof mil2Day === 'function') mil2Day();
+  if (typeof morDay === 'function') morDay();
   if (G.armies.length) {
     landingDay(); G.armies.forEach(chaseDay); G.armies.forEach(joinDay); G.armies.forEach(patrolDay); G.armies.forEach(stepMove);
     const byProv = new Map();
@@ -491,6 +496,7 @@ function computeWarScore(w) {
   w.targets.forEach(sid => { const s = G.S[sid]; if (s.owner === w.def && s.occ >= 1) sc += 10; });
   const bw = w.bw || {att: 0, def: 0}; sc += clamp((bw.att - bw.def) * 1.5, -15, 15);
   if (typeof blockadeScore === 'function') sc += blockadeScore(w);
+  if (typeof prisScore === 'function') sc += prisScore(w);
   return clamp(Math.round(sc), -100, 100);
 }
 function sideStrength(list) { let t = 0; list.forEach(tag => armiesOf(tag).forEach(a => a.divs.forEach(d => t += d.s * DIVS[d.t].att))); return Math.round(t); }

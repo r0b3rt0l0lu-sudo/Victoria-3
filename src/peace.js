@@ -76,6 +76,7 @@ function applyConference(c) {
 const loseAllHas = (c, tag) => c.loseAll.includes(tag);
 function endWar(w, winner, preset) {
   const idx = G.wars.indexOf(w); if (idx >= 0) G.wars.splice(idx, 1);
+  if (typeof returnPrisoners === 'function') returnPrisoners(w);
   const conf = winner !== null && !w.auto ? buildConference(w, winner) : null;      // antes de borrar las ocupaciones
   clearOccupationKeep(w);
   w.attAll.concat(w.defAll).forEach(t => { const c = G.C[t]; c.wars = c.wars.filter(x => x !== w.id); });

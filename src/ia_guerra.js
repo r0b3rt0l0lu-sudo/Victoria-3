@@ -224,7 +224,7 @@ function aiObjs(t, striking, ctx) {
     const v = own === t ? (V.get(p) || 1) * 1.4 + 3 : aiEnemyValue(p, own, war);
     const dist = Math.hypot(MAP.provs[p].lon - cx, MAP.provs[p].lat - cy), opp = aiEnemyPower(t, p, 9) + 0.8;
     const feas = clamp(strike / (req * opp), 0, 1.4), claim = (G.aiClaim && G.aiClaim[p] && G.aiClaim[p].t !== t && G.date.t - G.aiClaim[p].d < 8) ? 0.5 : 1;
-    objs.push({p, v, dist, opp, feas, en, score: v / (1 + dist / 14) * (0.15 + feas) * claim});
+    objs.push({p, v, dist, opp, feas, en, score: v / (1 + dist / 14) * (0.15 + feas) * claim * (typeof aiAllyBonus === 'function' ? aiAllyBonus(t, p) : 1)});
   });
   objs.sort((x, y) => y.score - x.score);
   return {objs, strike, req};

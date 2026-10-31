@@ -89,7 +89,7 @@ function airDay() {
 // política industrial de la IA: invierte en fábricas aeronáuticas y de motores cuando dispone de la tecnología
 function aiMilIndustry(c) {
   const lv = k => c.states.reduce((n, id) => n + (G.S[id].b[k] || 0), 0);
-  const want = {aeroworks: c.rank <= 8 ? 3 : c.rank <= 20 ? 1.5 : 0, enginew: c.rank <= 8 ? 2 : c.rank <= 20 ? 1 : 0, mgworks: c.rank <= 20 ? 1 : 0};
+  const want = {aeroworks: c.rank <= 8 ? 4 : c.rank <= 20 ? 2 : c.rank <= 32 ? 0.5 : 0, enginew: c.rank <= 8 ? 3 : c.rank <= 20 ? 1.5 : c.rank <= 32 ? 0.5 : 0, mgworks: c.rank <= 8 ? 2 : c.rank <= 32 ? 1 : 0};
   const tech = {aeroworks: 'military_aviation', enginew: 'internal_comb', mgworks: 'machine_guns'};
   for (const k in want) {
     if (!want[k] || !hasTech(c, tech[k]) || lv(k) >= want[k]) continue;

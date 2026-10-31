@@ -2554,6 +2554,7 @@ function econB(i0, i1) {
 }
 
 // Fase C: precios, inventarios y presupuesto de los países
+const MIL_GLUT = new Set(['ships', 'gunpowder', 'horses', 'saltpeter', 'cannons', 'rifles']);
 function econEnd() {
   const S = G.S, price = G.price, C = G.C, D = ECX.D, P = ECX.P, cstat = ECX.cstat, warm = ECX.warm;
   const vol = warm ? 1 : diffP().vol;
@@ -2576,6 +2577,8 @@ function econEnd() {
     if (mp > 0.95) S.forEach(s => { const Pp = popTotal(s); const u = s.unemp / Math.max(1, Pp * WF); if (u > 0.06) { const k = 1 + 0.008 * Math.min(1, u * 1.5); BUILDINGS.forEach(b => { if (b.out && s.b[b.id] > 0 && !b.tech) s.b[b.id] = Math.min(s.cap[b.id], s.b[b.id] * k); }); } });
     BUILDINGS.forEach(b => { if (!b.out) return; const f = clamp(Math.pow(D[b.out] / Math.max(P[b.out], 1), 0.35), 0.94, 1.05); S.forEach(s => { if (s.b[b.id] > 0) s.b[b.id] = Math.min(s.cap[b.id], s.b[b.id] * f); }); });
   }
+  // los edificios militares que producen muy por encima de la demanda mundial se van desmantelando poco a poco (reconversión de la industria)
+  if (!warm) BUILDINGS.forEach(b => { if (!b.out || !MIL_GLUT.has(b.out)) return; const r = D[b.out] / Math.max(P[b.out], 1); if (r >= 0.5) return; const f = r < 0.1 ? 0.97 : 0.99; S.forEach(s => { if (s.b[b.id] > 0.3) s.b[b.id] = Math.max(0.3, s.b[b.id] * f); }); });
   const dp = diffP();
   G.tags.forEach(t => {
     const c = C[t], cs = cstat[t];
@@ -2700,7 +2703,7 @@ function privateInvest(c, warm) {
     const p = c.projects[i];
     if (p.wk <= 0) { const s = G.S[p.state]; s.b[p.bld] = (s.b[p.bld] || 0) + 1; c.projects.splice(i, 1); }
   }
-  c.investPool = Math.min(c.investPool, 5e6);
+  c.investPool = Math.min(c.investPool, Math.max(5e6, 1500 * CP_MULT * moneyPerPoint(c)));   // el tope escala con el coste de los proyectos (antes un tope fijo impedía construir a los países grandes)
   let guard = 0;
   while (c.investPool > 0 && guard++ < 4) {
     const cand = pickInvestment(c);
@@ -2808,7 +2811,7 @@ function monthlyTick(init) {
     if (c.ai) aiMonth(c);
     if (!init) { journal(c); traitMonth(c); if (!c.ai) achMonth(c); }
   });
-  if (!init) { randomEvents(); stepColonizeAll(); diploMonth(); crisisMonth(); dcrisisMonth(); coalitionsMonth(); }
+  if (!init) { randomEvents(); stepColonizeAll(); diploMonth(); crisisMonth(); dcrisisMonth(); coalitionsMonth(); if (typeof histMonth === 'function') histMonth(); }
   // crecimiento de población (mensual)
   G.S.forEach(s => {
     const c = G.C[s.owner];
@@ -4119,7 +4122,7 @@ function sideStats(b, ids, isAttacker) {
   const pv = MAP.provs[b.prov]; const terr = pv.terr;
   ids.forEach(id => {
     const a = armyById(id); if (!a) return;
-    const c = G.C[a.tag], gm = genMods(a.gen);
+    const c = G.C[a.tag], gm = genMods(a.gen), mm = typeof morMod === 'function' ? morMod(a) : 1;
     const dm0 = typeof docMod === 'function' ? docMod : () => 0;
     const air = typeof airBonus === 'function' ? airBonus(a.tag, b.state) : 0;
     const mb = typeof marBonus === 'function' ? marBonus(a) : {att: 0, def: 0, plan: 0};
@@ -4128,8 +4131,8 @@ function sideStats(b, ids, isAttacker) {
     const landPen = a.landed && G.date.t - a.landed < 6 ? 0.75 : 1;
     const dig = isAttacker ? 0 : Math.min(6, a.dig || 0) * 0.04 * (a.mode === 'hold' || a.mode === 'dig' ? 1.25 : 1);
     const stl = typeof intelStealBonus === 'function' && sideKey ? intelStealBonus(a.tag, sideKey === 'A' ? b.B0 : b.A0) : 0;
-    const am = (1 + mb.att + stl + stAtt + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup * landPen;
-    const dm = (1 + mb.def + stl + stDef + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + gm.def + dm0(a.tag, 'def') + air + dig) * sup;
+    const am = (1 + mb.att + stl + stAtt + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup * landPen * mm;
+    const dm = (1 + mb.def + stl + stDef + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + gm.def + dm0(a.tag, 'def') + air + dig) * sup * mm;
     brave += gm.brave; gun += gm.art;
     a.divs.forEach(d => {
       const info = DIVS[d.t];
@@ -4213,6 +4216,7 @@ function battleDay(b) {
   };
   const lostB = apply(B, dmg(rAB), ev.xB, ev.cB * sb.cas), lostA = apply(A, dmg(rBA), ev.xA, ev.cA * sa.cas);
   b.lostA = (b.lostA || 0) + lostA; b.lostB = (b.lostB || 0) + lostB;
+  if (typeof morBattle === 'function') morBattle(A, B, rAB, rBA, lostA, lostB);
   A.forEach(a => bleed(a.tag, lostA / Math.max(1, A.length))); B.forEach(a => bleed(a.tag, lostB / Math.max(1, B.length)));
   b.rA = rBA; b.rB = rAB; b.orgA = sa.org; b.orgB = sb.org; b.sa = {F: sa.F, T: sa.T, n: sa.n, tr: sa.tr}; b.sb = {F: sb.F, T: sb.T, n: sb.n, tr: sb.tr};
   b.adv = clamp((b.adv || 0) + (rAB - rBA) * 0.09, -1, 1);
@@ -4221,7 +4225,7 @@ function battleDay(b) {
   const A2 = b.A.map(armyById).filter(Boolean), B2 = b.B.map(armyById).filter(Boolean);
   const oA = A2.length ? sideStats(b, b.A, true).org : 0, oB = B2.length ? sideStats(b, b.B, true).org : 0;
   if (!A2.length || !B2.length) { endBattle(b, A2.length ? 'A' : 'B'); return; }
-  const th = list => list.some(a => a.mode === 'hold') ? 0.08 : 0.18;       // «mantener posición» resiste hasta el final
+  const th = list => list.some(a => a.mode === 'hold') ? 0.08 : (typeof morRetreatTh === 'function' ? morRetreatTh(list) : 0.18);       // «mantener posición» resiste hasta el final
   if (b.day >= 5 && (oA < th(A2) || oB < th(B2))) endBattle(b, oA < oB ? 'B' : 'A');
 }
 // Bajas: se restan de la población de reclutamiento del país y suben el cansancio de guerra
@@ -4240,7 +4244,9 @@ function endBattle(b, winner) {
   b.ended = true; G.lastEnded = b;
   const win = (winner === 'A' ? b.A : b.B).map(armyById).filter(Boolean), lose = (winner === 'A' ? b.B : b.A).map(armyById).filter(Boolean);
   win.forEach(a => { a.battle = null; a.rest = 0; a.gen.xp += 8; gainXp(a.tag, 1.5); if (a.gen.xp >= a.gen.lvl * 30 && a.gen.lvl < 5) { a.gen.xp = 0; a.gen.lvl++; const k = pick(['atk', 'def', 'log']); a.gen[k] = Math.min(5, a.gen[k] + 1); if (a.tag === G.player) notify('war', `${a.gen.name} sube a nivel ${a.gen.lvl}.`); } });
-  lose.forEach(a => { a.battle = null; gainXp(a.tag, 0.5); retreatArmy(a, b); generalFate(a, b); });
+  win.forEach(a => { if (typeof armyMor === 'function') a.mor = Math.min(1, armyMor(a) + 0.06); });
+  lose.forEach(a => { a.battle = null; gainXp(a.tag, 0.5); retreatArmy(a, b); generalFate(a, b); if (typeof armyMor === 'function') a.mor = Math.max(0, armyMor(a) - 0.12); });
+  if (typeof battlePrisoners === 'function') battlePrisoners(b, winner, win, lose);
   const wt = win[0] ? win[0].tag : null, lt = lose[0] ? lose[0].tag : null;
   if (wt && lt) G.wars.forEach(w => { const wa = w.attAll.includes(wt) && w.defAll.includes(lt), wd = w.defAll.includes(wt) && w.attAll.includes(lt); if (wa || wd) { w.bw = w.bw || {att: 0, def: 0}; if (wa) w.bw.att++; else w.bw.def++; } });
   if (win[0] && (win[0].tag === G.player || (lose[0] && lose[0].tag === G.player))) notify('war', `Batalla de ${provName(b.prov)}: victoria de ${G.C[wt].name}.`, b.state);
@@ -4260,6 +4266,7 @@ function retreatArmy(a, b) {
   if (dest === null) dest = nb.sort((x, y) => (sidesOwn(provOwner(y)) ? 1 : 0) - (sidesOwn(provOwner(x)) ? 1 : 0))[0] ?? null;
   a.path = []; a.dig = 0;
   if (dest === null) {      // rodeado: pierde parte de la fuerza y se rinde parcialmente
+    a._encircled = true;
     a.divs.forEach(d => { d.s *= 0.7; d.o *= 0.4; });
     a.divs = a.divs.filter(d => d.s > 0.1);
     const home = nearestOwnProv(a.tag, a.loc); if (home !== null) a.loc = home;
@@ -4281,6 +4288,7 @@ function militaryDay() {
   recalcHostileIfNeeded();
   if (typeof intelDay === 'function') intelDay();
   if (typeof mil2Day === 'function') mil2Day();
+  if (typeof morDay === 'function') morDay();
   if (G.armies.length) {
     landingDay(); G.armies.forEach(chaseDay); G.armies.forEach(joinDay); G.armies.forEach(patrolDay); G.armies.forEach(stepMove);
     const byProv = new Map();
@@ -4370,6 +4378,7 @@ function computeWarScore(w) {
   w.targets.forEach(sid => { const s = G.S[sid]; if (s.owner === w.def && s.occ >= 1) sc += 10; });
   const bw = w.bw || {att: 0, def: 0}; sc += clamp((bw.att - bw.def) * 1.5, -15, 15);
   if (typeof blockadeScore === 'function') sc += blockadeScore(w);
+  if (typeof prisScore === 'function') sc += prisScore(w);
   return clamp(Math.round(sc), -100, 100);
 }
 function sideStrength(list) { let t = 0; list.forEach(tag => armiesOf(tag).forEach(a => a.divs.forEach(d => t += d.s * DIVS[d.t].att))); return Math.round(t); }
@@ -6339,7 +6348,7 @@ WINDOWS.military = {title: 'Ejército y guerra', icon: '⚔️', render() {
       ${w.targets.length ? `<div class="warst"><small>Territorios exigidos</small>${w.targets.map(sid => { const s = G.S[sid]; return `<div class="kv sm"><span>${s.name}</span><span class="occ"><i style="width:${(s.occ || 0) * 100}%"></i><em>${Math.round((s.occ || 0) * 100)}% ocupado</em></span></div>`; }).join('')}</div>` : ''}
       ${w.cTargets.length ? `<div class="warst"><small>Contraofensiva del defensor</small>${w.cTargets.map(sid => { const s = G.S[sid]; return `<div class="kv sm"><span>${s.name}</span><span class="occ cb"><i style="width:${(s.occ || 0) * 100}%"></i><em>${Math.round((s.occ || 0) * 100)}%</em></span></div>`; }).join('')}</div>` : ''}
       <div class="wbar"><b style="width:${(w.score + 100) / 2}%"></b></div>
-      <div class="kv"><span>Fuerza: ${fmtN(w.pa || 0, 0)} vs ${fmtN(w.pd || 0, 0)} · Batallas ganadas ${bws.att}–${bws.def}</span><b class="${score >= 0 ? 'good' : 'bad'}">Puntuación ${sgn(score, 0)}</b></div>
+      <div class="kv"><span>Fuerza: ${fmtN(w.pa || 0, 0)} vs ${fmtN(w.pd || 0, 0)} · Batallas ganadas ${bws.att}–${bws.def}${typeof prisHeldFrom === 'function' ? ' · Prisioneros ' + fmtN(prisHeldFrom(w.attAll, w.defAll), 0) + '–' + fmtN(prisHeldFrom(w.defAll, w.attAll), 0) : ''}</span><b class="${score >= 0 ? 'good' : 'bad'}">Puntuación ${sgn(score, 0)}</b></div>
       <div class="kv sm"><span>Ejércitos propios / enemigos</span><b>${fc} / ${ec}</b></div>
       <div class="btnrow"><button data-act="peace" data-id="${w.id}">🕊️ ${po.label}</button><button data-act="poopen" data-id="${w.id}">📜 Negociar paz…</button><button data-act="focus" data-id="${w.targets[0] ?? w.cTargets[0] ?? G.C[w.def].capital}">📍 Ver el frente</button></div></div>`;
     }).join('') : '<p class="hint">Tu país está en paz. Declara una guerra desde Diplomacia → Potencias. La puntuación de guerra depende ahora de los estados <b>ocupados</b> por tus ejércitos y de las batallas ganadas.</p>'}</div></div>
@@ -6905,6 +6914,7 @@ function renderArmyPanel() {
     <div class="kv sm"><span>Ataque</span><span class="gs">${stars(a.gen.atk)}</span></div><div class="kv sm"><span>Defensa</span><span class="gs">${stars(a.gen.def)}</span></div><div class="kv sm"><span>Logística</span><span class="gs">${stars(a.gen.log)}</span></div></div>
   <div class="kv"><span>Fuerza</span><b>${Math.round(armyStr(a) * 100)}%</b></div>${bar(armyStr(a), 1, '')}
   <div class="kv"><span>Organización</span><b>${Math.round(armyOrg(a) * 100)}%</b></div>${bar(armyOrg(a), 1, 'warn')}
+  <div class="kv"><span>Moral</span><b class="${armyMor(a) < 0.35 ? 'bad' : armyMor(a) > 0.7 ? 'good' : ''}">${morName(armyMor(a))} (${Math.round(armyMor(a) * 100)}%) · rinde ×${morMod(a).toFixed(2)}</b></div>${bar(armyMor(a), 1, '')}
   <div class="kv"><span>Entrenamiento</span><b>${trainName(armyTrain(a))} (${Math.round(armyTrain(a) * 100)}%) · rinde ×${(0.75 + 0.5 * armyTrain(a)).toFixed(2)}</b></div>${bar(armyTrain(a), 1, 'blue')}
   <div class="kv"><span>Suministro</span><b class="${(a.sup === undefined ? 1 : a.sup) < 0.5 ? 'bad' : ''}">${Math.round((a.sup === undefined ? 1 : a.sup) * 100)}%${a.cut > 0 ? ` · ⚠ cercado ${a.cut}/60 d` : ''}</b></div>${bar(a.sup === undefined ? 1 : a.sup, 1, (a.sup === undefined ? 1 : a.sup) < 0.5 ? 'bad' : 'good')}
   <div class="kv"><span>Hombres</span><b>${fmtN(armyMen(a), 0)}</b></div>
@@ -7796,6 +7806,7 @@ function applyConference(c) {
 const loseAllHas = (c, tag) => c.loseAll.includes(tag);
 function endWar(w, winner, preset) {
   const idx = G.wars.indexOf(w); if (idx >= 0) G.wars.splice(idx, 1);
+  if (typeof returnPrisoners === 'function') returnPrisoners(w);
   const conf = winner !== null && !w.auto ? buildConference(w, winner) : null;      // antes de borrar las ocupaciones
   clearOccupationKeep(w);
   w.attAll.concat(w.defAll).forEach(t => { const c = G.C[t]; c.wars = c.wars.filter(x => x !== w.id); });
@@ -8379,7 +8390,7 @@ function milCaps() {
   const w = {shipyard: [], enginew: [], aeroworks: [], mgworks: []};
   S.forEach(s => { const c = G.C[s.owner], ind = c ? c.ind : 0.05, base = Math.pow(s.popBase, 0.9) * (0.25 + 3 * ind), coast = Math.pow(MAP.stats[s.id].coast, 0.85);
     w.shipyard.push(coast * Math.pow(s.popBase, 0.5) * (0.25 + 3 * ind)); w.enginew.push(base); w.aeroworks.push(base); w.mgworks.push(base); });
-  const T = {shipyard: 30, enginew: 40, aeroworks: 40, mgworks: 40};
+  const T = {shipyard: 30, enginew: 150, aeroworks: 150, mgworks: 150};   // niveles totales posibles en el mundo
   for (const k in w) { const tot = w[k].reduce((a, x) => a + x, 0) || 1; S.forEach((s, i) => { s.cap[k] = T[k] * w[k][i] / tot; s.b[k] = k === 'shipyard' ? s.cap[k] * 0.35 : 0; }); }
   // todo estado con puerto tiene un astillero modesto (para que las potencias menores puedan construir)
   S.forEach(s => { if (MAP.stats[s.id].provs.some(p => MAP.provs[p].port)) { s.cap.shipyard = Math.max(s.cap.shipyard || 0, 1); s.b.shipyard = Math.max(s.b.shipyard || 0, 0.3); } });
@@ -8834,7 +8845,7 @@ function airDay() {
 // política industrial de la IA: invierte en fábricas aeronáuticas y de motores cuando dispone de la tecnología
 function aiMilIndustry(c) {
   const lv = k => c.states.reduce((n, id) => n + (G.S[id].b[k] || 0), 0);
-  const want = {aeroworks: c.rank <= 8 ? 3 : c.rank <= 20 ? 1.5 : 0, enginew: c.rank <= 8 ? 2 : c.rank <= 20 ? 1 : 0, mgworks: c.rank <= 20 ? 1 : 0};
+  const want = {aeroworks: c.rank <= 8 ? 4 : c.rank <= 20 ? 2 : c.rank <= 32 ? 0.5 : 0, enginew: c.rank <= 8 ? 3 : c.rank <= 20 ? 1.5 : c.rank <= 32 ? 0.5 : 0, mgworks: c.rank <= 8 ? 2 : c.rank <= 32 ? 1 : 0};
   const tech = {aeroworks: 'military_aviation', enginew: 'internal_comb', mgworks: 'machine_guns'};
   for (const k in want) {
     if (!want[k] || !hasTech(c, tech[k]) || lv(k) >= want[k]) continue;
@@ -9511,7 +9522,7 @@ function aiObjs(t, striking, ctx) {
     const v = own === t ? (V.get(p) || 1) * 1.4 + 3 : aiEnemyValue(p, own, war);
     const dist = Math.hypot(MAP.provs[p].lon - cx, MAP.provs[p].lat - cy), opp = aiEnemyPower(t, p, 9) + 0.8;
     const feas = clamp(strike / (req * opp), 0, 1.4), claim = (G.aiClaim && G.aiClaim[p] && G.aiClaim[p].t !== t && G.date.t - G.aiClaim[p].d < 8) ? 0.5 : 1;
-    objs.push({p, v, dist, opp, feas, en, score: v / (1 + dist / 14) * (0.15 + feas) * claim});
+    objs.push({p, v, dist, opp, feas, en, score: v / (1 + dist / 14) * (0.15 + feas) * claim * (typeof aiAllyBonus === 'function' ? aiAllyBonus(t, p) : 1)});
   });
   objs.sort((x, y) => y.score - x.score);
   return {objs, strike, req};
@@ -9676,6 +9687,70 @@ function aiOps(t, ctx) {
     const op = opPlan(t, ctx, used); if (op) { m.war.ops.push(op); m.war.opT = G.date.t; m.war.opLog = (m.war.opLog || []).concat([op.k]).slice(-12); opRun(t, op, ctx, used); }
   }
   return used;
+}
+
+/* ===== MORAL, PRISIONEROS Y COORDINACIÓN ENTRE ALIADOS =====
+   · Moral de cada ejército (0–1): sube con las victorias y el descanso, baja con las derrotas, las retiradas y la falta de suministro.
+     Modifica ataque y defensa (×0,85 a ×1,15) y un ejército desmoralizado se retira antes del combate.
+   · Prisioneros: los derrotados que se retiran sin salida (cercados) y parte de las bajas de una derrota caen prisioneros del vencedor.
+     Cuentan para la puntuación de guerra y se devuelven al firmar la paz.
+   · Aliados: la IA concentra los ataques de una coalición en el mismo sector (pinza) en lugar de dispersarlos. */
+const MOR_BASE = 0.8;
+const armyMor = a => a.mor === undefined ? MOR_BASE : a.mor;
+const morMod = a => 0.85 + 0.3 * armyMor(a);
+const morName = m => m >= 0.85 ? 'Exaltada' : m >= 0.65 ? 'Alta' : m >= 0.45 ? 'Normal' : m >= 0.25 ? 'Baja' : 'Quebrada';
+
+// moral tras cada jornada de combate: el bando que domina gana moral y el que pierde, la pierde
+function morBattle(A, B, rAB, rBA, lostA, lostB) {
+  const aWin = rAB > rBA, k = clamp(Math.abs(rAB - rBA) / Math.max(0.2, rAB + rBA), 0, 1);
+  const f = (list, win, lost) => list.forEach(a => { const d = win ? 0.006 + 0.008 * k : -(0.012 + 0.014 * k); a.mor = clamp(armyMor(a) + d - (lost / Math.max(1, list.length * MEN_PER_DIV * 30)) * 0.01, 0, 1); });
+  f(A, aWin, lostA); f(B, !aWin, lostB);
+}
+function morDay() {
+  G.armies.forEach(a => {
+    if (a.battle) return;
+    const own = typeof provOwner === 'function' ? (provOwner(a.loc) === a.tag) : false, sup = a.sup === undefined ? 1 : a.sup;
+    let d = 0.003 + (own ? 0.004 : 0) + (a.mode === 'train' || a.mode === 'hold' ? 0.003 : 0) - (sup < 0.5 ? 0.02 : 0) - (a.path && a.path.length && a.fm ? 0.01 : 0);
+    a.mor = clamp(armyMor(a) + d, 0, 1);
+  });
+}
+// el ejército debe retirarse antes cuando su moral está por los suelos
+const morRetreatTh = list => list.some(a => armyMor(a) < 0.25) ? 0.30 : list.some(a => armyMor(a) < 0.45) ? 0.22 : 0.18;
+
+/* ---------- prisioneros ---------- */
+function prisTotal(c) { let n = 0; if (c.pris) for (const k in c.pris) n += c.pris[k]; return Math.round(n); }
+function prisHeldFrom(holders, owners) { let n = 0; holders.forEach(h => { const p = G.C[h] && G.C[h].pris; if (p) owners.forEach(o => { n += p[o] || 0; }); }); return n; }
+function takePrisoners(winTag, loseTag, n) {
+  n = Math.round(n); if (n < 50 || winTag === loseTag) return;
+  const c = G.C[winTag]; if (!c) return; c.pris = c.pris || {}; c.pris[loseTag] = (c.pris[loseTag] || 0) + n;
+  if ((winTag === G.player || loseTag === G.player) && n >= 1500) notify('war', `${G.C[winTag].name} captura ${fmtN(n, 0)} prisioneros de ${G.C[loseTag].name}.`);
+}
+function battlePrisoners(b, winner, win, lose) {
+  if (!win[0] || !lose[0]) return;
+  const lossMen = (winner === 'A' ? b.lostB : b.lostA) || 0;
+  lose.forEach(a => {
+    let n = lossMen * 0.12 / lose.length;
+    if (a._encircled) { n += armyMen(a) * 0.3; a.divs.forEach(d => { d.s *= 0.8; }); a._encircled = false; a.mor = clamp(armyMor(a) - 0.2, 0, 1); }
+    takePrisoners(win[0].tag, a.tag, n);
+  });
+}
+// la paz devuelve a los prisioneros: vuelven a su población como reclutas (con un pequeño recargo de cansancio)
+function returnPrisoners(w) {
+  const all = w.attAll.concat(w.defAll);
+  all.forEach(h => { const c = G.C[h]; if (!c || !c.pris) return;
+    all.forEach(o => { if (o === h || !c.pris[o]) return; if (!(w.attAll.includes(h) !== w.attAll.includes(o))) return; const n = c.pris[o], oc = G.C[o]; delete c.pris[o];
+      if (oc && oc.states.length) { const left = n * 0.85; oc.states.slice(0, 6).forEach(id => { G.S[id].pops.peasants = (G.S[id].pops.peasants || 0) + left / Math.min(6, oc.states.length); }); if (o === G.player || h === G.player) notify('war', `Intercambio de prisioneros: ${fmtN(n, 0)} hombres regresan a ${oc.name}.`); } });
+  });
+}
+const prisScore = w => clamp((prisHeldFrom(w.attAll, w.defAll) - prisHeldFrom(w.defAll, w.attAll)) / 9000, -8, 8);
+
+/* ---------- coordinación entre aliados (IA) ---------- */
+// bonificación a los objetivos cercanos al sector donde atacan mis aliados (pinza / concentración); el mismo objetivo exacto se evita
+function aiAllyBonus(t, p) {
+  const claims = G.aiClaim; if (!claims) return 1; let best = 1;
+  for (const k in claims) { const c = claims[k]; if (!c || c.t === t || G.date.t - c.d > 10 || !sameSide(t, c.t) || +k === p) continue;
+    const d = provDist(+k, p); if (d <= 7) best = Math.max(best, 1.35 - d * 0.03); }
+  return best;
 }
 
 /* ===== OFERTAS DE PAZ INTERMEDIAS =====
@@ -10563,6 +10638,211 @@ WINDOWS.achievements = {title: 'Logros', icon: '🏅', render() {
     return `<div class="ach ${got ? 'got' : ''} ${pre ? 'pre' : ''} t${a.tier}"><span class="achi">${got ? a.icon : pre ? '➖' : '🔒'}</span><div><b>${a.name}</b> <span class="stars">${'★'.repeat(a.tier)}</span><small>${a.desc}</small>${got ? `<small class="good">Desbloqueado en ${MONTHS[got.m]} de ${got.y}</small>` : pre ? '<small class="dim">Ya se cumplía al inicio de la partida: no puede obtenerse.</small>' : p}</div></div>`;
   }).join('')}</div>`).join('')}`;
 }};
+
+/* ===== HISTORIA: países dormidos, guerra civil y secesión, y eventos históricos =====
+   · Países «dormidos» (sin estados al empezar): sirven de bandera a los rebeldes de una guerra civil (la Confederación, rebeldes genéricos…).
+   · Guerra civil: un país con legitimidad muy baja y muchos radicales durante meses puede partirse; una región entera se separa con parte del
+     ejército y el país madre le declara la guerra para recuperarla.
+   · Eventos históricos con fecha: Revoluciones de 1848, unificaciones de Alemania e Italia, guerra civil americana, rebelión Taiping, Restauración Meiji.
+     La IA los vive de forma automática; el jugador recibe un evento con decisiones. */
+Object.assign(COUNTRY_DATA, {
+  CSA: ['Estados Confederados', 'confederado', '#7d8a9e', 'h2:#a33a3a:#f2f2f2', 'República', 'Richmond', 20, 0.04, 'liberal', 100000],
+  RB1: ['Rebeldes del Norte', 'rebelde', '#b5651d', 'h2:#b5651d:#222', 'Gobierno rebelde', '', 10, 0.03, 'eastern', 80000],
+  RB2: ['Rebeldes del Sur', 'rebelde', '#8e4a8e', 'h2:#8e4a8e:#222', 'Gobierno rebelde', '', 10, 0.03, 'eastern', 80000],
+  RB3: ['Rebeldes del Este', 'rebelde', '#3f8f8f', 'h2:#3f8f8f:#222', 'Gobierno rebelde', '', 10, 0.03, 'eastern', 80000],
+  RB4: ['Rebeldes del Oeste', 'rebelde', '#a89a3a', 'h2:#a89a3a:#222', 'Gobierno rebelde', '', 10, 0.03, 'eastern', 80000],
+  RB5: ['Rebeldes del Centro', 'rebelde', '#c0507a', 'h2:#c0507a:#222', 'Gobierno rebelde', '', 10, 0.03, 'eastern', 80000],
+  RB6: ['Rebeldes del Litoral', 'rebelde', '#5a7fc0', 'h2:#5a7fc0:#222', 'Gobierno rebelde', '', 10, 0.03, 'eastern', 80000]
+});
+const REBEL_TAGS = ['RB1', 'RB2', 'RB3', 'RB4', 'RB5', 'RB6'];
+const histDone = id => G.eventCool && G.eventCool['h_' + id] !== undefined;
+const histMark = id => { if (G.eventCool) G.eventCool['h_' + id] = 1e9; };
+const stateLL = sid => { const p = MAP.provs[stateCapitalProv(sid)]; return p ? {lon: p.lon, lat: p.lat} : {lon: 0, lat: 0}; };
+const isEuropean = c => { if (c.capital < 0) return false; const p = stateLL(c.capital); return p.lon > -15 && p.lon < 45 && p.lat > 34 && p.lat < 72; };
+
+/* ---------- guerra civil y secesión ---------- */
+// región contigua alejada de la capital (se separa de ella)
+function cwRegion(tag, frac, pred) {
+  const c = G.C[tag], own = new Set(c.states), cap = c.capital;
+  const dist = new Map([[cap, 0]]), q = [cap];
+  while (q.length) { const x = q.shift(); G.S[x].neigh.forEach(n => { if (own.has(n) && !dist.has(n)) { dist.set(n, dist.get(x) + 1); q.push(n); } }); }
+  const cands = c.states.filter(id => id !== cap && (!pred || pred(id)));
+  if (!cands.length) return [];
+  cands.sort((a, b) => (dist.has(b) ? dist.get(b) : 99) - (dist.has(a) ? dist.get(a) : 99));
+  const seed = cands[Math.floor(Math.random() * Math.min(3, cands.length))], want = Math.max(2, Math.round(c.states.length * frac));
+  const out = [seed], seen = new Set(out);
+  for (let i = 0; i < out.length && out.length < want; i++) G.S[out[i]].neigh.forEach(n => { if (own.has(n) && n !== cap && !seen.has(n) && (!pred || pred(n)) && out.length < want) { seen.add(n); out.push(n); } });
+  return out;
+}
+function pickRebelTag(parent, prefer) {
+  const free = t => G.C[t] && t !== NONE && t !== parent && t !== G.player && !G.C[t].states.length && !G.C[t].wars.length && !G.C[t].overlord;
+  if (prefer && G.C[prefer] && free(prefer) && !(G.C[prefer].rebelUsed)) return prefer;
+  return REBEL_TAGS.find(t => free(t) && !G.C[t].rebelUsed) || G.tags.find(t => free(t) && !(COUNTRY_DATA[t] && /Tierras/.test(COUNTRY_DATA[t][0])) && !REBEL_TAGS.includes(t) && t !== 'CSA') || null;
+}
+function startCivilWar(tag, o) {
+  o = o || {}; const P = G.C[tag]; if (!P || !alive(tag) || P.states.length < 4 || P.capital < 0) return null;
+  const ids = cwRegion(tag, o.frac || 0.35, o.pred); if (!ids.length) return null;
+  const rt = pickRebelTag(tag, o.prefer); if (!rt) return null;
+  const R = G.C[rt], share = ids.reduce((n, id) => n + popTotal(G.S[id]), 0) / Math.max(1, P.states.reduce((n, id) => n + popTotal(G.S[id]), 0));
+  const cap = ids.slice().sort((a, b) => G.S[b].popBase - G.S[a].popBase)[0];
+  R.techs = new Set(P.techs); R.laws = Object.assign({}, P.laws); recalcMods(R);
+  R.ai = true; R.overlord = null; R.subjects = []; R.wars = []; R.claims = []; R.bloc = null; R.rebelOf = tag; R.rebelUsed = true;
+  R.name = o.name || ('Rebeldes de ' + G.S[cap].name); R.adj = o.adj || 'rebelde';
+  R.legitimacy = 60; R.radicals = 0.1; R.prestige = Math.round(P.prestige * 0.25) + 5; R.influence = 100;
+  const tr = Math.max(0, P.treasury) * Math.min(0.6, share); R.treasury = Math.round(tr); P.treasury -= tr * 0.9;
+  ids.forEach(id => transferState(G.S[id], rt));
+  R.capital = cap; R.capitalName = G.S[cap].name;
+  // ejércitos que estaban en la región pasan a los rebeldes; el resto se levanta con levas
+  const inRegion = new Set(ids); let moved = 0;
+  G.armies.forEach(a => { if (a.tag === tag && !a.sea && inRegion.has(provState(a.loc))) { a.tag = rt; a.gen = newGeneral(1, rt); moved += a.divs.length; } });
+  if (moved < 6) { const k = Math.min(10, Math.max(4, Math.round(countDivs(tag) * 0.2))), divs = []; for (let i = 0; i < k; i++) divs.push(mkDivision(Math.random() < 0.8 ? 'inf' : 'cav', 0.4)); const a = mkArmy(rt, stateCapitalProv(cap), divs, '1.º Ejército Rebelde'); a.mode = 'hold'; }
+  if (P.eq && R.eq) for (const g in P.eq) { const take = (P.eq[g] || 0) * Math.min(0.5, share); R.eq[g] = (R.eq[g] || 0) + take; P.eq[g] -= take; }
+  if (typeof spawnLevies === 'function') try { spawnLevies(R); } catch (_) { /* sin levas */ }
+  R.relations = R.relations || {}; R.relations[tag] = -90; if (P.relations) P.relations[rt] = -90;
+  const w = declareWar(tag, rt, 'conquest', ids, {free: true});
+  G.eventCool['cw_' + tag] = G.date.t + 365 * 25;
+  const txt = `¡GUERRA CIVIL! ${R.name} se separa de ${P.name} con ${ids.length} ${ids.length === 1 ? 'estado' : 'estados'} (${ids.slice(0, 3).map(i => G.S[i].name).join(', ')}).`;
+  notify('war', txt, cap); R.civilWar = {parent: tag, ids: ids.slice(), year: G.date.y};
+  return {rt, ids, war: w && w.ok};
+}
+// la IA o el jugador pueden perder la partida por guerra civil: se comprueba el estrés interno cada mes
+function civilWarMonth() {
+  G.tags.forEach(t => {
+    if (t === NONE) return; const c = G.C[t]; if (!c.states.length || c.states.length < 6 || c.wars.length > 1) return;
+    if ((G.eventCool['cw_' + t] || 0) > G.date.t) return;
+    if ((c.lowLeg || 0) >= 8 && c.radicals > 0.25 && Math.random() < (c.ai ? 0.18 : 0.12)) {
+      const r = startCivilWar(t); if (r && t === G.player) histNotifyPlayer('h_civil', G.C[t], {rt: r.rt, n: r.ids.length, nm: G.C[r.rt].name});
+    }
+  });
+}
+
+/* ---------- unificaciones ---------- */
+function annexWhole(leader, minor) {
+  const M = G.C[minor], L = G.C[leader]; if (!M || !M.states.length || M.wars.length) return false;
+  (M.subjects || []).slice().forEach(s => { if (G.C[s].overlord === minor) { G.C[s].overlord = leader; L.subjects = (L.subjects || []).concat([s]); } });
+  M.subjects = []; if (M.overlord) { const O = G.C[M.overlord]; O.subjects = (O.subjects || []).filter(x => x !== minor); M.overlord = null; }
+  M.states.slice().forEach(id => transferState(G.S[id], leader));
+  G.armies.forEach(a => { if (a.tag === minor) { a.tag = leader; a.gen = newGeneral(1, leader); } });
+  G.pacts = G.pacts.filter(p => p.a !== minor && p.b !== minor);
+  L.treasury += Math.max(0, M.treasury) * 0.5; M.treasury = 0; return true;
+}
+function unifyNation(leader, minors, name, adj, label) {
+  const L = G.C[leader]; let n = 0; minors.forEach(m => { if (annexWhole(leader, m)) n++; });
+  if (!n) return 0;
+  L.name = name; L.adj = adj; L.prestige += 25; L.legitimacy = Math.min(100, L.legitimacy + 10); L.radicals = Math.max(0, L.radicals - 0.05);
+  addTimedFx(L, label, '🏛️', {ind: 1.04, demand: 1.02}, 120, 'El nuevo Estado nacional integra mercados y administraciones.');
+  notify('event', `${label}: ${name} se proclama tras unir ${n} Estados.`, L.capital);
+  return n;
+}
+const GER_MINORS = ['BAV', 'SAX', 'HAN', 'WUR', 'BAD', 'HES', 'MEC'], ITA_MINORS = ['TWS', 'PAP', 'TUS'];
+const liveMinors = (list, leader) => list.filter(t => alive(t) && t !== leader && !G.C[t].wars.length && G.C[t].overlord !== leader);
+
+/* ---------- Restauración Meiji ---------- */
+function meijiEffect(c) {
+  for (let i = 0; i < 6; i++) freeTech(c);
+  addTimedFx(c, 'Restauración Meiji', '🌸', {ind: 1.10, demand: 1.03}, 180, 'Modernización acelerada: ferrocarriles, escuelas, fábricas y un ejército moderno.');
+  c.prestige += 15; c.legitimacy = Math.min(100, c.legitimacy + 6); c.influence += 40;
+  if (LAW[c.laws.education] && c.laws.education === 'no_edu' && LAW.public_edu) c.laws.education = 'public_edu';
+  recalcMods(c); notify('event', `${c.name} abraza la modernización (Restauración Meiji).`, c.capital);
+}
+
+/* ---------- eventos para el jugador ---------- */
+function histNotifyPlayer(id, c, ctx) {
+  if (G.pendingEvent) return false;
+  const e = EVENTS.find(x => x.id === id); if (!e) return false;
+  G.pendingEvent = {id: e.id, title: e.title, icon: e.icon || '📰', text: e.text(c, ctx), ctx}; return true;
+}
+EVENTS.push(
+  {id: 'h_civil', icon: '⚔️', title: '¡Guerra civil!', w: 0, cond: () => false,
+    text: (c, x) => `La crisis interna ha estallado: ${x.nm} se ha separado con ${x.n} estados y se ha armado contra ti. Debes recuperarlos antes de que se consoliden.`,
+    opts: [{t: 'Movilizar el ejército y aplastar la rebelión', hint: 'Ya estás en guerra contra los rebeldes', fx: c => { c.mob = Math.max(c.mob || 0, 1); }},
+           {t: 'Ofrecer reformas para debilitar a los rebeldes', cost: 3, hint: '+legitimidad, −radicales', fx: c => { c.legitimacy += 6; c.radicals = Math.max(0, c.radicals - 0.06); }}]},
+  {id: 'h_1848', icon: '🗽', title: 'Primavera de los pueblos (1848)', w: 0, cond: () => false,
+    text: () => 'Una oleada revolucionaria recorre Europa: barricadas, constituciones y reclamos nacionales. Tus súbditos exigen libertades.',
+    opts: [{t: 'Conceder una constitución', hint: '+legitimidad, la nobleza se resiente', fx: c => { c.legitimacy += 6; c.radicals = Math.max(0, c.radicals - 0.07); addIGBoost(c, 'lands', 'suppress', 12); }},
+           {t: 'Reprimir con el ejército', hint: '−legitimidad, +radicales a medio plazo', fx: c => { c.legitimacy -= 4; c.radicals = Math.min(0.9, c.radicals + 0.04); c.prestige += 2; }}]},
+  {id: 'h_ger_pru', icon: '🦅', title: 'La cuestión alemana', w: 0, cond: () => false,
+    text: (c, x) => `Con el Zollverein y el ejército más moderno de Alemania, la unificación bajo tu corona está al alcance. ${x.n} Estados alemanes podrían integrarse.`,
+    opts: [{t: 'Proclamar el Imperio Alemán', hint: 'Anexas los Estados alemanes; +prestigio', fx: (c, x) => { unifyNation(c.tag, liveMinors(GER_MINORS, c.tag), 'Imperio Alemán', 'alemán', 'Unificación alemana'); histMark('ger'); }},
+           {t: 'Esperar un momento mejor', hint: 'Se repetirá más adelante', fx: () => { delete G.eventCool.h_ger; G.eventCool.h_gerWait = G.date.t + 365 * 3; }}]},
+  {id: 'h_ger_minor', icon: '🦅', title: 'Prusia exige la unión alemana', w: 0, cond: () => false,
+    text: () => 'Prusia, dueña del Zollverein, propone integrar tu Estado en una Alemania unida bajo su corona.',
+    opts: [{t: 'Aceptar como Estado federado (vasallo de Prusia)', hint: 'Conservas tu gobierno interno; +prestigio', fx: c => { if (alive('PRU') && !c.wars.length) makeSubject('PRU', c.tag); c.prestige += 6; histMark('ger'); }},
+           {t: 'Rechazar y defender tu soberanía', hint: 'Prusia te declarará la guerra', fx: c => { const r = declareWar('PRU', c.tag, 'conquest', c.states.slice(0, 3), {free: true}); if (!r.ok) notify('war', 'Prusia se echa atrás.'); c.prestige += 4; histMark('ger'); }}]},
+  {id: 'h_ita_sar', icon: '🇮🇹', title: 'El Risorgimento', w: 0, cond: () => false,
+    text: (c, x) => `El nacionalismo italiano pide unir la península. ${x.n} Estados italianos podrían integrarse en un Reino de Italia bajo tu corona.`,
+    opts: [{t: 'Proclamar el Reino de Italia', hint: 'Anexas los Estados italianos; +prestigio', fx: c => { unifyNation(c.tag, liveMinors(ITA_MINORS, c.tag), 'Reino de Italia', 'italiano', 'Unificación italiana'); histMark('ita'); }},
+           {t: 'Esperar un momento mejor', hint: 'Se repetirá más adelante', fx: () => { delete G.eventCool.h_ita; G.eventCool.h_itaWait = G.date.t + 365 * 3; }}]},
+  {id: 'h_ita_minor', icon: '🇮🇹', title: 'Cerdeña propone unir Italia', w: 0, cond: () => false,
+    text: () => 'El Piamonte-Cerdeña, con apoyo del nacionalismo italiano, te propone integrarte en un Reino de Italia.',
+    opts: [{t: 'Aceptar como vasallo del nuevo reino', hint: 'Conservas tu gobierno interno; +prestigio', fx: c => { if (alive('SAR') && !c.wars.length) makeSubject('SAR', c.tag); c.prestige += 6; histMark('ita'); }},
+           {t: 'Rechazar', hint: 'Cerdeña te declarará la guerra', fx: c => { const r = declareWar('SAR', c.tag, 'conquest', c.states.slice(0, 3), {free: true}); if (!r.ok) notify('war', 'Cerdeña se echa atrás.'); c.prestige += 4; histMark('ita'); }}]},
+  {id: 'h_usciv', icon: '🗡️', title: 'Crisis de secesión', w: 0, cond: () => false,
+    text: () => 'Los estados del sur, enfrentados por la esclavitud y los aranceles, amenazan con separarse de la Unión.',
+    opts: [{t: 'Impedirlo por la fuerza', hint: 'Estalla la guerra civil', fx: c => { const r = startCivilWar(c.tag, civilOpts('usa')); histMark('usciv'); if (r) histNotifyPlayerLater('h_civil', c, {rt: r.rt, n: r.ids.length, nm: G.C[r.rt].name}); }},
+           {t: 'Negociar una secesión pacífica', hint: 'Pierdes los estados del sur sin guerra; −prestigio', fx: c => { const o = civilOpts('usa'), ids = cwRegion(c.tag, o.frac, o.pred), rt = pickRebelTag(c.tag, 'CSA'); if (ids.length && rt) { const R = G.C[rt]; R.name = o.name; R.adj = o.adj; R.rebelOf = c.tag; R.rebelUsed = true; R.techs = new Set(c.techs); R.laws = Object.assign({}, c.laws); recalcMods(R); R.ai = true; ids.forEach(id => transferState(G.S[id], rt)); R.capital = ids[0]; R.capitalName = G.S[ids[0]].name; R.treasury = Math.round(c.treasury * 0.15); const a = mkArmy(rt, stateCapitalProv(ids[0]), [mkDivision('inf', 0.4), mkDivision('inf', 0.4), mkDivision('cav', 0.4)], '1.º Ejército'); a.mode = 'hold'; c.prestige = Math.max(0, c.prestige - 10); } histMark('usciv'); }}]},
+  {id: 'h_taiping', icon: '🐉', title: 'Rebelión Taiping', w: 0, cond: () => false,
+    text: () => 'Un profeta que se proclama hermano de Cristo ha levantado el sur contra la dinastía. Millones de campesinos se suman al Reino Celestial.',
+    opts: [{t: 'Enviar a los ejércitos imperiales', hint: 'Guerra civil', fx: c => { const r = startCivilWar(c.tag, civilOpts('chn')); histMark('taiping'); if (r) histNotifyPlayerLater('h_civil', c, {rt: r.rt, n: r.ids.length, nm: G.C[r.rt].name}); }},
+           {t: 'Alzar milicias regionales (los gobernadores se refuerzan)', cost: 2, hint: 'Guerra civil con más legitimidad interna', fx: c => { c.legitimacy += 4; const r = startCivilWar(c.tag, civilOpts('chn')); histMark('taiping'); if (r) histNotifyPlayerLater('h_civil', c, {rt: r.rt, n: r.ids.length, nm: G.C[r.rt].name}); }}]},
+  {id: 'h_meiji', icon: '🌸', title: 'Llegada de los barcos negros', w: 0, cond: () => false,
+    text: () => 'Una flota extranjera de vapor exige abrir los puertos. El shogunato es incapaz de resistir: o te modernizas o serás sometido.',
+    opts: [{t: 'Abrir el país y modernizarlo (Restauración Meiji)', hint: '6 tecnologías gratis, +10% industria 15 años', fx: c => { meijiEffect(c); histMark('meiji'); }},
+           {t: 'Mantener el aislamiento', hint: '−legitimidad; se repetirá', fx: c => { c.legitimacy -= 6; c.prestige = Math.max(0, c.prestige - 5); G.eventCool.h_meijiWait = G.date.t + 365 * 2; }}]}
+);
+const pendingLater = [];
+function histNotifyPlayerLater(id, c, ctx) { pendingLater.push({id, tag: c.tag, ctx}); }
+function civilOpts(kind) {
+  if (kind === 'usa') return {prefer: 'CSA', name: 'Estados Confederados', adj: 'confederado', frac: 0.4, pred: id => { const p = stateLL(id); return p.lat < 38.5 && p.lon > -103 && p.lon < -74; }};
+  return {name: 'Reino Celestial Taiping', adj: 'taiping', frac: 0.4};
+}
+
+/* ---------- calendario histórico (se llama cada mes) ---------- */
+function histMonth() {
+  if (!G.eventCool) return;
+  const y = G.date.y, m = G.date.m, P = G.player;
+  // eventos que el jugador no pudo ver por haber otro pendiente
+  if (pendingLater.length && !G.pendingEvent) { const q = pendingLater.shift(); if (q.tag === P && G.C[P]) histNotifyPlayer(q.id, G.C[P], q.ctx); }
+  civilWarMonth();
+  const wait = k => (G.eventCool['h_' + k + 'Wait'] || 0) > G.date.t;
+  // Revoluciones de 1848
+  if (y === 1848 && m >= 2 && !histDone('rev48')) {
+    histMark('rev48'); let any = false;
+    G.tags.forEach(t => { if (t === NONE) return; const c = G.C[t]; if (!c.states.length || !isEuropean(c) || !(c.monarchy || c.laws.power === 'autocracy' || c.laws.power === 'landed_voting')) return;
+      if (t === P) { any = histNotifyPlayer('h_1848', c, null); if (!any) pendingLater.push({id: 'h_1848', tag: P, ctx: null}); } else { c.radicals = Math.min(0.9, c.radicals + 0.04); c.legitimacy -= 4; } });
+    notify('event', 'Estalla la Primavera de los pueblos: revoluciones por toda Europa.');
+  }
+  // Restauración Meiji
+  if (!histDone('meiji') && !wait('meiji') && alive('JAP') && y >= 1853 && y <= 1872 && (Math.random() < 0.10 || y === 1868)) {
+    const c = G.C.JAP; if (c.ai) { meijiEffect(c); histMark('meiji'); } else if (!G.pendingEvent) histNotifyPlayer('h_meiji', c, null);
+  }
+  // Rebelión Taiping
+  if (!histDone('taiping') && alive('CHN') && y >= 1850 && y <= 1862 && G.C.CHN.states.length >= 8 && Math.random() < 0.06) {
+    const c = G.C.CHN; if (c.ai) { startCivilWar('CHN', civilOpts('chn')); histMark('taiping'); } else if (!G.pendingEvent) histNotifyPlayer('h_taiping', c, null);
+  }
+  // guerra civil americana
+  if (!histDone('usciv') && alive('USA') && G.C.CSA && y >= 1855 && y <= 1870 && G.C.USA.states.length >= 8 && Math.random() < 0.05) {
+    const c = G.C.USA; if (c.ai) { startCivilWar('USA', civilOpts('usa')); histMark('usciv'); } else if (!G.pendingEvent) histNotifyPlayer('h_usciv', c, null);
+  }
+  // unificación alemana
+  if (!histDone('ger') && !wait('ger') && alive('PRU') && y >= 1850 && y <= 1895 && G.C.PRU.rank <= 6 && !G.C.PRU.wars.length && Math.random() < (y < 1860 ? 0.012 : 0.04)) {
+    const mins = liveMinors(GER_MINORS, 'PRU'); if (mins.length >= 3) {
+      const pm = mins.find(t => t === P);
+      if (P === 'PRU') { if (!G.pendingEvent) histNotifyPlayer('h_ger_pru', G.C.PRU, {n: mins.length}); }
+      else if (pm) { if (!G.pendingEvent) histNotifyPlayer('h_ger_minor', G.C[pm], null); }
+      else { unifyNation('PRU', mins, 'Imperio Alemán', 'alemán', 'Unificación alemana'); histMark('ger'); }
+    }
+  }
+  // unificación italiana
+  if (!histDone('ita') && !wait('ita') && alive('SAR') && y >= 1850 && y <= 1895 && G.C.SAR.rank <= 12 && !G.C.SAR.wars.length && Math.random() < (y < 1860 ? 0.012 : 0.04)) {
+    const mins = liveMinors(ITA_MINORS, 'SAR'); if (mins.length >= 2) {
+      const pm = mins.find(t => t === P);
+      if (P === 'SAR') { if (!G.pendingEvent) histNotifyPlayer('h_ita_sar', G.C.SAR, {n: mins.length}); }
+      else if (pm) { if (!G.pendingEvent) histNotifyPlayer('h_ita_minor', G.C[pm], null); }
+      else { unifyNation('SAR', mins, 'Reino de Italia', 'italiano', 'Unificación italiana'); histMark('ita'); }
+    }
+  }
+}
 
 /* ===== MANUAL DEL JUEGO ===== */
 const MANUAL = [

@@ -115,7 +115,7 @@ function milCaps() {
   const w = {shipyard: [], enginew: [], aeroworks: [], mgworks: []};
   S.forEach(s => { const c = G.C[s.owner], ind = c ? c.ind : 0.05, base = Math.pow(s.popBase, 0.9) * (0.25 + 3 * ind), coast = Math.pow(MAP.stats[s.id].coast, 0.85);
     w.shipyard.push(coast * Math.pow(s.popBase, 0.5) * (0.25 + 3 * ind)); w.enginew.push(base); w.aeroworks.push(base); w.mgworks.push(base); });
-  const T = {shipyard: 30, enginew: 40, aeroworks: 40, mgworks: 40};
+  const T = {shipyard: 30, enginew: 150, aeroworks: 150, mgworks: 150};   // niveles totales posibles en el mundo
   for (const k in w) { const tot = w[k].reduce((a, x) => a + x, 0) || 1; S.forEach((s, i) => { s.cap[k] = T[k] * w[k][i] / tot; s.b[k] = k === 'shipyard' ? s.cap[k] * 0.35 : 0; }); }
   // todo estado con puerto tiene un astillero modesto (para que las potencias menores puedan construir)
   S.forEach(s => { if (MAP.stats[s.id].provs.some(p => MAP.provs[p].port)) { s.cap.shipyard = Math.max(s.cap.shipyard || 0, 1); s.b.shipyard = Math.max(s.b.shipyard || 0, 0.3); } });

@@ -1345,6 +1345,94 @@ const JOURNAL = [
 
 const START_YEAR = 1836;
 
+/* ===== NOMBRES DE MANDOS POR PAÍS =====
+   Generales, mariscales y almirantes reciben apellidos propios de su nación (de su época o de su tradición militar).
+   GEN_POOL: tag → apellidos de mando terrestre · ADM_POOL: tag → apellidos de almirantes (si no hay, se usa la lista terrestre). */
+const _NP = {
+  uk: ['Wellesley', 'Napier', 'Havelock', 'Raglan', 'Cardigan', 'Campbell', 'Hardinge', 'Gough', 'Cathcart', 'Lucan', 'Outram', 'Wolseley', 'Roberts', 'Kitchener', 'Haig', 'French', 'Buller', 'Gordon', 'Hill', 'Pakenham'],
+  fr: ['Soult', 'Bugeaud', 'Canrobert', 'Bosquet', 'Pélissier', 'MacMahon', 'Bazaine', 'Lamoricière', 'Cavaignac', 'Changarnier', 'Randon', 'Niel', 'Mac-Mahon', 'Ducrot', 'Foch', 'Joffre', 'Pétain', 'Gallieni', 'Lyautey', 'Faidherbe'],
+  de: ['Moltke', 'Roon', 'Blücher', 'Gneisenau', 'Steinmetz', 'Wrangel', 'Manteuffel', 'Goeben', 'Werder', 'Falkenstein', 'Prittwitz', 'Hindenburg', 'Ludendorff', 'Schlieffen', 'Mackensen', 'Kluck', 'Bülow', 'Hötzendorf', 'Yorck', 'Vogel von Falckenstein'],
+  gs: ['Hartmann', 'Thurn', 'Von der Tann', 'Hohenlohe', 'Zastrow', 'Prittwitz', 'Wrede', 'Schönfeld', 'Reitzenstein', 'Hake', 'Gablenz', 'Stosch', 'Treskow', 'Hanneken', 'Wittich'],
+  at: ['Radetzky', 'Windischgrätz', 'Jellačić', 'Benedek', 'Haynau', 'Schwarzenberg', 'Gyulai', 'Clam-Gallas', 'Hess', 'Conrad', 'Archduke Albrecht', 'Kuhn', 'Auffenberg', 'Boroević', 'Dankl', 'Wimpffen', 'Wallmoden', 'Mensdorff'],
+  ru: ['Kutúzov', 'Paskévich', 'Todleben', 'Barclay', 'Bagratión', 'Miloradóvich', 'Dibich', 'Gúrko', 'Skóbelev', 'Brusílov', 'Kuropatkin', 'Rennenkampf', 'Samsónov', 'Radetsky', 'Ermólov', 'Menshikov', 'Gorchakov', 'Chernyaev', 'Kaufmann', 'Ignatiev'],
+  tr: ['Hüsrev', 'Reşid', 'Ömer Paşa', 'Hafız Paşa', 'Mehmed Ali', 'Osman Nuri', 'Fevzi', 'Hasan Rıza', 'Ahmed Muhtar', 'Mahmud Şevket', 'Abdi Paşa', 'Kör Hüseyin', 'Hurşid', 'Namık', 'Rauf', 'Ismail Hakkı', 'Nazım', 'Izzet', 'Fuad', 'Selim'],
+  eg: ['Ibrahim Paşa', 'Soliman Paşa', 'Abbas', 'Urabi', 'Muhammad Said', 'Rashid', 'Ahmad Orabi', 'Hassan', 'Sherif', 'Ismail', 'Halim', 'Tawfiq', 'Hussein', 'Mahmoud Sami', 'Khalil', 'Fawzi'],
+  es: ['Espartero', 'Narváez', "O'Donnell", 'Prim', 'Serrano', 'Concha', 'Zumalacárregui', 'Cabrera', 'Pavía', 'Martínez Campos', 'Weyler', 'Topete', 'Palafox', 'Castaños', 'Elío', 'Zurbano', 'Dulce', 'Echagüe', 'Córdova', 'Primo de Rivera'],
+  pt: ['Saldanha', 'Terceira', 'Sá da Bandeira', 'Loulé', 'Mouzinho', 'Fontes', 'Teixeira', 'Sousa', 'Caldas Xavier', 'Pimentel', 'Pinto', 'Beresford', 'Almeida', 'Sampaio', 'Vilhena', 'Carvalho', 'Bernardo de Sá'],
+  se: ['Skjöldebrand', 'Posse', 'Löwenhielm', 'Cederström', 'Sandels', 'Adlercreutz', 'Von Platen', 'Lagerbjelke', 'Gyllenkrok', 'Rehbinder', 'Stedingk', 'Hamilton', 'Sparre', 'Bergenstråhle', 'Wachtmeister', 'Stålhammar'],
+  dk: ['Bülow', 'De Meza', 'Gerlach', 'Hegermann-Lindencrone', 'Steinmann', 'Rye', 'Schleppegrell', 'Læssøe', 'Moltke', 'Lunding', 'Olsen', 'Wedell', 'Castonier', 'Dinesen', 'Krogh', 'Bruun'],
+  nl: ['Chassé', 'Van der Smissen', 'Bylandt', 'Trip', 'Van Heutsz', 'Schouten', 'Verhuell', 'Van Speijk', 'De Kock', 'Saksen-Weimar', 'Van Swieten', 'Cleerens', 'Stuers', 'Van Daalen', 'Pel', 'Gey van Pittius'],
+  be: ['Chazal', 'Goethals', 'Brialmont', 'Leman', 'Gérard', 'Niellon', 'Mellinet', 'Anoul', 'Duvivier', 'Capiaumont', 'Van der Smissen', 'Magnan', 'Ruquoy', 'Clump', 'Barbanson', 'Dumonceau'],
+  ch: ['Dufour', 'Ochsenbein', 'Herzog', 'Wille', 'Ziegler', 'Salis-Soglio', 'Rilliet', 'Kurz', 'Rüstow', 'Bourbaki', 'Hegner', 'Egloff', 'Lecomte', 'Sprecher', 'Wieland', 'Frey'],
+  sa: ['La Marmora', 'Cialdini', 'Durando', 'Bava', 'Fanti', 'Cadorna', 'Menabrea', 'Cosenz', 'Dabormida', 'Pelloux', 'Ricotti', 'Cucchiari', 'Giacomo Medici', 'Govone', 'Della Rocca', 'Garibaldi', 'Pianell'],
+  nc: ['Pepe', 'Filangieri', 'Nunziante', 'Lanza', 'Statella', 'Carrascosa', 'Pianell', 'Ritucci', 'Bosco', 'Caracciolo', 'Ferrari', 'Vial', 'Afan de Rivera', 'Nicoletti', 'Cutrofiano'],
+  pa: ['Kanzler', 'Zappi', 'Pimodan', 'Pfyffer', 'De Courten', 'Charette', 'Lamoricière', 'Schmid', 'Ferrari', 'Colonna', 'Cervini', 'Odescalchi', 'Boncompagni', 'Giovanetti'],
+  to: ['D’Apice', 'Ferrari da Grado', 'Laugier', 'Giovannetti', 'Cerrini', 'Ulloa', 'Pietro Ricasoli', 'Zannetti', 'Corsini', 'Del Cittadino', 'Guicciardini', 'Cempini'],
+  us: ['Scott', 'Taylor', 'Jackson', 'Lee', 'Grant', 'Sherman', 'Sheridan', 'McClellan', 'Meade', 'Jessup', 'Worth', 'Kearny', 'Pershing', 'Custer', 'Stuart', 'Bragg', 'Beauregard', 'Hooker', 'Thomas', 'Longstreet'],
+  tx: ['Houston', 'Rusk', 'Burleson', 'Lamar', 'Fannin', 'Johnston', 'Somervell', 'Moore', 'Hays', 'Ford', 'Karnes', 'Jones', 'Coleman', 'Woll', 'Cos'],
+  mx: ['Santa Anna', 'Arista', 'Bravo', 'Paredes', 'Almonte', 'Canalizo', 'Ampudia', 'Urrea', 'Mejía', 'Zaragoza', 'Díaz', 'Escobedo', 'Comonfort', 'Bustamante', 'Valencia', 'Miramón', 'Márquez', 'Álvarez', 'Guerrero', 'Alcorta'],
+  ca: ['Morazán', 'Carrera', 'Cabañas', 'Malespín', 'Ferrera', 'Cerna', 'Barrios', 'Guardiola', 'Zavala', 'Chamorro', 'Jerez', 'Estrada', 'Lindo', 'Reyes', 'Gálvez'],
+  co: ['Santander', 'Mosquera', 'López', 'Obando', 'Herrán', 'Posada', 'Córdoba', 'Uribe Uribe', 'Reyes', 'Cabal', 'Nieto', 'Sardá', 'Salgar', 'Lozano', 'Murillo'],
+  ve: ['Páez', 'Soublette', 'Monagas', 'Falcón', 'Guzmán', 'Zamora', 'Urdaneta', 'Bermúdez', 'Mariño', 'Piar', 'Arismendi', 'Bolívar', 'Sucre', 'Rangel', 'Colina'],
+  ec: ['Flores', 'Urbina', 'Robles', 'Franco', 'Veintemilla', 'Salazar', 'Maldonado', 'Illingworth', 'Sucre', 'Elizalde', 'Mena', 'Saá', 'Alfaro', 'García Moreno'],
+  pe: ['Castilla', 'Santa Cruz', 'Gamarra', 'Salaverry', 'Vivanco', 'Pezet', 'Echenique', 'Prado', 'Cáceres', 'Bolognesi', 'Grau', 'La Mar', 'Orbegoso', 'Nieto', 'San Román'],
+  bo: ['Santa Cruz', 'Ballivián', 'Belzu', 'Linares', 'Achá', 'Melgarejo', 'Campero', 'Pando', 'Camacho', 'Ortiz', 'Sucre', 'Daza', 'Arce', 'Saavedra'],
+  cl: ["O'Higgins", 'Bulnes', 'Prieto', 'Baquedano', 'Pinto', 'Blanco Encalada', 'Cochrane', 'Cruz', 'Lynch', 'Errázuriz', 'Maruri', 'Soto', 'Carrera', 'Freire', 'Villagrán'],
+  ar: ['Rosas', 'Urquiza', 'Paz', 'Lavalle', 'Mitre', 'San Martín', 'Roca', 'Quiroga', 'Belgrano', 'Lamadrid', 'Madariaga', 'Rivas', 'Paunero', 'Arredondo', 'Sarmiento'],
+  py: ['López', 'Díaz', 'Caballero', 'Resquín', 'Estigarribia', 'Barrios', 'Francia', 'Aquino', 'Roa', 'Marcó', 'Bruguez', 'Duarte', 'Genes', 'Montiel', 'Cabañas'],
+  uy: ['Rivera', 'Oribe', 'Lavalleja', 'Flores', 'Garzón', 'Ordóñez', 'Suárez', 'Díaz', 'Paunero', 'Batlle', 'Aparicio', 'Latorre', 'Santos', 'Tajes', 'Artigas'],
+  br: ['Caxias', 'Osório', 'Tamandaré', 'Deodoro', 'Floriano', 'Porto Alegre', 'Barroso', 'Mallet', 'Câmara', 'Polidoro', 'Bento Gonçalves', 'Abreu', 'Rondon', 'Lima e Silva', 'Marques de Souza'],
+  cn: ['Zeng', 'Zuo', 'Li', 'Liu', 'Ding', 'Feng', 'Song', 'Yuan', 'Sengge Rinchen', 'Hu', 'Chen', 'Peng', 'Yang', 'Lin', 'Wei', 'Xu', 'Zhang', 'Dong'],
+  kr: ['Shin', 'Yi', 'Han', 'Jo', 'Kim', 'Hong', 'Min', 'Yu', 'Kang', 'Seo', 'Ahn', 'Eo', 'Yang', 'Heo', 'Choe'],
+  jp: ['Saigō', 'Shimazu', 'Nogi', 'Ōyama', 'Yamagata', 'Kawakami', 'Katsura', 'Kodama', 'Itō', 'Takasugi', 'Ōmura', 'Kuroda', 'Tani', 'Oku', 'Nozu', 'Kuroki', 'Yamaji', 'Akiyama'],
+  th: ['Bodindecha', 'Suriyawongse', 'Phraya Surasi', 'Thiphakorawong', 'Phiphat', 'Chakri', 'Phraya Phetphichai', 'Sri Suriyawong', 'Phraya Ratchasuphawadi', 'Nai Thongdee', 'Phra Pinklao', 'Chao Mun'],
+  vn: ['Nguyễn Tri Phương', 'Tôn Thất Thuyết', 'Hoàng Diệu', 'Trương Định', 'Lê Văn Duyệt', 'Phan Thanh Giản', 'Nguyễn Văn Thành', 'Hoàng Kế Viêm', 'Lưu Vĩnh Phúc', 'Lê Chất', 'Nguyễn Công Trứ', 'Trần Hưng Đạo'],
+  mm: ['Maha Bandula', 'Thihathura', 'Nemyo Thihapate', 'Kyaw Htin', 'Minhla', 'Maha Nawrahta', 'Thado', 'Letya', 'Bo Hmu', 'Maha Thiha Thura', 'Pagan Min', 'Minkhaung', 'Mingyi', 'Nga Chit'],
+  ir: ['Abbas Mirza', 'Amir Kabir', 'Hasan Khan', 'Sardar', 'Najaf', 'Ali Mohammad', 'Amin al-Dowleh', 'Sepahsalar', 'Naser', 'Mirza Aqasi', 'Firuz', 'Ardalan', 'Mohammad Shah', 'Zell al-Sultan', 'Kalhor'],
+  af: ['Akbar Khan', 'Dost Mohammad', 'Sher Ali', 'Ayub Khan', 'Wazir', 'Ghulam Haidar', 'Yaqub Khan', 'Aslam', 'Shah Shuja', 'Habibullah', 'Mohammad Azam', 'Sardar Gul', 'Abdur Rahman', 'Zaman Shah'],
+  ca2: ['Muzaffar', 'Nasrullah', 'Alim Quli', 'Musulmankul', 'Yaqub Beg', 'Khudayar', 'Rahim', 'Muhammad Amin', 'Kenesary', 'Sadyk', 'Allayar', 'Said Muhammad', 'Mahmud', 'Ishaq'],
+  sk: ['Hari Singh Nalwa', 'Sher Singh', 'Gulab Singh', 'Zorawar Singh', 'Dhian Singh', 'Tej Singh', 'Lehna Singh', 'Ajit Singh', 'Ranjit Singh', 'Chattar Singh', 'Mewa Singh', 'Gurmukh Singh', 'Hukam Singh'],
+  np: ['Bhimsen Thapa', 'Amar Singh Thapa', 'Jung Bahadur', 'Bam Bahadur', 'Ranodip', 'Dhoj Narsingh', 'Kaji Bir', 'Gagan Singh', 'Kalu Pande', 'Balabhadra Kunwar', 'Ujir Singh', 'Rana Jang', 'Damodar Pande'],
+  hy: ['Salar Jung', 'Sikandar Jah', 'Mir Alam', 'Chandu Lal', 'Asaf Jah', 'Imad ul-Mulk', 'Vikar ul-Umra', 'Zafar Jung', 'Rafi-ud-din', 'Mir Qamar', 'Murtaza', 'Nawab Shuja'],
+  om: ['Said', 'Thuwaini', 'Majid', 'Barghash', 'Hamad', 'Salim', 'Sulaiman', 'Azzan', 'Turki', 'Faisal', 'Qais', 'Hilal', 'Nasir'],
+  ma: ['Abd al-Rahman', 'Bu Hamara', 'Moulay Hassan', 'Ba Ahmed', 'Sidi Mohammed', 'Idris', 'Abbas', 'Ahmad ben Musa', 'Al-Mahdi', 'Kaid Hamida', 'Mohammed Torres', 'El Glaoui', 'Bargash'],
+  tn: ['Ahmad Bey', 'Khayr al-Din', 'Mustafa Khaznadar', 'Rustum', 'Sadok', 'Ali Bey', 'Hamuda', 'Husayn', 'Hassuna', 'Mahmud', 'Mohammed Bey', 'Zarruq', 'Ben Ayed'],
+  sc: ['Muhammadu Bello', 'Atiku', 'Abdullahi', 'Aliyu', 'Usman', 'Umaru', 'Buhari', 'Ahmadu', 'Hassan', 'Ibrahim Nagwamatse', 'Khalilu', 'Mu’azu', 'Danyaya'],
+  as: ['Osei Bonsu', 'Osei Tutu', 'Kwaku Dua', 'Karikari', 'Opoku Ware', 'Asafo-Agyei', 'Adu Bofo', 'Amankwatia', 'Kwadwo', 'Boakye', 'Owusu', 'Agyeman', 'Apea Nyanyo'],
+  et: ['Tewodros', 'Menelik', 'Yohannes', 'Ras Alula', 'Ras Gobena', 'Ras Mengesha', 'Ras Darge', 'Wube', 'Ras Makonnen', 'Mikael', 'Ras Tessema', 'Balcha', 'Ras Abebe'],
+  zu: ['Shaka', 'Dingane', 'Mpande', 'Cetshwayo', 'Dabulamanzi', 'Mnyamana', 'Ndlela', 'Mavumengwana', 'Zibhebhu', 'Sihayo', 'Ntshingwayo', 'Godide', 'Mbilini'],
+  mg: ['Rainiharo', 'Rainimaharo', 'Rainilaiarivony', 'Rainandriamampandry', 'Ramanetaka', 'Rainizanabololona', 'Radama', 'Andriamasinavalona', 'Rainiketaka', 'Rasatranabo', 'Ratsimandresy', 'Rainijohary'],
+  gr: ['Kolokotronis', 'Kanaris', 'Miaoulis', 'Makriyannis', 'Karaiskakis', 'Botsaris', 'Grivas', 'Ypsilantis', 'Kalergis', 'Tzavelas', 'Kountouriotis', 'Zaimis', 'Mavromichalis', 'Diakos', 'Nikitaras'],
+  rs: ['Putnik', 'Mišić', 'Stepanović', 'Lešjanin', 'Belimarković', 'Protić', 'Horvatović', 'Zach', 'Blaznavac', 'Gruić', 'Knićanin', 'Petronijević', 'Vučić', 'Milutinović', 'Jovanović'],
+  ro: ['Magheru', 'Golescu', 'Odobescu', 'Cernat', 'Davila', 'Tell', 'Lecca', 'Racoviță', 'Slătineanu', 'Averescu', 'Prezan', 'Dabija', 'Cantacuzino', 'Florescu', 'Berindei'],
+  xx: ['Wellesley', 'Moltke', 'Radetzky', 'Kutúzov', 'Ney', 'Soult', 'Bernadotte', 'Garibaldi', 'Scott', 'Taylor', 'Lee', 'Bolívar', 'Blücher', 'Benedek', 'Napier', 'Canrobert']
+};
+const _NA = {
+  uk: ['Nelson', 'Napier', 'Codrington', 'Dundas', 'Lyons', 'Cochrane', 'Seymour', 'Fisher', 'Jellicoe', 'Beatty', 'Rodney', 'Keppel', 'Hood', 'Jervis', 'Hardy', 'Collingwood', 'Beresford', 'Hornby', 'Tyrwhitt'],
+  fr: ['Duperré', 'Villeneuve', 'Parseval-Deschênes', 'Hamelin', 'Baudin', 'Lalande', 'Jurien de la Gravière', 'Bruix', 'Rigault de Genouilly', 'Courbet', 'Aube', 'Ganteaume', 'Missiessy', 'Bouët-Willaumez'],
+  de: ['Tirpitz', 'Scheer', 'Hipper', 'Spee', 'Souchon', 'Von der Goltz', 'Prinz Adalbert', 'Batsch', 'Stosch', 'Knorr', 'Pohl', 'Ingenohl', 'Bromme', 'Schröder', 'Hollmann', 'Koester'],
+  at: ['Tegetthoff', 'Bandiera', 'Haus', 'Pöck', 'Dahlerup', 'Moll', 'Sterneck', 'Persano', 'Horthy', 'Hansa', 'Kudriaffsky', 'Wüllerstorf', 'Bourguignon', 'Czerny'],
+  ru: ['Nakhimov', 'Lazarev', 'Ushakov', 'Kornilov', 'Istomin', 'Makarov', 'Rozhestvensky', 'Kolchak', 'Essen', 'Senyavin', 'Spiridov', 'Greig', 'Butakov', 'Popov', 'Krusenstern', 'Bellingshausen'],
+  us: ['Farragut', 'Mahan', 'Dewey', 'Perry', 'Porter', 'Decatur', 'Rodgers', 'Dahlgren', 'Du Pont', 'Foote', 'Semmes', 'Buchanan', 'Sampson', 'Schley', 'Sims', 'Bainbridge'],
+  jp: ['Tōgō', 'Itō', 'Yamamoto', 'Kabayama', 'Enomoto', 'Kataoka', 'Uryū', 'Dewa', 'Kamimura', 'Shimamura', 'Katō', 'Saitō', 'Inoue', 'Akiyama'],
+  es: ['Méndez Núñez', 'Cervera', 'Topete', 'Churruca', 'Gravina', 'Mazarredo', 'Pareja', 'Montojo', 'Casto', 'Bustillo', 'Malcampo', 'Lobo', 'Armero', 'Butler', 'Cámara'],
+  tr: ['Hasan Paşa', 'Hobart Paşa', 'Osman Paşa', 'Ahmed Fevzi', 'Hüsnü', 'Rauf Orbay', 'Hasan Hüsnü', 'Mehmed Ali', 'Tahir', 'Ismail', 'Cezayirli', 'Khalil', 'Piyale', 'Barbaros'],
+  nl: ['Van Speijk', 'De Ruyter', 'Tromp', 'Verhuell', 'Koopman', 'Schouten', 'Van Kinsbergen', 'Kruys', 'Bouricius', 'Van der Wijck', 'Baud', 'Cremer'],
+  se: ['Puke', 'Cronstedt', 'Ankarcrona', 'Palander', 'Ehrensvärd', 'Von Otter', 'Lagercrantz', 'Dahlerup', 'Fersen', 'Tersmeden', 'Nordenskjöld', 'Gyllengranat'],
+  dk: ['Wulff', 'Steen Bille', 'Van Dockum', 'Bille', 'Dirckinck-Holmfeld', 'Suenson', 'Zachariae', 'Paludan', 'Krieger', 'Raben', 'Jessen', 'Hovgaard'],
+  gr: ['Miaoulis', 'Kanaris', 'Sachtouris', 'Tombazis', 'Kountouriotis', 'Apostolis', 'Votsis', 'Sahinis', 'Kriezis', 'Nikodimos', 'Tsamados', 'Pipinos'],
+  br: ['Tamandaré', 'Barroso', 'Cochrane', 'Greenfell', 'Taylor', 'Inhaúma', 'Saldanha da Gama', 'Pinto Guedes', 'Mariath', 'Rodrigues', 'Lamare', 'Jaceguai'],
+  cl: ['Cochrane', 'Blanco Encalada', 'Grau', 'Prat', 'Lynch', 'Riveros', 'Williams Rebolledo', 'Latorre', 'Simpson', 'Condell', 'Uribe', 'Montt']
+};
+const _TG = {GBR: 'uk', FRA: 'fr', PRU: 'de', AUS: 'at', RUS: 'ru', OTT: 'tr', USA: 'us', SPA: 'es', POR: 'pt', SWE: 'se', DEN: 'dk', NET: 'nl', BEL: 'be', SWI: 'ch', SAR: 'sa', TWS: 'nc', PAP: 'pa', TUS: 'to',
+  BAV: 'gs', SAX: 'gs', HAN: 'gs', WUR: 'gs', BAD: 'gs', HES: 'gs', MEC: 'gs', TEX: 'tx', MEX: 'mx', CAM: 'ca', COL: 'co', VEN: 've', ECU: 'ec', PER: 'pe', BOL: 'bo', CHL: 'cl', ARG: 'ar', PAR: 'py', URU: 'uy', BRZ: 'br',
+  CHN: 'cn', KOR: 'kr', JAP: 'jp', SIA: 'th', VIE: 'vn', BRM: 'mm', PRS: 'ir', AFG: 'af', BUK: 'ca2', KHI: 'ca2', KOK: 'ca2', SIK: 'sk', NEP: 'np', HYD: 'hy', OMA: 'om', EGY: 'eg', MOR: 'ma', TUN: 'tn', SOK: 'sc',
+  ASH: 'as', ETH: 'et', ZUL: 'zu', MDG: 'mg', GRE: 'gr', SER: 'rs', WAL: 'ro'};
+// tag → grupo de nombres (los países que no estén en la tabla usan la lista genérica)
+const GEN_POOL = new Proxy({}, {get: (o, tag) => _NP[_TG[tag]] || _NP.xx});
+const ADM_POOL = new Proxy({}, {get: (o, tag) => _NA[_TG[tag]] || _NA[{gs: 'de', be: 'nl', pt: 'es', sa: 'at', nc: 'es', pa: 'es', to: 'es', tx: 'us', cn: 'jp'}[_TG[tag]]] || null});
+const commanderName = (tag, naval) => { const L = (naval && ADM_POOL[tag]) || GEN_POOL[tag]; return L[Math.floor(Math.random() * L.length)]; };
+
 /* ===== NOMBRES DE LAS CIUDADES IMPORTANTES: estado -> [ciudad, importancia 1-3] ===== */
 const CITY_NAMES = {
   'Prusia Oriental': ['Königsberg', 2], 'Brandeburgo': ['Berlín', 3], 'Pomerania': ['Stettin', 1], 'Silesia': ['Breslavia', 2], 'Posen': ['Posen', 1], 'Sajonia Prusiana': ['Magdeburgo', 1], 'Westfalia': ['Münster', 1], 'Renania': ['Colonia', 2],
@@ -3843,9 +3931,9 @@ function updateStrategies(b) {
     if (b['str' + s] !== st) { b['str' + s] = st; b['ss' + s] = b.day; b.stratSeq = (b.stratSeq || 0) + 1; }
   });
 }
-function newGeneral(lvl) {
+function newGeneral(lvl, tag) {
   const r = () => 1 + Math.floor(Math.random() * 3) + (Math.random() < 0.15 ? 1 : 0);
-  const g = {name: pick(GEN_SURNAMES), atk: Math.min(5, r()), def: Math.min(5, r()), log: Math.min(5, r()), xp: 0, lvl: 1, traits: []};
+  const g = {name: commanderName(tag, false), atk: Math.min(5, r()), def: Math.min(5, r()), log: Math.min(5, r()), xp: 0, lvl: 1, traits: []};
   if (Math.random() < 0.45) g.traits.push(pick(TRAIT_KEYS));
   if (lvl > 1) { g.lvl = lvl; g.atk = Math.min(5, g.atk + 1); if (Math.random() < 0.7) { const t = pick(TRAIT_KEYS); if (!g.traits.includes(t)) g.traits.push(t); } }
   return g;
@@ -3863,7 +3951,7 @@ function recruitGeneral(c) {
   if (c.treasury < cost) return {ok: false, msg: 'No tienes fondos para reclutar un general.'};
   if (c.influence < 15) return {ok: false, msg: 'Necesitas 15 de influencia.'};
   if (genPool(c).length >= 8) return {ok: false, msg: 'Ya tienes 8 generales en reserva.'};
-  c.treasury -= cost; c.influence -= 15; const g = newGeneral(Math.random() < 0.3 ? 2 : 1); genPool(c).push(g);
+  c.treasury -= cost; c.influence -= 15; const g = newGeneral(Math.random() < 0.3 ? 2 : 1, c.tag); genPool(c).push(g);
   return {ok: true, msg: `${g.name} se incorpora a la reserva de generales.`};
 }
 function assignGeneral(a, idx) {
@@ -3877,7 +3965,7 @@ function armyTrain(a) { let t = 0; a.divs.forEach(d => t += d.tr === undefined ?
 function nextArmyId() { G.nextArmyId = (G.nextArmyId || 1); return G.nextArmyId++; }
 function mkDivision(type, tr) { return {t: type, s: 1, o: DIVS[type].org, tr: tr === undefined ? 0.15 : tr}; }
 function mkArmy(tag, loc, divs, name) {
-  const a = {id: nextArmyId(), tag, loc, divs: divs || [], gen: newGeneral(), path: [], hop: 0, battle: null, from: null, arrived: G.date.t, rest: 0, dig: 0, sup: 1, front: null, plan: null, mode: null, fm: false, rail: false, patrol: null, joinTo: null, name: name || ''};
+  const a = {id: nextArmyId(), tag, loc, divs: divs || [], gen: newGeneral(1, tag), path: [], hop: 0, battle: null, from: null, arrived: G.date.t, rest: 0, dig: 0, sup: 1, front: null, plan: null, mode: null, fm: false, rail: false, patrol: null, joinTo: null, name: name || ''};
   if (!a.name) a.name = `${armyOrdinal(tag)}.º Ejército`;
   G.armies.push(a); return a;
 }
@@ -4162,7 +4250,7 @@ function gainXp(tag, n) { const c = G.C[tag]; if (c) c.mxp = (c.mxp || 0) + n; }
 // el general derrotado puede morir o ser capturado
 function generalFate(a, b) {
   if (Math.random() > 0.035) return;
-  const old = a.gen.name; a.gen = newGeneral();
+  const old = a.gen.name; a.gen = newGeneral(1, a.tag);
   if (a.tag === G.player) notify('war', `El general ${old} ha muerto en combate. ${a.gen.name} toma el mando de ${a.name}.`, b.state);
 }
 function retreatArmy(a, b) {
@@ -4299,7 +4387,7 @@ function spawnLevies(c) {
     const k = (s.pops.peasants || 0) > MEN_PER_DIV * 14 ? 2 : 1, divs = [];
     for (let i = 0; i < k; i++) { const d = mkDivision('inf', 0); d.lv = true; d.s = 0.8; d.o = DIVS.inf.org * 0.6; divs.push(d); }
     s.pops.peasants -= MEN_PER_DIV * 0.6 * k;
-    const a = mkArmy(c.tag, pid, divs, `Leva de ${s.name}`); a.levy = true; a.mode = 'hold'; a.gen = newGeneral(); total += k; made += k;
+    const a = mkArmy(c.tag, pid, divs, `Leva de ${s.name}`); a.levy = true; a.mode = 'hold'; a.gen = newGeneral(1, c.tag); total += k; made += k;
   });
   return made;
 }
@@ -4345,7 +4433,7 @@ function disbandArmy(a) {
 function splitArmy(a) {
   if (a.divs.length < 2 || a.battle) return null;
   const half = a.divs.splice(Math.ceil(a.divs.length / 2));
-  const n = mkArmy(a.tag, a.loc, half); n.gen = newGeneral(); return n;
+  const n = mkArmy(a.tag, a.loc, half); n.gen = newGeneral(1, a.tag); return n;
 }
 function mergeArmies(a, b) {
   if (a === b || a.loc !== b.loc || a.tag !== b.tag || a.battle || b.battle) return false;
@@ -7561,7 +7649,7 @@ function applyNatFx(c, fx) {
     else if (k === 'claim') { const s = stateByName(a); if (s && s.owner !== c.tag && !c.claims.some(x => x.state === s.id)) c.claims.push({state: s.id, perm: true}); }
     else if (k === 'build') { const s = a === 'cap' ? G.S[c.capital] : stateByName(a); if (s && s.owner === c.tag) s.b[b] = (s.b[b] || 0) + e[3]; }
     else if (k === 'divs') { if (c.states.length && c.capital >= 0) { const divs = []; for (let i = 0; i < a; i++) divs.push(mkDivision(i % 4 === 3 ? 'art' : 'inf', 0.5)); mkArmy(c.tag, stateCapitalProv(c.capital), divs); } }
-    else if (k === 'gen') { genPool(c).push(newGeneral(a)); }
+    else if (k === 'gen') { genPool(c).push(newGeneral(a, c.tag)); }
     else if (k === 'prestige') c.prestige += a;
     else if (k === 'infl') c.influence += a;
     else if (k === 'legit') c.legitimacy = clamp(c.legitimacy + a, 0, 100);
@@ -8867,9 +8955,9 @@ function shipOrder(c, type, sid) {
 function homeZone(c, sid) { const ps = MAP.stats[sid !== undefined ? sid : c.capital].provs.filter(p => MAP.provs[p].port); return ps.length ? seaZoneOfProv(ps[0]) : null; }
 function mainPortZone(c) { const z = countryZones(c); let b = null, bv = 0; z.forEach((v, k) => { if (v > bv) { bv = v; b = k; } }); return b; }
 const ADM_NAMES = ['Nelson', 'Villeneuve', 'Nakhimov', 'Tegetthoff', 'Farragut', 'Cochrane', 'Jervis', 'Duperré', 'Lazarev', 'Persano', 'Togo', 'Tirpitz', 'Beatty', 'Jellicoe', 'Fisher', 'Scheer', 'Hipper', 'Mahan', 'Dewey', 'Rodney'];
-const newAdmiral = () => ({name: pick(ADM_NAMES) + ' ' + pick(['I', 'II', 'III']), lvl: 1 + Math.floor(Math.random() * 2), xp: 0});
+const newAdmiral = tag => ({name: commanderName(tag, true), lvl: 1 + Math.floor(Math.random() * 2), xp: 0});
 function newFleet(tag, zone, name) {
-  const M = mx(), f = {id: M.nfl++, tag, zone, ships: [], adm: newAdmiral(), mission: 'port', target: null, name: name || `${fleetsOf(tag).length + 1}.ª Flota`, tr: null};
+  const M = mx(), f = {id: M.nfl++, tag, zone, ships: [], adm: newAdmiral(tag), mission: 'port', target: null, name: name || `${fleetsOf(tag).length + 1}.ª Flota`, tr: null};
   M.fl.push(f); return f;
 }
 function addShip(c, type, zone) {
@@ -9145,7 +9233,7 @@ function marRecruit(c, free) {
   if (marOf(c.tag).length >= marMax(c)) return {ok: false, msg: `Solo puedes tener ${marMax(c)} mariscales con tu ejército actual.`};
   if (!free && c.treasury < marCost(c)) return {ok: false, msg: 'No tienes fondos.'};
   if (!free) c.treasury -= marCost(c);
-  const m = {id: mx().nmar++, tag: c.tag, name: pick(MAR_NAMES), lvl: 1 + Math.floor(Math.random() * 3), xp: 0, group: []};
+  const m = {id: mx().nmar++, tag: c.tag, name: commanderName(c.tag, false), lvl: 1 + Math.floor(Math.random() * 3), xp: 0, group: []};
   mx().mar.push(m); return {ok: true, m, msg: `El mariscal ${m.name} (nivel ${m.lvl}) toma el mando.`};
 }
 function marOfArmy(a) {

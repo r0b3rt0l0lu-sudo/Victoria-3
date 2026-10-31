@@ -10,7 +10,7 @@ function marRecruit(c, free) {
   if (marOf(c.tag).length >= marMax(c)) return {ok: false, msg: `Solo puedes tener ${marMax(c)} mariscales con tu ejército actual.`};
   if (!free && c.treasury < marCost(c)) return {ok: false, msg: 'No tienes fondos.'};
   if (!free) c.treasury -= marCost(c);
-  const m = {id: mx().nmar++, tag: c.tag, name: pick(MAR_NAMES), lvl: 1 + Math.floor(Math.random() * 3), xp: 0, group: []};
+  const m = {id: mx().nmar++, tag: c.tag, name: commanderName(c.tag, false), lvl: 1 + Math.floor(Math.random() * 3), xp: 0, group: []};
   mx().mar.push(m); return {ok: true, m, msg: `El mariscal ${m.name} (nivel ${m.lvl}) toma el mando.`};
 }
 function marOfArmy(a) {

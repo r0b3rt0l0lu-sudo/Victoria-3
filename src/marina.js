@@ -54,9 +54,9 @@ function shipOrder(c, type, sid) {
 function homeZone(c, sid) { const ps = MAP.stats[sid !== undefined ? sid : c.capital].provs.filter(p => MAP.provs[p].port); return ps.length ? seaZoneOfProv(ps[0]) : null; }
 function mainPortZone(c) { const z = countryZones(c); let b = null, bv = 0; z.forEach((v, k) => { if (v > bv) { bv = v; b = k; } }); return b; }
 const ADM_NAMES = ['Nelson', 'Villeneuve', 'Nakhimov', 'Tegetthoff', 'Farragut', 'Cochrane', 'Jervis', 'Duperré', 'Lazarev', 'Persano', 'Togo', 'Tirpitz', 'Beatty', 'Jellicoe', 'Fisher', 'Scheer', 'Hipper', 'Mahan', 'Dewey', 'Rodney'];
-const newAdmiral = () => ({name: pick(ADM_NAMES) + ' ' + pick(['I', 'II', 'III']), lvl: 1 + Math.floor(Math.random() * 2), xp: 0});
+const newAdmiral = tag => ({name: commanderName(tag, true), lvl: 1 + Math.floor(Math.random() * 2), xp: 0});
 function newFleet(tag, zone, name) {
-  const M = mx(), f = {id: M.nfl++, tag, zone, ships: [], adm: newAdmiral(), mission: 'port', target: null, name: name || `${fleetsOf(tag).length + 1}.ª Flota`, tr: null};
+  const M = mx(), f = {id: M.nfl++, tag, zone, ships: [], adm: newAdmiral(tag), mission: 'port', target: null, name: name || `${fleetsOf(tag).length + 1}.ª Flota`, tr: null};
   M.fl.push(f); return f;
 }
 function addShip(c, type, zone) {

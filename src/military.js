@@ -52,9 +52,9 @@ function updateStrategies(b) {
     if (b['str' + s] !== st) { b['str' + s] = st; b['ss' + s] = b.day; b.stratSeq = (b.stratSeq || 0) + 1; }
   });
 }
-function newGeneral(lvl) {
+function newGeneral(lvl, tag) {
   const r = () => 1 + Math.floor(Math.random() * 3) + (Math.random() < 0.15 ? 1 : 0);
-  const g = {name: pick(GEN_SURNAMES), atk: Math.min(5, r()), def: Math.min(5, r()), log: Math.min(5, r()), xp: 0, lvl: 1, traits: []};
+  const g = {name: commanderName(tag, false), atk: Math.min(5, r()), def: Math.min(5, r()), log: Math.min(5, r()), xp: 0, lvl: 1, traits: []};
   if (Math.random() < 0.45) g.traits.push(pick(TRAIT_KEYS));
   if (lvl > 1) { g.lvl = lvl; g.atk = Math.min(5, g.atk + 1); if (Math.random() < 0.7) { const t = pick(TRAIT_KEYS); if (!g.traits.includes(t)) g.traits.push(t); } }
   return g;
@@ -72,7 +72,7 @@ function recruitGeneral(c) {
   if (c.treasury < cost) return {ok: false, msg: 'No tienes fondos para reclutar un general.'};
   if (c.influence < 15) return {ok: false, msg: 'Necesitas 15 de influencia.'};
   if (genPool(c).length >= 8) return {ok: false, msg: 'Ya tienes 8 generales en reserva.'};
-  c.treasury -= cost; c.influence -= 15; const g = newGeneral(Math.random() < 0.3 ? 2 : 1); genPool(c).push(g);
+  c.treasury -= cost; c.influence -= 15; const g = newGeneral(Math.random() < 0.3 ? 2 : 1, c.tag); genPool(c).push(g);
   return {ok: true, msg: `${g.name} se incorpora a la reserva de generales.`};
 }
 function assignGeneral(a, idx) {
@@ -86,7 +86,7 @@ function armyTrain(a) { let t = 0; a.divs.forEach(d => t += d.tr === undefined ?
 function nextArmyId() { G.nextArmyId = (G.nextArmyId || 1); return G.nextArmyId++; }
 function mkDivision(type, tr) { return {t: type, s: 1, o: DIVS[type].org, tr: tr === undefined ? 0.15 : tr}; }
 function mkArmy(tag, loc, divs, name) {
-  const a = {id: nextArmyId(), tag, loc, divs: divs || [], gen: newGeneral(), path: [], hop: 0, battle: null, from: null, arrived: G.date.t, rest: 0, dig: 0, sup: 1, front: null, plan: null, mode: null, fm: false, rail: false, patrol: null, joinTo: null, name: name || ''};
+  const a = {id: nextArmyId(), tag, loc, divs: divs || [], gen: newGeneral(1, tag), path: [], hop: 0, battle: null, from: null, arrived: G.date.t, rest: 0, dig: 0, sup: 1, front: null, plan: null, mode: null, fm: false, rail: false, patrol: null, joinTo: null, name: name || ''};
   if (!a.name) a.name = `${armyOrdinal(tag)}.º Ejército`;
   G.armies.push(a); return a;
 }
@@ -371,7 +371,7 @@ function gainXp(tag, n) { const c = G.C[tag]; if (c) c.mxp = (c.mxp || 0) + n; }
 // el general derrotado puede morir o ser capturado
 function generalFate(a, b) {
   if (Math.random() > 0.035) return;
-  const old = a.gen.name; a.gen = newGeneral();
+  const old = a.gen.name; a.gen = newGeneral(1, a.tag);
   if (a.tag === G.player) notify('war', `El general ${old} ha muerto en combate. ${a.gen.name} toma el mando de ${a.name}.`, b.state);
 }
 function retreatArmy(a, b) {
@@ -508,7 +508,7 @@ function spawnLevies(c) {
     const k = (s.pops.peasants || 0) > MEN_PER_DIV * 14 ? 2 : 1, divs = [];
     for (let i = 0; i < k; i++) { const d = mkDivision('inf', 0); d.lv = true; d.s = 0.8; d.o = DIVS.inf.org * 0.6; divs.push(d); }
     s.pops.peasants -= MEN_PER_DIV * 0.6 * k;
-    const a = mkArmy(c.tag, pid, divs, `Leva de ${s.name}`); a.levy = true; a.mode = 'hold'; a.gen = newGeneral(); total += k; made += k;
+    const a = mkArmy(c.tag, pid, divs, `Leva de ${s.name}`); a.levy = true; a.mode = 'hold'; a.gen = newGeneral(1, c.tag); total += k; made += k;
   });
   return made;
 }
@@ -554,7 +554,7 @@ function disbandArmy(a) {
 function splitArmy(a) {
   if (a.divs.length < 2 || a.battle) return null;
   const half = a.divs.splice(Math.ceil(a.divs.length / 2));
-  const n = mkArmy(a.tag, a.loc, half); n.gen = newGeneral(); return n;
+  const n = mkArmy(a.tag, a.loc, half); n.gen = newGeneral(1, a.tag); return n;
 }
 function mergeArmies(a, b) {
   if (a === b || a.loc !== b.loc || a.tag !== b.tag || a.battle || b.battle) return false;

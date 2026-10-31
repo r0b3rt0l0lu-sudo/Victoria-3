@@ -132,7 +132,7 @@ function applyNatFx(c, fx) {
     else if (k === 'claim') { const s = stateByName(a); if (s && s.owner !== c.tag && !c.claims.some(x => x.state === s.id)) c.claims.push({state: s.id, perm: true}); }
     else if (k === 'build') { const s = a === 'cap' ? G.S[c.capital] : stateByName(a); if (s && s.owner === c.tag) s.b[b] = (s.b[b] || 0) + e[3]; }
     else if (k === 'divs') { if (c.states.length && c.capital >= 0) { const divs = []; for (let i = 0; i < a; i++) divs.push(mkDivision(i % 4 === 3 ? 'art' : 'inf', 0.5)); mkArmy(c.tag, stateCapitalProv(c.capital), divs); } }
-    else if (k === 'gen') { genPool(c).push(newGeneral(a)); }
+    else if (k === 'gen') { genPool(c).push(newGeneral(a, c.tag)); }
     else if (k === 'prestige') c.prestige += a;
     else if (k === 'infl') c.influence += a;
     else if (k === 'legit') c.legitimacy = clamp(c.legitimacy + a, 0, 100);

@@ -117,6 +117,16 @@ function navyDay() {
   }
   M.fl = M.fl.filter(f => f.ships.length && G.C[f.tag] && G.C[f.tag].states.length);
 }
+// registro de la batalla (para el visor y las fichas del mapa)
+function nbRecord(z, a, fa, b, fb, sa, sb, pa, pb) {
+  const M = mx(); M.nb = M.nb || {}; let r = M.nb[z];
+  if (!r || G.date.t - r.last > 4) r = M.nb[z] = {z, t0: G.date.t, day: 0, sunkA: 0, sunkB: 0, log: []};
+  r.last = G.date.t; r.day++; r.a = a; r.b = b; r.sunkA += sa; r.sunkB += sb; r.pa = Math.round(pa); r.pb = Math.round(pb);
+  const snap = fl => [].concat(...fl.map(f => f.ships.map(s => ({id: s.id, t: s.t, hp: +s.hp.toFixed(2), tag: f.tag}))));
+  r.A = snap(fa); r.B = snap(fb); const fi = fl => fl.map(f => ({name: f.name, adm: f.adm.name, mission: f.mission, n: f.ships.length}));
+  r.fleetsA = fi(fa); r.fleetsB = fi(fb);
+  r.log.unshift(`Día ${r.day}: ${G.C[a].name} pierde ${sa} · ${G.C[b].name} pierde ${sb}`); if (r.log.length > 10) r.log.length = 10;
+}
 function navalBattle(z, a, fa, pa, b, fb, pb) {
   const hit = (fleets, foeAtt, ownDef, tag) => { let sunk = 0;
     fleets.forEach(f => f.ships = f.ships.filter(s => {
@@ -124,7 +134,9 @@ function navalBattle(z, a, fa, pa, b, fb, pb) {
       s.hp -= k; if (s.hp <= 0.04) { sunk++; return false; } return true; }));
     return sunk; };
   const defA = fa.reduce((n, f) => n + fleetPower(f, 'def'), 0), defB = fb.reduce((n, f) => n + fleetPower(f, 'def'), 0);
+  { const M0 = mx(); fa.concat(fb).forEach(f => f.ships.forEach(s => { if (!s.id) s.id = M0.nsid = (M0.nsid || 0) + 1; })); }
   const sb = hit(fb, pa, defB, b), sa = hit(fa, pb, defA, a);
+  nbRecord(z, a, fa, b, fb, sa, sb, pa, pb);
   if (sa) xpGain(b, 'navy', sa * 1.2); if (sb) xpGain(a, 'navy', sb * 1.2); xpGain(a, 'navy', 0.05); xpGain(b, 'navy', 0.05);
   fa.concat(fb).forEach(f => { f.adm.xp += 0.5; });
   const B = mx(); B.nlog = B.nlog || []; if (sa + sb > 0) { B.nlog.unshift({z, a, b, sa, sb, date: dateStr ? dateStr() : ''}); if (B.nlog.length > 12) B.nlog.length = 12; if (a === G.player || b === G.player) notify('war', `Batalla naval en ${SEA_ZONES[z].name}: ${G.C[a].name} pierde ${sa} buques, ${G.C[b].name} pierde ${sb}.`); }

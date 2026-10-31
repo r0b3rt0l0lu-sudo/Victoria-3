@@ -968,7 +968,7 @@ function doLoad(fromStart) {
 /* ---------- bucle principal ---------- */
 const SPEED_MS = [0, 1300, 750, 380, 170, 60];
 // con una batalla abierta en el panel el tiempo corre despacio (≥ 1,8 s por día) para que dé tiempo a ver el combate
-const dayMs = () => (UI.battle && R.skip3d) ? Math.max(1800, SPEED_MS[UI.speed] || 1800) : SPEED_MS[UI.speed];
+const dayMs = () => ((UI.battle || (UI.nb !== null && UI.nb !== undefined)) && R.skip3d) ? Math.max(1800, SPEED_MS[UI.speed] || 1800) : SPEED_MS[UI.speed];
 let _gt = 0;
 window.onFrame = function (t) {
   if (!UI.started) return;
@@ -989,7 +989,7 @@ window.onFrame = function (t) {
   if (R.needPaint) { R.needPaint = false; fullRepaint(); }
   if (G.notifs.length) drainNotifs();
   if (t - UI.lastHud > 250) { UI.lastHud = t; updateHud(); if (UI.sel !== null && UI.sel >= 0 && t - UI.lastWin > 1500) renderStatePanel(); }
-  if ((UI.battle || UI.selArmy) && t - (UI.lastPanel || 0) > 500) { UI.lastPanel = t; if (UI.battle) renderBattlePanel(); if (UI.selArmy) renderArmyPanel(); }
+  if ((UI.battle || UI.selArmy || (UI.nb !== null && UI.nb !== undefined)) && t - (UI.lastPanel || 0) > 500) { UI.lastPanel = t; if (UI.battle) renderBattlePanel(); if (UI.selArmy) renderArmyPanel(); if (UI.nb !== null && UI.nb !== undefined) renderNavalPanel(); }
   if (UI.win && t - UI.lastWin > 1500 && !G.paused && !(document.activeElement && /input|select/i.test(document.activeElement.tagName))) { UI.lastWin = t; renderWindow(); }
   if (R.minimapDirty) R.dirty = true;
 };

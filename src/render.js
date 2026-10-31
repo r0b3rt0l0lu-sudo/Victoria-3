@@ -512,6 +512,7 @@ function updateArmyTokens() {
     }
     el.style.transform = `translate(-50%,-50%) translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
   });
+  if (typeof updateNavyTokens === 'function') updateNavyTokens();
   drawOrders();
 }
 function drawOrders() {

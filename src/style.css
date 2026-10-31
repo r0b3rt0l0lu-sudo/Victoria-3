@@ -426,3 +426,11 @@ svg.orders line.arrow.sea{stroke:#6aa8e8;stroke-width:3.5}.atoken.sea{background
 .tabs{flex-wrap:wrap}
 .tabs .tab{padding-left:10px;padding-right:10px}
 .tplbn .kv{margin:2px 0}
+
+#navalpanel{position:fixed;left:50%;top:2.5vh;transform:translateX(-50%);width:min(1240px,96vw);max-height:95vh;overflow-y:auto;background:linear-gradient(180deg,rgba(24,34,44,.98),rgba(16,22,30,.98));border:1px solid #4a7a9a;border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,.75);display:none;padding:12px;z-index:37}
+#navalpanel.open{display:block}
+#nvmap{display:block;width:auto;max-width:100%;max-height:60vh;margin:6px auto;border-radius:6px;border:1px solid #3d6a86}
+.ntoken{position:absolute;left:0;top:0;display:flex;align-items:center;gap:4px;padding:2px 6px 2px 3px;background:rgba(14,24,34,.88);border:1px solid #6aa8e8;border-radius:12px;color:#e8f2ff;font:600 12px sans-serif;cursor:pointer;pointer-events:auto;white-space:nowrap}
+.ntoken.mine{border-color:#e0b04a}.ntoken.fight{border-color:#ff6a4a;box-shadow:0 0 10px rgba(255,100,60,.8);animation:nvpulse 1s infinite alternate}
+.ntoken small{font-size:12px}.ntoken u{text-decoration:none}
+@keyframes nvpulse{from{transform-origin:center;filter:brightness(1)}to{filter:brightness(1.4)}}

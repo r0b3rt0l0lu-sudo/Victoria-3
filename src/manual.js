@@ -343,7 +343,7 @@ const MANUAL = [
 <tr><td><b>Espacio</b></td><td>Pausa / reanudar</td></tr><tr><td><b>, .</b></td><td>Velocidad menor / mayor</td></tr>
 <tr><td><b>W A S D</b> / flechas</td><td>Mover la cámara</td></tr><tr><td><b>Q E</b> · <b>R F</b></td><td>Girar · inclinar</td></tr>
 <tr><td><b>+ -</b> / rueda / doble clic</td><td>Zoom</td></tr><tr><td>Botones laterales</td><td>Zoom, giro, inclinación, vista inicial y modos de desplazamiento</td></tr><tr><td><b>Ctrl+K</b> o <b>/</b></td><td>Buscar país o estado</td></tr>
-<tr><td><b>F1</b></td><td>Abrir este manual</td></tr><tr><td><b>Esc</b></td><td>Cerrar ventana, búsqueda o diálogo</td></tr>
+<tr><td><b>1 – 9</b></td><td>Abrir las ventanas de la barra inferior (1 Finanzas … 9 Decisiones)</td></tr><tr><td><b>F1</b></td><td>Abrir este manual</td></tr><tr><td><b>Esc</b></td><td>Cerrar ventana, búsqueda o diálogo</td></tr>
 </tbody></table>`},
 
 {id: 'tips', title: '22. Consejos y glosario', html: `

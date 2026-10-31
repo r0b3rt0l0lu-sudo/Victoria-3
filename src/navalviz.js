@@ -1,4 +1,4 @@
-/* ===== MARINA VISIBLE: fichas de flotas en el mapa, buques 3D, humo de combate y visor de batallas navales =====
+/* ===== MARINA VISIBLE: fichas de flotas en el mapa, (buques 3D desactivados), humo de combate y visor de batallas navales =====
    · Fichas con bandera sobre cada flota (misión, nº de buques, ⚔ si hay combate) que abren el visor o la pestaña Marina.
    · Siluetas de buques en 3D sobre el mar cuando la cámara está cerca; humo y fuego en las zonas con batalla.
    · Visor de batalla naval: dos líneas de buques que se cañonean, con humo, impactos, incendios y hundimientos animados. */
@@ -60,7 +60,9 @@ function buildShipMeshes() {
   const mkI = (g, vc, cap) => { const m = new THREE.InstancedMesh(g, new THREE.MeshLambertMaterial(vc ? {vertexColors: true} : {color: 0xffffff}), cap); m.count = 0; m.frustumCulled = false; R.scene.add(m); return m; };
   R.ships3d = {sail: mkI(body, true, 160), steam: mkI(steam, true, 260), flagSail: mkI(flagG, false, 160), flagSteam: mkI(flagS, false, 260)};
 }
+const SHIPS_3D = false;       // los buques solo se muestran como fichas (icono + bandera); los modelos 3D están desactivados
 function updateShipMeshes(t) {
+  if (!SHIPS_3D) { if (R.ships3d && R.ships3d.sail) { ['sail', 'steam', 'flagSail', 'flagSteam'].forEach(k => { if (R.ships3d[k].count) { R.ships3d[k].count = 0; R.dirty = true; } }); } return; }
   if (!G.mx || !G.mx.fl) return; if (!R.ships3d) { try { buildShipMeshes(); } catch (e) { console.warn(e); R.ships3d = {off: true}; return; } } if (R.ships3d.off) return;
   const S = R.ships3d, show = R.cam.dist < 38 && R.showFigs !== false, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
   const n = {sail: 0, steam: 0};

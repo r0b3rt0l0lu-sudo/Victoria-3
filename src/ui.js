@@ -57,6 +57,18 @@ function spark(arr, w = 120, h = 28, color = '#c9a657', base) {
 const bar = (v, max, cls = '', label = '') => `<div class="bar ${cls}"><i style="width:${clamp(v / max, 0, 1) * 100}%"></i>${label ? `<span>${label}</span>` : ''}</div>`;
 
 /* ---------- HUD ---------- */
+// [ventana, icono, etiqueta corta, título, descripción] — el orden fija el atajo numérico (1–9)
+const MENU_ITEMS = [
+  ['budget', '💷', 'Finanzas', 'Presupuesto', 'Impuestos, gastos y deuda del Estado.'],
+  ['production', '🏭', 'Economía', 'Producción y mercado', 'Qué produce y consume tu país, precios mundiales y edificios.'],
+  ['pops', '👥', 'Población', 'Población', 'Clases sociales, salarios y nivel de vida.'],
+  ['politics', '🏛️', 'Política', 'Política', 'Gobierno, grupos de interés, leyes y elecciones.'],
+  ['tech', '💡', 'Ciencia', 'Tecnología', 'Elige qué investigar para mejorar tu país.'],
+  ['diplomacy', '🤝', 'Diplomacia', 'Diplomacia', 'Relaciones, tratados, bloques, colonias y guerras.'],
+  ['military', '⚔️', 'Ejército', 'Ejército y guerra', 'Ejércitos, generales, producción militar, aire, mar y espionaje.'],
+  ['construction', '🏗️', 'Obras', 'Construcción', 'Cola de obras y nuevos edificios.'],
+  ['national', '🌳', 'Decisiones', 'Decisiones nacionales', 'Objetivos nacionales y ventajas permanentes.']
+];
 function me() { return G.C[G.player]; }
 function buildHud() {
   $('#hud').innerHTML = `
@@ -81,35 +93,35 @@ function buildHud() {
     </div>
   </div>
   <div id="datebox">
-    <button class="spd" data-act="pause" id="btn-pause" title="Pausa (Espacio)">⏸</button>
+    <button class="spd" data-act="pause" id="btn-pause" data-tip="<b>Pausa</b><br><small>Espacio</small>">⏸</button>
     <div class="date" id="datetxt"></div>
-    <div class="speeds">${[1, 2, 3, 4, 5].map(i => `<button class="spd s" data-act="speed" data-n="${i}" title="Velocidad ${i}"><i></i></button>`).join('')}</div>
+    <div class="speeds">${[1, 2, 3, 4, 5].map(i => `<button class="spd s" data-act="speed" data-n="${i}" data-tip="Velocidad ${i} <small>(, y . cambian la velocidad)</small>"><i></i></button>`).join('')}</div>
   </div>
   <div id="topright">
-    <button class="rbtn" data-act="search" title="Buscar país o estado (Ctrl+K)">🔍</button>
-    <button class="rbtn" data-act="win" data-w="achievements" title="Logros">🏅</button>
-    <button class="rbtn" data-act="save" title="Guardar partida">💾</button>
-    <button class="rbtn" data-act="load" title="Cargar partida">📂</button>
-    <button class="rbtn" data-act="win" data-w="journal" title="Diario">📜</button>
-    <button class="rbtn" data-act="win" data-w="manual" title="Manual del juego (F1)">📖</button>
-    <button class="rbtn home" data-act="gomenu" title="Volver al menú principal">🚪</button>
+    <button class="rbtn" data-act="search" data-tip="<b>Buscar</b><br>País, estado o ciudad. <small>Ctrl+K o /</small>">🔍</button>
+    <button class="rbtn" data-act="win" data-w="achievements" data-tip="<b>Logros</b><br>Metas que desbloquean prestigio.">🏅</button>
+    <button class="rbtn" data-act="save" data-tip="<b>Guardar partida</b>">💾</button>
+    <button class="rbtn" data-act="load" data-tip="<b>Cargar partida</b>">📂</button>
+    <button class="rbtn" data-act="win" data-w="journal" data-tip="<b>Diario</b><br>Objetivos y registro de sucesos.">📜</button>
+    <button class="rbtn" data-act="win" data-w="manual" data-tip="<b>Manual</b><br>Guía de todos los sistemas. <small>F1</small>">📖</button>
+    <button class="rbtn home" data-act="gomenu" data-tip="<b>Menú principal</b><br>Salir a la pantalla de inicio.">🚪</button>
   </div>
   <div id="menu">
-    ${[['budget', '💷', 'Presupuesto'], ['production', '🏭', 'Producción y mercado'], ['pops', '👥', 'Población'], ['politics', '🏛️', 'Política'], ['tech', '💡', 'Tecnología'], ['diplomacy', '🤝', 'Diplomacia'], ['military', '⚔️', 'Ejército y guerra'], ['construction', '🏗️', 'Construcción'], ['national', '🌳', 'Decisiones nacionales']]
-      .map(([id, ic, t]) => `<button class="mbtn" data-act="win" data-w="${id}" data-tip="${t}" id="mb-${id}"><span>${ic}</span></button>`).join('')}
+    ${MENU_ITEMS.map(([id, ic, lab, t, d], i) => `<button class="mbtn" data-act="win" data-w="${id}" data-tip="<b>${t}</b><br>${d}<br><small>Tecla ${i + 1}</small>" id="mb-${id}"><span>${ic}</span><em>${lab}</em></button>`).join('')}
   </div>
   <div id="camctl">
-    <button data-act="zin" title="Acercar (+)">＋</button><button data-act="zout" title="Alejar (−)">－</button>
-    <button data-act="camhome" title="Vista inicial">🏠</button>
-    <button data-act="rotl" title="Girar a la izquierda (Q)">⟲</button><button data-act="rotr" title="Girar a la derecha (E)">⟳</button>
-    <button data-act="tiltu" title="Inclinar más (R)">⤒</button><button data-act="tiltd" title="Inclinar menos (F)">⤓</button>
-    <button data-act="wheelmode" id="btn-wheel" title="Rueda del ratón: zoom o desplazar">🖱️</button>
-    <button data-act="animtoggle" id="btn-anim" title="Animaciones del mapa: agua y nubes">≈</button>
-    <button data-act="quality" id="btn-quality" title="Calidad gráfica (bajo / medio / alto)">Q</button>
-    <button data-act="edgescroll" id="btn-edge" title="Desplazar al acercar el ratón al borde de la pantalla">⇱</button>
+    <button data-act="zin" data-tip="Acercar (+)">＋</button><button data-act="zout" data-tip="Alejar (−)">－</button>
+    <button data-act="camhome" data-tip="Vista inicial">🏠</button>
+    <button data-act="rotl" data-tip="Girar a la izquierda (Q)">⟲</button><button data-act="rotr" data-tip="Girar a la derecha (E)">⟳</button>
+    <button data-act="tiltu" data-tip="Inclinar más (R)">⤒</button><button data-act="tiltd" data-tip="Inclinar menos (F)">⤓</button>
+    <button data-act="wheelmode" id="btn-wheel" data-tip="Rueda del ratón: zoom o desplazar">🖱️</button>
+    <button data-act="animtoggle" id="btn-anim" data-tip="Animaciones del mapa: agua y nubes">≈</button>
+    <button data-act="quality" id="btn-quality" data-tip="Calidad gráfica (bajo / medio / alto)">Q</button>
+    <button data-act="edgescroll" id="btn-edge" data-tip="Desplazar al acercar el ratón al borde de la pantalla">⇱</button>
   </div>
   <div id="mapctl">
     <canvas id="minimap" width="260" height="104"></canvas>
+    <div id="modecap"></div>
     <div id="modes">${MAP_MODES.map(m => `<button class="mode ${m.id === R.mode ? 'on' : ''}" data-act="mode" data-m="${m.id}" data-tip="${m.name}">${m.icon}</button>`).join('')}</div>
   </div>`;
   $('#minimap').addEventListener('mousedown', e => minimapJump(e));
@@ -151,6 +163,7 @@ function updateHud(force) {
   { const cw = $('#ch-cw'); if (cw) { const R = typeof cwRisk === 'function' && rule('civil') ? cwRisk(c) : {pct: 0, why: []}; cw.style.display = R.pct >= 30 ? '' : 'none'; if (R.pct >= 30) set('ch-cw', R.pct + '%', '<b>Riesgo de guerra civil</b><br>' + R.why.join('<br>')); cw.classList.toggle('neg', R.pct >= 65); cw.classList.toggle('alert', R.pct >= 40 && R.pct < 65); } }
   set('ch-mail', G.proposals.length, '<b>Propuestas diplomáticas</b><br>' + (G.proposals.length ? 'Tienes propuestas pendientes' : 'Sin propuestas'));
   $('#ch-mail').classList.toggle('alert', G.proposals.length > 0);
+  { const mc = $('#modecap'); if (mc) { const m = MAP_MODES.find(x => x.id === R.mode); mc.textContent = m ? 'Mapa: ' + m.name : ''; } }
   $('#datetxt').textContent = dateStr();
   $('#btn-pause').textContent = G.paused ? '▶' : '⏸';
   $$('#datebox .speeds .s').forEach((b, i) => b.classList.toggle('on', i < UI.speed));
@@ -164,6 +177,7 @@ function openWindow(id) {
   UI.win = id; renderWindow(true);
   $$('#menu .mbtn').forEach(b => b.classList.toggle('on', b.id === 'mb-' + id));
 }
+const WIN_HELP = Object.assign({journal: 'Objetivos del país y registro de sucesos.', achievements: 'Metas que desbloquean prestigio e innovación.', manual: 'Guía de todos los sistemas del juego.'}, Object.fromEntries(MENU_ITEMS.map(m => [m[0], m[4]])));
 function closeWindow() { UI.win = null; $('#windows').innerHTML = ''; $('#windows').classList.remove('open'); $$('#menu .mbtn').forEach(b => b.classList.remove('on')); }
 function renderWindow(fresh) {
   if (!UI.win) return;
@@ -171,14 +185,35 @@ function renderWindow(fresh) {
   const prev = root.querySelector('.wbody'); const sc = prev && !fresh ? prev.scrollTop : 0;
   const scs = {}; if (prev && !fresh) $$('.scrollable', root).forEach((e, i) => scs[i] = e.scrollTop);
   root.classList.add('open');
-  root.innerHTML = `<div class="window w-${UI.win}"><div class="whead"><span class="wicon">${w.icon}</span><h2>${w.title}</h2><button class="x" data-act="closewin">✕</button></div><div class="wbody">${w.render()}</div></div>`;
+  root.innerHTML = `<div class="window w-${UI.win}"><div class="whead"><span class="wicon">${w.icon}</span><h2>${w.title}</h2><span class="wsub">${WIN_HELP[UI.win] || ''}</span><button class="x" data-act="closewin">✕</button></div><div class="wbody">${w.render()}</div></div>`;
   iconize(root); const nb = root.querySelector('.wbody'); if (nb) nb.scrollTop = sc;
   if (!fresh) $$('.scrollable', root).forEach((e, i) => { if (scs[i] !== undefined) e.scrollTop = scs[i]; });
 }
 
+// descripciones emergentes de las pestañas y agrupación temática de las ventanas con muchas pestañas
+const TAB_TIPS = {
+  'mil:armies': 'Tus ejércitos: selecciónalos, muévelos y dales órdenes.', 'mil:fronts': 'Frentes: agrupa ejércitos y planifica ofensivas.', 'mil:generals': 'Generales: recluta y asigna mandos.',
+  'mil:recruit': 'Recluta nuevas divisiones.', 'mil:templates': 'Diseña plantillas de división.', 'mil:doctrines': 'Doctrinas militares y sus bonificaciones.', 'mil:marshals': 'Mariscales: planifican frentes enteros.',
+  'mil:occupation': 'Territorios ocupados y su resistencia.', 'mil:wars': 'Guerras activas: puntuación, paz y objetivos.', 'mil:stats': 'Comparativa de las fuerzas armadas del mundo.',
+  'mil:intel': 'Inteligencia y espionaje: agentes, operaciones encubiertas y contrainteligencia.', 'mil:production': 'Líneas de producción de fusiles, cañones, aviones y barcos.',
+  'mil:air': 'Aviación: escuadrones y misiones.', 'mil:navy': 'Marina: flotas, astilleros y misiones navales.',
+  'dip:world': 'Ranking de potencias y acciones sobre cada país.', 'dip:pacts': 'Tratados y propuestas pendientes.', 'dip:blocs': 'Bloques de alianza.', 'dip:crisis': 'Crisis diplomáticas en curso.',
+  'dip:coal': 'Coaliciones formadas contra un país.', 'dip:claims': 'Reclamaciones y casus belli para poder declarar guerras.', 'dip:vassals': 'Tus vasallos y tu soberano.', 'dip:colony': 'Colonizar territorios libres.',
+  'prod:market': 'Precios y oferta/demanda mundial de cada bien.', 'prod:buildings': 'Edificios de tu país y su rendimiento.', 'prod:crisis': 'Crisis económicas y ciclo de negocios.',
+  'pol:igs': 'Quién tiene el poder y qué grupos te apoyan.', 'pol:ideo': 'Ideologías y cambio de régimen.', 'pol:mov': 'Elecciones y movimientos políticos.', 'pol:laws': 'Leyes: reformas que cambian toda la economía.'
+};
+const TAB_GROUPS = {
+  mil: [['Tierra', ['armies', 'fronts', 'generals', 'recruit', 'templates', 'doctrines', 'marshals', 'occupation']], ['Guerra', ['wars', 'stats', 'intel']], ['Industria', ['production']], ['Aire y mar', ['air', 'navy']]],
+  dip: [['Relaciones', ['world', 'pacts', 'claims']], ['Alianzas y poder', ['blocs', 'coal', 'vassals', 'colony']], ['Crisis', ['crisis']]]
+};
 function tabs(key, list) {
   const cur = UI.winTab[key] || list[0][0];
-  return `<div class="tabs">${list.map(([id, name]) => `<button class="tab ${cur === id ? 'on' : ''}" data-act="tab" data-k="${key}" data-t="${id}">${name}</button>`).join('')}</div>`;
+  const btn = ([id, name]) => `<button class="tab ${cur === id ? 'on' : ''}" data-act="tab" data-k="${key}" data-t="${id}" ${TAB_TIPS[key + ':' + id] ? `data-tip="${TAB_TIPS[key + ':' + id]}"` : ''}>${name}</button>`;
+  const grp = TAB_GROUPS[key];
+  if (!grp || list.length < 6) return `<div class="tabs">${list.map(btn).join('')}</div>`;
+  const used = new Set(), groups = grp.map(([label, ids]) => { const items = list.filter(t => ids.includes(t[0])); items.forEach(t => used.add(t[0])); return [label, items]; }).filter(g => g[1].length);
+  const rest = list.filter(t => !used.has(t[0])); if (rest.length) groups.push(['Otros', rest]);
+  return `<div class="tabs grouped">${groups.map(([l, items]) => `<div class="tgroup"><small>${l}</small><div>${items.map(btn).join('')}</div></div>`).join('')}</div>`;
 }
 const curTab = (key, def) => UI.winTab[key] || def;
 
@@ -858,6 +893,7 @@ window.addEventListener('keydown', e => {
   if (!UI.started || /input|select|textarea/i.test(e.target.tagName)) return;
   if (e.key === 'F1') { e.preventDefault(); openWindow('manual'); return; }
   if (e.key === '/') { e.preventDefault(); openSearch(); return; }
+  if (/^[1-9]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && MENU_ITEMS[+e.key - 1]) { e.preventDefault(); openWindow(MENU_ITEMS[+e.key - 1][0]); return; }
   if (e.code === 'Space') { e.preventDefault(); ACT.pause(); }
   else if (e.key === 'Escape') { if (UI.win) closeWindow(); else { if (UI.selArmy) { UI.selArmy = null; UI.selSet = new Set(); renderArmyPanel(); R.labelsDirty = true; } ACT.desel(); } }
   else if (e.key === '.') { UI.speed = Math.min(5, UI.speed + 1); updateHud(); }

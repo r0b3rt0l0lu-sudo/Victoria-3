@@ -455,3 +455,14 @@ svg.orders line.arrow.sea{stroke:#6aa8e8;stroke-width:3.5}.atoken.sea{background
   .mbtn{width:36px;height:36px;font-size:17px}#menu{gap:4px;padding:5px 8px}
   #minimap{width:150px;height:60px}
 }
+body.starting #markers{visibility:hidden}
+/* ventanas: por encima de los controles del mapa y sin invadir el menú inferior */
+#windows{z-index:35}
+.window{max-height:calc(100vh - var(--ph,100px) - 118px)}
+@media (max-width:900px){
+  #plaque{padding:6px 10px 6px 8px;gap:8px}
+  #plaque .chips{max-width:calc(100vw - 440px);gap:3px 4px}
+  .chip{min-width:0;padding:2px 7px 2px 4px;font-size:12px;gap:4px}.chip b{font-size:12px}
+  .pl-name{font-size:16px}
+}
+button.block small{margin-left:6px}button.block small.dim{display:block;margin:2px 0 0}

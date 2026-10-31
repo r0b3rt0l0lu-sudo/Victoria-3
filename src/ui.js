@@ -75,6 +75,7 @@ function buildHud() {
       <div class="chip" id="ch-leg" data-tip="Legitimidad del gobierno"><b>🏛️</b><span></span></div>
       <div class="chip" id="ch-pop" data-tip="Población"><b>👥</b><span></span></div>
       <div class="chip" id="ch-sol" data-tip="Nivel de vida medio"><b>🍞</b><span></span></div>
+      <div class="chip" id="ch-cw" style="display:none" data-tip="Riesgo de guerra civil"><b>⚠️</b><span></span></div>
       <div class="chip clk" id="ch-crisis" data-act="goCrisis" data-tip="Crisis económicas activas"><b>📉</b><span></span></div>
       <div class="chip clk" id="ch-mail" data-act="goMail" data-tip="Propuestas diplomáticas pendientes"><b>✉️</b><span></span></div>
     </div>
@@ -147,6 +148,7 @@ function updateHud(force) {
   const ncr = G.crises.filter(x => x.scope === 'global' || x.scope === G.player).length;
   set('ch-crisis', ncr, ncr ? '<b>Crisis activas</b><br>' + G.crises.filter(x => x.scope === 'global' || x.scope === G.player).map(x => x.icon + ' ' + x.name + ' (' + x.left + ' m)').join('<br>') : '<b>Sin crisis activas</b>');
   $('#ch-crisis').classList.toggle('neg', ncr > 0);
+  { const cw = $('#ch-cw'); if (cw) { const R = typeof cwRisk === 'function' && rule('civil') ? cwRisk(c) : {pct: 0, why: []}; cw.style.display = R.pct >= 30 ? '' : 'none'; if (R.pct >= 30) set('ch-cw', R.pct + '%', '<b>Riesgo de guerra civil</b><br>' + R.why.join('<br>')); cw.classList.toggle('neg', R.pct >= 65); cw.classList.toggle('alert', R.pct >= 40 && R.pct < 65); } }
   set('ch-mail', G.proposals.length, '<b>Propuestas diplomáticas</b><br>' + (G.proposals.length ? 'Tienes propuestas pendientes' : 'Sin propuestas'));
   $('#ch-mail').classList.toggle('alert', G.proposals.length > 0);
   $('#datetxt').textContent = dateStr();
@@ -792,6 +794,8 @@ const ACT = {
   goCrisis: () => { UI.winTab.prod = 'crisis'; UI.win = null; openWindow('production'); },
   goMail: () => { UI.winTab.dip = 'pacts'; UI.win = null; openWindow('diplomacy'); },
   msec: d => { UI.manualSec = d.id; renderWindow(true); },
+  rule: d => { G.rules = G.rules || defaultRules(); G.rules[d.k] = !rule(d.k); $$('#st-rules button').forEach(b => b.classList.toggle('on', !!rule(b.dataset.k))); },
+  aggr: d => { G.rules = G.rules || defaultRules(); G.rules.aggr = +d.n; $$('#st-aggr button').forEach(b => b.classList.toggle('on', +b.dataset.n === rule('aggr'))); },
   diff: d => { G.diff = +d.n; $$('#st-diff button').forEach(b => b.classList.toggle('on', b.dataset.n === d.n)); },
   zin: () => camZoom(0.7), zout: () => camZoom(1.4), camhome: () => camHome(),
   rotl: () => camRotate(0.3), rotr: () => camRotate(-0.3), tiltu: () => camTilt(0.15), tiltd: () => camTilt(-0.15),
@@ -928,6 +932,8 @@ function selectStartCountry(tag) {
    <div class="traits st">${traitsHtml(c)}</div>
    <div class="st-stats"><div><small>Población</small><b>${fmtN(c.stats.pop, 1)}</b></div><div><small>Alfabetización</small><b>${Math.round(c.lit)}%</b></div><div><small>Estados</small><b>${c.states.length}</b></div><div><small>Ejército</small><b>${fmtN(c.stats.soldiers, 0)}</b></div></div>
    <div class="st-diffrow"><small>Dificultad económica</small><div class="seg" id="st-diff">${[1, 2, 3, 4].map(n => `<button data-act="diff" data-n="${n}" class="${(G.diff || 2) === n ? 'on' : ''}" data-tip="${['Pocas crisis, costes bajos', 'Crisis ocasionales y costes realistas', 'Crisis frecuentes, intereses y costes altos', 'Crisis constantes: economía muy hostil'][n - 1]}">${DIFF[n].name}</button>`).join('')}</div></div>
+   <div class="st-diffrow"><small>Reglas de la partida</small><div class="seg" id="st-rules">${RULE_DEFS.map(r => `<button data-act="rule" data-k="${r.k}" class="${rule(r.k) ? 'on' : ''}" data-tip="<b>${r.name}</b><br>${r.desc}">${r.name}</button>`).join('')}</div></div>
+   <div class="st-diffrow"><small>Agresividad de la IA</small><div class="seg" id="st-aggr">${[0, 1, 2].map(n => `<button data-act="aggr" data-n="${n}" class="${rule('aggr') === n ? 'on' : ''}" data-tip="${['Las potencias declaran menos guerras', 'Comportamiento estándar', 'Las potencias buscan la guerra con frecuencia'][n]}">${AGGR_NAMES[n]}</button>`).join('')}</div></div>
    <button class="primary big" data-act="start">Comenzar partida</button>${hasSave() ? '<button class="cont" data-act="cont">📂 Continuar partida guardada</button>' : ''}`;
   const ci = c.capital >= 0 ? c.capital : c.states[0];
   if (ci !== undefined) focusState(ci, 70);

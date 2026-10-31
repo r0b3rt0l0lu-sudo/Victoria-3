@@ -464,6 +464,17 @@ svg.orders line.arrow.sea{stroke:#6aa8e8;stroke-width:3.5}.atoken.sea{background
   .mbtn{width:36px;height:36px;font-size:17px}#menu{gap:4px;padding:5px 8px}
   #minimap{width:150px;height:60px}
 }
+body.starting #markers{visibility:hidden}
+/* ventanas: por encima de los controles del mapa y sin invadir el menú inferior */
+#windows{z-index:35}
+.window{max-height:calc(100vh - var(--ph,100px) - 118px)}
+@media (max-width:900px){
+  #plaque{padding:6px 10px 6px 8px;gap:8px}
+  #plaque .chips{max-width:calc(100vw - 440px);gap:3px 4px}
+  .chip{min-width:0;padding:2px 7px 2px 4px;font-size:12px;gap:4px}.chip b{font-size:12px}
+  .pl-name{font-size:16px}
+}
+button.block small{margin-left:6px}button.block small.dim{display:block;margin:2px 0 0}
 </style>
 </head>
 <body>
@@ -2288,7 +2299,7 @@ function saveData() {
   const S = G.S.map(s => { const o = {}; SK.forEach(k => o[k] = s[k]); return o; });
   const C = {};
   G.tags.forEach(t => { const c = G.C[t]; C[t] = JSON.parse(JSON.stringify(c, (k, v) => v instanceof Set ? {__set: [...v]} : v)); });
-  return JSON.stringify({v: 1, date: G.date, player: G.player, week: G.week, S, C, price: G.price, avail: G.avail, prod: G.prod, dem: G.dem, ratio: G.ratio, stock: G.stock, hist: G.hist, wars: G.wars, nextWarId: G.nextWarId, log: G.log.slice(0, 80), eventCool: G.eventCool, v2: 2, P: provSave(), ext: saveExtra(), armies: G.armies, battles: G.battles, recruits: G.recruits, nextArmyId: G.nextArmyId, nextBattleId: G.nextBattleId, pacts: G.pacts, blocs: G.blocs, proposals: G.proposals, crises: G.crises, diff: G.diff, nextId: G.nextId, pt: G.pt, afterPanic: G.afterPanic, potato: G.potato});
+  return JSON.stringify({v: 1, date: G.date, player: G.player, week: G.week, S, C, price: G.price, avail: G.avail, prod: G.prod, dem: G.dem, ratio: G.ratio, stock: G.stock, hist: G.hist, wars: G.wars, nextWarId: G.nextWarId, log: G.log.slice(0, 80), eventCool: G.eventCool, v2: 2, P: provSave(), ext: saveExtra(), armies: G.armies, battles: G.battles, recruits: G.recruits, nextArmyId: G.nextArmyId, nextBattleId: G.nextBattleId, pacts: G.pacts, blocs: G.blocs, proposals: G.proposals, crises: G.crises, diff: G.diff, rules: G.rules, nextId: G.nextId, pt: G.pt, afterPanic: G.afterPanic, potato: G.potato});
 }
 function loadData(text) {
   const d = JSON.parse(text, (k, v) => v && v.__set ? new Set(v.__set) : v);
@@ -2296,7 +2307,7 @@ function loadData(text) {
   d.S.forEach((o, i) => Object.assign(G.S[i], o));
   G.tags.forEach(t => { if (d.C[t]) Object.assign(G.C[t], d.C[t]); });
   G.armies = d.armies || []; G.battles = d.battles || []; G.recruits = d.recruits || []; G.nextArmyId = d.nextArmyId || 1000; G.nextBattleId = d.nextBattleId || 1000; G.hostile = new Set(); if (d.v2 === 2) provLoad(d.P); loadExtra(d.ext);
-  G.pacts = d.pacts || []; G.blocs = d.blocs || []; G.proposals = d.proposals || []; G.crises = d.crises || []; G.diff = d.diff || 2; G.nextId = d.nextId || 1000; G.pt = d.pt || {}; G.afterPanic = d.afterPanic; G.potato = d.potato;
+  G.pacts = d.pacts || []; G.blocs = d.blocs || []; G.proposals = d.proposals || []; G.crises = d.crises || []; G.diff = d.diff || 2; G.rules = d.rules || null; G.nextId = d.nextId || 1000; G.pt = d.pt || {}; G.afterPanic = d.afterPanic; G.potato = d.potato;
   G.date = d.date; G.week = d.week; G.wars = d.wars; G.nextWarId = d.nextWarId; G.log = d.log; G.eventCool = d.eventCool || {};
   Object.assign(G.price, d.price); Object.assign(G.avail, d.avail); Object.assign(G.prod, d.prod); Object.assign(G.dem, d.dem); Object.assign(G.ratio, d.ratio); Object.assign(G.stock, d.stock);
   GOODS.forEach(g => { G.hist[g.id] = d.hist[g.id] || []; });
@@ -3836,7 +3847,7 @@ function aiFabricate(c) {
 function aiWarsNew() {
   if (G.wars.length >= 3) return;
   const cand = G.tags.filter(t => t !== NONE && alive(t) && G.C[t].rank <= 16 && !G.C[t].wars.length && !G.C[t].overlord && G.C[t].states.length <= 34);
-  if (!cand.length || Math.random() > 0.13 * (G.diff >= 3 ? 1.3 : 1)) return;
+  if (!cand.length || Math.random() > 0.13 * (G.diff >= 3 ? 1.3 : 1) * (typeof aggrMult === 'function' ? aggrMult() : 1)) return;
   const a = pick(cand), A = G.C[a];
   const tg = G.tags.filter(t => t !== NONE && t !== a && alive(t) && !warBlockers(a, t) && armyPower(G.C[t]) * 1.5 < armyPower(A) && relOf(a, t) < 25 && !G.C[t].overlord && G.C[t].wars.length < 2);
   if (!tg.length) return;
@@ -5931,6 +5942,7 @@ function buildHud() {
       <div class="chip" id="ch-leg" data-tip="Legitimidad del gobierno"><b>🏛️</b><span></span></div>
       <div class="chip" id="ch-pop" data-tip="Población"><b>👥</b><span></span></div>
       <div class="chip" id="ch-sol" data-tip="Nivel de vida medio"><b>🍞</b><span></span></div>
+      <div class="chip" id="ch-cw" style="display:none" data-tip="Riesgo de guerra civil"><b>⚠️</b><span></span></div>
       <div class="chip clk" id="ch-crisis" data-act="goCrisis" data-tip="Crisis económicas activas"><b>📉</b><span></span></div>
       <div class="chip clk" id="ch-mail" data-act="goMail" data-tip="Propuestas diplomáticas pendientes"><b>✉️</b><span></span></div>
     </div>
@@ -6003,6 +6015,7 @@ function updateHud(force) {
   const ncr = G.crises.filter(x => x.scope === 'global' || x.scope === G.player).length;
   set('ch-crisis', ncr, ncr ? '<b>Crisis activas</b><br>' + G.crises.filter(x => x.scope === 'global' || x.scope === G.player).map(x => x.icon + ' ' + x.name + ' (' + x.left + ' m)').join('<br>') : '<b>Sin crisis activas</b>');
   $('#ch-crisis').classList.toggle('neg', ncr > 0);
+  { const cw = $('#ch-cw'); if (cw) { const R = typeof cwRisk === 'function' && rule('civil') ? cwRisk(c) : {pct: 0, why: []}; cw.style.display = R.pct >= 30 ? '' : 'none'; if (R.pct >= 30) set('ch-cw', R.pct + '%', '<b>Riesgo de guerra civil</b><br>' + R.why.join('<br>')); cw.classList.toggle('neg', R.pct >= 65); cw.classList.toggle('alert', R.pct >= 40 && R.pct < 65); } }
   set('ch-mail', G.proposals.length, '<b>Propuestas diplomáticas</b><br>' + (G.proposals.length ? 'Tienes propuestas pendientes' : 'Sin propuestas'));
   $('#ch-mail').classList.toggle('alert', G.proposals.length > 0);
   $('#datetxt').textContent = dateStr();
@@ -6648,6 +6661,8 @@ const ACT = {
   goCrisis: () => { UI.winTab.prod = 'crisis'; UI.win = null; openWindow('production'); },
   goMail: () => { UI.winTab.dip = 'pacts'; UI.win = null; openWindow('diplomacy'); },
   msec: d => { UI.manualSec = d.id; renderWindow(true); },
+  rule: d => { G.rules = G.rules || defaultRules(); G.rules[d.k] = !rule(d.k); $$('#st-rules button').forEach(b => b.classList.toggle('on', !!rule(b.dataset.k))); },
+  aggr: d => { G.rules = G.rules || defaultRules(); G.rules.aggr = +d.n; $$('#st-aggr button').forEach(b => b.classList.toggle('on', +b.dataset.n === rule('aggr'))); },
   diff: d => { G.diff = +d.n; $$('#st-diff button').forEach(b => b.classList.toggle('on', b.dataset.n === d.n)); },
   zin: () => camZoom(0.7), zout: () => camZoom(1.4), camhome: () => camHome(),
   rotl: () => camRotate(0.3), rotr: () => camRotate(-0.3), tiltu: () => camTilt(0.15), tiltd: () => camTilt(-0.15),
@@ -6784,6 +6799,8 @@ function selectStartCountry(tag) {
    <div class="traits st">${traitsHtml(c)}</div>
    <div class="st-stats"><div><small>Población</small><b>${fmtN(c.stats.pop, 1)}</b></div><div><small>Alfabetización</small><b>${Math.round(c.lit)}%</b></div><div><small>Estados</small><b>${c.states.length}</b></div><div><small>Ejército</small><b>${fmtN(c.stats.soldiers, 0)}</b></div></div>
    <div class="st-diffrow"><small>Dificultad económica</small><div class="seg" id="st-diff">${[1, 2, 3, 4].map(n => `<button data-act="diff" data-n="${n}" class="${(G.diff || 2) === n ? 'on' : ''}" data-tip="${['Pocas crisis, costes bajos', 'Crisis ocasionales y costes realistas', 'Crisis frecuentes, intereses y costes altos', 'Crisis constantes: economía muy hostil'][n - 1]}">${DIFF[n].name}</button>`).join('')}</div></div>
+   <div class="st-diffrow"><small>Reglas de la partida</small><div class="seg" id="st-rules">${RULE_DEFS.map(r => `<button data-act="rule" data-k="${r.k}" class="${rule(r.k) ? 'on' : ''}" data-tip="<b>${r.name}</b><br>${r.desc}">${r.name}</button>`).join('')}</div></div>
+   <div class="st-diffrow"><small>Agresividad de la IA</small><div class="seg" id="st-aggr">${[0, 1, 2].map(n => `<button data-act="aggr" data-n="${n}" class="${rule('aggr') === n ? 'on' : ''}" data-tip="${['Las potencias declaran menos guerras', 'Comportamiento estándar', 'Las potencias buscan la guerra con frecuencia'][n]}">${AGGR_NAMES[n]}</button>`).join('')}</div></div>
    <button class="primary big" data-act="start">Comenzar partida</button>${hasSave() ? '<button class="cont" data-act="cont">📂 Continuar partida guardada</button>' : ''}`;
   const ci = c.capital >= 0 ? c.capital : c.states[0];
   if (ci !== undefined) focusState(ci, 70);
@@ -8194,6 +8211,7 @@ function intelDay() {
   if (!G.player || !G.C[G.player]) return;
   if (!G.fog || (G.date.t % 2) === 0) fogUpdate();
   const I = intelOf(G.C[G.player]);
+  if (typeof spyDay === 'function') spyDay();
   I.miss = I.miss.filter(m => {
     if (G.date.t < m.end) return true;
     const t = G.C[m.t], p = clamp(0.3 + 0.11 * I.lvl + 0.25 * intelNet(G.player, m.t) - 0.07 * intelOf(t).lvl, 0.1, 0.92);
@@ -8264,13 +8282,133 @@ function intelTabHtml() {
     <div class="kv"><span>Agentes libres</span><b>${free} / ${intelAgents(c)}</b></div>
     <div class="kv"><span>Mundo explorado</span><b>${G.fog ? Math.round(G.fog.seen.reduce((s, x) => s + x, 0) / G.fog.seen.length * 100) : 0}%</b></div></div></div>
     <div class="col wide"><div class="card"><h3>Agentes en el extranjero</h3><p class="hint">Dos agentes en un país te dan <b>visión completa</b> de su territorio y sus ejércitos. Con un agente puedes <b>robar sus tácticas</b>: durante ${INTEL_STEAL_DAYS} días tus tropas atacan y defienden un 12% mejor contra ellos. Los países con buen servicio de inteligencia descubren a tus agentes.</p>
-    <table class="tbl"><thead><tr><th>País</th><th class="r">Agentes</th><th class="r">Red</th><th></th></tr></thead><tbody>${rel.map(r => { const n = I.ag[r.t] || 0, st = I.steal[r.t] > G.date.t, ms = I.miss.some(m => m.t === r.t); return `<tr><td>${flag(r.t, 'sm')} <b>${G.C[r.t].name}</b> <small class="dim">${hostileTags(G.player, r.t) ? '⚔ en guerra' : ''} · inteligencia ${intelOf(G.C[r.t]).lvl}</small></td><td class="r">${n}</td><td class="r">${Math.round(intelNet(G.player, r.t) * 100)}%</td><td class="r"><button data-act="intelsend" data-t="${r.t}" ${free > 0 && n < 3 ? '' : 'disabled'}>＋</button> <button data-act="intelrecall" data-t="${r.t}" ${n ? '' : 'disabled'}>－</button> <button data-act="intelsteal" data-t="${r.t}" ${n && !ms ? '' : 'disabled'} data-tip="Cuesta ${money(stealCost(c))}">${st ? '✔ tácticas robadas (' + (I.steal[r.t] - G.date.t) + ' d)' : ms ? 'en curso…' : '📜 Robar tácticas'}</button></td></tr>`; }).join('')}</tbody></table></div></div></div>`;
+    <table class="tbl"><thead><tr><th>País</th><th class="r">Agentes</th><th class="r">Red</th><th></th></tr></thead><tbody>${rel.map(r => { const n = I.ag[r.t] || 0, st = I.steal[r.t] > G.date.t, ms = I.miss.some(m => m.t === r.t); return `<tr><td>${flag(r.t, 'sm')} <b>${G.C[r.t].name}</b> <small class="dim">${hostileTags(G.player, r.t) ? '⚔ en guerra' : ''} · inteligencia ${intelOf(G.C[r.t]).lvl}</small></td><td class="r">${n}</td><td class="r">${Math.round(intelNet(G.player, r.t) * 100)}%</td><td class="r"><button data-act="intelsend" data-t="${r.t}" ${free > 0 && n < 3 ? '' : 'disabled'}>＋</button> <button data-act="intelrecall" data-t="${r.t}" ${n ? '' : 'disabled'}>－</button> <button data-act="intelsteal" data-t="${r.t}" ${n && !ms ? '' : 'disabled'} data-tip="Cuesta ${money(stealCost(c))}">${st ? '✔ tácticas robadas (' + (I.steal[r.t] - G.date.t) + ' d)' : ms ? 'en curso…' : '📜 Robar tácticas'}</button></td></tr>`; }).join('')}</tbody></table></div>${typeof spyCardHtml === 'function' ? spyCardHtml(c, I) : ''}</div></div>`;
 }
 Object.assign(ACT, {
   intellvl: d => { intelSetLevel(me(), +d.n); renderWindow(); },
   intelsend: d => { const r = intelSend(me(), d.t); toast(r.ok ? '🕵️' : '⚠️', r.msg); renderWindow(); },
   intelrecall: d => { const r = intelRecall(me(), d.t); if (r.msg) toast('🕵️', r.msg); renderWindow(); },
   intelsteal: d => { const r = intelSteal(me(), d.t); toast(r.ok ? '📜' : '⚠️', r.msg); renderWindow(); }
+});
+
+/* ===== ESPIONAJE OFENSIVO =====
+   Con agentes en un país puedes lanzar operaciones encubiertas (necesitan unos días y dinero):
+   · Sabotaje industrial: destruye parte de la industria de su estado más industrial y reduce su producción durante meses.
+   · Financiar rebeldes: más radicales, menos legitimidad y más riesgo de guerra civil (si estalla, los rebeldes te deben el favor).
+   · Robar tecnología: te llevas una tecnología que él tiene y tú no.
+   La contrainteligencia protege tu país. La IA también espía (si la regla «Espionaje enemigo» está activa). */
+const SPY_OPS = {
+  sabotage: {name: 'Sabotaje industrial', icon: '🔥', cost: 0.30, days: 25, hostile: true, desc: 'Destruye parte de la industria de su estado más industrial (−12%) y reduce su producción 3 meses.'},
+  rebels: {name: 'Financiar rebeldes', icon: '🎭', cost: 0.40, days: 30, hostile: true, desc: 'Más radicales, −4 legitimidad y más riesgo de guerra civil en el país objetivo.'},
+  tech: {name: 'Robar tecnología', icon: '📚', cost: 0.50, days: 40, hostile: false, desc: 'Obtienes una tecnología que el objetivo tiene y tú no.'}
+};
+const SPY_COUNTER_DAYS = 365;
+const spyCost = (c, k) => Math.round(Math.max(1, c.stats.income) * SPY_OPS[k].cost);
+const counterBonus = t => { const c = G.C[t]; return c ? ((c.counterUntil || 0) > G.date.t ? 0.2 : 0) + 0.02 * intelOf(c).lvl : 0; };
+// probabilidad de éxito de una operación de `from` sobre `to` (con `agents` agentes sobre el terreno)
+function spyChance(from, to, agents) {
+  const I = intelOf(G.C[from]);
+  return clamp(0.30 + 0.10 * I.lvl + 0.12 * Math.max(0, (agents || 1) - 1) + 0.2 * intelNet(from, to) - 0.09 * intelOf(G.C[to]).lvl - counterBonus(to), 0.08, 0.9);
+}
+function spyTechPick(c, T) { const l = TECHS.filter(t => T.techs.has(t.id) && !c.techs.has(t.id) && techAvailable(c, t)); return l.length ? pick(l) : null; }
+// aplica el efecto de una operación que ha tenido éxito; devuelve el texto
+function spyApply(kind, from, to) {
+  const F = G.C[from], T = G.C[to];
+  if (kind === 'sabotage') {
+    const ind = s => BUILDINGS.reduce((n, b) => n + ((b.grp === 'Industria' || b.grp === 'Industria militar') ? (s.b[b.id] || 0) : 0), 0);
+    const sid = T.states.slice().sort((a, b) => ind(G.S[b]) - ind(G.S[a]))[0];
+    if (sid === undefined) return null;
+    const s = G.S[sid]; BUILDINGS.forEach(b => { if ((b.grp === 'Industria' || b.grp === 'Industria militar') && s.b[b.id] > 0) s.b[b.id] *= 0.88; });
+    addTimedFx(T, 'Sabotaje', '🔥', {ind: 0.97}, 3, 'Atentados e incendios en las fábricas.'); T.legitimacy = Math.max(0, T.legitimacy - 1);
+    return {txt: `sabotea la industria de ${s.name}`, txtP: `sabotean la industria de ${s.name}`, st: s.name};
+  }
+  if (kind === 'rebels') {
+    T.radicals = Math.min(0.9, T.radicals + 0.05); T.legitimacy = Math.max(0, T.legitimacy - 4); T.lowLeg = (T.lowLeg || 0) + 2; T.cwSupport = (T.cwSupport || 0) + 1; T.cwSponsor = from;
+    return {txt: 'financia a los rebeldes', txtP: 'financian a los rebeldes'};
+  }
+  if (kind === 'tech') {
+    const t = spyTechPick(F, T); if (!t) return null;
+    F.techs.add(t.id); if (F.research === t.id) F.research = null; recalcMods(F);
+    return {txt: `roba la tecnología «${t.name}»`, txtP: `roban la tecnología «${t.name}»`};
+  }
+  return null;
+}
+// resuelve una operación: éxito/fracaso, detección y consecuencias diplomáticas
+function spyResolve(from, to, kind, agents, instant) {
+  const F = G.C[from], T = G.C[to], op = SPY_OPS[kind], p = spyChance(from, to, agents), I = intelOf(F);
+  const mine = from === G.player, theirs = to === G.player;
+  if (Math.random() < p) {
+    const r = spyApply(kind, from, to);
+    if (!r) { if (mine) notify('war', `🕵️ La operación «${op.name}» contra ${T.name} no encontró nada que hacer.`); return false; }
+    const det = op.hostile && Math.random() < 0.25 + 0.08 * intelOf(T).lvl + counterBonus(to);
+    if (det) { addRel(from, to, -30); F.infamy = (F.infamy || 0) + 3; }
+    if (mine) notify('war', `🕵️ ¡Éxito! Tus agentes en ${T.name} ${r.txtP}.${det ? ' Pero han sido descubiertos: las relaciones se hunden.' : ''}`);
+    if (theirs) notify('war', det ? `🕵️ Contrainteligencia: ${F.name} ${r.txt} en tu país. ¡Fue detectado!` : (kind === 'tech' ? '🕵️ Tus servicios sospechan que han robado un secreto tecnológico.' : `🕵️ Misterioso ${kind === 'sabotage' ? 'sabotaje' : 'brote de agitación'} en tu país${r.st ? ' (' + r.st + ')' : ''}. No se sabe quién lo ha organizado.`));
+    return true;
+  }
+  if (!instant && I.ag[to]) { I.ag[to] = Math.max(0, I.ag[to] - 1); if (!I.ag[to]) delete I.ag[to]; }
+  addRel(from, to, -15 - (op.hostile ? 10 : 0));
+  if (mine) notify('war', `🕵️ La operación «${op.name}» contra ${T.name} fracasó: un agente fue capturado y las relaciones empeoran.`);
+  if (theirs) notify('war', `🕵️ Tus servicios capturan a un agente de ${F.name} que preparaba «${op.name.toLowerCase()}».`);
+  return false;
+}
+
+/* ---------- acciones del jugador ---------- */
+function spyStart(c, to, kind) {
+  const I = intelOf(c), op = SPY_OPS[kind]; if (!op) return {ok: false, msg: 'Operación desconocida.'};
+  if (!(I.ag[to] > 0)) return {ok: false, msg: 'Necesitas al menos un agente en ese país.'};
+  I.ops = I.ops || []; if (I.ops.some(o => o.t === to)) return {ok: false, msg: 'Ya hay una operación en curso allí.'};
+  if (I.miss.some(m => m.t === to)) return {ok: false, msg: 'Tus agentes ya están ocupados robando tácticas.'};
+  if (c.treasury < spyCost(c, kind)) return {ok: false, msg: `La operación cuesta ${money(spyCost(c, kind))} y no tienes fondos.`};
+  c.treasury -= spyCost(c, kind); I.ops.push({t: to, k: kind, end: G.date.t + op.days, ag: I.ag[to]});
+  return {ok: true, msg: `${op.icon} ${op.name} contra ${G.C[to].name} en marcha (${op.days} días, éxito ≈ ${Math.round(spyChance(c.tag, to, I.ag[to]) * 100)}%).`};
+}
+function spyCounter(c) {
+  const cost = Math.round(Math.max(1, c.stats.income) * 0.6);
+  if ((c.counterUntil || 0) > G.date.t) return {ok: false, msg: 'La contrainteligencia ya está activa.'};
+  if (c.treasury < cost) return {ok: false, msg: `Cuesta ${money(cost)} y no tienes fondos.`};
+  c.treasury -= cost; c.counterUntil = G.date.t + SPY_COUNTER_DAYS;
+  return {ok: true, msg: '🛡️ Contrainteligencia reforzada durante un año: las operaciones enemigas fallan más y se detectan antes.'};
+}
+// llamado cada día para el jugador
+function spyDay() {
+  const c = G.C[G.player]; if (!c || !c.intel || !c.intel.ops || !c.intel.ops.length) return;
+  c.intel.ops = c.intel.ops.filter(o => { if (G.date.t < o.end) return true; if (alive(o.t)) spyResolve(G.player, o.t, o.k, o.ag || 1, false); return false; });
+}
+
+/* ---------- IA y mantenimiento mensual ---------- */
+function spyMonth() {
+  G.tags.forEach(t => { if (t === NONE) return; const c = G.C[t]; if (c.cwSupport) c.cwSupport = Math.max(0, c.cwSupport * 0.9 - 0.02); if (c.cwSupport < 0.1) { c.cwSupport = 0; } });
+  G.tags.forEach(t => {
+    if (t === NONE) return; const c = G.C[t]; if (!c.ai || !c.states.length || c.rank > 30) return;
+    const I = intelOf(c); if (I.lvl < 2 || Math.random() > 0.05 + 0.02 * (I.lvl - 2)) return;
+    // objetivos: enemigos en guerra → sabotaje; rivales mal avenidos → rebeldes; potencias más avanzadas → robo de tecnología
+    const rivals = G.tags.filter(x => x !== NONE && x !== t && alive(x) && !sameSide(t, x) && (x !== G.player || rule('spy')));
+    const war = rivals.filter(x => hostileTags(t, x)), bad = rivals.filter(x => relOf(t, x) < -10 && G.C[x].states.length >= 6 && Math.abs(G.C[x].rank - c.rank) <= 12);
+    const adv = rivals.filter(x => G.C[x].rank < c.rank && G.C[x].techs.size > c.techs.size && spyTechPick(c, G.C[x]));
+    let kind = null, to = null;
+    if (war.length) { kind = 'sabotage'; to = pick(war); }
+    else if (adv.length && Math.random() < 0.5) { kind = 'tech'; to = pick(adv); }
+    else if (bad.length && I.lvl >= 3) { kind = 'rebels'; to = pick(bad); }
+    else if (adv.length) { kind = 'tech'; to = pick(adv); }
+    if (kind && to) spyResolve(t, to, kind, 1, true);
+  });
+}
+
+/* ---------- interfaz: tarjeta de operaciones (se inserta en la pestaña de inteligencia) ---------- */
+function spyCardHtml(c, I) {
+  const ops = I.ops || [], withAg = Object.keys(I.ag).filter(t => I.ag[t] > 0 && alive(t));
+  const counter = (c.counterUntil || 0) > G.date.t;
+  const rows = withAg.map(t => { const busy = ops.find(o => o.t === t), ms = I.miss.some(m => m.t === t);
+    return `<tr><td>${flag(t, 'sm')} <b>${G.C[t].name}</b> <small class="dim">${I.ag[t]} ag.</small></td><td class="r">${busy ? `${SPY_OPS[busy.k].icon} ${SPY_OPS[busy.k].name} (${Math.max(0, busy.end - G.date.t)} d)` : Object.keys(SPY_OPS).map(k => `<button data-act="spyop" data-t="${t}" data-k="${k}" ${ms ? 'disabled' : ''} data-tip="<b>${SPY_OPS[k].name}</b><br>${SPY_OPS[k].desc}<br>Coste ${money(spyCost(c, k))} · éxito ≈ ${Math.round(spyChance(c.tag, t, I.ag[t]) * 100)}%">${SPY_OPS[k].icon}</button>`).join(' ')}</td></tr>`; }).join('');
+  return `<div class="card"><h3>🕶️ Operaciones encubiertas</h3>
+    <p class="hint">Con agentes en un país puedes lanzar <b>🔥 sabotaje</b>, <b>🎭 financiar rebeldes</b> (si estalla una guerra civil, los rebeldes te deberán el favor) o <b>📚 robar tecnología</b>. Fallar cuesta un agente y las relaciones; si te descubren, la infamia sube.</p>
+    ${rows ? `<table class="tbl"><thead><tr><th>País</th><th class="r">Operación</th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="hint">Envía agentes (＋) a un país para habilitar las operaciones.</p>'}
+    <div class="kv"><span>🛡️ Contrainteligencia</span><b>${counter ? `activa (${Math.ceil(((c.counterUntil || 0) - G.date.t) / 30)} meses)` : `<button data-act="spycounter">Reforzar · ${money(Math.round(Math.max(1, c.stats.income) * 0.6))}</button>`}</b></div></div>`;
+}
+Object.assign(ACT, {
+  spyop: d => { const r = spyStart(me(), d.t, d.k); toast(r.ok ? '🕶️' : '⚠️', r.msg); renderWindow(); },
+  spycounter: () => { const r = spyCounter(me()); toast(r.ok ? '🛡️' : '⚠️', r.msg); renderWindow(); }
 });
 
 /* ===== MILITAR 2 · NÚCLEO =====
@@ -10654,6 +10792,16 @@ Object.assign(COUNTRY_DATA, {
   RB5: ['Rebeldes del Centro', 'rebelde', '#c0507a', 'h2:#c0507a:#222', 'Gobierno rebelde', '', 10, 0.03, 'eastern', 80000],
   RB6: ['Rebeldes del Litoral', 'rebelde', '#5a7fc0', 'h2:#5a7fc0:#222', 'Gobierno rebelde', '', 10, 0.03, 'eastern', 80000]
 });
+/* ---------- reglas de la partida (se eligen al empezar y se guardan) ---------- */
+const RULE_DEFS = [
+  {k: 'hist', name: 'Eventos históricos', desc: 'Unificaciones, 1848, Meiji, guerra civil americana, Taiping…'},
+  {k: 'civil', name: 'Guerras civiles', desc: 'Los países en crisis profunda pueden partirse.'},
+  {k: 'spy', name: 'Espionaje enemigo', desc: 'La IA puede sabotearte, financiar rebeldes o robarte tecnología.'}
+];
+const AGGR_NAMES = ['Pacífica', 'Normal', 'Belicosa'], AGGR_MULT = [0.5, 1, 1.6];
+const defaultRules = () => ({hist: true, civil: true, spy: true, aggr: 1});
+const rule = k => { const r = G.rules || (G.rules = defaultRules()); return r[k] === undefined ? defaultRules()[k] : r[k]; };
+const aggrMult = () => AGGR_MULT[rule('aggr')] || 1;
 const REBEL_TAGS = ['RB1', 'RB2', 'RB3', 'RB4', 'RB5', 'RB6'];
 const histDone = id => G.eventCool && G.eventCool['h_' + id] !== undefined;
 const histMark = id => { if (G.eventCool) G.eventCool['h_' + id] = 1e9; };
@@ -10701,16 +10849,18 @@ function startCivilWar(tag, o) {
   R.relations = R.relations || {}; R.relations[tag] = -90; if (P.relations) P.relations[rt] = -90;
   const w = declareWar(tag, rt, 'conquest', ids, {free: true});
   G.eventCool['cw_' + tag] = G.date.t + 365 * 25;
+  if (P.cwSponsor && G.C[P.cwSponsor]) { const sp = P.cwSponsor; R.relations[sp] = 60; R.sponsor = sp; R.treasury += Math.round(Math.max(0, G.C[sp].stats.income) * 4); if (sp === G.player) notify('war', `🕵️ ¡Tus agentes lo han logrado! ${P.name} estalla en una guerra civil y ${R.name} cuenta con tu apoyo.`); P.cwSponsor = null; }
   const txt = `¡GUERRA CIVIL! ${R.name} se separa de ${P.name} con ${ids.length} ${ids.length === 1 ? 'estado' : 'estados'} (${ids.slice(0, 3).map(i => G.S[i].name).join(', ')}).`;
   notify('war', txt, cap); R.civilWar = {parent: tag, ids: ids.slice(), year: G.date.y};
   return {rt, ids, war: w && w.ok};
 }
 // la IA o el jugador pueden perder la partida por guerra civil: se comprueba el estrés interno cada mes
 function civilWarMonth() {
+  if (!rule('civil')) return;
   G.tags.forEach(t => {
     if (t === NONE) return; const c = G.C[t]; if (!c.states.length || c.states.length < 6 || c.wars.length > 1) return;
     if ((G.eventCool['cw_' + t] || 0) > G.date.t) return;
-    if ((c.lowLeg || 0) >= 8 && c.radicals > 0.25 && Math.random() < (c.ai ? 0.18 : 0.12)) {
+    if (((c.lowLeg || 0) >= 8 || ((c.cwSupport || 0) >= 2 && (c.lowLeg || 0) >= 4)) && c.radicals > 0.25 && Math.random() < (c.ai ? 0.18 : 0.12)) {
       const r = startCivilWar(t); if (r && t === G.player) histNotifyPlayer('h_civil', G.C[t], {rt: r.rt, n: r.ids.length, nm: G.C[r.rt].name});
     }
   });
@@ -10804,7 +10954,8 @@ function histMonth() {
   const y = G.date.y, m = G.date.m, P = G.player;
   // eventos que el jugador no pudo ver por haber otro pendiente
   if (pendingLater.length && !G.pendingEvent) { const q = pendingLater.shift(); if (q.tag === P && G.C[P]) histNotifyPlayer(q.id, G.C[P], q.ctx); }
-  civilWarMonth();
+  civilWarMonth(); if (typeof cwAlertMonth === 'function') cwAlertMonth(); if (typeof spyMonth === 'function') spyMonth();
+  if (!rule('hist')) return;
   const wait = k => (G.eventCool['h_' + k + 'Wait'] || 0) > G.date.t;
   // Revoluciones de 1848
   if (y === 1848 && m >= 2 && !histDone('rev48')) {
@@ -10843,6 +10994,25 @@ function histMonth() {
       else { unifyNation('SAR', mins, 'Reino de Italia', 'italiano', 'Unificación italiana'); histMark('ita'); }
     }
   }
+}
+
+/* ---------- riesgo de guerra civil: indicador y alertas para el jugador ---------- */
+function cwRisk(c) {
+  const out = {pct: 0, why: []}; if (!c || !c.states.length) return out;
+  if (c.states.length < 6) { out.why.push('Estado demasiado pequeño para partirse'); return out; }
+  if ((G.eventCool['cw_' + c.tag] || 0) > G.date.t) { out.why.push('Acaba de superar una guerra civil'); return out; }
+  let r = 0;
+  const leg = clamp((45 - c.legitimacy) / 45, 0, 1); r += leg * 35; if (leg > 0.15) out.why.push(`Legitimidad baja (${Math.round(c.legitimacy)}%)`);
+  const rad = clamp((c.radicals - 0.1) / 0.3, 0, 1); r += rad * 30; if (rad > 0.15) out.why.push(`Radicales ${Math.round(c.radicals * 100)}%`);
+  const low = clamp((c.lowLeg || 0) / 8, 0, 1); r += low * 25; if (low > 0.2) out.why.push(`${c.lowLeg} meses con legitimidad crítica`);
+  const sup = Math.min(1, (c.cwSupport || 0) / 3); r += sup * 10; if (sup > 0) out.why.push('Agentes extranjeros financian a los rebeldes');
+  out.pct = Math.round(clamp(r, 0, 100)); return out;
+}
+function cwAlertMonth() {
+  const c = G.C[G.player]; if (!c || !rule('civil')) return;
+  const R = cwRisk(c), lvl = R.pct >= 85 ? 3 : R.pct >= 65 ? 2 : R.pct >= 40 ? 1 : 0, prev = c.cwAlert || 0;
+  if (lvl > prev) notify('crisis', `${lvl === 3 ? '🚨' : '⚠️'} Riesgo de guerra civil ${R.pct}%: ${R.why.slice(0, 3).join(' · ')}. Sube la legitimidad (reformas, propaganda) o reduce los radicales.`);
+  if (lvl > prev || R.pct < 30) c.cwAlert = R.pct < 30 ? 0 : lvl;
 }
 
 /* ===== MANUAL DEL JUEGO ===== */

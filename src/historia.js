@@ -13,6 +13,16 @@ Object.assign(COUNTRY_DATA, {
   RB5: ['Rebeldes del Centro', 'rebelde', '#c0507a', 'h2:#c0507a:#222', 'Gobierno rebelde', '', 10, 0.03, 'eastern', 80000],
   RB6: ['Rebeldes del Litoral', 'rebelde', '#5a7fc0', 'h2:#5a7fc0:#222', 'Gobierno rebelde', '', 10, 0.03, 'eastern', 80000]
 });
+/* ---------- reglas de la partida (se eligen al empezar y se guardan) ---------- */
+const RULE_DEFS = [
+  {k: 'hist', name: 'Eventos históricos', desc: 'Unificaciones, 1848, Meiji, guerra civil americana, Taiping…'},
+  {k: 'civil', name: 'Guerras civiles', desc: 'Los países en crisis profunda pueden partirse.'},
+  {k: 'spy', name: 'Espionaje enemigo', desc: 'La IA puede sabotearte, financiar rebeldes o robarte tecnología.'}
+];
+const AGGR_NAMES = ['Pacífica', 'Normal', 'Belicosa'], AGGR_MULT = [0.5, 1, 1.6];
+const defaultRules = () => ({hist: true, civil: true, spy: true, aggr: 1});
+const rule = k => { const r = G.rules || (G.rules = defaultRules()); return r[k] === undefined ? defaultRules()[k] : r[k]; };
+const aggrMult = () => AGGR_MULT[rule('aggr')] || 1;
 const REBEL_TAGS = ['RB1', 'RB2', 'RB3', 'RB4', 'RB5', 'RB6'];
 const histDone = id => G.eventCool && G.eventCool['h_' + id] !== undefined;
 const histMark = id => { if (G.eventCool) G.eventCool['h_' + id] = 1e9; };
@@ -60,16 +70,18 @@ function startCivilWar(tag, o) {
   R.relations = R.relations || {}; R.relations[tag] = -90; if (P.relations) P.relations[rt] = -90;
   const w = declareWar(tag, rt, 'conquest', ids, {free: true});
   G.eventCool['cw_' + tag] = G.date.t + 365 * 25;
+  if (P.cwSponsor && G.C[P.cwSponsor]) { const sp = P.cwSponsor; R.relations[sp] = 60; R.sponsor = sp; R.treasury += Math.round(Math.max(0, G.C[sp].stats.income) * 4); if (sp === G.player) notify('war', `🕵️ ¡Tus agentes lo han logrado! ${P.name} estalla en una guerra civil y ${R.name} cuenta con tu apoyo.`); P.cwSponsor = null; }
   const txt = `¡GUERRA CIVIL! ${R.name} se separa de ${P.name} con ${ids.length} ${ids.length === 1 ? 'estado' : 'estados'} (${ids.slice(0, 3).map(i => G.S[i].name).join(', ')}).`;
   notify('war', txt, cap); R.civilWar = {parent: tag, ids: ids.slice(), year: G.date.y};
   return {rt, ids, war: w && w.ok};
 }
 // la IA o el jugador pueden perder la partida por guerra civil: se comprueba el estrés interno cada mes
 function civilWarMonth() {
+  if (!rule('civil')) return;
   G.tags.forEach(t => {
     if (t === NONE) return; const c = G.C[t]; if (!c.states.length || c.states.length < 6 || c.wars.length > 1) return;
     if ((G.eventCool['cw_' + t] || 0) > G.date.t) return;
-    if ((c.lowLeg || 0) >= 8 && c.radicals > 0.25 && Math.random() < (c.ai ? 0.18 : 0.12)) {
+    if (((c.lowLeg || 0) >= 8 || ((c.cwSupport || 0) >= 2 && (c.lowLeg || 0) >= 4)) && c.radicals > 0.25 && Math.random() < (c.ai ? 0.18 : 0.12)) {
       const r = startCivilWar(t); if (r && t === G.player) histNotifyPlayer('h_civil', G.C[t], {rt: r.rt, n: r.ids.length, nm: G.C[r.rt].name});
     }
   });
@@ -163,7 +175,8 @@ function histMonth() {
   const y = G.date.y, m = G.date.m, P = G.player;
   // eventos que el jugador no pudo ver por haber otro pendiente
   if (pendingLater.length && !G.pendingEvent) { const q = pendingLater.shift(); if (q.tag === P && G.C[P]) histNotifyPlayer(q.id, G.C[P], q.ctx); }
-  civilWarMonth();
+  civilWarMonth(); if (typeof cwAlertMonth === 'function') cwAlertMonth(); if (typeof spyMonth === 'function') spyMonth();
+  if (!rule('hist')) return;
   const wait = k => (G.eventCool['h_' + k + 'Wait'] || 0) > G.date.t;
   // Revoluciones de 1848
   if (y === 1848 && m >= 2 && !histDone('rev48')) {
@@ -202,4 +215,23 @@ function histMonth() {
       else { unifyNation('SAR', mins, 'Reino de Italia', 'italiano', 'Unificación italiana'); histMark('ita'); }
     }
   }
+}
+
+/* ---------- riesgo de guerra civil: indicador y alertas para el jugador ---------- */
+function cwRisk(c) {
+  const out = {pct: 0, why: []}; if (!c || !c.states.length) return out;
+  if (c.states.length < 6) { out.why.push('Estado demasiado pequeño para partirse'); return out; }
+  if ((G.eventCool['cw_' + c.tag] || 0) > G.date.t) { out.why.push('Acaba de superar una guerra civil'); return out; }
+  let r = 0;
+  const leg = clamp((45 - c.legitimacy) / 45, 0, 1); r += leg * 35; if (leg > 0.15) out.why.push(`Legitimidad baja (${Math.round(c.legitimacy)}%)`);
+  const rad = clamp((c.radicals - 0.1) / 0.3, 0, 1); r += rad * 30; if (rad > 0.15) out.why.push(`Radicales ${Math.round(c.radicals * 100)}%`);
+  const low = clamp((c.lowLeg || 0) / 8, 0, 1); r += low * 25; if (low > 0.2) out.why.push(`${c.lowLeg} meses con legitimidad crítica`);
+  const sup = Math.min(1, (c.cwSupport || 0) / 3); r += sup * 10; if (sup > 0) out.why.push('Agentes extranjeros financian a los rebeldes');
+  out.pct = Math.round(clamp(r, 0, 100)); return out;
+}
+function cwAlertMonth() {
+  const c = G.C[G.player]; if (!c || !rule('civil')) return;
+  const R = cwRisk(c), lvl = R.pct >= 85 ? 3 : R.pct >= 65 ? 2 : R.pct >= 40 ? 1 : 0, prev = c.cwAlert || 0;
+  if (lvl > prev) notify('crisis', `${lvl === 3 ? '🚨' : '⚠️'} Riesgo de guerra civil ${R.pct}%: ${R.why.slice(0, 3).join(' · ')}. Sube la legitimidad (reformas, propaganda) o reduce los radicales.`);
+  if (lvl > prev || R.pct < 30) c.cwAlert = R.pct < 30 ? 0 : lvl;
 }

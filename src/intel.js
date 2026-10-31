@@ -66,6 +66,7 @@ function intelDay() {
   if (!G.player || !G.C[G.player]) return;
   if (!G.fog || (G.date.t % 2) === 0) fogUpdate();
   const I = intelOf(G.C[G.player]);
+  if (typeof spyDay === 'function') spyDay();
   I.miss = I.miss.filter(m => {
     if (G.date.t < m.end) return true;
     const t = G.C[m.t], p = clamp(0.3 + 0.11 * I.lvl + 0.25 * intelNet(G.player, m.t) - 0.07 * intelOf(t).lvl, 0.1, 0.92);
@@ -136,7 +137,7 @@ function intelTabHtml() {
     <div class="kv"><span>Agentes libres</span><b>${free} / ${intelAgents(c)}</b></div>
     <div class="kv"><span>Mundo explorado</span><b>${G.fog ? Math.round(G.fog.seen.reduce((s, x) => s + x, 0) / G.fog.seen.length * 100) : 0}%</b></div></div></div>
     <div class="col wide"><div class="card"><h3>Agentes en el extranjero</h3><p class="hint">Dos agentes en un país te dan <b>visión completa</b> de su territorio y sus ejércitos. Con un agente puedes <b>robar sus tácticas</b>: durante ${INTEL_STEAL_DAYS} días tus tropas atacan y defienden un 12% mejor contra ellos. Los países con buen servicio de inteligencia descubren a tus agentes.</p>
-    <table class="tbl"><thead><tr><th>País</th><th class="r">Agentes</th><th class="r">Red</th><th></th></tr></thead><tbody>${rel.map(r => { const n = I.ag[r.t] || 0, st = I.steal[r.t] > G.date.t, ms = I.miss.some(m => m.t === r.t); return `<tr><td>${flag(r.t, 'sm')} <b>${G.C[r.t].name}</b> <small class="dim">${hostileTags(G.player, r.t) ? '⚔ en guerra' : ''} · inteligencia ${intelOf(G.C[r.t]).lvl}</small></td><td class="r">${n}</td><td class="r">${Math.round(intelNet(G.player, r.t) * 100)}%</td><td class="r"><button data-act="intelsend" data-t="${r.t}" ${free > 0 && n < 3 ? '' : 'disabled'}>＋</button> <button data-act="intelrecall" data-t="${r.t}" ${n ? '' : 'disabled'}>－</button> <button data-act="intelsteal" data-t="${r.t}" ${n && !ms ? '' : 'disabled'} data-tip="Cuesta ${money(stealCost(c))}">${st ? '✔ tácticas robadas (' + (I.steal[r.t] - G.date.t) + ' d)' : ms ? 'en curso…' : '📜 Robar tácticas'}</button></td></tr>`; }).join('')}</tbody></table></div></div></div>`;
+    <table class="tbl"><thead><tr><th>País</th><th class="r">Agentes</th><th class="r">Red</th><th></th></tr></thead><tbody>${rel.map(r => { const n = I.ag[r.t] || 0, st = I.steal[r.t] > G.date.t, ms = I.miss.some(m => m.t === r.t); return `<tr><td>${flag(r.t, 'sm')} <b>${G.C[r.t].name}</b> <small class="dim">${hostileTags(G.player, r.t) ? '⚔ en guerra' : ''} · inteligencia ${intelOf(G.C[r.t]).lvl}</small></td><td class="r">${n}</td><td class="r">${Math.round(intelNet(G.player, r.t) * 100)}%</td><td class="r"><button data-act="intelsend" data-t="${r.t}" ${free > 0 && n < 3 ? '' : 'disabled'}>＋</button> <button data-act="intelrecall" data-t="${r.t}" ${n ? '' : 'disabled'}>－</button> <button data-act="intelsteal" data-t="${r.t}" ${n && !ms ? '' : 'disabled'} data-tip="Cuesta ${money(stealCost(c))}">${st ? '✔ tácticas robadas (' + (I.steal[r.t] - G.date.t) + ' d)' : ms ? 'en curso…' : '📜 Robar tácticas'}</button></td></tr>`; }).join('')}</tbody></table></div>${typeof spyCardHtml === 'function' ? spyCardHtml(c, I) : ''}</div></div>`;
 }
 Object.assign(ACT, {
   intellvl: d => { intelSetLevel(me(), +d.n); renderWindow(); },

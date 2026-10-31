@@ -502,19 +502,35 @@ function updateArmyTokens() {
     if (a.sea) { const sf = MAP.provs[a.sea.from], st = MAP.provs[a.sea.to], f = clamp(1 - a.sea.left / a.sea.total, 0, 1); plon = sf.lon + (st.lon - sf.lon) * f; plat = sf.lat + (st.lat - sf.lat) * f; }
     else if (a.path.length && a.hopMax > 0 && !a.battle) { const nx = MAP.provs[a.path[0]], f = clamp(1 - a.hop / a.hopMax, 0, 1); plon += (nx.lon - plon) * f; plat += (nx.lat - plat) * f; }
     const p = worldToScreen(plon, R.cam.dist < 62 ? 1.0 : 0.5, -plat);
-    const off = (i - (n - 1) / 2) * 30;
-    const x = p[0] + off, y = p[1] + (a.tag === G.player ? 0 : 0);
-    if (x < -40 || x > cw + 40 || y < -40 || y > ch + 40) { el.style.display = 'none'; return; }
+    const x = p[0], y = p[1] - 16;      // la ficha flota sobre la ciudad; el reparto lo hace declutterTokens()
+    if (x < -40 || x > cw + 40 || y < -40 || y > ch + 40) { el.style.display = 'none'; el._x = null; return; }
+    el._x = x; el._y = y; el._pri = (a.id === sel ? 4 : 0) + (a.battle ? 3 : 0) + (a.tag === G.player ? 2 : 0);
     el.style.display = 'flex';
     const key = G.player + a.tag + a.divs.length + (a.sea ? 'z' : '') + (a.battle ? 'b' : '') + (a.id === sel ? 's' : '') + (a.path.length ? 'm' : '') + (window.UI && UI.selSet && UI.selSet.has(a.id) ? 'g' : '') + Math.round(armyStr(a) * 10);
     if (el._k !== key) {
       el._k = key; el.className = 'atoken' + (UI.selSet && UI.selSet.has(a.id) ? ' sel2' : '') + (a.tag === G.player ? ' mine' : '') + (a.id === sel ? ' sel' : '') + (a.battle ? ' fight' : '') + (a.sea ? ' sea' : '') + (a.path.length ? ' moving' : '');
       el.innerHTML = flag(a.tag, 'sm') + `<b>${a.divs.length}</b>` + `<i style="width:${Math.round(armyStr(a) * 100)}%"></i>` + (a.battle ? '<u>⚔</u>' : '');
     }
-    el.style.transform = `translate(-50%,-50%) translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
   });
   if (typeof updateNavyTokens === 'function') updateNavyTokens();
+  declutterTokens();
   drawOrders();
+}
+// reparte las fichas (ejércitos y flotas) en pantalla para que no se solapen entre sí
+function declutterTokens() {
+  const items = [];
+  [R.ak, R.nk].forEach(o => { if (o) for (const k in o) { const el = o[k]; if (el._x == null || el.style.display === 'none') continue; items.push(el); } });
+  items.sort((a, b) => (b._pri || 0) - (a._pri || 0));
+  const placed = [];
+  items.forEach(el => {
+    if (el._k !== el._kw || !el._w) { el._kw = el._k; el._w = el.offsetWidth || 54; el._h = el.offsetHeight || 22; }
+    const w = el._w + 3, h = el._h + 2;
+    const cands = [[0, 0]]; for (let r = 1; r <= 6; r++) cands.push([0, -r * h], [0, r * h], [r * w, 0], [-r * w, 0], [r * w, -h], [-r * w, -h]);
+    let best = cands[0];
+    for (const c of cands) { const x = el._x + c[0], y = el._y + c[1]; if (!placed.some(q => Math.abs(q.x - x) < (q.w + w) / 2 && Math.abs(q.y - y) < (q.h + h) / 2)) { best = c; break; } }
+    const x = el._x + best[0], y = el._y + best[1]; placed.push({x, y, w, h});
+    el.style.transform = `translate(-50%,-50%) translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
+  });
 }
 function drawOrders() {
   let svg = R.ordSvg;

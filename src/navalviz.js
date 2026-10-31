@@ -33,14 +33,13 @@ function updateNavyTokens() {
     el.dataset.z = g.z; el.dataset.tag = g.tag;
     const A = zoneAnchor(g.z); let lon = A.lon, lat = A.lat;
     if (g.tr) { const B = zoneAnchor(g.f0.zone), q = clamp(1 - g.tr.left / Math.max(1, zoneDist(g.f0.zone, g.tr.to) / 6), 0, 1); lon = B.lon + (A.lon - B.lon) * q; lat = B.lat + (A.lat - B.lat) * q; }
-    const n = same.get(g.z), i = (idx[g.z] = (idx[g.z] || 0) + 1) - 1, off = (i - (n - 1) / 2) * 34;
-    const p = worldToScreen(lon, 0.2, -lat), x = p[0] + off, y = p[1];
-    if (x < -40 || x > cw + 40 || y < -40 || y > ch + 40) { el.style.display = 'none'; return; }
+    const p = worldToScreen(lon, 0.2, -lat), x = p[0], y = p[1];
+    if (x < -40 || x > cw + 40 || y < -40 || y > ch + 40) { el.style.display = 'none'; el._x = null; return; }
+    el._x = x; el._y = y; el._pri = (g.tag === G.player ? 2 : 0) + (nbActive(g.z) && !g.tr ? 3 : 0);
     el.style.display = 'flex';
     const fight = nbActive(g.z) && !g.tr, key = g.tag + g.n + g.mis + (fight ? 'b' : '') + (g.tag === G.player ? 'm' : '');
     if (el._k !== key) { el._k = key; el.className = 'ntoken' + (g.tag === G.player ? ' mine' : '') + (fight ? ' fight' : ''); el.innerHTML = flag(g.tag, 'sm') + `<b>⚓${g.n}</b>` + (fight ? '<u>⚔</u>' : `<small>${NAV_MISSIONS[g.mis] ? NAV_MISSIONS[g.mis].icon : ''}</small>`); }
     el.title = `${G.C[g.tag].name}: ${g.n} buques · ${SEA_ZONES[g.z].name}`;
-    el.style.transform = `translate(-50%,-50%) translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
   });
   for (const k in R.nk) if (!seen.has(k)) { R.nk[k].remove(); delete R.nk[k]; }
 }

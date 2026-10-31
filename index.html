@@ -440,6 +440,27 @@ svg.orders line.arrow.sea{stroke:#6aa8e8;stroke-width:3.5}.atoken.sea{background
 .ntoken.mine{border-color:#e0b04a}.ntoken.fight{border-color:#ff6a4a;box-shadow:0 0 10px rgba(255,100,60,.8);animation:nvpulse 1s infinite alternate}
 .ntoken small{font-size:12px}.ntoken u{text-decoration:none}
 @keyframes nvpulse{from{transform-origin:center;filter:brightness(1)}to{filter:brightness(1.4)}}
+
+/* ===== maquetación responsive: sin solapamientos en ventanas estrechas ===== */
+.atoken,.ntoken{z-index:2}.atoken:hover,.ntoken:hover{z-index:9}
+@media (max-width:1100px){
+  #plaque{max-width:calc(100vw - 360px)}
+  #plaque .chips{max-width:calc(100vw - 540px)}
+  .pl-sub{display:none}
+  #datebox{right:12px;top:60px;gap:6px;padding:4px 10px}
+  .date{min-width:150px;font-size:14px}
+  #toasts{bottom:84px}
+}
+@media (max-width:900px){
+  .mbtn{width:42px;height:42px;font-size:20px}#menu{gap:6px;padding:6px 10px}
+  #minimap{width:200px;height:80px}.mode{width:26px;height:26px;font-size:13px}
+  #camctl{bottom:150px}
+}
+@media (max-width:720px){
+  #plaque .chips{display:none}
+  .mbtn{width:36px;height:36px;font-size:17px}#menu{gap:4px;padding:5px 8px}
+  #minimap{width:150px;height:60px}
+}
 </style>
 </head>
 <body>
@@ -5441,19 +5462,35 @@ function updateArmyTokens() {
     if (a.sea) { const sf = MAP.provs[a.sea.from], st = MAP.provs[a.sea.to], f = clamp(1 - a.sea.left / a.sea.total, 0, 1); plon = sf.lon + (st.lon - sf.lon) * f; plat = sf.lat + (st.lat - sf.lat) * f; }
     else if (a.path.length && a.hopMax > 0 && !a.battle) { const nx = MAP.provs[a.path[0]], f = clamp(1 - a.hop / a.hopMax, 0, 1); plon += (nx.lon - plon) * f; plat += (nx.lat - plat) * f; }
     const p = worldToScreen(plon, R.cam.dist < 62 ? 1.0 : 0.5, -plat);
-    const off = (i - (n - 1) / 2) * 30;
-    const x = p[0] + off, y = p[1] + (a.tag === G.player ? 0 : 0);
-    if (x < -40 || x > cw + 40 || y < -40 || y > ch + 40) { el.style.display = 'none'; return; }
+    const x = p[0], y = p[1] - 16;      // la ficha flota sobre la ciudad; el reparto lo hace declutterTokens()
+    if (x < -40 || x > cw + 40 || y < -40 || y > ch + 40) { el.style.display = 'none'; el._x = null; return; }
+    el._x = x; el._y = y; el._pri = (a.id === sel ? 4 : 0) + (a.battle ? 3 : 0) + (a.tag === G.player ? 2 : 0);
     el.style.display = 'flex';
     const key = G.player + a.tag + a.divs.length + (a.sea ? 'z' : '') + (a.battle ? 'b' : '') + (a.id === sel ? 's' : '') + (a.path.length ? 'm' : '') + (window.UI && UI.selSet && UI.selSet.has(a.id) ? 'g' : '') + Math.round(armyStr(a) * 10);
     if (el._k !== key) {
       el._k = key; el.className = 'atoken' + (UI.selSet && UI.selSet.has(a.id) ? ' sel2' : '') + (a.tag === G.player ? ' mine' : '') + (a.id === sel ? ' sel' : '') + (a.battle ? ' fight' : '') + (a.sea ? ' sea' : '') + (a.path.length ? ' moving' : '');
       el.innerHTML = flag(a.tag, 'sm') + `<b>${a.divs.length}</b>` + `<i style="width:${Math.round(armyStr(a) * 100)}%"></i>` + (a.battle ? '<u>⚔</u>' : '');
     }
-    el.style.transform = `translate(-50%,-50%) translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
   });
   if (typeof updateNavyTokens === 'function') updateNavyTokens();
+  declutterTokens();
   drawOrders();
+}
+// reparte las fichas (ejércitos y flotas) en pantalla para que no se solapen entre sí
+function declutterTokens() {
+  const items = [];
+  [R.ak, R.nk].forEach(o => { if (o) for (const k in o) { const el = o[k]; if (el._x == null || el.style.display === 'none') continue; items.push(el); } });
+  items.sort((a, b) => (b._pri || 0) - (a._pri || 0));
+  const placed = [];
+  items.forEach(el => {
+    if (el._k !== el._kw || !el._w) { el._kw = el._k; el._w = el.offsetWidth || 54; el._h = el.offsetHeight || 22; }
+    const w = el._w + 3, h = el._h + 2;
+    const cands = [[0, 0]]; for (let r = 1; r <= 6; r++) cands.push([0, -r * h], [0, r * h], [r * w, 0], [-r * w, 0], [r * w, -h], [-r * w, -h]);
+    let best = cands[0];
+    for (const c of cands) { const x = el._x + c[0], y = el._y + c[1]; if (!placed.some(q => Math.abs(q.x - x) < (q.w + w) / 2 && Math.abs(q.y - y) < (q.h + h) / 2)) { best = c; break; } }
+    const x = el._x + best[0], y = el._y + best[1]; placed.push({x, y, w, h});
+    el.style.transform = `translate(-50%,-50%) translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
+  });
 }
 function drawOrders() {
   let svg = R.ordSvg;
@@ -9745,14 +9782,13 @@ function updateNavyTokens() {
     el.dataset.z = g.z; el.dataset.tag = g.tag;
     const A = zoneAnchor(g.z); let lon = A.lon, lat = A.lat;
     if (g.tr) { const B = zoneAnchor(g.f0.zone), q = clamp(1 - g.tr.left / Math.max(1, zoneDist(g.f0.zone, g.tr.to) / 6), 0, 1); lon = B.lon + (A.lon - B.lon) * q; lat = B.lat + (A.lat - B.lat) * q; }
-    const n = same.get(g.z), i = (idx[g.z] = (idx[g.z] || 0) + 1) - 1, off = (i - (n - 1) / 2) * 34;
-    const p = worldToScreen(lon, 0.2, -lat), x = p[0] + off, y = p[1];
-    if (x < -40 || x > cw + 40 || y < -40 || y > ch + 40) { el.style.display = 'none'; return; }
+    const p = worldToScreen(lon, 0.2, -lat), x = p[0], y = p[1];
+    if (x < -40 || x > cw + 40 || y < -40 || y > ch + 40) { el.style.display = 'none'; el._x = null; return; }
+    el._x = x; el._y = y; el._pri = (g.tag === G.player ? 2 : 0) + (nbActive(g.z) && !g.tr ? 3 : 0);
     el.style.display = 'flex';
     const fight = nbActive(g.z) && !g.tr, key = g.tag + g.n + g.mis + (fight ? 'b' : '') + (g.tag === G.player ? 'm' : '');
     if (el._k !== key) { el._k = key; el.className = 'ntoken' + (g.tag === G.player ? ' mine' : '') + (fight ? ' fight' : ''); el.innerHTML = flag(g.tag, 'sm') + `<b>⚓${g.n}</b>` + (fight ? '<u>⚔</u>' : `<small>${NAV_MISSIONS[g.mis] ? NAV_MISSIONS[g.mis].icon : ''}</small>`); }
     el.title = `${G.C[g.tag].name}: ${g.n} buques · ${SEA_ZONES[g.z].name}`;
-    el.style.transform = `translate(-50%,-50%) translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
   });
   for (const k in R.nk) if (!seen.has(k)) { R.nk[k].remove(); delete R.nk[k]; }
 }

@@ -9,7 +9,7 @@ const { chromium } = require('playwright');
   await page.waitForSelector('#start .st-card', {timeout: 90000});
   await page.click('.st-card[data-tag=SAR]'); await page.click('button[data-act=start]'); await page.waitForTimeout(800);
   const out = await page.evaluate(({a, b, days, step, va, vb}) => {
-    G.paused = true; G.C[G.player].ai = true; G.tags.forEach(t => { if (t !== NONE) G.C[t].aiV = 1; }); G.C[a].aiV = va; G.C[b].aiV = vb;
+    G.paused = true; G.noOffers = true; G.C[G.player].ai = true; G.tags.forEach(t => { if (t !== NONE) G.C[t].aiV = 1; }); G.C[a].aiV = va; G.C[b].aiV = vb;
     G.pacts = G.pacts.filter(p => ![a, b].includes(p.a) && ![a, b].includes(p.b)); G.C[a].bloc = G.C[b].bloc = null; G.C[a].overlord = G.C[b].overlord = null;
     const targets = reachableStates(a, b).slice(0, 3).map(x => x.id); declareWar(a, b, targets.length ? 'conquest' : 'humiliate', targets, {free: true});
     const lines = []; const rep = d => [a, b].forEach(t => { const arms = armiesOf(t).filter(x => !x.sea); const tk = {}; let idle = 0, mv = 0, bt = 0; arms.forEach(x => { const k = (x.ai && x.ai.task) || (x.path.length ? 'mov' : 'none'); tk[k] = (tk[k] || 0) + 1; if (x.battle) bt++; else if (x.path.length) mv++; else idle++; });

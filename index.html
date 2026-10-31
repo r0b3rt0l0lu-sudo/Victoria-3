@@ -9225,12 +9225,12 @@ function aiWarStep(t) {
   let intercepts = 0;
   intruders.forEach(e => {
     if (intercepts >= 2) return;
-    const epw = eArmies.filter(o => provDist(o.loc, e.loc) < 4).reduce((n, o) => n + armyPow(o), 0), need = epw * 1.25;
+    const epw = eArmies.filter(o => provDist(o.loc, e.loc) < 4).reduce((n, o) => n + armyPow(o), 0), need = epw * 1.0;                                                       // en su propio territorio el defensor tiene ventaja (terreno, suministro): basta la igualdad
     const valuable = (V.get(e.loc) || 0) >= avgV0 * 3 || capProvs.some(q => provDist(q, e.loc) < 3.5);
     if (epw < Math.max(14, total * (valuable ? 0.08 : 0.2))) return;               // no se persiguen partidas insignificantes
     if (usedDef + need > budget * (valuable ? 1.6 : 1)) return;
     const pool = free.filter(a => !committed.has(a.id) && !attacking(a) && provDist(a.loc, e.loc) < 45).sort((a, b) => provDist(a.loc, e.loc) - provDist(b.loc, e.loc));
-    const avail = pool.reduce((n, a) => n + armyPow(a), 0); if (avail < need * 0.95) return;                    // sin superioridad no se sale a su encuentro
+    const avail = pool.reduce((n, a) => n + armyPow(a), 0); if (avail < need * 0.9) return;                    // sin superioridad no se sale a su encuentro
     let got = 0; for (const a of pool) { if (got >= need) break; if (orders(a, e.loc, 'int')) { committed.add(a.id); got += armyPow(a); usedDef += armyPow(a); } }
     if (got > 0) intercepts++;
   });
@@ -9343,8 +9343,11 @@ function aiObjs(t, striking, ctx) {
   if (war) (war.targets || []).concat(war.cTargets || []).forEach(sid => { if (G.S[sid].owner !== t && hostileTags(t, G.S[sid].owner)) MAP.stats[sid].provs.slice(0, 2).forEach(addC); else if (G.S[sid].owner === t && G.S[sid].occ > 0) MAP.stats[sid].provs.forEach(p => { if (G.P[p].by && hostileTags(t, G.P[p].by)) addC(p); }); });
   // mis provincias ocupadas por el enemigo: reconquistarlas
   G.P.forEach((pr, p) => { if (pr.by && hostileTags(t, pr.by) && provOwner(p) === t) addC(p); });
+  // solo objetivos alcanzables por tierra (sin camino permitido, el ejército se quedaría parado)
+  const reach = new Map(); const reachable = p => { if (reach.has(p)) return reach.get(p); let ok = striking.some(a => MAP.provs[a.loc].nb.includes(p) && canEnter(t, p)); if (!ok) { const lead = striking.slice().sort((x, y) => provDist(x.loc, p) - provDist(y.loc, p))[0]; ok = !!(lead && findPath(lead, p)); } reach.set(p, ok); return ok; };
   const objs = [];
   cand.forEach((_, p) => {
+    if (!reachable(p)) return;
     if (mineProv(t, p) && !(G.P[p].by && hostileTags(t, G.P[p].by))) return;
     const own = provOwner(p), en = G.P[p].by && hostileTags(t, G.P[p].by) ? G.P[p].by : own;
     const v = own === t ? (V.get(p) || 1) * 1.4 + 3 : aiEnemyValue(p, own, war);

@@ -2226,7 +2226,7 @@ function computeCaps() {
     const w = W[b.id]; let tot = 0; for (let i = 0; i < w.length; i++) tot += w[i];
     S.forEach((s, i) => {
       let cap = 0;
-      if (K[b.id]) cap = tot > 0 ? (lv[b.id] || 1) * K[b.id] * w[i] / tot : 0;
+      if (K[b.id]) { const lvb = b.id === 'steel' ? Math.max(lv.steel || 0, 0.3 * (lv.tools || 0)) : (lv[b.id] || 1); cap = tot > 0 ? lvb * K[b.id] * w[i] / tot : 0; }   // el acero no tiene demanda inicial: capacidad base ∝ herramientas
       else cap = w[i];
       s.cap[b.id] = cap;
     });
@@ -2235,7 +2235,7 @@ function computeCaps() {
   S.forEach(s => {
     BUILDINGS.forEach(b => {
       const K0 = K[b.id];
-      if (K0) s.b[b.id] = s.cap[b.id] / K0;
+      if (K0) s.b[b.id] = b.id === 'steel' ? 0 : s.cap[b.id] / K0;
       else s.b[b.id] = 0;
     });
     if (s.cap.railway) s.b.railway = 0;

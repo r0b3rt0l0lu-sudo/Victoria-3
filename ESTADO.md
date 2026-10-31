@@ -35,6 +35,8 @@ Juego de un solo archivo HTML (`index.html`, autónomo) generado por `build.py` 
 - Simulación de 80 años: sin errores JS; 9–13 guerras visibles; mundo de 62 → ~24–30 países; GBR ≈ 39 estados; 13 países con aviación (97 escuadrones) hacia 1915.
 - Parámetros de IA: `AI_TUNE = {tempo:0, defBase:0.9, reqBase:1.45, ratioDef:0.4}`.
 
+- Simulaciones de validación (6 × 80 años con `tools/simular_balance.js`, semillas y países distintos): sin excepciones ni valores absurdos. Corregido: las acerías eran imposibles de construir (capacidad inicial ≈ 0 al no haber demanda de acero). El precio civil oscila en ciclos de ~6 años (0,5–1,3 × base); probar más reversión a la base (0,012→0,025) no cambió la media de forma apreciable, no se modifica.
+
 ## 6. Decisiones de diseño
 - Sin Web Worker: se usa presupuesto de tiempo por fotograma (9 ms bajo / 14 ms resto) por la complejidad de compartir el estado global.
 - Tauri/Electron no necesarios: navegador + PWA bastan, incluido ChromeOS.

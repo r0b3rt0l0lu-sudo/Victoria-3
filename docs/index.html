@@ -10826,8 +10826,8 @@ function histMonth() {
     const c = G.C.USA; if (c.ai) { startCivilWar('USA', civilOpts('usa')); histMark('usciv'); } else if (!G.pendingEvent) histNotifyPlayer('h_usciv', c, null);
   }
   // unificación alemana
-  if (!histDone('ger') && !wait('ger') && alive('PRU') && y >= 1850 && y <= 1895 && G.C.PRU.rank <= 6 && !G.C.PRU.wars.length && Math.random() < (y < 1860 ? 0.012 : 0.04)) {
-    const mins = liveMinors(GER_MINORS, 'PRU'); if (mins.length >= 3) {
+  if (!histDone('ger') && !wait('ger') && alive('PRU') && y >= 1844 && y <= 1895 && G.C.PRU.rank <= 25 && !G.C.PRU.wars.length && Math.random() < 0.03) {
+    const mins = liveMinors(GER_MINORS, 'PRU'); if (mins.length >= 2) {
       const pm = mins.find(t => t === P);
       if (P === 'PRU') { if (!G.pendingEvent) histNotifyPlayer('h_ger_pru', G.C.PRU, {n: mins.length}); }
       else if (pm) { if (!G.pendingEvent) histNotifyPlayer('h_ger_minor', G.C[pm], null); }
@@ -10835,8 +10835,8 @@ function histMonth() {
     }
   }
   // unificación italiana
-  if (!histDone('ita') && !wait('ita') && alive('SAR') && y >= 1850 && y <= 1895 && G.C.SAR.rank <= 35 && G.C.SAR.states.length >= 2 && !G.C.SAR.wars.length && Math.random() < (y < 1860 ? 0.015 : 0.05)) {
-    const mins = liveMinors(ITA_MINORS, 'SAR'); if (mins.length >= 2) {
+  if (!histDone('ita') && !wait('ita') && alive('SAR') && y >= 1844 && y <= 1895 && G.C.SAR.rank <= 60 && !G.C.SAR.wars.length && Math.random() < 0.03) {
+    const mins = liveMinors(ITA_MINORS, 'SAR'); if (mins.length >= 1) {
       const pm = mins.find(t => t === P);
       if (P === 'SAR') { if (!G.pendingEvent) histNotifyPlayer('h_ita_sar', G.C.SAR, {n: mins.length}); }
       else if (pm) { if (!G.pendingEvent) histNotifyPlayer('h_ita_minor', G.C[pm], null); }

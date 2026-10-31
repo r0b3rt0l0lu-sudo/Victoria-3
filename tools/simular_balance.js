@@ -22,7 +22,7 @@ const { chromium } = require('playwright');
       if (c.stats.pop !== c.stats.pop || c.stats.gdp !== c.stats.gdp) bad('nan_stats_' + t, `${t} stats NaN`);
       if (c.legitimacy < -50 || c.legitimacy > 200) bad('leg_' + t, `${t} legitimidad ${c.legitimacy}`);
     });
-    G.armies.forEach(a => { if (!G.C[a.tag] || !G.C[a.tag].states.length) bad('army_orphan', `ejército de país extinto ${a.tag}`); if (!MAP.provs[a.loc]) bad('army_loc', `ejército sin provincia ${a.id}`); if (a.divs.some(d => !isFinite(d.str) && !isFinite(d.hp))) bad('div_nan', 'división NaN'); });
+    G.armies.forEach(a => { if (!G.C[a.tag] || !G.C[a.tag].states.length) bad('army_orphan', `ejército de país extinto ${a.tag}`); if (!MAP.provs[a.loc]) bad('army_loc', `ejército sin provincia ${a.id}`); if (a.divs.some(d => !isFinite(d.s) || !isFinite(d.o) || d.s < 0)) bad('div_nan', 'división NaN'); });
     G.S.forEach(s => { if (s.owner !== NONE && !G.C[s.owner]) bad('state_owner', `estado ${s.name} dueño inválido`); });
     G.wars.forEach(w => window._seen.add(w.id));
     const sorted = alive.slice().sort((a, b) => G.C[b].states.length - G.C[a].states.length), tot = G.S.length;

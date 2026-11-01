@@ -946,17 +946,18 @@ const INTRO = {
 };
 function buildStart() {
   const rest = G.rankList.filter(t => !START_PICKS.includes(t) && G.C[t].states.length);
-  const picks = START_PICKS.filter(t => G.C[t]).concat(rest);
+  const picks = START_PICKS.filter(t => G.C[t] && G.C[t].states.length).concat(rest);
   $('#start').innerHTML = `
   <div class="st-inner">
     <div class="st-left">
       <div class="st-logo"><small>UNA RÉPLICA DE FANS</small><h1>VICTORIA</h1><div class="orn"></div><h3>Una era de revolución</h3></div>
+      ${typeof scenBarHtml === 'function' ? scenBarHtml() : ''}
       <input id="stq" class="search" placeholder="🔍 Buscar país…" autocomplete="off">
       <div class="st-list" id="st-list">${picks.map(t => { const c = G.C[t]; const d = difficulty(t); return `<div class="st-card" data-act="pickc" data-tag="${t}">${flag(t, 'md')}<div><b>${c.name}</b><small>${c.gov}</small></div><span class="diff ${d[1]}">${d[0]}</span></div>`; }).join('')}</div>
     </div>
     <div class="st-right" id="st-info"></div>
   </div>`;
-  selectStartCountry('GBR');
+  selectStartCountry(G.C.GBR && G.C.GBR.states.length ? 'GBR' : picks[0]);
   document.body.classList.add('starting');
 }
 function selectStartCountry(tag) {
@@ -964,7 +965,7 @@ function selectStartCountry(tag) {
   const c = G.C[tag]; const d = difficulty(tag);
   $$('#st-list .st-card').forEach(e => e.classList.toggle('on', e.dataset.tag === tag));
   $('#st-info').innerHTML = `<div class="st-crest">${flag(tag, 'huge')}</div><h2>${c.name}</h2><div class="st-gov">${c.gov} · Rango ${c.rank} · <span class="${d[1]}">${d[0]}</span></div>
-   <p class="st-intro">${INTRO[tag] || `Gobierna ${c.name} en el año 1836 y llévala hacia la era industrial.`}</p>
+   <p class="st-intro">${G.date.y === 1836 && INTRO[tag] ? INTRO[tag] : `Gobierna ${c.name} en el año ${G.date.y} y llévala hacia ${G.date.y < 1880 ? 'la era industrial' : 'el nuevo siglo'}.`}</p>
    <div class="traits st">${traitsHtml(c)}</div>
    <div class="st-stats"><div><small>Población</small><b>${fmtN(c.stats.pop, 1)}</b></div><div><small>Alfabetización</small><b>${Math.round(c.lit)}%</b></div><div><small>Estados</small><b>${c.states.length}</b></div><div><small>Ejército</small><b>${fmtN(c.stats.soldiers, 0)}</b></div></div>
    <div class="st-diffrow"><small>Dificultad económica</small><div class="seg" id="st-diff">${[1, 2, 3, 4].map(n => `<button data-act="diff" data-n="${n}" class="${(G.diff || 2) === n ? 'on' : ''}" data-tip="${['Pocas crisis, costes bajos', 'Crisis ocasionales y costes realistas', 'Crisis frecuentes, intereses y costes altos', 'Crisis constantes: economía muy hostil'][n - 1]}">${DIFF[n].name}</button>`).join('')}</div></div>

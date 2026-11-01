@@ -20,16 +20,16 @@ function bvShade(hex, f) {
 }
 function bvNew(b) {
   return {id: b.id, blocks: new Map(), ghosts: [], corpses: [], parts: [], rings: [], t: 0, last: performance.now(), dayT: performance.now(), day: b.day, evSeq: b.evSeq || 0, adv: b.adv || 0, banner: null, rain: 0,
-    boost: {A: 0, B: 0}, panic: {A: 0, B: 0}, salvo: {A: 0, B: 0}, man: {A: null, B: null}, over: null, mouse: null, hover: null, bg: null, seed: b.id * 77 + 5, nid: 1, relT: {A: 3, B: 4.5}, wind: (b.id % 2 ? 1 : -1) * 6, sel: null};
+    boost: {A: 0, B: 0}, panic: {A: 0, B: 0}, salvo: {A: 0, B: 0}, man: {A: null, B: null}, over: null, mouse: null, hover: null, bg: null, cam: {z: 1, x: BV_W / 2, y: BV_H / 2}, follow: false, replay: null, rec: {snaps: [], corp: [], parts: [], info: new Map(), last: -1, after: 0}, seed: b.id * 77 + 5, nid: 1, relT: {A: 3, B: 4.5}, wind: (b.id % 2 ? 1 : -1) * 6, sel: null};
 }
 /* ---------- bloques y soldados ---------- */
 function bvMakeBlock(V, it, side) {
   const type = dKind(it.d), F = BV_FORM[type] || BV_FORM.inf;
   const blk = {id: V.nid++, d: it.d, a: it.a, side, type, F, tag: it.a.tag, color: (G.C[it.a.tag] && G.C[it.a.tag].color) || '#888', x: 0, y: BV_H / 2, hd: side === 'A' ? 0 : Math.PI, vx: 0, vy: 0, mode: 'deploy', ph: rnd(0, 6.28),
     fs: 0, figs: [], sc: 0.9, lane: 0, nLane: 1, role: 'line', fireAcc: rnd(0, 1), cd: rnd(0.5, 3), relief: null, comp: 1, foe: null, path: null, init: false, skey: '', dep: 24, wid: 40, engT: 0, hits: 0};
-  const mk = (kind, k) => ({kind, k, x: 0, y: 0, vx: 0, vy: 0, alive: true, dying: 0, flee: 0, ph: rnd(0, 6.28), recoil: 0, flash: 0});
-  if (type === 'art') { for (let k = 0; k < 3; k++) blk.figs.push(mk('gun', k)); for (let k = 0; k < 6; k++) blk.figs.push(mk('crew', k)); }
-  else for (let k = 0; k < F.n; k++) blk.figs.push(mk('sol', k));
+  const mk = (kind, k, i) => ({kind, k, i, x: 0, y: 0, vx: 0, vy: 0, alive: true, dying: 0, flee: 0, ph: rnd(0, 6.28), recoil: 0, flash: 0});
+  if (type === 'art') { for (let k = 0; k < 3; k++) blk.figs.push(mk('gun', k, k)); for (let k = 0; k < 6; k++) blk.figs.push(mk('crew', k, 3 + k)); }
+  else for (let k = 0; k < F.n; k++) blk.figs.push(mk('sol', k, k));
   return blk;
 }
 function bvSlot(blk, f) {
@@ -43,13 +43,13 @@ function bvSlot(blk, f) {
 function bvDims(blk) { const F = blk.F, s = blk.sc * blk.comp; blk.dep = (blk.type === 'art' ? 2.2 : F.rows) * F.sy * s + 4; blk.wid = (F.cols * F.sx) * s + 4; }
 function bvKill(V, blk, f) {
   f.alive = false; f.dying = 0.8; blk.hits++;
-  V.corpses.push({x: f.x, y: f.y, color: blk.color, age: 0, hd: blk.hd + rnd(-0.6, 0.6), kind: f.kind}); if (V.corpses.length > 520) V.corpses.shift();
+  const cp = {x: f.x, y: f.y, color: blk.color, age: 0, hd: blk.hd + rnd(-0.6, 0.6), kind: f.kind}; V.corpses.push(cp); if (V.corpses.length > 520) V.corpses.shift(); if (!V.replay && V.rec.corp.length < 4000) V.rec.corp.push(Object.assign({t: V.t}, cp));
   // la baja tiene un causante visible: un tirador enemigo cercano
   let best = null, bd = 1e9; V.blocks.forEach(o => { if (o.side === blk.side || o.role === 'reserve') return; const d = Math.hypot(o.x - f.x, o.y - f.y); if (d < bd && d < 230) { bd = d; best = o; } });
   if (best && Math.random() < 0.7) { const sh = best.figs.filter(q => q.alive && !q.flee); if (sh.length) { const q = sh[Math.floor(Math.random() * sh.length)]; bvPart(V, {k: 'tracer', x: q.x, y: q.y, x2: f.x, y2: f.y, life: 0.09}); bvPart(V, {k: 'flash', x: q.x, y: q.y, life: 0.1}); } }
 }
 function bvFlee(V, blk, f, power) { if (!f.alive) return; f.flee = 3.6; const away = blk.side === 'A' ? -1 : 1; f.fvx = away * rnd(40, 100) * power + rnd(-25, 25); f.fvy = rnd(-60, 60) * power; }
-function bvPart(V, p) { if (V.parts.length < 900) V.parts.push(Object.assign({age: 0}, p)); }
+function bvPart(V, p) { if (V.parts.length < 900) V.parts.push(Object.assign({age: 0}, p)); if (!V.replay && p.k !== 'dust' && V.rec.parts.length < 9000) V.rec.parts.push(Object.assign({}, p, {t: V.t})); }
 function bvBanner(V, text, side, icon) { V.banner = {text, side, icon, age: 0}; }
 const EV_NAME = {charge: '¡Carga desesperada!', cav: 'Carga de caballería', barrage: 'Cañoneo', flank: 'Flanqueo', panic: 'Pánico', reinf: 'Refuerzos', rain: 'Lluvia'};
 function bvEvent(V, b, kind, side) {
@@ -130,10 +130,11 @@ function bvFoe(blk, all) {
     if (o.role === 'reserve') c += 90; if (blk.type === 'cav' && o.type === 'art') c -= 70; if (blk.type !== 'cav' && o.type === 'art') c += 25; if (c < bc) { bc = c; best = o; } });
   return best;
 }
+function bvOrder(blk) { const o = blk.d.ord; return o && G.date.t <= o.until && ORDERS[o.k] ? o : null; }
 function bvStepBlock(V, b, blk, dt, lines, all) {
-  const side = blk.side, dir = side === 'A' ? 1 : -1, opp = side === 'A' ? 'B' : 'A', st = bvStrat(b, side), att = b.att === side, L = lines[side], LE = lines[opp];
+  const od = bvOrder(blk), side = blk.side, dir = side === 'A' ? 1 : -1, opp = side === 'A' ? 'B' : 'A', st = od && od.k === 'charge' ? 'charge' : od && od.k === 'hold' ? 'hold' : bvStrat(b, side), att = b.att === side, L = lines[side], LE = lines[opp];
   const skey = st + '|' + blk.role; if (blk.skey !== skey) { blk.skey = skey; blk.fs = 0; blk.path = null; }
-  const compT = (st === 'hold' && !att && blk.role === 'line') ? 0.8 : 1; blk.comp += (compT - blk.comp) * Math.min(1, dt * 1.5); bvDims(blk);
+  const compT = ((st === 'hold' && !att) || (od && od.k === 'hold')) && blk.role === 'line' ? 0.8 : 1; blk.comp += (compT - blk.comp) * Math.min(1, dt * 1.5); bvDims(blk);
   const home = bvHome(blk, L), F = blk.F, orgF = clamp(blk.d.o / DIVS[blk.d.t].org, 0, 1), t = V.t, foe = bvFoe(blk, all); blk.foe = foe;
   let tx = home.x, ty = home.y, spd = F.spd, mode = 'hold', engaged = false, path = null;
   const dist = foe ? Math.hypot(foe.x - blk.x, foe.y - blk.y) : 1e9;
@@ -149,8 +150,9 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
     mode = 'artfire'; if (st === 'barrage') tx += dir * 36; if (st === 'hold' && !att) tx -= dir * 6;
   } else {
     // ---- bloque de línea: su estrategia se traduce en una orden propia para cada uno ----
-    const flankers = (() => { if (st !== 'flank' && !(man && man.kind === 'flank')) return false; const hasCav = all.some(o => o.side === side && o.role === 'line' && o.type === 'cav'); return blk.type === 'cav' || (!hasCav && st === 'flank' && blk.nLane >= 3 && (blk.lane === 0 || blk.lane === blk.nLane - 1)); })();
-    if (V.panic[side] > 0 && Math.sin(blk.ph * 7 + blk.id) > 0.45) { mode = 'recoil'; tx = L - dir * 120; spd = F.spd * 3; }
+    const flankers = (() => { if (st !== 'flank' && !(man && man.kind === 'flank') && !(od && od.k === 'flank')) return false; if (od && od.k === 'flank') return true; const hasCav = all.some(o => o.side === side && o.role === 'line' && o.type === 'cav'); return blk.type === 'cav' || (!hasCav && st === 'flank' && blk.nLane >= 3 && (blk.lane === 0 || blk.lane === blk.nLane - 1)); })();
+    if (od && od.k === 'withdraw') { mode = 'retreat'; tx = home.x - dir * 140; spd = F.spd * 1.2; }
+    else if (V.panic[side] > 0 && Math.sin(blk.ph * 7 + blk.id) > 0.45) { mode = 'recoil'; tx = L - dir * 120; spd = F.spd * 3; }
     else if (orgF < 0.12) { mode = 'retreat'; tx = home.x - dir * 90; spd = F.spd * 0.9; }
     else if (flankers && foe) {
       const edgeTop = blk.lane < blk.nLane / 2 || blk.type === 'cav' && blk.lane === 0, ey = edgeTop ? 26 : BV_H - 24, xm = (L + LE) / 2;
@@ -175,7 +177,9 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
     else if (engaged && foe && foe.foe === blk && (foe.mode === 'melee' || foe.mode === 'charge' || foe.mode === 'gallop') && mode !== 'retreat' && mode !== 'recoil') { mode = 'melee'; tx = blk.x; ty = blk.y; }      // quien recibe la carga responde cuerpo a cuerpo
   }
   blk.path = path;
-  // ---- movimiento ----
+  // ---- movimiento (el terreno frena: vado, bosque, cuesta) ----
+  blk.terr = bvTerrAt(V.tf, blk.x, blk.y, side); spd *= blk.terr.slow;
+  if (blk.terr.water && (blk.sp || 0) > 5 && Math.random() < dt * 14) bvPart(V, {k: 'splash', x: blk.x + rnd(-blk.dep / 2, blk.dep / 2), y: blk.y + rnd(-blk.wid / 2, blk.wid / 2), life: 0.6});
   const dx = tx - blk.x, dy = ty - blk.y, d = Math.hypot(dx, dy) || 1, want = Math.min(spd, d * 2.4);
   blk.vx += (dx / d * want - blk.vx) * Math.min(1, dt * 2.6); blk.vy += (dy / d * want - blk.vy) * Math.min(1, dt * 2.6);
   if (!blk.init) { blk.init = true; const off = b.day > 1 ? 0 : 160; blk.x = home.x - dir * off + rnd(-8, 8); blk.y = home.y + rnd(-10, 10); blk.figs.forEach(f => { const s = bvSlot(blk, f); f.x = s[0] + rnd(-3, 3); f.y = s[1] + rnd(-3, 3); }); }
@@ -248,6 +252,7 @@ function bvFire(V, b, blk, dt, foes) {
 function pickFoeFig(blk) { const l = blk.figs.filter(f => f.alive); return l.length ? l[Math.floor(Math.random() * l.length)] : null; }
 /* ---------- bucle ---------- */
 function bvFrame(V, b, ctx, now) {
+  if (V.replay) { bvReplayFrame(V, b, ctx, now); return; }
   const dt = Math.min(0.05, (now - V.last) / 1000); V.last = now; V.t += dt;
   if (b.day !== V.day) { V.day = b.day; V.dayT = now; }
   V.adv += ((b.adv || 0) - V.adv) * Math.min(1, dt * 2.2);
@@ -260,6 +265,7 @@ function bvFrame(V, b, ctx, now) {
   if (V.over) V.over.t += dt;
   ['A', 'B'].forEach(s => { if (V.boost[s] > 0) V.boost[s] -= dt; if (V.panic[s] > 0) V.panic[s] -= dt; if (V.salvo[s] > 0) V.salvo[s] -= dt; if (V.man[s]) { V.man[s].t += dt; if (V.man[s].t > V.man[s].dur) V.man[s] = null; } });
   if (V.rain > 0) V.rain -= dt;
+  V.tf = battleTerrain(b);
   const lines = {A: bvLine(V, b, 'A'), B: bvLine(V, b, 'B')}, all = [...V.blocks.values()];
   if (!V.over) bvRelief(V, b, dt);
   all.forEach(blk => bvStepBlock(V, b, blk, dt, lines, all)); bvSeparate(all, dt);
@@ -278,14 +284,27 @@ function bvFrame(V, b, ctx, now) {
   V.corpses.forEach(c => c.age += dt); all.forEach(blk => { blk.figs = blk.figs.filter(f => !f.gone && (f.alive || f.dying > 0 || f.flee > 0)); });
   V.rings.forEach(r => r.age += dt); V.rings = V.rings.filter(r => r.age < r.life);
   if (V.banner) { V.banner.age += dt; if (V.banner.age > 2.8) V.banner = null; }
-  // bloque bajo el ratón
-  V.hover = null; if (V.mouse) { let bd = 1e9; all.forEach(blk => { const d = Math.hypot(blk.x - V.mouse.x, blk.y - V.mouse.y), r = Math.max(blk.dep, blk.wid) / 2 + 6; if (d < r && d < bd) { bd = d; V.hover = blk; } }); }
+  if (V.sel && !V.blocks.has(V.sel.d)) V.sel = null;
+  bvCamStep(V, dt); bvHover(V, all);
+  if (!V.over || V.over.t < 8) bvRecSnap(V, b, all, lines);
   bvDraw(V, b, ctx, lines, all);
 }
+/* ---------- cámara: zoom, desplazamiento y seguimiento ---------- */
+const bvToWorld = (V, sx, sy) => [(sx - BV_W / 2) / V.cam.z + V.cam.x, (sy - BV_H / 2) / V.cam.z + V.cam.y];
+function bvClampCam(V) { const c = V.cam; c.z = clamp(c.z, 1, 3.4); const hx = BV_W / 2 / c.z, hy = BV_H / 2 / c.z; c.x = clamp(c.x, hx, BV_W - hx); c.y = clamp(c.y, hy, BV_H - hy); }
+function bvCamStep(V, dt) {
+  const c = V.cam; if (V.follow) { const tg = V.sel || V.hover || null; if (tg) { c.z += (Math.max(c.z, 2) - c.z) * Math.min(1, dt * 3); c.x += (tg.x - c.x) * Math.min(1, dt * 4); c.y += (tg.y - c.y) * Math.min(1, dt * 4); } }
+  bvClampCam(V);
+}
+function bvZoomAt(V, factor, sx, sy) { const c = V.cam, [wx, wy] = bvToWorld(V, sx === undefined ? BV_W / 2 : sx, sy === undefined ? BV_H / 2 : sy); c.z = clamp(c.z * factor, 1, 3.4); const sxx = sx === undefined ? BV_W / 2 : sx, syy = sy === undefined ? BV_H / 2 : sy; c.x = wx - (sxx - BV_W / 2) / c.z; c.y = wy - (syy - BV_H / 2) / c.z; bvClampCam(V); }
+function bvHover(V, all) {
+  V.hover = null; if (!V.mouse) return; const [wx, wy] = bvToWorld(V, V.mouse.x, V.mouse.y); let bd = 1e9;
+  all.forEach(blk => { const d = Math.hypot(blk.x - wx, blk.y - wy), r = Math.max(blk.dep, blk.wid) / 2 + 6; if (d < r && d < bd) { bd = d; V.hover = blk; } });
+}
 /* ---------- dibujo ---------- */
-// terreno prerrenderizado una sola vez por batalla
+// terreno prerrenderizado una sola vez por batalla (más resolución para poder acercar la cámara)
 function bvBuildBg(V, b) {
-  const S = 2, cv = document.createElement('canvas'); cv.width = BV_W * S; cv.height = BV_H * S; const g = cv.getContext('2d'); g.scale(S, S);
+  const S = 3, cv = document.createElement('canvas'); cv.width = BV_W * S; cv.height = BV_H * S; const g = cv.getContext('2d'); g.scale(S, S);
   const pv = MAP.provs[b.prov], bio = pv.biome, bc = BIOME_COL[bio] || [110, 140, 85], H = (i, k) => hash2(i, V.seed, k), rgb = (m, a) => `rgba(${Math.min(255, bc[0] * m | 0)},${Math.min(255, bc[1] * m | 0)},${Math.min(255, bc[2] * m | 0)},${a})`;
   const grd = g.createLinearGradient(0, 0, 0, BV_H); grd.addColorStop(0, rgb(0.86, 1)); grd.addColorStop(0.5, rgb(0.74, 1)); grd.addColorStop(1, rgb(0.58, 1)); g.fillStyle = grd; g.fillRect(0, 0, BV_W, BV_H);
   for (let i = 0; i < 150; i++) { const x = H(i, 1) * BV_W, y = H(i, 2) * BV_H, r = 18 + H(i, 3) * 60, m = 0.7 + H(i, 4) * 0.5, rg = g.createRadialGradient(x, y, 0, x, y, r); rg.addColorStop(0, rgb(m, 0.22)); rg.addColorStop(1, rgb(m, 0)); g.fillStyle = rg; g.fillRect(x - r, y - r, r * 2, r * 2); }
@@ -296,13 +315,22 @@ function bvBuildBg(V, b) {
   // camino de tierra que cruza el campo
   const ry = BV_H * (0.58 + (H(1, 31) - 0.5) * 0.22); g.strokeStyle = 'rgba(96,78,48,.42)'; g.lineWidth = 15; g.lineCap = 'round'; g.beginPath(); g.moveTo(-10, ry + 14); g.bezierCurveTo(BV_W * 0.3, ry - 30, BV_W * 0.6, ry + 40, BV_W + 10, ry - 8); g.stroke();
   g.strokeStyle = 'rgba(140,118,78,.28)'; g.lineWidth = 8; g.beginPath(); g.moveTo(-10, ry + 14); g.bezierCurveTo(BV_W * 0.3, ry - 30, BV_W * 0.6, ry + 40, BV_W + 10, ry - 8); g.stroke();
-  // vegetación y rocas por bioma
   const tree = (x, y, r, dark) => { g.fillStyle = 'rgba(0,0,0,.22)'; g.beginPath(); g.ellipse(x + 3, y + r * 0.7, r * 1.05, r * 0.45, 0, 0, 6.3); g.fill(); g.fillStyle = dark ? 'rgba(26,62,34,1)' : 'rgba(44,92,48,1)'; g.beginPath(); g.arc(x, y, r, 0, 6.3); g.fill(); g.fillStyle = dark ? 'rgba(48,92,52,.9)' : 'rgba(84,136,70,.9)'; g.beginPath(); g.arc(x - r * 0.25, y - r * 0.3, r * 0.62, 0, 6.3); g.fill(); };
-  const nT = bio === 2 || bio === 6 ? 120 : bio === 1 ? 22 : bio === 4 ? 14 : 6;
+  // rasgos reales del terreno de esta batalla: colina, bosques, río con vados y granja
+  const tf = battleTerrain(b);
+  if (tf.hill) { const h = tf.hill, rg = g.createRadialGradient(h.x - h.rx * 0.2, h.y - h.ry * 0.25, 8, h.x, h.y, Math.max(h.rx, h.ry)); rg.addColorStop(0, 'rgba(238,224,172,.45)'); rg.addColorStop(0.6, 'rgba(150,126,76,.32)'); rg.addColorStop(1, 'rgba(80,60,34,0)'); g.fillStyle = rg; g.beginPath(); g.ellipse(h.x, h.y, h.rx * 1.14, h.ry * 1.1, 0, 0, 6.3); g.fill();
+    g.fillStyle = 'rgba(40,28,14,.13)'; g.beginPath(); g.ellipse(h.x + 10, h.y + 14, h.rx * 0.9, h.ry * 0.88, 0, 0, 6.3); g.fill(); g.strokeStyle = 'rgba(252,238,186,.24)'; g.lineWidth = 1.2; for (let i = 0; i < 5; i++) { g.beginPath(); g.ellipse(h.x, h.y, h.rx * (1 - i * 0.18), h.ry * (1 - i * 0.18), 0, 0, 6.3); g.stroke(); } }
+  tf.forests.forEach((f, fi) => { const n = Math.round(f.r * 0.8); for (let i = 0; i < n; i++) { const a = H(i + fi * 200, 70) * 6.283, d = Math.sqrt(H(i + fi * 200, 71)) * f.r; tree(f.x + Math.cos(a) * d, f.y + Math.sin(a) * d * 0.8, 4.5 + H(i + fi * 200, 72) * 5.5, bio === 6); } });
+  if (tf.river) { const r = tf.river, pts = []; for (let y = -10; y <= BV_H + 10; y += 6) pts.push([r.x + Math.sin(y / 70 + r.ph) * r.amp, y]);
+    const path = () => { g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); };
+    g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = 'rgba(96,78,50,.55)'; g.lineWidth = r.w + 10; path(); g.stroke(); g.strokeStyle = 'rgba(52,104,146,.92)'; g.lineWidth = r.w; path(); g.stroke(); g.strokeStyle = 'rgba(150,196,228,.45)'; g.lineWidth = r.w * 0.45; path(); g.stroke(); g.strokeStyle = 'rgba(235,248,255,.35)'; g.lineWidth = 1; for (let i = 0; i < 40; i++) { const y = H(i, 80) * BV_H, x = r.x + Math.sin(y / 70 + r.ph) * r.amp + (H(i, 81) - 0.5) * r.w * 0.6; g.beginPath(); g.moveTo(x - 4, y); g.lineTo(x + 4, y + 1); g.stroke(); }
+    r.fords.forEach(f => { const x = r.x + Math.sin(f.y / 70 + r.ph) * r.amp; g.fillStyle = 'rgba(176,152,108,.8)'; g.fillRect(x - r.w / 2 - 8, f.y - f.w / 2, r.w + 16, f.w); g.fillStyle = 'rgba(120,98,64,.5)'; for (let i = 0; i < 14; i++) g.fillRect(x - r.w / 2 - 6 + H(i + f.y, 82) * (r.w + 12), f.y - f.w / 2 + H(i + f.y, 83) * f.w, 3, 2); g.strokeStyle = 'rgba(70,52,30,.5)'; g.lineWidth = 1; g.strokeRect(x - r.w / 2 - 8, f.y - f.w / 2, r.w + 16, f.w); }); }
+  if (tf.farm) { const f = tf.farm, x = f.x - f.w / 2, y = f.y - f.h / 2; g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(x + 5, y + 5, f.w, f.h); g.fillStyle = '#a58a62'; g.fillRect(x, y, f.w, f.h); g.fillStyle = '#7a3a2a'; g.beginPath(); g.moveTo(x - 4, y); g.lineTo(x + f.w / 2, y - 15); g.lineTo(x + f.w + 4, y); g.fill(); g.fillStyle = '#3a2a1c'; g.fillRect(x + f.w / 2 - 4, y + f.h - 14, 8, 14); g.strokeStyle = 'rgba(90,66,40,.7)'; g.lineWidth = 1.2; g.strokeRect(x - 12, y - 10, f.w + 24, f.h + 20); }
+  // vegetación y rocas por bioma
+  const nT = bio === 2 || bio === 6 ? 50 : bio === 1 ? 14 : bio === 4 ? 9 : 5;
   for (let i = 0; i < nT; i++) { const band = H(i, 40) < 0.7, x = H(i, 41) * BV_W, y = band ? (H(i, 42) < 0.5 ? 26 + H(i, 43) * 52 : BV_H - 16 - H(i, 43) * 48) : 70 + H(i, 44) * (BV_H - 140); if (Math.abs(y - ry) < 14 && bio !== 6) continue; tree(x, y, 5 + H(i, 45) * 7, bio === 6); }
   if (bio === 7 || bio === 8) { for (let i = 0; i < 16; i++) { const x = H(i, 51) * BV_W, y = H(i, 52) < 0.5 ? 24 + H(i, 53) * 54 : BV_H - 20 - H(i, 53) * 50, w = 16 + H(i, 54) * 30; g.fillStyle = 'rgba(40,36,34,.35)'; g.beginPath(); g.moveTo(x - w, y + w * 0.5); g.lineTo(x - w * 0.2, y - w * 0.9); g.lineTo(x + w * 0.3, y - w * 0.4); g.lineTo(x + w, y + w * 0.5); g.closePath(); g.fill(); g.fillStyle = bio === 8 ? 'rgba(255,255,255,.55)' : 'rgba(200,190,170,.35)'; g.beginPath(); g.moveTo(x - w * 0.2, y - w * 0.9); g.lineTo(x + w * 0.3, y - w * 0.4); g.lineTo(x - w * 0.25, y - w * 0.3); g.closePath(); g.fill(); } }
   // una granja o ruina en un extremo
-  if (bio === 1 || bio === 4) { const x = H(2, 61) < 0.5 ? 44 : BV_W - 90, y = BV_H - 70; g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(x + 4, y + 4, 44, 26); g.fillStyle = '#a58a62'; g.fillRect(x, y, 44, 26); g.fillStyle = '#7a3a2a'; g.beginPath(); g.moveTo(x - 4, y); g.lineTo(x + 22, y - 14); g.lineTo(x + 48, y); g.fill(); g.fillStyle = '#3a2a1c'; g.fillRect(x + 18, y + 12, 8, 14); }
   const vg = g.createRadialGradient(BV_W / 2, BV_H / 2, BV_H * 0.4, BV_W / 2, BV_H / 2, BV_W * 0.62); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.42)'); g.fillStyle = vg; g.fillRect(0, 0, BV_W, BV_H);
   return cv;
 }
@@ -350,10 +378,11 @@ function bvFlag(g, V, blk, over, win) {
 }
 function bvDraw(V, b, g, lines, all) {
   { const k = g.canvas.width / BV_W; g.setTransform(k, 0, 0, k, 0, 0); }
-  const W = BV_W, H = BV_H;
+  const W = BV_W, H = BV_H, cam = V.cam;
+  g.save(); g.translate(W / 2, H / 2); g.scale(cam.z, cam.z); g.translate(-cam.x, -cam.y);
   if (!V.bg) V.bg = bvBuildBg(V, b); g.drawImage(V.bg, 0, 0, W, H);
   // loma de la defensa «en los altos»
-  ['A', 'B'].forEach(s => { if (bvStrat(b, s) === 'hold') { const dir = s === 'A' ? 1 : -1, cx = lines[s] - dir * 34, rg = g.createRadialGradient(cx, H / 2, 10, cx, H / 2, 150); rg.addColorStop(0, 'rgba(210,190,130,.34)'); rg.addColorStop(0.6, 'rgba(120,96,56,.26)'); rg.addColorStop(1, 'rgba(70,52,30,0)'); g.fillStyle = rg; g.beginPath(); g.ellipse(cx, H / 2 + 4, 90, H / 2 - 40, 0, 0, 6.3); g.fill();
+  ['A', 'B'].forEach(s => { if (bvStrat(b, s) === 'hold' && !V.tf.hill) { const dir = s === 'A' ? 1 : -1, cx = lines[s] - dir * 34, rg = g.createRadialGradient(cx, H / 2, 10, cx, H / 2, 150); rg.addColorStop(0, 'rgba(210,190,130,.34)'); rg.addColorStop(0.6, 'rgba(120,96,56,.26)'); rg.addColorStop(1, 'rgba(70,52,30,0)'); g.fillStyle = rg; g.beginPath(); g.ellipse(cx, H / 2 + 4, 90, H / 2 - 40, 0, 0, 6.3); g.fill();
     g.strokeStyle = 'rgba(245,225,170,.2)'; g.lineWidth = 1.2; for (let i = 1; i <= 3; i++) { g.beginPath(); g.ellipse(cx, H / 2 + 4, 90 - i * 22, H / 2 - 40 - i * 34, 0, 0, 6.3); g.stroke(); } } });
   // línea de contacto
   g.strokeStyle = 'rgba(255,230,150,.16)'; g.setLineDash([5, 7]); g.beginPath(); const mx = (lines.A + lines.B) / 2; g.moveTo(mx, 30); g.lineTo(mx, H - 4); g.stroke(); g.setLineDash([]);
@@ -364,6 +393,8 @@ function bvDraw(V, b, g, lines, all) {
   // casillas de los bloques y órdenes en curso
   const blocks = all.slice().sort((a, c) => a.y - c.y);
   blocks.forEach(blk => { bvPlate(g, blk, V.hover === blk); });
+  if (V.sel && V.blocks.has(V.sel.d)) { const s = V.sel, pulse = 0.6 + 0.4 * Math.sin(V.t * 5), c = Math.cos(s.hd), sn = Math.sin(s.hd), hw = s.dep / 2 + 7, hh2 = s.wid / 2 + 7, pr = (x, y) => [s.x + c * x - sn * y, s.y + sn * x + c * y];
+    g.strokeStyle = `rgba(255,240,150,${pulse})`; g.lineWidth = 2; g.setLineDash([7, 4]); g.beginPath(); [pr(-hw, -hh2), pr(hw, -hh2), pr(hw, hh2), pr(-hw, hh2)].forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.closePath(); g.stroke(); g.setLineDash([]); }
   blocks.forEach(blk => { if (!blk.path || blk.path.length < 2) return; g.strokeStyle = blk.side === 'A' ? 'rgba(255,170,140,.5)' : 'rgba(150,200,255,.5)'; g.fillStyle = g.strokeStyle; g.lineWidth = 1.6; g.setLineDash([6, 5]); g.beginPath(); blk.path.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.stroke(); g.setLineDash([]);
     const a = blk.path[blk.path.length - 2], e = blk.path[blk.path.length - 1], an = Math.atan2(e[1] - a[1], e[0] - a[0]); g.beginPath(); g.moveTo(e[0] + Math.cos(an) * 8, e[1] + Math.sin(an) * 8); g.lineTo(e[0] + Math.cos(an + 2.5) * 7, e[1] + Math.sin(an + 2.5) * 7); g.lineTo(e[0] + Math.cos(an - 2.5) * 7, e[1] + Math.sin(an - 2.5) * 7); g.fill(); });
   // soldados (ordenados por y)
@@ -372,16 +403,19 @@ function bvDraw(V, b, g, lines, all) {
   // barras de fuerza/organización y banderines
   blocks.forEach(blk => { const c = Math.cos(blk.hd), s = Math.sin(blk.hd), by = blk.y + Math.abs(s) * blk.dep / 2 + Math.abs(c) * blk.wid / 2 + 5; if (blk.role !== 'reserve' || V.hover === blk) { const w = Math.max(24, blk.wid * 0.8), x0 = blk.x - w / 2, org = clamp(blk.d.o / DIVS[blk.d.t].org, 0, 1);
       g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(x0 - 1, by - 1, w + 2, 6); g.fillStyle = '#79c35a'; g.fillRect(x0, by, w * clamp(blk.d.s, 0, 1), 2); g.fillStyle = org < 0.3 ? '#e8644f' : '#e0b04a'; g.fillRect(x0, by + 2.5, w * org, 2); }
-    bvFlag(g, V, blk, V.over, V.over && V.over.loser !== blk.side); });
+    bvFlag(g, V, blk, V.over, V.over && V.over.loser !== blk.side);
+    const od = bvOrder(blk); if (od) { const left = Math.max(1, Math.ceil(od.until - G.date.t)); g.fillStyle = 'rgba(10,12,16,.85)'; g.beginPath(); g.arc(blk.x, blk.y - blk.wid / 2 - 17, 8, 0, 6.3); g.fill(); g.strokeStyle = '#ffe28a'; g.lineWidth = 1.2; g.stroke(); g.font = '10px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#fff'; g.fillText(ORDERS[od.k].icon, blk.x, blk.y - blk.wid / 2 - 17); g.font = 'bold 8px sans-serif'; g.fillStyle = '#ffe28a'; g.fillText(left + 'd', blk.x + 12, blk.y - blk.wid / 2 - 10); } });
   // destellos, trazadoras y proyectiles
   V.parts.forEach(p => { const k = p.age / p.life;
     if (p.k === 'flash') { g.fillStyle = `rgba(255,235,150,${1 - k})`; g.beginPath(); g.arc(p.x, p.y, (p.big ? 6 : 3.2) * (1 - k * 0.3), 0, 6.3); g.fill(); }
     else if (p.k === 'tracer') { g.strokeStyle = `rgba(255,240,180,${0.6 * (1 - k)})`; g.lineWidth = 0.7; g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(p.x + (p.x2 - p.x) * Math.min(1, k * 2), p.y + (p.y2 - p.y) * Math.min(1, k * 2)); g.stroke(); }
     else if (p.k === 'shell') { const q = Math.min(1, k), x = p.x + (p.x2 - p.x) * q, y = p.y + (p.y2 - p.y) * q - Math.sin(q * 3.14) * 54; g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.ellipse(p.x + (p.x2 - p.x) * q, p.y + (p.y2 - p.y) * q + 2, 2.4, 1, 0, 0, 6.3); g.fill(); g.fillStyle = '#1c1c1e'; g.beginPath(); g.arc(x, y, 2.4, 0, 6.3); g.fill(); g.strokeStyle = 'rgba(255,200,120,.45)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x, y); g.lineTo(x - (p.x2 - p.x) * 0.05, y + 5); g.stroke(); }
     else if (p.k === 'boom') { g.fillStyle = `rgba(255,${150 + (1 - k) * 80 | 0},40,${0.9 * (1 - k)})`; g.beginPath(); g.arc(p.x, p.y, 4 + k * 18, 0, 6.3); g.fill(); g.strokeStyle = `rgba(70,46,22,${0.6 * (1 - k)})`; g.lineWidth = 2; g.beginPath(); g.arc(p.x, p.y, 7 + k * 26, 0, 6.3); g.stroke(); }
+    else if (p.k === 'splash') { g.strokeStyle = `rgba(230,245,255,${0.8 * (1 - k)})`; g.lineWidth = 1; g.beginPath(); g.arc(p.x, p.y, 2 + k * 7, 0, 6.3); g.stroke(); g.fillStyle = `rgba(230,245,255,${0.7 * (1 - k)})`; g.fillRect(p.x - 0.8, p.y - k * 6, 1.6, 2); }
     else if (p.k === 'spark') { g.fillStyle = p.hot ? `rgba(255,${200 - k * 90 | 0},90,${1 - k})` : `rgba(180,255,180,${1 - k})`; g.beginPath(); g.arc(p.x, p.y - k * (p.hot ? 4 : 14), p.hot ? 1.3 : 2.5, 0, 6.3); g.fill(); } });
   V.rings.forEach(r => { const k = r.age / r.life; g.globalAlpha = (k < 0.2 ? k / 0.2 : 1 - (k - 0.2) / 0.8) * 0.7; g.strokeStyle = '#fff3c0'; g.lineWidth = 3; g.beginPath(); g.arc(r.x, r.y, r.r * (0.8 + 0.3 * k), 0, 6.3); g.stroke(); g.globalAlpha = 1; });
   if (V.rain > 0) { g.strokeStyle = 'rgba(180,205,255,.45)'; g.lineWidth = 1; for (let i = 0; i < 90; i++) { const x = ((hash2(i, 3, 9) * W * 1.2 + V.t * 140) % (W + 40)), y = ((hash2(i, 5, 9) * H * 1.2 + V.t * 420) % (H + 20)); g.beginPath(); g.moveTo(x, y); g.lineTo(x - 5, y + 11); g.stroke(); } g.fillStyle = 'rgba(40,60,90,.16)'; g.fillRect(0, 0, W, H); }
+  g.restore();
   bvOverlay(V, b, g, lines, all);
 }
 function bvOverlay(V, b, g, lines, all) {
@@ -400,17 +434,98 @@ function bvOverlay(V, b, g, lines, all) {
   // ficha del bloque bajo el ratón
   const h = V.hover; if (h) {
     const orgF = clamp(h.d.o / DIVS[h.d.t].org, 0, 1), mor = typeof armyMor === 'function' ? armyMor(h.a) : 0.8, gen = h.a.gen || {name: '—', lvl: 1};
-    const lines2 = [`${DIVS[h.d.t].icon} ${BV_KIND[h.type] || DIVS[h.d.t].name} · ${G.C[h.tag].name}`, `${h.a.name} · Gral. ${gen.name} (nv. ${gen.lvl})`, `Fuerza ${Math.round(clamp(h.d.s, 0, 1) * 100)}% · ${fmtN(clamp(h.d.s, 0, 1) * MEN_PER_DIV, 0)} hombres`, `Organización ${Math.round(orgF * 100)}% · Moral ${Math.round(mor * 100)}%`, `Orden: ${BV_STATUS[h.mode] || h.mode}`];
-    g.font = '13px sans-serif'; const w = Math.max(...lines2.map(t => g.measureText(t).width)) + 20, hh = lines2.length * 17 + 14; let x = clamp(h.x + 36, 6, W - w - 6), y = clamp(h.y - hh / 2, 40, H - hh - 6);
+    const lines2 = [`${DIVS[h.d.t].icon} ${BV_KIND[h.type] || DIVS[h.d.t].name} · ${G.C[h.tag].name}`, `${h.a.name} · Gral. ${gen.name} (nv. ${gen.lvl})`, `Fuerza ${Math.round(clamp(h.d.s, 0, 1) * 100)}% · ${fmtN(clamp(h.d.s, 0, 1) * MEN_PER_DIV, 0)} hombres`, `Organización ${Math.round(orgF * 100)}% · Moral ${Math.round(mor * 100)}%`, `Orden: ${BV_STATUS[h.mode] || h.mode}${bvOrder(h) ? ' · ' + ORDERS[bvOrder(h).k].icon + ' ' + ORDERS[bvOrder(h).k].name : ''}`, `Terreno: ${h.terr && h.terr.water ? 'vadeando el río (muy lento)' : h.terr && h.terr.cover ? 'entre los árboles (cobertura)' : h.terr && h.terr.hill ? 'en la colina' : 'campo abierto'}`];
+    g.font = '13px sans-serif'; const w = Math.max(...lines2.map(t => g.measureText(t).width)) + 20, hh = lines2.length * 17 + 14; const cz = V.cam.z, shx = (h.x - V.cam.x) * cz + W / 2, shy = (h.y - V.cam.y) * cz + H / 2; let x = clamp(shx + 36 * Math.min(cz, 1.5), 6, W - w - 6), y = clamp(shy - hh / 2, 40, H - hh - 6);
     g.fillStyle = 'rgba(14,18,24,.94)'; g.fillRect(x, y, w, hh); g.strokeStyle = h.color; g.lineWidth = 1.5; g.strokeRect(x, y, w, hh); g.textAlign = 'left';
-    lines2.forEach((t, i) => { g.fillStyle = i === 0 ? '#ffe28a' : i === 4 ? '#9fd3ff' : '#e6e1d0'; g.font = i === 0 ? 'bold 13.5px sans-serif' : '13px sans-serif'; g.fillText(t, x + 10, y + 16 + i * 17); });
+    lines2.forEach((t, i) => { g.fillStyle = i === 0 ? '#ffe28a' : i === 4 ? '#9fd3ff' : i === 5 ? '#a9d98c' : '#e6e1d0'; g.font = i === 0 ? 'bold 13.5px sans-serif' : '13px sans-serif'; g.fillText(t, x + 10, y + 16 + i * 17); });
   }
 }
-// bucle de animación del panel
-let _bvRaf = 0;
+/* ---------- grabación y repetición de la batalla ---------- */
+const BV_MODES = Object.keys(BV_STATUS);
+function bvRecSnap(V, b, all, lines) {
+  const R_ = V.rec; if (V.replay || V.t - R_.last < 0.2 || R_.snaps.length > 7000) return; R_.last = V.t;
+  const bl = []; all.concat(V.ghosts).forEach(blk => {
+    if (!R_.info.has(blk.id)) R_.info.set(blk.id, {side: blk.side, type: blk.type, color: blk.color, tag: blk.tag, dt: blk.d.t, name: blk.a.name, gen: blk.a.gen ? {name: blk.a.gen.name, lvl: blk.a.gen.lvl} : null});
+    let mask = 0; const fl = []; blk.figs.forEach(f => { if (f.alive && f.flee <= 0 && f.dying <= 0) mask |= (1 << f.i); else if (f.alive && f.flee > 0 && fl.length < 16) fl.push([f.i, Math.round(f.x), Math.round(f.y)]); });
+    bl.push([blk.id, +blk.x.toFixed(1), +blk.y.toFixed(1), +blk.hd.toFixed(2), +blk.sc.toFixed(2), +blk.comp.toFixed(2), mask, +clamp(blk.d.s, 0, 1).toFixed(2), +clamp(blk.d.o / DIVS[blk.d.t].org, 0, 1).toFixed(2), Math.max(0, BV_MODES.indexOf(blk.mode)), fl, Math.round(blk.sp || 0)]);
+  });
+  R_.snaps.push({t: +V.t.toFixed(2), b: bl, lA: Math.round(lines.A), lB: Math.round(lines.B), sa: bvStrat(b, 'A'), sb: bvStrat(b, 'B'), adv: +V.adv.toFixed(3), oa: b.orgA === undefined ? 1 : b.orgA, ob: b.orgB === undefined ? 1 : b.orgB, day: b.day});
+}
+function bvReplayStart(V, b) {
+  const S = V.rec.snaps; if (S.length < 3) return false;
+  const VR = bvNew(b); VR.bg = V.bg; VR.tf = V.tf; VR.cam = V.cam; VR.id = V.id; VR.seed = V.seed; VR.wind = V.wind;
+  V.replay = {t: 0, speed: 1, playing: true, dur: S[S.length - 1].t, ptr: 0, pp: 0, cp: 0, vb: new Map(), VR}; V.last = performance.now(); return true;
+}
+function bvReplayStop(V) { V.replay = null; V.last = performance.now(); }
+function bvReplayRestart(V) { const rp = V.replay, VR = rp.VR; rp.t = 0; rp.ptr = 0; rp.pp = 0; rp.cp = 0; rp.vb.clear(); VR.blocks.clear(); VR.parts = []; VR.corpses = []; rp.playing = true; }
+function bvReplayFrame(V, b, g, now) {
+  const rp = V.replay, VR = rp.VR, dt = Math.min(0.05, (now - V.last) / 1000); V.last = now; const S = V.rec.snaps; let pdt = 0;
+  if (rp.playing) { rp.t += dt * rp.speed; pdt = dt * rp.speed; } if (rp.t >= rp.dur) { rp.t = rp.dur; rp.playing = false; }
+  while (rp.ptr < S.length - 2 && S[rp.ptr + 1].t <= rp.t) rp.ptr++;
+  const a = S[rp.ptr], c = S[Math.min(rp.ptr + 1, S.length - 1)], f = c.t > a.t ? clamp((rp.t - a.t) / (c.t - a.t), 0, 1) : 0, cm = c.m || (c.m = new Map(c.b.map(e => [e[0], e]))), present = new Set();
+  a.b.forEach(ea => {
+    const id = ea[0], ec = cm.get(id) || ea, inf = V.rec.info.get(id); present.add(id); let blk = rp.vb.get(id);
+    if (!blk) { const F = BV_FORM[inf.type] || BV_FORM.inf; blk = {id, side: inf.side, type: inf.type, F, color: inf.color, tag: inf.tag, a: {name: inf.name, gen: inf.gen}, d: {t: inf.dt, s: 1, o: 1}, figs: [], x: ea[1], y: ea[2], hd: ea[3], sc: ea[4], comp: ea[5], vx: 0, vy: 0, sp: 0, mode: 'hold', role: 'line', ph: rnd(0, 6.28), dep: 20, wid: 30, init: false};
+      const mk = (kind, k, i) => ({kind, k, i, x: 0, y: 0, vx: 0, vy: 0, alive: true, dying: 0, flee: 0, ph: rnd(0, 6.28), recoil: 0, flash: 0});
+      if (inf.type === 'art') { for (let k = 0; k < 3; k++) blk.figs.push(mk('gun', k, k)); for (let k = 0; k < 6; k++) blk.figs.push(mk('crew', k, 3 + k)); } else for (let k = 0; k < F.n; k++) blk.figs.push(mk('sol', k, k));
+      rp.vb.set(id, blk); }
+    VR.blocks.set(id, blk);
+    blk.x = ea[1] + (ec[1] - ea[1]) * f; blk.y = ea[2] + (ec[2] - ea[2]) * f; blk.hd = ea[3] + bvAng(ea[3], ec[3]) * f; blk.sc = ea[4]; blk.comp = ea[5]; blk.d.s = ea[7]; blk.d.o = ea[8] * DIVS[inf.dt].org; blk.mode = BV_MODES[ea[9]] || 'hold'; blk.sp = ea[11];
+    blk.role = blk.mode === 'reserve' ? 'reserve' : blk.type === 'art' ? 'art' : 'line'; bvDims(blk);
+    const mask = ea[6], fl = ea[10];
+    blk.figs.forEach(fg => {
+      if (fg.dying > 0) { fg.dying -= dt; return; }
+      const flr = fl.find(q => q[0] === fg.i);
+      if (flr) { fg.alive = true; fg.flee = 1; fg.x += (flr[1] - fg.x) * Math.min(1, dt * 10); fg.y += (flr[2] - fg.y) * Math.min(1, dt * 10); return; }
+      fg.flee = 0;
+      if (mask & (1 << fg.i)) { fg.alive = true; const s = bvSlot(blk, fg); if (!blk.init) { fg.x = s[0]; fg.y = s[1]; } else { fg.x += (s[0] - fg.x) * Math.min(1, dt * 12); fg.y += (s[1] - fg.y) * Math.min(1, dt * 12); } }
+      else if (fg.alive) { fg.alive = false; fg.dying = 0.5; } });
+    blk.init = true;
+  });
+  [...VR.blocks.keys()].forEach(id => { if (!present.has(id)) VR.blocks.delete(id); });
+  const P = V.rec.parts, C = V.rec.corp;
+  while (rp.pp < P.length && P[rp.pp].t <= rp.t) { VR.parts.push(Object.assign({}, P[rp.pp], {age: 0})); rp.pp++; }
+  while (rp.cp < C.length && C[rp.cp].t <= rp.t) { VR.corpses.push(Object.assign({}, C[rp.cp], {age: 0})); rp.cp++; }
+  VR.parts.forEach(p => { p.age += pdt; if (p.k === 'smoke') { p.x += (p.vx || 0) * pdt; p.y -= 6 * pdt; } }); VR.parts = VR.parts.filter(p => p.age < p.life + 0.05); VR.corpses.forEach(cc => { cc.age += pdt; });
+  VR.t = rp.t; VR.adv = a.adv + (c.adv - a.adv) * f; VR.over = null; VR.banner = null; VR.rain = 0; VR.sel = null;
+  const bRep = Object.assign({}, b, {strA: a.sa, strB: a.sb, adv: VR.adv, orgA: a.oa + (c.oa - a.oa) * f, orgB: a.ob + (c.ob - a.ob) * f, ended: false, day: a.day}), lines = {A: a.lA + (c.lA - a.lA) * f, B: a.lB + (c.lB - a.lB) * f}, all = [...VR.blocks.values()];
+  bvCamStep(VR, dt); VR.mouse = V.mouse; bvHover(VR, all); bvDraw(VR, bRep, g, lines, all);
+  const W = BV_W, H = BV_H; g.fillStyle = 'rgba(10,12,16,.8)'; g.fillRect(W / 2 - 92, 40, 184, 24); g.fillStyle = '#ffd37a'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(`⏪ REPETICIÓN ×${rp.speed}${rp.playing ? '' : ' · fin'}`, W / 2, 52);
+  g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(16, H - 14, W - 32, 7); g.fillStyle = '#ffd37a'; g.fillRect(16, H - 14, (W - 32) * clamp(rp.t / Math.max(0.1, rp.dur), 0, 1), 7);
+}
+/* ---------- ratón: clic, arrastre y rueda ---------- */
+function bvClick(V) {
+  if (V.replay) return; const h = V.hover;
+  if (h && h.tag === G.player && !V.over) V.sel = V.sel === h ? null : h; else if (!h) V.sel = null;
+  if (typeof renderBattlePanel === 'function') renderBattlePanel();
+}
 function bvBind(cv) {
   if (cv._bvb) return; cv._bvb = true;
   const pos = e => { const r = cv.getBoundingClientRect(); return {x: (e.clientX - r.left) / r.width * BV_W, y: (e.clientY - r.top) / r.height * BV_H}; };
   cv.addEventListener('mousemove', e => { if (R.bviz) R.bviz.mouse = pos(e); }); cv.addEventListener('mouseleave', () => { if (R.bviz) R.bviz.mouse = null; });
+  cv.addEventListener('mousedown', e => { const V = R.bviz; if (!V || e.button !== 0) return; const r = cv.getBoundingClientRect(); window._bvDrag = {x0: e.clientX, y0: e.clientY, cx: V.cam.x, cy: V.cam.y, w: r.width, moved: false}; });
+  cv.addEventListener('wheel', e => { const V = R.bviz; if (!V) return; e.preventDefault(); const p = pos(e); bvZoomAt(V, e.deltaY < 0 ? 1.2 : 1 / 1.2, p.x, p.y); V.follow = false; }, {passive: false});
+  cv.addEventListener('dblclick', () => { const V = R.bviz; if (V) { V.cam.z = 1; V.cam.x = BV_W / 2; V.cam.y = BV_H / 2; V.follow = false; } });
+  if (!window._bvWin) { window._bvWin = true;
+    window.addEventListener('mousemove', e => { const d = window._bvDrag, V = R.bviz; if (!d || !V) return; const dx = e.clientX - d.x0, dy = e.clientY - d.y0; if (Math.hypot(dx, dy) > 4) d.moved = true;
+      if (d.moved && V.cam.z > 1) { const k = BV_W / d.w; V.cam.x = d.cx - dx * k / V.cam.z; V.cam.y = d.cy - dy * k / V.cam.z; V.follow = false; bvClampCam(V); } });
+    window.addEventListener('mouseup', () => { const d = window._bvDrag; window._bvDrag = null; if (d && !d.moved && R.bviz) bvClick(R.bviz); }); }
 }
+Object.assign(ACT, {
+  bvzoom: d => { const V = R.bviz; if (V) { bvZoomAt(V, +d.d > 0 ? 1.4 : 1 / 1.4); V.follow = false; } },
+  bvreset: () => { const V = R.bviz; if (V) { V.cam.z = 1; V.cam.x = BV_W / 2; V.cam.y = BV_H / 2; V.follow = false; renderBattlePanel(); } },
+  bvfollow: () => { const V = R.bviz; if (V) { V.follow = !V.follow; renderBattlePanel(); } },
+  bvreplay: () => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle) || G.lastEnded; if (V && b && bvReplayStart(V, b)) renderBattlePanel(); else toast('⚠️', 'No hay suficiente batalla grabada para repetirla.'); },
+  bvrpause: () => { const V = R.bviz; if (V && V.replay) { if (!V.replay.playing && V.replay.t >= V.replay.dur - 0.01) bvReplayRestart(V); else V.replay.playing = !V.replay.playing; renderBattlePanel(); } },
+  bvrspeed: d => { const V = R.bviz; if (V && V.replay) { V.replay.speed = +d.n; renderBattlePanel(); } },
+  bvrexit: () => { const V = R.bviz; if (V) { bvReplayStop(V); renderBattlePanel(); } },
+  bvorder: d => {
+    const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !V.sel || !b || b.ended) return; const dv = V.sel.d;
+    if (d.k === 'cancel') { delete dv.ord; toast('🎯', 'Orden cancelada.'); }
+    else if (ORDERS[d.k]) { dv.ord = {k: d.k, until: G.date.t + 4}; bvBanner(V, `${ORDERS[d.k].icon} ${ORDERS[d.k].name}: ${V.sel.a.name}`, V.sel.side, ''); toast(ORDERS[d.k].icon, `${V.sel.a.name}: ${ORDERS[d.k].name} durante 4 días.`); }
+    renderBattlePanel();
+  }
+});
+// bucle de animación del panel
+let _bvRaf = 0;
 function bvStart() { if (_bvRaf) return; const loop = t => { _bvRaf = 0; const cv = document.getElementById('bmap'); if (!cv || !UI.battle) return; let b = G.battles.find(x => x.id === UI.battle); if (!b && G.lastEnded && G.lastEnded.id === UI.battle) b = G.lastEnded; if (!b) return; R.bviz = R.bviz && R.bviz.id === b.id ? R.bviz : bvNew(b); bvBind(cv); bvFrame(R.bviz, b, cv.getContext('2d'), performance.now()); _bvRaf = requestAnimationFrame(loop); }; _bvRaf = requestAnimationFrame(loop); }

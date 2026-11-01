@@ -519,3 +519,17 @@ button.block small{margin-left:6px}button.block small.dim{display:block;margin:2
 .bvplay{margin-left:0!important;margin-right:0!important;border-radius:16px!important;padding:6px 14px!important;font-weight:600}
 #battlepanel{width:min(1420px,98vw)!important}
 @media (max-width:1000px){.bgrid{grid-template-columns:1fr}.bh-side{font-size:14px}.bh-side flag{display:none}}
+.bterr{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px}.terrchip{background:rgba(0,0,0,.35);border:1px solid rgba(201,166,87,.3);border-radius:12px;padding:2px 10px;font-size:12px;cursor:help}.terreff{font-size:11px;color:var(--dim);margin-left:auto}
+.terreff{flex-basis:100%;margin-left:0!important}
+.bcam{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin:6px 0 2px}
+.bcam button,.ordbtns button{background:linear-gradient(#2d333b,#20252b);color:#e8e2d0;border:1px solid #4a4f58;border-radius:14px;padding:3px 10px;font-size:12px;cursor:pointer}
+.bcam button:hover,.ordbtns button:hover{border-color:var(--gold);color:#fff}.bcam button.on,.ordbtns button.on{background:linear-gradient(#8a6f2f,#5b4818);border-color:var(--gold2);color:#fff6d6}
+.bcam button.rp{border-color:#ffd37a;color:#ffd37a}.bcam .sep{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 4px}
+.bord{margin:4px 0 6px}.ordhead{font-size:13px;margin-bottom:5px}.ordhead small{color:var(--dim);margin-left:6px}.ordbtns{display:flex;flex-wrap:wrap;gap:6px}.ordhint{font-size:12px;color:#d8c98a;background:rgba(255,226,138,.07);border:1px dashed rgba(255,226,138,.3);border-radius:8px;padding:5px 10px}
+/* selector de época */
+.st-epochs{margin:0 0 10px}.st-epochs>small{display:block;color:var(--dim);margin:0 0 4px;letter-spacing:.08em;text-transform:uppercase;font-size:11px}
+.st-epochs .seg{display:flex;gap:6px}.st-epochs button{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;padding:6px 8px;font-family:var(--head);font-size:16px;letter-spacing:.05em}
+.st-epochs button small{font-family:var(--body,sans-serif);font-size:10.5px;letter-spacing:0;color:var(--dim)}.st-epochs button.on small{color:#fff6d6}
+#scenload{position:fixed;inset:0;z-index:600;background:rgba(6,9,12,.78);display:flex;align-items:center;justify-content:center;font-family:var(--head);color:var(--gold2);font-size:20px;letter-spacing:.06em}
+#scenload div{text-align:center}#scenload i{display:block;width:260px;height:4px;margin:14px auto 0;background:linear-gradient(90deg,transparent,var(--gold),transparent);background-size:200% 100%;animation:scenbar 1.1s linear infinite}
+@keyframes scenbar{from{background-position:200% 0}to{background-position:-200% 0}}

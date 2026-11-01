@@ -32,6 +32,14 @@ const STRATS = {
   skirmish: {name: 'Hostigamiento', icon: '🏹', att: -0.1, def: 0.06, cas: 0.7, desc: 'Combate disperso: −30% de bajas propias y −10% de ataque; alarga el combate.'},
   charge: {name: 'Carga masiva', icon: '🔥', att: 0.25, def: -0.18, cas: 1.38, cavAtt: 0.15, desc: 'Todo al ataque: +25% ataque (+15% caballería), −18% defensa y muchísimas bajas.'}
 };
+// órdenes directas del jugador a una división durante la batalla (duran 4 días)
+const ORDERS = {
+  charge: {name: 'Cargar', icon: '🔥', f: 1.3, t: 0.8, o: 1.25, desc: '+30% ataque, −20% defensa y más desgaste durante 4 días.'},
+  hold: {name: 'Resistir', icon: '🛡️', f: 0.85, t: 1.2, o: 0.85, desc: '+20% defensa, −15% ataque y menos desgaste durante 4 días.'},
+  flank: {name: 'Flanquear', icon: '↪️', f: 1.15, t: 0.9, o: 1.05, desc: 'Maniobra por el flanco: +15% ataque, −10% defensa durante 4 días.'},
+  withdraw: {name: 'Retirar', icon: '↩️', f: 0.2, t: 0.5, o: 0.5, desc: 'Se repliega: casi no combate y se desgasta la mitad.'}
+};
+const ordFx = d => { const o = d.ord; return o && G.date.t <= o.until && ORDERS[o.k] ? ORDERS[o.k] : {f: 1, t: 1, o: 1}; };
 function chooseStrategy(b, s) {
   const ids = s === 'A' ? b.A : b.B, oids = s === 'A' ? b.B : b.A, isDef = b.att !== s;
   const me = sideStats(b, ids, !isDef), op = sideStats(b, oids, isDef), terr = MAP.provs[b.prov].terr, hill = terr.def - 1 > 0.15;
@@ -249,8 +257,9 @@ function sideStats(b, ids, isAttacker) {
     const landPen = a.landed && G.date.t - a.landed < 6 ? 0.75 : 1;
     const dig = isAttacker ? 0 : Math.min(6, a.dig || 0) * 0.04 * (a.mode === 'hold' || a.mode === 'dig' ? 1.25 : 1);
     const stl = typeof intelStealBonus === 'function' && sideKey ? intelStealBonus(a.tag, sideKey === 'A' ? b.B0 : b.A0) : 0;
-    const am = (1 + mb.att + stl + stAtt + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup * landPen * mm;
-    const dm = (1 + mb.def + stl + stDef + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + gm.def + dm0(a.tag, 'def') + air + dig) * sup * mm;
+    const tm = typeof terrMods === 'function' && sideKey ? terrMods(b, sideKey) : {att: 0, def: 0};
+    const am = (1 + mb.att + stl + stAtt + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup * landPen * mm * (1 + tm.att);
+    const dm = (1 + mb.def + stl + stDef + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + gm.def + dm0(a.tag, 'def') + air + dig) * sup * mm * (1 + tm.def);
     brave += gm.brave; gun += gm.art;
     a.divs.forEach(d => {
       const info = DIVS[d.t];
@@ -258,7 +267,7 @@ function sideStats(b, ids, isAttacker) {
         const tm = trainMod(d);
         const str = d.s * (0.55 + 0.45 * d.o / info.org) * tm * (d.lv ? (isAttacker ? 0.55 : 0.75) : (typeof equipMod === 'function' ? equipMod(a.tag, d.t) : 1) * (typeof qualMod === 'function' ? qualMod(a.tag, d.t) : 1));
         const kd = dKind(d), um = 1 + (kd === 'cav' ? gm.cav + (ST.cavAtt || 0) : kd === 'art' ? gm.art + (ST.artAtt || 0) : 0);
-        F += info.att * str * am * um; T += info.def * str * dm * (isAttacker ? 1 : terr.def);
+        const of = ordFx(d); F += info.att * str * am * um * of.f; T += info.def * str * dm * (isAttacker ? 1 : terr.def) * of.t;
         n++; wsum += info.width || 1; tr += tm; if (kd === 'art') art++; if (kd === 'cav') cav++;
       }
       org += d.o / info.org; orgN++;
@@ -321,7 +330,7 @@ function battleDay(b) {
       a.divs.forEach((d, i) => {
         if (i >= BATTLE_WIDTH) return;
         const info = DIVS[d.t];
-        d.o = Math.max(0, d.o - info.org * (orgLoss + extra) / 100 * (0.8 + Math.random() * 0.4) * (1 - (typeof docMod === 'function' ? docMod(a.tag, 'org') : 0)));
+        d.o = Math.max(0, d.o - info.org * (orgLoss + extra) / 100 * (0.8 + Math.random() * 0.4) * (1 - (typeof docMod === 'function' ? docMod(a.tag, 'org') : 0)) * ordFx(d).o);
         const sl = (orgLoss / 100) * 0.38 * (0.6 + 0.8 * (1 - d.o / info.org)) * cas;
         d.s = Math.max(0, d.s - sl); lost += sl * MEN_PER_DIV;
         d.tr = Math.min(1, (d.tr === undefined ? 0.5 : d.tr) + 0.004);      // la experiencia de combate entrena

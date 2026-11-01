@@ -488,3 +488,34 @@ button.block small{margin-left:6px}button.block small.dim{display:block;margin:2
 .tabs.grouped .tgroup{display:flex;flex-direction:column;gap:2px}
 .tabs.grouped .tgroup>small{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--goldd);margin-left:4px}
 .tabs.grouped .tgroup>div{display:flex;flex-wrap:wrap;gap:4px}
+
+/* ===== ventana de combate rediseñada ===== */
+#battlepanel{padding:0!important;border-radius:12px!important;border:1px solid var(--gold)!important;background:linear-gradient(180deg,#252c33,#12171c)!important;box-shadow:0 14px 46px rgba(0,0,0,.85),inset 0 0 0 1px rgba(255,255,255,.04)!important;overflow-y:auto}
+.bhead{display:flex;align-items:center;gap:14px;padding:12px 18px;background:linear-gradient(180deg,rgba(120,90,30,.38),rgba(0,0,0,0) 90%);border-bottom:1px solid var(--goldd);position:sticky;top:0;z-index:3;backdrop-filter:blur(3px)}
+.bh-side{display:flex;align-items:center;gap:10px;font-family:var(--head);font-size:18px;letter-spacing:.05em;color:var(--gold2);text-shadow:0 1px 2px #000}
+.bh-side.att{border-left:4px solid #e8644f;padding-left:10px}.bh-side.def{border-right:4px solid #6aa8e8;padding-right:10px}
+.bh-mid{flex:1;text-align:center;line-height:1.2;min-width:0}.bh-mid h2{margin:0;font-size:17px;letter-spacing:.08em;color:#fff3d0}.bh-mid small{color:var(--dim);font-size:12px;display:block}
+.bh-vs{display:inline-block;font-size:18px;margin-right:8px;filter:drop-shadow(0 1px 2px #000)}.bh-mid h2{display:inline}
+.bgrid{display:grid;grid-template-columns:minmax(0,2.25fr) minmax(280px,1fr);gap:14px;padding:14px 16px 16px;align-items:start}
+.bleft,.bright{min-width:0}
+#bmap{display:block;width:100%!important;max-width:100%!important;max-height:none!important;height:auto;margin:0!important;border-radius:8px;border:1px solid var(--goldd);box-shadow:0 0 0 3px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.6);background:#10150f;cursor:crosshair}
+.bhint{font-size:11.5px;color:var(--dim);margin:6px 2px 8px}.bhint .g{color:#9bd484}.bhint .o{color:#f0c872}
+#bt-strat{margin:4px 0}
+.strpick{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin:2px 0 8px}.strpick small{color:var(--dim);margin-right:4px}
+.strpick button{background:linear-gradient(#2d333b,#20252b);color:#e8e2d0;border:1px solid #4a4f58;border-radius:16px;padding:4px 11px;font-size:12px;cursor:pointer;transition:.12s}
+.strpick button:hover{border-color:var(--gold);color:#fff}.strpick button.on{background:linear-gradient(#8a6f2f,#5b4818);border-color:var(--gold2);color:#fff6d6;box-shadow:inset 0 1px 0 rgba(255,255,255,.2)}
+.bsides{display:flex!important;flex-direction:column;gap:10px}
+.bside{background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(0,0,0,.25))!important;border:1px solid rgba(255,255,255,.07)!important;border-radius:9px!important;padding:10px 12px!important}
+.bside.att{border-top:3px solid #e8644f!important}.bside.def{border-top:3px solid #6aa8e8!important}
+.bs-head{display:flex;align-items:center;gap:10px;margin-bottom:6px}.bs-name{flex:1;line-height:1.15}.bs-name b{font-family:var(--head);font-size:16px;color:var(--gold2);letter-spacing:.04em;display:block}.bs-name small{color:var(--dim);font-size:11px}
+.bs-men{text-align:right;line-height:1.1}.bs-men b{font-size:18px;color:#fff3d0;display:block}.bs-men small{font-size:10px;color:var(--dim)}
+.bs-types{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:6px}.tchipb{background:rgba(0,0,0,.35);border:1px solid rgba(201,166,87,.28);border-radius:10px;padding:1px 8px;font-size:12px}.bs-res{margin-left:auto;font-size:11px;color:var(--dim)}
+.bs-bar{display:grid;grid-template-columns:78px 1fr 38px;align-items:center;gap:6px}.bs-bar label{font-size:11px;color:var(--dim)}.bs-bar b{font-size:12px;text-align:right}.bs-bar .bar{margin:2px 0;height:9px}
+.bs-kv{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:12px;margin-top:6px}.bs-kv span{color:var(--dim)}.bs-kv b{text-align:right}
+.bs-gen{font-size:11.5px;color:#cfc8b2;margin-top:6px;padding-top:6px;border-top:1px dashed rgba(255,255,255,.1)}
+.bhist{height:54px!important;border:1px solid rgba(255,255,255,.07)}
+#bt-hist small{font-size:11px}
+.blog{max-height:132px!important;margin-top:4px}
+.bvplay{margin-left:0!important;margin-right:0!important;border-radius:16px!important;padding:6px 14px!important;font-weight:600}
+#battlepanel{width:min(1420px,98vw)!important}
+@media (max-width:1000px){.bgrid{grid-template-columns:1fr}.bh-side{font-size:14px}.bh-side flag{display:none}}

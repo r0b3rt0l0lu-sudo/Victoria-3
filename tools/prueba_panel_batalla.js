@@ -17,7 +17,7 @@ const { chromium } = require('playwright');
   await page.evaluate(() => { UI.speed = 5; ACT.bvpause(); });
   for (const t of [800, 3500, 7000, 12000]) {
     await page.waitForTimeout(t === 800 ? 800 : t - 800);
-    console.log(t, await page.evaluate(() => { const V = R.bviz; if (!V) return 'sin bviz'; const b = G.battles.find(x => x.id === UI.battle) || G.lastEnded; return JSON.stringify({t: +V.t.toFixed(1), groups: V.groups.size, units: V.units.length, alive: V.units.filter(u => u.alive).length, fleeing: V.units.filter(u => u.flee > 0).length, xs: V.units.slice(0, 6).map(u => Math.round(u.x)), battleDay: b && b.day, ended: !!(b && b.ended), over: !!V.over, panel: document.getElementById('battlepanel').className}); }));
+    console.log(t, await page.evaluate(() => { const V = R.bviz; if (!V) return 'sin bviz'; const b = G.battles.find(x => x.id === UI.battle) || G.lastEnded, modes = {}; V.blocks.forEach(k => { modes[k.mode] = (modes[k.mode] || 0) + 1; }); return JSON.stringify({t: +V.t.toFixed(1), bloques: V.blocks.size, soldados: [...V.blocks.values()].reduce((n, k) => n + k.figs.filter(f => f.alive).length, 0), caidos: V.corpses.length, modos: modes, dia: b ? b.day : null}); }));
   }
   await page.screenshot({path: '/tmp/claude-0/panel_batalla.png', timeout: 90000});
   await browser.close();

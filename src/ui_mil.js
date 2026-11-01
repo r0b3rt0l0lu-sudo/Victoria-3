@@ -197,17 +197,17 @@ function renderBattlePanel() {
   };
   const A = side(b.A, true, b.A0), B = side(b.B, false, b.B0);
   const pv = MAP.provs[b.prov], terr = pv.terr;
-  const bs = (S, cls, title, isAtt, lost) => `<div class="bside ${cls}"><h4>${S.tag ? flag(S.tag, 'sm') : ''} ${S.tag ? G.C[S.tag].name : '—'} <small class="dim">${title}</small></h4>
-    <div class="kv sm"><span>Divisiones</span><b>${S.nd} ${Object.keys(S.types).map(k => DIVS[k].icon + S.types[k]).join(' ')}</b></div>
-    <div class="kv sm"><span>Hombres</span><b>${fmtN(S.men, 0)}</b></div>
-    <div class="kv sm"><span>Fuerza</span><b>${Math.round(S.str * 100)}%</b></div>${bar(S.str, 1, '')}
-    <div class="kv sm"><span>Organización</span><b>${Math.round(S.org * 100)}%</b></div>${bar(S.org, 1, 'warn')}
-    <div class="kv sm"><span>Ataque · Defensa</span><b>${f1(S.st.F)} · ${f1(S.st.T)}</b></div>
-    <div class="kv sm"><span>Entrenamiento medio</span><b>×${S.st.tr.toFixed(2)}</b></div>
-    <div class="kv sm"><span>Combaten / reserva</span><b>${S.st.n} / ${Math.max(0, S.nd - S.st.n)}</b></div>
-    <div class="kv sm"><span>Generales</span><b>${S.gens.map(g => `${g.name} ${(g.traits || []).map(k => GEN_TRAITS[k].icon).join('')}`).join(', ') || '—'}</b></div>
-    <div class="kv sm"><span>Atrinch. · Suministro</span><b>${isAtt ? '—' : '+' + Math.round(Math.min(6, Math.max(0, ...S.as.map(a => a.dig || 0), 0)) * 4) + '%'} · ${S.as.length ? Math.round(S.as.reduce((x, a) => x + (a.sup === undefined ? 1 : a.sup), 0) / S.as.length * 100) + '%' : '—'}</b></div>
-    <div class="kv sm"><span>Bajas</span><b class="bad">${fmtN(lost || 0, 0)}</b></div></div>`;
+  const bs = (S, cls, title, isAtt, lost) => {
+    const mor = S.as.length ? S.as.reduce((x, a) => x + (typeof armyMor === 'function' ? armyMor(a) : 0.8), 0) / S.as.length : 0;
+    const types = Object.keys(S.types).map(k => `<span class="tchipb" data-tip="${DIVS[k].name}">${DIVS[k].icon} ${S.types[k]}</span>`).join('');
+    const dig = isAtt ? '—' : '+' + Math.round(Math.min(6, Math.max(0, ...S.as.map(a => a.dig || 0), 0)) * 4) + '%', sup = S.as.length ? Math.round(S.as.reduce((x, a) => x + (a.sup === undefined ? 1 : a.sup), 0) / S.as.length * 100) + '%' : '—';
+    const row = (lab, v, cls2, txt) => `<div class="bs-bar"><label>${lab}</label>${bar(v, 1, cls2)}<b>${txt}</b></div>`;
+    return `<div class="bside ${cls}"><div class="bs-head">${S.tag ? flag(S.tag, 'md') : ''}<div class="bs-name"><b>${S.tag ? G.C[S.tag].name : '—'}</b><small>${title}</small></div><div class="bs-men"><b>${fmtN(S.men, 0)}</b><small>hombres</small></div></div>
+    <div class="bs-types">${types}<span class="bs-res">⚔ ${S.st.n} combaten · 🛡 ${Math.max(0, S.nd - S.st.n)} reserva</span></div>
+    <div class="bs-bars">${row('Fuerza', S.str, '', Math.round(S.str * 100) + '%')}${row('Organización', S.org, 'warn', Math.round(S.org * 100) + '%')}${row('Moral', mor, 'blue', Math.round(mor * 100) + '%')}</div>
+    <div class="bs-kv"><span>Ataque · Defensa</span><b>${f1(S.st.F)} · ${f1(S.st.T)}</b><span>Entrenamiento</span><b>×${S.st.tr.toFixed(2)}</b><span>Atrinch. · Suminist.</span><b>${dig} · ${sup}</b><span>Bajas</span><b class="bad">${fmtN(lost || 0, 0)}</b></div>
+    <div class="bs-gen">🎖️ ${S.gens.map(g => `${g.name} ${(g.traits || []).map(k => GEN_TRAITS[k].icon).join('')}`).join(', ') || '—'}</div></div>`;
+  };
   const W = 520, Hh = 50;
   const hist = b.hist || [];
   const line = (i, col) => hist.length > 1 ? `<polyline fill="none" stroke="${col}" stroke-width="2" points="${hist.map((h, k) => (k / (hist.length - 1) * W).toFixed(1) + ',' + (Hh - h[i] * Hh).toFixed(1)).join(' ')}"/>` : '';
@@ -215,17 +215,18 @@ function renderBattlePanel() {
   root.classList.add('open');
   if (root.dataset.bid !== String(b.id)) {
     root.dataset.bid = b.id; root._sb = '';
-    root.innerHTML = `<div class="sp-head"><div><h2 id="bt-title"></h2><small id="bt-sub"></small></div><button class="bvplay" data-act="bvpause"></button><button class="x" data-act="closebattle">✕</button></div>
-    <canvas id="bmap" width="${BV_W * 2}" height="${BV_H * 2}"></canvas><div id="bt-strat"></div><div id="bt-stats"></div><div id="bt-hist"></div><div id="bt-log" class="blog"></div>`;
+    root.innerHTML = `<div class="bhead"><div class="bh-side att">${flag(b.A0, 'md')}<b>${G.C[b.A0].name}</b></div><div class="bh-mid"><span class="bh-vs">⚔</span><h2 id="bt-title"></h2><small id="bt-sub"></small></div><div class="bh-side def"><b>${G.C[b.B0].name}</b>${flag(b.B0, 'md')}</div><button class="bvplay" data-act="bvpause"></button><button class="x" data-act="closebattle">✕</button></div>
+    <div class="bgrid"><div class="bleft"><canvas id="bmap" width="${BV_W * 2}" height="${BV_H * 2}"></canvas><div class="bhint">Cada cuadrado es una división. Pasa el ratón sobre uno para ver su orden. Barras: <span class="g">fuerza</span> · <span class="o">organización</span>.</div><div id="bt-strat"></div><div id="bt-log" class="blog"></div></div>
+    <div class="bright"><div id="bt-stats"></div><div id="bt-hist"></div></div></div>`;
     R.bviz = null;
     if (!R.skip3d) { R.skip3d = true; R.bvPrevPause = G.paused; G.paused = true; }
   }
   const pb = $('.bvplay'); if (pb) pb.textContent = G.paused ? '▶ Continuar la batalla' : '⏸ Pausar';
-  $('#bt-title').textContent = '⚔ Batalla de ' + provName(b.prov);
+  $('#bt-title').textContent = 'Batalla de ' + provName(b.prov);
   $('#bt-sub').textContent = `${done ? 'Batalla finalizada' : 'Día ' + b.day} · ${BIOME_NAMES[pv.biome] || ''} · defensa ×${terr.def.toFixed(2)} · movilidad ×${terr.move.toFixed(2)}`;
   const mySide = [['A', A], ['B', B]].find(([k, S]) => S.tag === G.player), sn = k => STRATS[b['str' + k]] || STRATS.frontal;
   const sTag = (k, S) => `<span class="stc ${k === 'A' ? 'att' : 'def'}">${S.tag ? flag(S.tag, 'sm') : ''} ${sn(k).icon} <b>${sn(k).name}</b></span>`;
-  let sh = `<div class="strbar">${sTag('A', A)}<span class="dim">contra</span>${sTag('B', B)}</div>`;
+  let sh = ''; void sTag;
   if (mySide && !done) {
     const ma = (mySide[0] === 'A' ? b.A : b.B).map(armyById).filter(Boolean), cur = (ma.find(a => a.strat) || {}).strat || '';
     sh += `<div class="strpick"><small>Tu estrategia:</small> <button class="${cur === '' ? 'on' : ''}" data-act="battlestrat" data-s="">🤖 Automática</button>${Object.keys(STRATS).map(k => `<button class="${cur === k ? 'on' : ''}" data-act="battlestrat" data-s="${k}" data-tip="${STRATS[k].desc}">${STRATS[k].icon} ${STRATS[k].name}</button>`).join('')}</div>`;

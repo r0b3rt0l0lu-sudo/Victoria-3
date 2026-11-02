@@ -1,0 +1,14 @@
+1900 3 año 1840
+1900 3 año 1845
+1900 3 año 1850
+1900 3 año 1855
+1900 3 año 1860
+1900 3 año 1865
+1900 3 año 1870
+1900 3 año 1875
+1900 3 año 1880
+1900 3 año 1885
+1900 3 año 1890
+1900 3 año 1895
+1900 3 año 1900
+1900 3 LISTO {"y":1900,"m":0,"d":1,"paises":37,"top":["GBR:33","CHN:30","AUS:29","NET:20","PRU:19","RUS:18","MEX:18","BRZ:11"],"guerras":0,"pais":"GBR,FRA,PRU,AUS,RUS,OTT,USA,SPA,POR,SWE,DEN,NET,SWI,SAR,MEX,CAM,ECU,ARG,BRZ,CHN,KOR,JAP,VIE,PRS,BUK,KHI,SIK,OMA,EGY,TUN,SOK,ETH,ZUL,GRE,SER,WAL,RB1","gbr":33,"hist":"h_ger,h_ita,h_rev48,h_taiping,h_meiji,h_usciv","pruName":"Imperio Alemán","sarName":"Reino de Italia json 2561302 b64 806584

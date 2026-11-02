@@ -57,7 +57,7 @@ function showWarSummary(r) {
   const head = r.result === 'win' ? ['🏆', 'VICTORIA', 'win'] : r.result === 'lose' ? ['💀', 'DERROTA', 'lose'] : r.result === 'draw' ? ['🕊️', 'PAZ BLANCA', 'draw'] : ['📜', 'FIN DE LA GUERRA', 'draw'];
   const c = (lab, v, cls) => `<div class="ws-c"><small>${lab}</small><b class="${cls || ''}">${v}</b></div>`, sc = me === 'def' ? -r.score : r.score;
   e.innerHTML = `<div class="ws-card ${head[2]}"><div class="ws-top"><span class="ws-ic">${head[0]}</span><div><small>Resumen de la guerra</small><h2>${head[1]}</h2></div></div>
-    <div class="ws-title">${CBS[r.cb] ? CBS[r.cb].icon : '⚔'} ${r.name}</div>
+    <div class="ws-title">${CBS[r.cb] ? CBS[r.cb].icon : '⚔'} ${r.name || (G.C[r.att].name + ' contra ' + G.C[r.def].name)}</div>
     <div class="ws-sides"><div><small>Tu bando</small>${names(me === 'def' ? r.defAll : r.attAll)}</div><div><small>Enemigos</small>${names(me === 'def' ? r.attAll : r.defAll)}</div></div>
     <div class="ws-grid">${c('Duración', fmtDays(r.days))}${c('Batallas (ganadas–perdidas)', `${r.bw[you]}–${r.bw[foe]} de ${r.bat}`)}${c('Bajas propias', fmtN(r.cas[you], 0), 'bad')}${c('Bajas enemigas', fmtN(r.cas[foe], 0), 'good')}${c('Prisioneros (que tienes · que tiene el enemigo)', `${fmtN(r.pris[you], 0)} · ${fmtN(r.pris[foe], 0)}`)}${c('Territorio ocupado (tuyo · enemigo)', `${r.occ[foe]} · ${r.occ[you]} estados`)}${c('Puntuación final', (sc > 0 ? '+' : '') + sc, sc >= 0 ? 'good' : 'bad')}${c('Fecha', r.date)}</div>
     ${r.targets.length ? `<div class="ws-goal"><small>Objetivos de guerra</small> ${r.targets.join(', ')}</div>` : ''}

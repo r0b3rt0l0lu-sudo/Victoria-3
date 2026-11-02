@@ -1,6 +1,0 @@
-1861 3 año 1840
-1861 3 año 1845
-1861 3 año 1850
-1861 3 año 1855
-1861 3 año 1860
-1861 3 LISTO {"y":1861,"m":0,"d":1,"paises":45,"top":["GBR:30","CHN:27","RUS:22","AUS:21","FRA:15","PRU:15","NET:15","BRZ:15"],"guerras":2,"pais":"GBR,FRA,PRU,AUS,RUS,OTT,USA,SPA,POR,SWE,DEN,NET,BEL,SWI,SAR,TEX,MEX,VEN,ECU,BOL,PAR,URU,BRZ,CHN,KOR,JAP,VIE,BRM,PRS,AFG,BUK,KHI,KOK,SIK,OMA,EGY,MOR,TUN,SOK,ZUL,MDG,GRE,SER,CSA,RB1","gbr":30,"hist":"h_ger,h_ita,h_rev48,h_meiji,h_taiping,h_usciv","pruName":"Imperio Al json 2476406 b64 816196

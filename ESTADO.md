@@ -62,3 +62,7 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - `src/ia_v3.js`: guerras planificadas (alcance, fuerza con aliados, descanso de un año), ejército permanente según amenaza, paces con territorios razonables (`aiMayTake`). Evaluación con `tools/evaluar_ia.js`: 0 conquistas absurdas, el agresor gana 80–100 %.
 - Botón **Aa** (`#btn-ui`, `applyUiSize`, `--wz`/`--mz`): tres tamaños de menús y ventanas, guardado en localStorage. Auditoría de ventanas: 0 solapamientos.
 - Mundos 1861 (semilla 5) y 1900 (semilla 3) regenerados con la IA nueva; `tools/limpiar_escenario.js` devuelve a un vecino los estados aislados de países no coloniales y a EE. UU. su territorio en 1900.
+
+## Sesión: época 1910 y menús compactos
+- Épocas jugables: **1836** y **1910** (se eliminan 1861 y 1900). El mundo de 1910 sale de una simulación de la IA (economía, tecnología) con el reparto territorial de 1910-1914 fijado por `tools/anclar_1910.js` a partir de mapas históricos (imperios coloniales, Alemania e Italia unidas, reparto de África y Asia) y las alianzas de la Entente y la Tríplice.
+- Interfaz: barra inferior y datos del país pequeños y pegados al margen; ventanas y paneles desplegables grandes (botón Aa: 1×/1,25×/1,5×, guarda en localStorage). El panel en el que haces clic pasa por delante de los demás (`Z_PANELS` en asesor.js).

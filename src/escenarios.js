@@ -22,7 +22,7 @@ function scenLoading(txt) {
 function scenArmies() {
   G.tags.forEach(t => {
     if (t === NONE) return; const c = G.C[t]; if (!c.states.length) return;
-    let n = Math.min(Math.floor(divLimit(c) * 0.6), 120) - countDivs(t); if (n < 4) return;
+    const lim = divLimit(c); let n = Math.min(Math.max(Math.floor(lim * 0.6), Math.min(lim, 3)), 120) - countDivs(t); if (n < 1 || (n < 4 && countDivs(t) > 0)) return;
     const barr = c.states.filter(id => G.S[id].b.barracks >= 1), homes = (barr.length ? barr : [c.capital >= 0 ? c.capital : c.states[0]]).map(stateCapitalProv); let hi = 0;
     while (n > 0) { const k = Math.min(n, 6 + Math.floor(Math.random() * 3)), divs = []; for (let i = 0; i < k; i++) { const r = Math.random(); divs.push(mkDivision(r < 0.7 ? 'inf' : r < 0.85 ? 'cav' : 'art', 0.4 + Math.random() * 0.3)); } mkArmy(t, homes[hi++ % homes.length], divs); n -= k; }
     if (c.eq) { const need = eqNeedOf(t); EQ_GOODS.forEach(g => { c.eq[g] = Math.max(c.eq[g] || 0, (need[g] || 0) * 1.15); }); }

@@ -210,6 +210,7 @@ function warWeek() {
     if (dead) { endWar(w, alive(w.att) ? w.att : w.def); continue; }
     if (capitulationCheck(w)) continue;
     if (Math.abs(w.score) >= 100 && !humans) endWar(w, w.score > 0 ? w.att : w.def);
+    else if (!humans && w.weeks > 26 && Math.abs(w.score) > 60) endWar(w, w.score > 0 ? w.att : w.def);
     else if (!humans && w.weeks > 48 && Math.abs(w.score) > 45) endWar(w, w.score > 0 ? w.att : w.def);
     else if (!humans && w.weeks > 112 && Math.abs(w.score) < 25) endWar(w, null);
     else if (!humans && w.weeks > 176) endWar(w, null);
@@ -481,6 +482,7 @@ function aiFabricate(c) {
   if (rs.length) startFabricate(c, rs[0].id);
 }
 function aiWarsNew() {
+  if (typeof aiWarsNewV3 === 'function') return aiWarsNewV3();
   if (G.wars.length >= 3) return;
   const cand = G.tags.filter(t => t !== NONE && alive(t) && G.C[t].rank <= 16 && !G.C[t].wars.length && !G.C[t].overlord && G.C[t].states.length <= 34);
   if (!cand.length || Math.random() > 0.13 * (G.diff >= 3 ? 1.3 : 1) * (typeof aggrMult === 'function' ? aggrMult() : 1)) return;

@@ -47,6 +47,7 @@ function advisorToggle(force) {
   e.classList.toggle('open', open); if (open) { _advCache.t = -1; e.innerHTML = advisorHtml(); }
 }
 Object.assign(ACT, {
+  uisize: () => applyUiSize(((UI.sz === undefined ? 1 : UI.sz) + 1) % 3),
   advisor: () => advisorToggle(),
   tipgo: d => {
     advisorToggle(false);

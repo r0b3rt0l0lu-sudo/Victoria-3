@@ -43,6 +43,7 @@ function aiPickDemands(c) {
   let left = c.budget;
   const val = o => o.type === 'state' ? (o.target ? 3 : 1.2) * (o.pop / 1e6 + 0.5) / o.cost * 10 : o.type === 'reps' ? 0.9 : o.type === 'humil' ? 0.7 : o.type === 'vassal' ? 0.5 : o.type === 'demil' ? 0.4 : o.type === 'trade' ? 0.3 : 0.1;
   c.opts.slice().sort((a, b) => val(b) - val(a)).forEach(o => {
+    if (o.type === 'state' && typeof aiMayTake === 'function' && !aiMayTake(c.winner, o.sid)) return;
     if (o.cost > left) return; if (o.type === 'reps' && c.pick.has('reps8') && o.id === 'reps16') return; if (o.type === 'law') return;
     if (o.type === 'vassal' && c.pick.size) return;
     c.pick.add(o.id); left -= o.cost;
@@ -77,6 +78,7 @@ const loseAllHas = (c, tag) => c.loseAll.includes(tag);
 function endWar(w, winner, preset) {
   const rep = typeof warReport === 'function' ? warReport(w, winner) : null;
   endWarCore(w, winner, preset);
+  w.attAll.concat(w.defAll).forEach(t => { if (G.C[t]) G.C[t].lastWar = G.date.t; });
   if (rep && rep.mine && typeof showWarSummary === 'function') showWarSummary(rep);
 }
 function endWarCore(w, winner, preset) {

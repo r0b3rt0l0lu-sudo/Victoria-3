@@ -118,6 +118,7 @@ function buildHud() {
     <button data-act="wheelmode" id="btn-wheel" data-tip="Rueda del ratón: zoom o desplazar">🖱️</button>
     <button data-act="animtoggle" id="btn-anim" data-tip="Animaciones del mapa: agua y nubes">≈</button>
     <button data-act="quality" id="btn-quality" data-tip="Calidad gráfica (bajo / medio / alto)">Q</button>
+    <button data-act="uisize" id="btn-ui" class="uibtn" data-tip="Tamaño de menús y ventanas (normal / grande / enorme)">Aa</button>
     <button data-act="edgescroll" id="btn-edge" data-tip="Desplazar al acercar el ratón al borde de la pantalla">⇱</button>
   </div>
   <div id="mapctl">
@@ -128,8 +129,15 @@ function buildHud() {
   $('#minimap').addEventListener('mousedown', e => minimapJump(e));
   $('#minimap').addEventListener('mousemove', e => { if (e.buttons) minimapJump(e); });
   $('#crest').innerHTML = '';
-  syncCamBtns(); iconize($('#hud'));
+  syncCamBtns(); iconize($('#hud')); applyUiSize();
 }
+const UI_SIZES = [1, 1.2, 1.4];
+function applyUiSize(n) {
+  let i = 1; try { i = n !== undefined ? n : +(localStorage.getItem('vic_ui') || 1); if (!(i >= 0 && i <= 2)) i = 1; if (n !== undefined) localStorage.setItem('vic_ui', i); } catch (e) { if (n !== undefined) i = n; }
+  UI.sz = i; document.documentElement.style.setProperty('--wz', UI_SIZES[i]); document.documentElement.style.setProperty('--mz', UI_SIZES[i]);
+  const b = document.getElementById('btn-ui'); if (b) b.innerHTML = ['Aa', 'Aa+', 'Aa++'][i];
+}
+
 function syncCamBtns() { const an = $('#btn-anim'); if (an) an.classList.toggle('on', !!R.anim); const w = $('#btn-wheel'), e2 = $('#btn-edge'); if (w) { w.classList.toggle('on', R.wheelMode === 'pan'); w.innerHTML = icon(R.wheelMode === 'pan' ? 'hand' : 'mouse'); } if (e2) e2.classList.toggle('on', !!R.edgeScroll); const qb = $('#btn-quality'); if (qb) qb.textContent = ({bajo: 'B', medio: 'M', alto: 'A'})[R.quality || 'medio']; }
 function minimapJump(e) {
   const r = e.currentTarget.getBoundingClientRect();

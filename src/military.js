@@ -680,7 +680,7 @@ function armyUpkeep(c) {
   return t * k * 0.006 * (1 + (c.mods.milCost || 0)) * (c.milFund || 1) * (c.wars.length ? 1.4 : 1) * (1 + 0.1 * (c.mob || 0));
 }
 function aiDisbandExcess(c) {
-  if (c.wars.length || countDivs(c.tag) <= divLimit(c) * 0.9) return;
+  if (c.wars.length || countDivs(c.tag) <= divLimit(c) * (typeof aiStandingTarget === 'function' ? Math.min(0.95, aiStandingTarget(c) + 0.25) : 0.9)) return;
   const a = armiesOf(c.tag).filter(x => !x.battle && !x.path.length && provOwner(x.loc) === c.tag)[0]; if (!a) return;
   a.divs.pop(); if (!a.divs.length) G.armies = G.armies.filter(x => x !== a);
 }
@@ -689,6 +689,7 @@ function aiRecruitWeek() {
     if (t === NONE) return; const c = G.C[t]; if (!c.ai || !c.states.length) return;
     if (c.wars.length && (c.mob || 0) < (c.legitimacy < 40 ? 2 : 3)) setMobilization(c, (c.mob || 0) + 1);
     aiDisbandExcess(c);
+    if (typeof aiRecruitV3 === 'function') { aiRecruitV3(t, c); return; }
     if (!c.wars.length && (Math.random() > 0.03 || countDivs(t) >= divLimit(c) * 0.6)) return;
     let n = c.wars.length ? 2 : 1;
     const sts = c.states.filter(id => G.S[id].b.barracks >= 1);

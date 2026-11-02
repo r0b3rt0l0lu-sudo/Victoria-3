@@ -587,6 +587,15 @@ button.block small{margin-left:6px}button.block small.dim{display:block;margin:2
 .foes>small.dim{display:block;margin:8px 0 3px}
 .manual nav{flex:none}
 @media (max-width:1100px){.manual nav{max-height:112px;overflow-y:auto;margin-bottom:12px;padding-bottom:4px}}
+
+/* ===== interfaz más grande (botón Aa): --wz escala ventanas y paneles, --mz la barra inferior ===== */
+:root{--wz:1.2;--mz:1.2}
+@media (min-width:901px){
+  .window{zoom:var(--wz);width:calc(min(1080px,100vw - 40px)/var(--wz)) !important;top:calc((var(--ph,100px) + 22px)/var(--wz)) !important;max-height:calc((100vh - var(--ph,100px) - 42px - 96px*var(--mz))/var(--wz)) !important}
+  #statepanel,#armypanel,#battlepanel{zoom:var(--wz)}
+  #menu{zoom:var(--mz);transform-origin:left bottom}
+}
+#camctl .uibtn{font-family:var(--head);font-weight:700;font-size:13px}
 </style>
 </head>
 <body>
@@ -3686,6 +3695,7 @@ function warWeek() {
     if (dead) { endWar(w, alive(w.att) ? w.att : w.def); continue; }
     if (capitulationCheck(w)) continue;
     if (Math.abs(w.score) >= 100 && !humans) endWar(w, w.score > 0 ? w.att : w.def);
+    else if (!humans && w.weeks > 26 && Math.abs(w.score) > 60) endWar(w, w.score > 0 ? w.att : w.def);
     else if (!humans && w.weeks > 48 && Math.abs(w.score) > 45) endWar(w, w.score > 0 ? w.att : w.def);
     else if (!humans && w.weeks > 112 && Math.abs(w.score) < 25) endWar(w, null);
     else if (!humans && w.weeks > 176) endWar(w, null);
@@ -3957,6 +3967,7 @@ function aiFabricate(c) {
   if (rs.length) startFabricate(c, rs[0].id);
 }
 function aiWarsNew() {
+  if (typeof aiWarsNewV3 === 'function') return aiWarsNewV3();
   if (G.wars.length >= 3) return;
   const cand = G.tags.filter(t => t !== NONE && alive(t) && G.C[t].rank <= 16 && !G.C[t].wars.length && !G.C[t].overlord && G.C[t].states.length <= 34);
   if (!cand.length || Math.random() > 0.13 * (G.diff >= 3 ? 1.3 : 1) * (typeof aggrMult === 'function' ? aggrMult() : 1)) return;
@@ -4685,7 +4696,7 @@ function armyUpkeep(c) {
   return t * k * 0.006 * (1 + (c.mods.milCost || 0)) * (c.milFund || 1) * (c.wars.length ? 1.4 : 1) * (1 + 0.1 * (c.mob || 0));
 }
 function aiDisbandExcess(c) {
-  if (c.wars.length || countDivs(c.tag) <= divLimit(c) * 0.9) return;
+  if (c.wars.length || countDivs(c.tag) <= divLimit(c) * (typeof aiStandingTarget === 'function' ? Math.min(0.95, aiStandingTarget(c) + 0.25) : 0.9)) return;
   const a = armiesOf(c.tag).filter(x => !x.battle && !x.path.length && provOwner(x.loc) === c.tag)[0]; if (!a) return;
   a.divs.pop(); if (!a.divs.length) G.armies = G.armies.filter(x => x !== a);
 }
@@ -4694,6 +4705,7 @@ function aiRecruitWeek() {
     if (t === NONE) return; const c = G.C[t]; if (!c.ai || !c.states.length) return;
     if (c.wars.length && (c.mob || 0) < (c.legitimacy < 40 ? 2 : 3)) setMobilization(c, (c.mob || 0) + 1);
     aiDisbandExcess(c);
+    if (typeof aiRecruitV3 === 'function') { aiRecruitV3(t, c); return; }
     if (!c.wars.length && (Math.random() > 0.03 || countDivs(t) >= divLimit(c) * 0.6)) return;
     let n = c.wars.length ? 2 : 1;
     const sts = c.states.filter(id => G.S[id].b.barracks >= 1);
@@ -6124,6 +6136,7 @@ function buildHud() {
     <button data-act="wheelmode" id="btn-wheel" data-tip="Rueda del ratón: zoom o desplazar">🖱️</button>
     <button data-act="animtoggle" id="btn-anim" data-tip="Animaciones del mapa: agua y nubes">≈</button>
     <button data-act="quality" id="btn-quality" data-tip="Calidad gráfica (bajo / medio / alto)">Q</button>
+    <button data-act="uisize" id="btn-ui" class="uibtn" data-tip="Tamaño de menús y ventanas (normal / grande / enorme)">Aa</button>
     <button data-act="edgescroll" id="btn-edge" data-tip="Desplazar al acercar el ratón al borde de la pantalla">⇱</button>
   </div>
   <div id="mapctl">
@@ -6134,8 +6147,15 @@ function buildHud() {
   $('#minimap').addEventListener('mousedown', e => minimapJump(e));
   $('#minimap').addEventListener('mousemove', e => { if (e.buttons) minimapJump(e); });
   $('#crest').innerHTML = '';
-  syncCamBtns(); iconize($('#hud'));
+  syncCamBtns(); iconize($('#hud')); applyUiSize();
 }
+const UI_SIZES = [1, 1.2, 1.4];
+function applyUiSize(n) {
+  let i = 1; try { i = n !== undefined ? n : +(localStorage.getItem('vic_ui') || 1); if (!(i >= 0 && i <= 2)) i = 1; if (n !== undefined) localStorage.setItem('vic_ui', i); } catch (e) { if (n !== undefined) i = n; }
+  UI.sz = i; document.documentElement.style.setProperty('--wz', UI_SIZES[i]); document.documentElement.style.setProperty('--mz', UI_SIZES[i]);
+  const b = document.getElementById('btn-ui'); if (b) b.innerHTML = ['Aa', 'Aa+', 'Aa++'][i];
+}
+
 function syncCamBtns() { const an = $('#btn-anim'); if (an) an.classList.toggle('on', !!R.anim); const w = $('#btn-wheel'), e2 = $('#btn-edge'); if (w) { w.classList.toggle('on', R.wheelMode === 'pan'); w.innerHTML = icon(R.wheelMode === 'pan' ? 'hand' : 'mouse'); } if (e2) e2.classList.toggle('on', !!R.edgeScroll); const qb = $('#btn-quality'); if (qb) qb.textContent = ({bajo: 'B', medio: 'M', alto: 'A'})[R.quality || 'medio']; }
 function minimapJump(e) {
   const r = e.currentTarget.getBoundingClientRect();
@@ -8374,6 +8394,7 @@ function aiPickDemands(c) {
   let left = c.budget;
   const val = o => o.type === 'state' ? (o.target ? 3 : 1.2) * (o.pop / 1e6 + 0.5) / o.cost * 10 : o.type === 'reps' ? 0.9 : o.type === 'humil' ? 0.7 : o.type === 'vassal' ? 0.5 : o.type === 'demil' ? 0.4 : o.type === 'trade' ? 0.3 : 0.1;
   c.opts.slice().sort((a, b) => val(b) - val(a)).forEach(o => {
+    if (o.type === 'state' && typeof aiMayTake === 'function' && !aiMayTake(c.winner, o.sid)) return;
     if (o.cost > left) return; if (o.type === 'reps' && c.pick.has('reps8') && o.id === 'reps16') return; if (o.type === 'law') return;
     if (o.type === 'vassal' && c.pick.size) return;
     c.pick.add(o.id); left -= o.cost;
@@ -8408,6 +8429,7 @@ const loseAllHas = (c, tag) => c.loseAll.includes(tag);
 function endWar(w, winner, preset) {
   const rep = typeof warReport === 'function' ? warReport(w, winner) : null;
   endWarCore(w, winner, preset);
+  w.attAll.concat(w.defAll).forEach(t => { if (G.C[t]) G.C[t].lastWar = G.date.t; });
   if (rep && rep.mine && typeof showWarSummary === 'function') showWarSummary(rep);
 }
 function endWarCore(w, winner, preset) {
@@ -10417,6 +10439,84 @@ function aiOps(t, ctx) {
   return used;
 }
 
+/* ===== IA v3: planificación de guerras, ejército permanente y paces coherentes =====
+   Cambios respecto a la IA anterior:
+   · Las guerras se PLANIFICAN: el agresor solo ataca a países alcanzables (por tierra o dentro de su alcance naval), compara su fuerza (con aliados y
+     preparación militar) con la del rival, descansa un año tras cada guerra, no ataca con el ejército vacío, mal financiado o amenazado por un vecino
+     hostil, y elige el objetivo de mejor relación valor/riesgo entre varios candidatos.
+   · Ejército permanente: en paz mantiene una fracción del límite de divisiones según la amenaza de sus vecinos (antes casi no reclutaba) y construye
+     cuarteles si no tiene.
+   · En la paz la IA solo exige territorios razonables: junto a sus tierras o, las potencias coloniales, colonias lejanas fuera de Europa. */
+const AI_COLONIAL = new Set(['GBR', 'FRA', 'NET', 'POR', 'SPA', 'BEL', 'RUS', 'USA', 'PRU', 'AUS', 'JAP', 'SAR', 'DEN', 'SWE', 'OTT']);
+const llDist = (a, b) => { const dl = Math.min(Math.abs(a.lon - b.lon), 360 - Math.abs(a.lon - b.lon)); return Math.hypot(dl, a.lat - b.lat); };
+const llEurope = p => p.lon > -15 && p.lon < 45 && p.lat > 34;
+// ¿puede la IA anexionar este estado? (cercanía a sus tierras, o colonia lejana no europea para potencias coloniales)
+function aiMayTake(tag, sid) {
+  const W = G.C[tag]; if (!W || !W.states.length) return false; const p = stateLL(sid); let dmin = 1e9;
+  W.states.forEach(id => { dmin = Math.min(dmin, llDist(stateLL(id), p)); });
+  if (dmin <= 22) return true;
+  return AI_COLONIAL.has(tag) && !llEurope(p) && dmin <= 60;
+}
+const aiReadiness = c => clamp(0.35 + 0.65 * Math.min(1, countDivs(c.tag) / Math.max(4, divLimit(c) * 0.6)), 0.35, 1);
+function aiSidePower(tag) {
+  const c = G.C[tag]; let p = armyPower(c) * aiReadiness(c);
+  allies(tag).forEach(a => { if (alive(a)) p += armyPower(G.C[a]) * 0.6 * aiReadiness(G.C[a]); });
+  return p;
+}
+// mejor plan de ataque de un país (o null si no conviene atacar)
+function aiWarPlan(a) {
+  const A = G.C[a]; if (!alive(a) || A.wars.length || A.overlord) return null;
+  if (G.date.t - (A.lastWar === undefined ? -9999 : A.lastWar) < 365) return null;         // descanso tras la última guerra
+  if ((A.wear || 0) > 25 || A.legitimacy < 35 || A.treasury < Math.max(0, A.stats.income) * 4 || A.infamy > 45) return null;
+  const divs = countDivs(a), lim = divLimit(A); if (divs < Math.min(Math.floor(lim * 0.4), 6)) return null;      // sin ejército no se ataca
+  const myP = aiSidePower(a); let threat = 0;
+  G.tags.forEach(o => { if (o === NONE || o === a || !alive(o) || sameSide(a, o) || relOf(a, o) >= -20 || !canReach(a, o)) return; threat = Math.max(threat, armyPower(G.C[o])); });
+  if (threat > myP * 0.7) return null;                                                      // un vecino hostil fuerte: primero defenderse
+  let best = null;
+  G.tags.forEach(d => {
+    if (d === NONE || d === a || !alive(d) || G.C[d].overlord || G.C[d].wars.length >= 2 || relOf(a, d) > 40) return;
+    if (warBlockers(a, d) || !canReach(a, d)) return;
+    const rs = reachableStates(a, d); if (!rs.length) return;
+    const ratio = myP / Math.max(1, aiSidePower(d)); if (ratio < 1.45) return;
+    const cl = claimedStates(A, d), pool = cl.length ? cl : rs, val = pool.slice(0, 2).reduce((n, x) => n + popTotal(G.S[x.id]) / 1e5 + 1, 0);
+    const sc = val * Math.min(2.5, ratio) * (cl.length ? 1.6 : 1) * (relOf(a, d) < -10 ? 1.2 : 1) * (1 - Math.min(0.5, A.infamy / 100));
+    if (!best || sc > best.sc) best = {a, d, sc, cl, rs, ratio};
+  });
+  return best;
+}
+function aiWarsNewV3() {
+  if (G.wars.length >= 3) return;
+  const aggr = typeof aggrMult === 'function' ? aggrMult() : 1;
+  const cand = G.tags.filter(t => t !== NONE && alive(t) && G.C[t].rank <= 22 && !G.C[t].wars.length && !G.C[t].overlord);
+  if (!cand.length || Math.random() > 0.16 * (G.diff >= 3 ? 1.3 : 1) * aggr) return;
+  let plan = null; cand.slice().sort(() => Math.random() - 0.5).slice(0, 6).forEach(a => { const p = aiWarPlan(a); if (p && (!plan || p.sc > plan.sc)) plan = p; });
+  if (!plan) return;
+  const A = G.C[plan.a], D = G.C[plan.d]; let cb = 'humiliate', targets = [];
+  if (plan.cl.length && Math.random() < 0.8) { cb = 'claim'; targets = plan.cl.slice(0, 2).map(x => x.id); }
+  else { const roll = Math.random();
+    if (roll < 0.4) { cb = 'conquest'; targets = plan.rs.slice(0, Math.min(2, CBS.conquest.max(A))).map(x => x.id); }
+    else if (roll < 0.55 && CBS.vassal.need(A, D)) cb = 'vassal'; else if (roll < 0.7) cb = 'trade'; }
+  if (cb === 'regime') return;
+  A.mob = Math.max(A.mob || 0, 1);                                                          // se prepara antes de declarar
+  const fr = A.influence < warCost(plan.a, targets, cb);
+  if (Math.random() < 0.35 && !crisisOf(plan.a) && !crisisOf(plan.d)) { const r = openCrisis(plan.a, plan.d, cb, targets, {free: fr, ai: true}); if (r.ok) return; }
+  if (typeof intelAiAttack === 'function' && intelAiAttack(plan.a, plan.d, cb, targets, fr)) return;
+  declareWar(plan.a, plan.d, cb, targets, {free: fr});
+}
+/* ---------- ejército permanente ---------- */
+function aiStandingTarget(c) {
+  let th = 0; G.tags.forEach(o => { if (o === NONE || o === c.tag || !alive(o) || sameSide(c.tag, o) || relOf(c.tag, o) >= 10 || !canReach(c.tag, o)) return; th = Math.max(th, armyPower(G.C[o]) / Math.max(1, armyPower(c))); });
+  return clamp(0.3 + 0.35 * Math.min(1.5, th) + (c.rank <= 8 ? 0.1 : 0), 0.3, 0.85);
+}
+function aiRecruitV3(t, c) {
+  const lim = divLimit(c), have = countDivs(t), target = c.wars.length ? 0.95 : aiStandingTarget(c);
+  const sts = c.states.filter(id => G.S[id].b.barracks >= 1);
+  if (!sts.length) { if (c.queue.length < 3 && c.treasury > 30000) { const s = G.S[c.capital >= 0 ? c.capital : c.states[0]]; if (s && buildRoom(s, 'barracks') >= 1 && canBuild(s, BLD.barracks, c)) queueBuild(c, s.id, 'barracks'); } return; }
+  if (have >= lim * target || (!c.wars.length && c.treasury < Math.max(0, c.stats.income) * 3)) return;
+  let n = c.wars.length ? 2 : (have < lim * target * 0.6 ? 2 : 1);
+  while (n-- > 0) { const r = Math.random(); const type = typeof aiPickType === 'function' ? aiPickType(c) : (r < 0.65 ? 'inf' : r < 0.8 ? 'cav' : 'art'); recruit(c, pick(sts), type); }
+}
+
 /* ===== MORAL, PRISIONEROS Y COORDINACIÓN ENTRE ALIADOS =====
    · Moral de cada ejército (0–1): sube con las victorias y el descanso, baja con las derrotas, las retiradas y la falta de suministro.
      Modifica ataque y defensa (×0,85 a ×1,15) y un ejército desmoralizado se retira antes del combate.
@@ -10604,6 +10704,7 @@ function advisorToggle(force) {
   e.classList.toggle('open', open); if (open) { _advCache.t = -1; e.innerHTML = advisorHtml(); }
 }
 Object.assign(ACT, {
+  uisize: () => applyUiSize(((UI.sz === undefined ? 1 : UI.sz) + 1) % 3),
   advisor: () => advisorToggle(),
   tipgo: d => {
     advisorToggle(false);

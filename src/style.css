@@ -578,3 +578,12 @@ button.block small{margin-left:6px}button.block small.dim{display:block;margin:2
 .foes>small.dim{display:block;margin:8px 0 3px}
 .manual nav{flex:none}
 @media (max-width:1100px){.manual nav{max-height:112px;overflow-y:auto;margin-bottom:12px;padding-bottom:4px}}
+
+/* ===== interfaz más grande (botón Aa): --wz escala ventanas y paneles, --mz la barra inferior ===== */
+:root{--wz:1.2;--mz:1.2}
+@media (min-width:901px){
+  .window{zoom:var(--wz);width:calc(min(1080px,100vw - 40px)/var(--wz)) !important;top:calc((var(--ph,100px) + 22px)/var(--wz)) !important;max-height:calc((100vh - var(--ph,100px) - 42px - 96px*var(--mz))/var(--wz)) !important}
+  #statepanel,#armypanel,#battlepanel{zoom:var(--wz)}
+  #menu{zoom:var(--mz);transform-origin:left bottom}
+}
+#camctl .uibtn{font-family:var(--head);font-weight:700;font-size:13px}

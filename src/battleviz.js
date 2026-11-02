@@ -21,7 +21,7 @@ function bvShade(hex, f) {
 }
 function bvNew(b) {
   return {id: b.id, blocks: new Map(), ghosts: [], corpses: [], parts: [], rings: [], t: 0, last: performance.now(), dayT: performance.now(), day: b.day, evSeq: b.evSeq || 0, adv: b.adv || 0, banner: null, rain: 0,
-    boost: {A: 0, B: 0}, panic: {A: 0, B: 0}, salvo: {A: 0, B: 0}, man: {A: null, B: null}, over: null, mouse: null, hover: null, bg: null, cam: {z: 1, x: BV_W / 2, y: BV_H / 2}, follow: false, replay: null, rec: {snaps: [], corp: [], parts: [], info: new Map(), last: -1, after: 0}, seed: b.id * 77 + 5, nid: 1, relT: {A: 3, B: 4.5}, wind: (b.id % 2 ? 1 : -1) * 6, sel: null};
+    boost: {A: 0, B: 0}, panic: {A: 0, B: 0}, salvo: {A: 0, B: 0}, man: {A: null, B: null}, over: null, mouse: null, hover: null, bg: null, cam: {z: 1, x: BV_W / 2, y: BV_H / 2}, follow: false, replay: null, rec: {snaps: [], corp: [], parts: [], info: new Map(), last: -1, after: 0}, seed: b.id * 77 + 5, nid: 1, relT: {A: 3, B: 4.5}, wind: (b.id % 2 ? 1 : -1) * 6, sel: null, ts: 0.5, tool: null, draw: null, selFort: null, dragBlk: null};
 }
 /* ---------- bloques y soldados ---------- */
 function bvMakeBlock(V, it, side) {
@@ -71,6 +71,7 @@ function bvLine(V, b, side) {
   const x0 = BV_W / 2 + V.adv * 100, st = bvStrat(b, side), att = b.att === side, dir = side === 'A' ? 1 : -1;
   const frac = clamp((performance.now() - V.dayT) / Math.max(400, dayMs()), 0, 1), dday = b.day - 1 + frac;
   let gap = 34;
+  if (b.prep) return x0 - dir * 36 * BV_K;
   if (st === 'frontal') gap = att ? 24 + 11 * Math.sin(V.t * 1.2) : 36;
   else if (st === 'hold') gap = att ? 52 : 74;
   else if (st === 'skirmish') gap = 62 + 8 * Math.sin(V.t * 1.4);
@@ -120,6 +121,7 @@ function bvRelief(V, b, dt) {
 }
 /* ---------- comportamiento de cada bloque ---------- */
 function bvHome(blk, L) {
+  if (blk.d.cust) return {x: L - (blk.side === 'A' ? 1 : -1) * (blk.d.cust.dep + blk.dep / 2), y: blk.d.cust.y};
   const dir = blk.side === 'A' ? 1 : -1, top = 54, bot = BV_H - 38, n = Math.max(1, blk.nLane); let depth, y;
   if (blk.role === 'line') { y = top + (blk.lane + 0.5) * (bot - top) / n; depth = 0; }
   else if (blk.role === 'art') { y = top + 24 + (blk.lane + 0.5) * (bot - top - 48) / n; depth = 78 + (blk.lane % 2) * 18; }
@@ -136,15 +138,20 @@ function bvOrder(blk) { const o = blk.d.ord; return o && G.date.t <= o.until && 
 function bvStepBlock(V, b, blk, dt, lines, all) {
   const od = bvOrder(blk), side = blk.side, dir = side === 'A' ? 1 : -1, opp = side === 'A' ? 'B' : 'A', st = od && od.k === 'charge' ? 'charge' : od && od.k === 'hold' ? 'hold' : bvStrat(b, side), att = b.att === side, L = lines[side], LE = lines[opp];
   const skey = st + '|' + blk.role; if (blk.skey !== skey) { blk.skey = skey; blk.fs = 0; blk.path = null; }
-  const compT = ((st === 'hold' && !att) || (od && od.k === 'hold')) && blk.role === 'line' ? 0.8 : 1; blk.comp += (compT - blk.comp) * Math.min(1, dt * 1.5); bvDims(blk);
+  blk.defLine = !!(blk.d.plan && blk.d.plan.k === 'defend');
+  const compT = ((st === 'hold' && !att) || (od && od.k === 'hold') || blk.defLine) && blk.role === 'line' ? 0.8 : 1; blk.comp += (compT - blk.comp) * Math.min(1, dt * 1.5); bvDims(blk);
   const home = bvHome(blk, L), F = blk.F, orgF = clamp(blk.d.o / DIVS[blk.d.t].org, 0, 1), t = V.t, foe = bvFoe(blk, all); blk.foe = foe;
-  let tx = home.x, ty = home.y, spd = F.spd, mode = 'hold', engaged = false, path = null;
+  let tx = home.x, ty = home.y, spd = F.spd, mode = 'hold', engaged = false, path = null, pp = null;
   const dist = foe ? Math.hypot(foe.x - blk.x, foe.y - blk.y) : 1e9;
   if (foe && foe.role !== 'reserve') { const reach = (blk.dep + foe.dep) / 2 + 4; engaged = Math.abs(foe.x - blk.x) < reach + 6 && Math.abs(foe.y - blk.y) < (blk.wid + foe.wid) / 2 * 0.95; }
   const contact = f => [f.x - dir * ((blk.dep + f.dep) / 2 + 7), f.y];
   const man = V.man[side], boosting = V.boost[side] > 0;
   if (V.over) {            // fin de la batalla
     if (V.over.loser === side) { mode = 'retreat'; tx = home.x - dir * 400; spd = F.spd * 1.4; } else { mode = 'victory'; tx = home.x + dir * 30; spd = F.spd * 0.6; }
+  } else if (b.prep) { mode = 'deploy'; spd = F.spd * 5;
+  } else if (blk.brk > 0) { mode = 'retreat'; tx = home.x - dir * 210; spd = F.spd * 1.5;
+  } else if (blk.role !== 'reserve' && blk.type !== 'art' && orgF < 0.1 + (1 - (blk.mor === undefined ? 0.8 : blk.mor)) * 0.1 + (blk.fat || 0) * 0.05) { mode = 'retreat'; tx = home.x - dir * 100; spd = F.spd * 1.0;
+  } else if ((pp = bvPlanStep(V, b, blk, dt, all, home)) !== null) { mode = pp.mode; tx = pp.tx; ty = pp.ty; spd = F.spd * pp.k; path = pp.path;
   } else if (blk.role === 'reserve') {
     mode = 'reserve'; tx = home.x + Math.sin(t * 0.5 + blk.ph) * 3; ty = home.y + Math.cos(t * 0.4 + blk.ph) * 2;
     if (blk.relief === 'in') { mode = 'advance'; spd = F.spd * 1.3; }
@@ -181,7 +188,7 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
   }
   blk.path = path;
   // ---- movimiento (el terreno frena: vado, bosque, cuesta) ----
-  blk.terr = bvTerrAt(V.tf, blk.x, blk.y, side); spd *= blk.terr.slow;
+  blk.terr = bvTerrAt(V.tf, blk.x, blk.y, side); if (b.forts && typeof tacFortAt === 'function' && tacFortAt(b, blk.x, blk.y)) blk.terr.cover = true; spd *= blk.terr.slow;
   if (blk.terr.water && (blk.sp || 0) > 5 && Math.random() < dt * 14) bvPart(V, {k: 'splash', x: blk.x + rnd(-blk.dep / 2, blk.dep / 2), y: blk.y + rnd(-blk.wid / 2, blk.wid / 2), life: 0.6});
   const dx = tx - blk.x, dy = ty - blk.y, d = Math.hypot(dx, dy) || 1, want = Math.min(spd, d * 2.4);
   blk.vx += (dx / d * want - blk.vx) * Math.min(1, dt * 2.6); blk.vy += (dy / d * want - blk.vy) * Math.min(1, dt * 2.6);
@@ -256,7 +263,7 @@ function pickFoeFig(blk) { const l = blk.figs.filter(f => f.alive); return l.len
 /* ---------- bucle ---------- */
 function bvFrame(V, b, ctx, now) {
   if (V.replay) { bvReplayFrame(V, b, ctx, now); return; }
-  const dt = Math.min(0.05, (now - V.last) / 1000); V.last = now; V.t += dt;
+  const dt = Math.min(0.05, (now - V.last) / 1000) * (V.ts === undefined ? 1 : V.ts); V.last = now; V.t += dt;
   if (b.day !== V.day) { V.day = b.day; V.dayT = now; }
   V.adv += ((b.adv || 0) - V.adv) * Math.min(1, dt * 2.2);
   if ((b.evSeq || 0) !== V.evSeq) { V.evSeq = b.evSeq; bvEvent(V, b, b.evK, b.evS); }
@@ -273,6 +280,7 @@ function bvFrame(V, b, ctx, now) {
   const lines = {A: bvLine(V, b, 'A'), B: bvLine(V, b, 'B')}, all = [...V.blocks.values()];
   if (!V.over) bvRelief(V, b, dt);
   all.forEach(blk => bvStepBlock(V, b, blk, dt, lines, all)); bvSeparate(all, dt);
+  if (typeof tacMorale === 'function') { tacMorale(V, b, all, dt); V._pfx = (V._pfx || 0) + dt; if (V._pfx > 1) { V._pfx = 0; tacPlanFx(V, b, all); } }
   all.forEach(blk => bvStepFigs(V, b, blk, dt)); V.ghosts.forEach(blk => bvStepFigs(V, b, blk, dt, true));
   V.ghosts = V.ghosts.filter(blk => blk.figs.some(f => f.alive || f.dying > 0));
   if (!b.ended) all.forEach(blk => bvFire(V, b, blk, dt, all));
@@ -344,6 +352,7 @@ function bvBuildBg(V, b) {
     g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = 'rgba(96,78,50,.55)'; g.lineWidth = r.w + 10; path(); g.stroke(); g.strokeStyle = 'rgba(52,104,146,.92)'; g.lineWidth = r.w; path(); g.stroke(); g.strokeStyle = 'rgba(150,196,228,.45)'; g.lineWidth = r.w * 0.45; path(); g.stroke(); g.strokeStyle = 'rgba(235,248,255,.35)'; g.lineWidth = 1; for (let i = 0; i < 40; i++) { const y = H(i, 80) * BV_H, x = r.x + Math.sin(y / 70 + r.ph) * r.amp + (H(i, 81) - 0.5) * r.w * 0.6; g.beginPath(); g.moveTo(x - 4, y); g.lineTo(x + 4, y + 1); g.stroke(); }
     r.fords.forEach(f => { const x = r.x + Math.sin(f.y / 70 + r.ph) * r.amp; g.fillStyle = 'rgba(176,152,108,.8)'; g.fillRect(x - r.w / 2 - 8, f.y - f.w / 2, r.w + 16, f.w); g.fillStyle = 'rgba(120,98,64,.5)'; for (let i = 0; i < 14; i++) g.fillRect(x - r.w / 2 - 6 + H(i + f.y, 82) * (r.w + 12), f.y - f.w / 2 + H(i + f.y, 83) * f.w, 3, 2); g.strokeStyle = 'rgba(70,52,30,.5)'; g.lineWidth = 1; g.strokeRect(x - r.w / 2 - 8, f.y - f.w / 2, r.w + 16, f.w); }); }
   if (tf.farm) { const f = tf.farm, x = f.x - f.w / 2, y = f.y - f.h / 2; g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(x + 5, y + 5, f.w, f.h); g.fillStyle = '#a58a62'; g.fillRect(x, y, f.w, f.h); g.fillStyle = '#7a3a2a'; g.beginPath(); g.moveTo(x - 4, y); g.lineTo(x + f.w / 2, y - 15); g.lineTo(x + f.w + 4, y); g.fill(); g.fillStyle = '#3a2a1c'; g.fillRect(x + f.w / 2 - 4, y + f.h - 14, 8, 14); g.strokeStyle = 'rgba(90,66,40,.7)'; g.lineWidth = 1.2; g.strokeRect(x - 12, y - 10, f.w + 24, f.h + 20); }
+  if (typeof tacBgExtras === 'function') tacBgExtras(g, V, b, H);
   // vegetación y rocas por bioma
   const nT = bio === 2 || bio === 6 ? 50 : bio === 1 ? 14 : bio === 4 ? 9 : 5;
   for (let i = 0; i < nT; i++) { const band = H(i, 40) < 0.7, x = H(i, 41) * BV_W, y = band ? (H(i, 42) < 0.5 ? 26 + H(i, 43) * 52 : BV_H - 16 - H(i, 43) * 48) : 70 + H(i, 44) * (BV_H - 140); if (Math.abs(y - ry) < 14 && bio !== 6) continue; tree(x, y, 5 + H(i, 45) * 7, bio === 6); }
@@ -411,6 +420,7 @@ function bvDraw(V, b, g, lines, all) {
   ['A', 'B'].forEach(s => { if (bvStrat(b, s) === 'hold' && !V.tf.hill) { const dir = s === 'A' ? 1 : -1, cx = lines[s] - dir * 34, rg = g.createRadialGradient(cx, H / 2, 10, cx, H / 2, 150); rg.addColorStop(0, 'rgba(210,190,130,.34)'); rg.addColorStop(0.6, 'rgba(120,96,56,.26)'); rg.addColorStop(1, 'rgba(70,52,30,0)'); g.fillStyle = rg; g.beginPath(); g.ellipse(cx, H / 2 + 4, 90, H / 2 - 40, 0, 0, 6.3); g.fill();
     g.strokeStyle = 'rgba(245,225,170,.2)'; g.lineWidth = 1.2; for (let i = 1; i <= 3; i++) { g.beginPath(); g.ellipse(cx, H / 2 + 4, 90 - i * 22, H / 2 - 40 - i * 34, 0, 0, 6.3); g.stroke(); } } });
   bvTrenches(g, V, b, lines);
+  if (typeof tacDrawPrepZone === 'function') { tacDrawPrepZone(g, V, b); tacDrawForts(g, V, b); }
   // línea de contacto
   g.strokeStyle = 'rgba(255,230,150,.16)'; g.setLineDash([5, 7]); g.beginPath(); const mx = (lines.A + lines.B) / 2; g.moveTo(mx, 30); g.lineTo(mx, H - 4); g.stroke(); g.setLineDash([]);
   // caídos
@@ -425,6 +435,7 @@ function bvDraw(V, b, g, lines, all) {
     g.strokeStyle = `rgba(255,240,150,${pulse})`; g.lineWidth = 2; g.setLineDash([7, 4]); g.beginPath(); [pr(-hw, -hh2), pr(hw, -hh2), pr(hw, hh2), pr(-hw, hh2)].forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.closePath(); g.stroke(); g.setLineDash([]); }
   blocks.forEach(blk => { if (!blk.path || blk.path.length < 2) return; g.strokeStyle = blk.side === 'A' ? 'rgba(255,170,140,.5)' : 'rgba(150,200,255,.5)'; g.fillStyle = g.strokeStyle; g.lineWidth = 1.6; g.setLineDash([6, 5]); g.beginPath(); blk.path.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.stroke(); g.setLineDash([]);
     const a = blk.path[blk.path.length - 2], e = blk.path[blk.path.length - 1], an = Math.atan2(e[1] - a[1], e[0] - a[0]); g.beginPath(); g.moveTo(e[0] + Math.cos(an) * 8, e[1] + Math.sin(an) * 8); g.lineTo(e[0] + Math.cos(an + 2.5) * 7, e[1] + Math.sin(an + 2.5) * 7); g.lineTo(e[0] + Math.cos(an - 2.5) * 7, e[1] + Math.sin(an - 2.5) * 7); g.fill(); });
+  if (typeof tacDrawPlans === 'function') tacDrawPlans(g, V, b, all);
   // soldados (ordenados por y)
   const figs = []; all.concat(V.ghosts).forEach(blk => blk.figs.forEach(f => { if (f.alive || f.dying > 0) figs.push([blk, f]); })); figs.sort((p, q) => p[1].y - q[1].y);
   figs.forEach(([blk, f]) => bvFig(g, V, blk, f));
@@ -452,6 +463,7 @@ function bvOverlay(V, b, g, lines, all) {
   g.fillStyle = 'rgba(8,12,16,.82)'; g.fillRect(0, 0, W, 34); g.fillStyle = ca; g.fillRect(0, 2, W * m, 6); g.fillStyle = cb2; g.fillRect(W * m, 2, W * (1 - m), 6); g.fillStyle = '#fff'; g.fillRect(W * m - 1, 0, 2, 11);
   g.font = 'bold 16px sans-serif'; g.textBaseline = 'middle'; g.fillStyle = '#f5ecd0'; g.textAlign = 'left'; g.fillText(`${G.C[b.A0].name} · ${fmtN(men('A'), 0)} h.`, 8, 23); g.textAlign = 'right'; g.fillText(`${fmtN(men('B'), 0)} h. · ${G.C[b.B0].name}`, W - 8, 23);
   g.textAlign = 'center'; g.fillStyle = '#ffe28a'; g.fillText(b.ended ? 'Batalla terminada' : m > 0.58 ? `Va ganando ${G.C[b.A0].name}` : m < 0.42 ? `Va ganando ${G.C[b.B0].name}` : 'Combate igualado', W / 2, 23);
+  if (b.prep) { g.fillStyle = 'rgba(30,22,6,.82)'; g.fillRect(W / 2 - 190, 40, 380, 26); g.fillStyle = '#ffd37a'; g.font = 'bold 15px sans-serif'; g.textAlign = 'center'; g.fillText('⚙️ FASE DE PREPARACIÓN · despliega y fortifica', W / 2, 53); }
   // estrategia y reparto de órdenes de cada bando
   ['A', 'B'].forEach(s => { const st = STRATS[bvStrat(b, s)], cnt = {}; all.forEach(x => { if (x.side === s) cnt[BV_PHASE[x.mode] || 'línea'] = (cnt[BV_PHASE[x.mode] || 'línea'] || 0) + 1; });
     const txt = `${st.icon} ${st.name}`, sub = Object.keys(cnt).map(k => `${cnt[k]} ${k}`).join(' · '), left = s === 'A';
@@ -524,6 +536,7 @@ function bvReplayFrame(V, b, g, now) {
 /* ---------- ratón: clic, arrastre y rueda ---------- */
 function bvClick(V) {
   if (V.replay) return; const h = V.hover;
+  { const bb = G.battles.find(x => x.id === UI.battle); if (bb && V.draw && !bb.ended && V.mouse && typeof tacClickMap === 'function') { const [wx, wy] = bvToWorld(V, V.mouse.x, V.mouse.y); if (tacClickMap(V, bb, wx, wy)) { renderBattlePanel(); return; } } }
   if (h && h.tag === G.player && !V.over) V.sel = V.sel === h ? null : h; else if (!h) V.sel = null;
   if (typeof renderBattlePanel === 'function') renderBattlePanel();
 }
@@ -531,13 +544,14 @@ function bvBind(cv) {
   if (cv._bvb) return; cv._bvb = true;
   const pos = e => { const r = cv.getBoundingClientRect(); return {x: (e.clientX - r.left) / r.width * BV_W, y: (e.clientY - r.top) / r.height * BV_H}; };
   cv.addEventListener('mousemove', e => { if (R.bviz) R.bviz.mouse = pos(e); }); cv.addEventListener('mouseleave', () => { if (R.bviz) R.bviz.mouse = null; });
-  cv.addEventListener('mousedown', e => { const V = R.bviz; if (!V || e.button !== 0) return; const r = cv.getBoundingClientRect(); window._bvDrag = {x0: e.clientX, y0: e.clientY, cx: V.cam.x, cy: V.cam.y, w: r.width, moved: false}; });
+  cv.addEventListener('contextmenu', e => { e.preventDefault(); const V = R.bviz; if (V && (V.draw || V.tool)) { V.draw = null; V.tool = null; renderBattlePanel(); } });
+  cv.addEventListener('mousedown', e => { const V = R.bviz; if (!V || e.button !== 0) return; { const bb = G.battles.find(x => x.id === UI.battle); if (bb && typeof tacMouseDown === 'function' && tacMouseDown(V, bb, e, pos(e))) { window._bvDrag = null; return; } } const r = cv.getBoundingClientRect(); window._bvDrag = {x0: e.clientX, y0: e.clientY, cx: V.cam.x, cy: V.cam.y, w: r.width, moved: false}; });
   cv.addEventListener('wheel', e => { const V = R.bviz; if (!V) return; e.preventDefault(); const p = pos(e); bvZoomAt(V, e.deltaY < 0 ? 1.2 : 1 / 1.2, p.x, p.y); V.follow = false; }, {passive: false});
-  cv.addEventListener('dblclick', () => { const V = R.bviz; if (V) { V.cam.z = 1; V.cam.x = BV_W / 2; V.cam.y = BV_H / 2; V.follow = false; } });
+  cv.addEventListener('dblclick', () => { const V = R.bviz; if (V && V.draw && V.draw.pts.length) { ACT.tacplan({k: 'fix'}); return; } if (V) { V.cam.z = 1; V.cam.x = BV_W / 2; V.cam.y = BV_H / 2; V.follow = false; } });
   if (!window._bvWin) { window._bvWin = true;
-    window.addEventListener('mousemove', e => { const d = window._bvDrag, V = R.bviz; if (!d || !V) return; const dx = e.clientX - d.x0, dy = e.clientY - d.y0; if (Math.hypot(dx, dy) > 4) d.moved = true;
+    window.addEventListener('mousemove', e => { const V0 = R.bviz; if (V0 && V0.dragBlk) { const cv0 = document.getElementById('bmap'), bb = G.battles.find(x => x.id === UI.battle); if (cv0 && bb) { const r0 = cv0.getBoundingClientRect(); tacMouseMove(V0, bb, {x: (e.clientX - r0.left) / r0.width * BV_W, y: (e.clientY - r0.top) / r0.height * BV_H}); } return; } const d = window._bvDrag, V = R.bviz; if (!d || !V) return; const dx = e.clientX - d.x0, dy = e.clientY - d.y0; if (Math.hypot(dx, dy) > 4) d.moved = true;
       if (d.moved && V.cam.z > 1) { const k = BV_W / d.w; V.cam.x = d.cx - dx * k / V.cam.z; V.cam.y = d.cy - dy * k / V.cam.z; V.follow = false; bvClampCam(V); } });
-    window.addEventListener('mouseup', () => { const d = window._bvDrag; window._bvDrag = null; if (d && !d.moved && R.bviz) bvClick(R.bviz); }); }
+    window.addEventListener('mouseup', () => { if (R.bviz && typeof tacMouseUp === 'function' && tacMouseUp(R.bviz)) return; const d = window._bvDrag; window._bvDrag = null; if (d && !d.moved && R.bviz) bvClick(R.bviz); }); }
 }
 Object.assign(ACT, {
   bvzoom: d => { const V = R.bviz; if (V) { bvZoomAt(V, +d.d > 0 ? 1.4 : 1 / 1.4); V.follow = false; } },

@@ -1,0 +1,25 @@
+{
+ "bytes": 2627021,
+ "errs": [],
+ "y": 1910,
+ "m": 0,
+ "d": 1,
+ "paises": 33,
+ "top": [
+  "GBR:44",
+  "PRU:28",
+  "CHN:28",
+  "RUS:20",
+  "USA:20",
+  "FRA:18",
+  "SPA:14",
+  "MEX:14"
+ ],
+ "guerras": 1,
+ "pais": "GBR,FRA,PRU,AUS,RUS,OTT,USA,SPA,POR,SWE,DEN,NET,SAR,TEX,MEX,ECU,CHL,ARG,PAR,BRZ,CHN,JAP,SIA,VIE,BRM,PRS,AFG,NEP,OMA,TUN,SOK,ETH,MDG",
+ "gbr": 44,
+ "hist": "h_ita,h_ger,h_rev48,h_taiping,h_meiji,h_usciv",
+ "pruName": "Imperio Alemán",
+ "sarName": "Reino de Italia",
+ "jap": "Imperio del Japón"
+}

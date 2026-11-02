@@ -13,6 +13,7 @@ function battleTerrain(b) {
   const nF = bio === 2 || bio === 6 ? 4 + Math.floor(H(13) * 3) : H(14) < 0.45 ? 1 + Math.floor(H(15) * 2) : 0;
   for (let i = 0; i < nF; i++) { const top = H(20 + i) < 0.5, r = 34 + H(30 + i) * 34; tf.forests.push({x: 90 + H(40 + i) * (W - 180), y: top ? 36 + H(50 + i) * 90 : Hh - 36 - H(50 + i) * 80, r}); }
   if ((bio === 1 || bio === 4) && H(60) < 0.5) tf.farm = {x: W / 2 + dd * (96 + H(61) * 30), y: Hh * (0.3 + H(62) * 0.4), w: 46, h: 28, side: defSide};
+  if (typeof tacTerrainExtra === 'function') tacTerrainExtra(b, tf);
   b.tf = tf; return tf;
 }
 // modificadores reales de ataque y defensa de un bando por el terreno
@@ -22,6 +23,8 @@ function terrMods(b, side) {
   if (tf.river && isAtt && b.day <= 3) att -= 0.07 * (st === 'flank' ? 0.4 : 1);
   if (tf.forests.length >= 2) { if (!isAtt) def += 0.04; if (st === 'charge') att -= 0.05; }
   if (tf.farm && tf.farm.side === side) def += 0.03;
+  if (tf.hamlet && !isAtt) def += 0.03; if (tf.rocks && tf.rocks.length && !isAtt) def += 0.02; if (tf.marsh && tf.marsh.length && isAtt && b.day <= 3) att -= 0.02;
+  if (typeof tacMods === 'function') { const pm = tacMods(b, side); att += pm.att; def += pm.def; }
   return {att, def};
 }
 // descripción de los rasgos para el panel: [icono, texto, detalle]
@@ -32,6 +35,12 @@ function terrainInfo(b) {
   if (tf.forests.length >= 2) out.push(['🌲', 'Bosques', 'Cobertura para el defensor (+4% defensa); las cargas pierden 5% de ataque entre los árboles.']);
   else if (tf.forests.length === 1) out.push(['🌳', 'Arboleda', 'Un bosquecillo que da cobertura y frena a quien lo cruza.']);
   if (tf.farm) out.push(['🏠', `Granja de ${nm(tf.farm.side)}`, `Punto fuerte: +3% defensa para ${nm(tf.farm.side)}.`]);
+  if (tf.marsh && tf.marsh.length) out.push(['🟩', 'Pantano', 'Terreno encharcado: los bloques avanzan a la mitad de velocidad y la caballería no puede cargar con eficacia. El atacante pierde 2% de ataque los primeros días.']);
+  if (tf.pond) out.push(['💧', 'Laguna', 'Masa de agua casi infranqueable: hay que rodearla.']);
+  if (tf.rocks && tf.rocks.length) out.push(['🪨', 'Roquedal', 'Roca y cobertura: frena a quien lo cruza (−40%) y da +2% de defensa al defensor.']);
+  if (tf.hamlet) out.push(['🏘️', 'Aldea amurallada', 'Casas y muros de piedra: cobertura para quien se sitúe dentro y +3% de defensa para el defensor.']);
+  if (tf.hill2) out.push(['⛰️', 'Loma secundaria', 'Una segunda elevación que domina el centro del campo.']);
+  if ((b.forts || []).some(f => f.kind === 'fort')) { const f = b.forts.find(x => x.kind === 'fort'); out.push(['🏯', 'Fuerte de la provincia', `Fuerte nivel ${f.lvl || 1} del defensor, con ${f.guns} cañones. Se puede bombardear y destruir.`]); }
   if (!out.length) out.push(['🌾', 'Terreno abierto', 'Sin accidentes relevantes: gana el mejor ejército.']);
   return out;
 }
@@ -42,6 +51,7 @@ function bvTerrAt(tf, x, y, side) {
   tf.forests.forEach(f => { if (Math.hypot(x - f.x, y - f.y) < f.r * 0.95) { o.cover = true; o.slow = Math.min(o.slow, 0.68); } });
   if (tf.hill && ((x - tf.hill.x) / tf.hill.rx) ** 2 + ((y - tf.hill.y) / tf.hill.ry) ** 2 < 1) { o.hill = true; if (tf.hill.side !== side) o.slow = Math.min(o.slow, 0.82); }
   if (tf.farm && Math.abs(x - tf.farm.x) < tf.farm.w / 2 + 6 && Math.abs(y - tf.farm.y) < tf.farm.h / 2 + 6) o.cover = true;
+  if (typeof tacTerrAtExtra === 'function') tacTerrAtExtra(tf, x, y, side, o);
   return o;
 }
 

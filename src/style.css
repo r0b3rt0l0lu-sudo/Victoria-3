@@ -595,6 +595,28 @@ button.block small{margin-left:6px}button.block small.dim{display:block;margin:2
 .rbtn{width:36px;height:36px}
 @media (min-width:901px){
   .window{zoom:var(--wz);width:calc(min(1080px,100vw - 40px)/var(--wz)) !important;top:calc((var(--ph,70px) + 12px)/var(--wz)) !important;max-height:calc((100vh - var(--ph,70px) - 84px)/var(--wz)) !important}
-  #statepanel,#armypanel,#battlepanel{zoom:var(--wz)}
+  #statepanel,#armypanel{zoom:var(--wz)}
 }
 #camctl .uibtn{font-family:var(--head);font-weight:700;font-size:13px}
+
+/* ===== suministros por ejército ===== */
+.resbox{display:flex;flex-direction:column;gap:3px;margin:2px 0 6px}
+.resrow{display:flex;align-items:center;gap:6px;font-size:12px}.resrow span{width:18px;text-align:center}
+.resrow i{flex:1;height:7px;background:rgba(0,0,0,.5);border-radius:4px;overflow:hidden;display:block}.resrow i b{display:block;height:100%;border-radius:4px}
+svg.orders polyline.sroute{fill:none;stroke-width:3;stroke-linejoin:round;stroke-linecap:round;stroke-dasharray:2 7;opacity:.9}
+svg.orders polyline.sroute.ok{stroke:#79d06a}svg.orders polyline.sroute.cut{stroke:#ff5a46;stroke-dasharray:7 6}
+svg.orders text.sdepot{font-size:16px;text-anchor:middle;dominant-baseline:central;paint-order:stroke;stroke:#000;stroke-width:3px}svg.orders text.cutx{fill:#ff5a46;font-weight:700;font-size:20px}
+
+/* ===== táctica: preparación, planes y velocidad ===== */
+.prep,.plans{border:1px solid var(--goldd);border-radius:8px;padding:8px 10px;margin:6px 0;background:rgba(18,24,30,.7)}
+.prep-h small,.plans-h small{display:block;color:var(--dim);margin-top:2px}
+.prep-r{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}.rchip{background:rgba(0,0,0,.4);border:1px solid rgba(201,166,87,.3);border-radius:10px;padding:1px 8px;font-size:12px}
+.prep-b,.plans-b{display:flex;gap:5px;flex-wrap:wrap}.prep-b button,.plans-b button{display:flex;flex-direction:column;align-items:flex-start;gap:0;padding:4px 9px}
+.prep-b button small{opacity:.75;font-size:10.5px}.prep-b button.nofunds{opacity:.45}.prep-b button.on,.plans-b button.on{background:#6a5524;border-color:var(--gold2)}
+.plans-b button.fix{background:#2d5a2d}.prep-s,.plans-s{font-size:12px;color:var(--dim);margin:5px 0}.prep-go{margin-top:6px;width:100%;font-size:15px;padding:7px}
+.bcam button.on{background:#6a5524;border-color:var(--gold2)}
+
+.prep-b button,.plans-b button{background:linear-gradient(#2d333b,#20252b);color:#e8e2d0;border:1px solid #4a4f58;border-radius:12px;font-size:12px;cursor:pointer}
+.prep-b button:hover,.plans-b button:hover{border-color:var(--gold);color:#fff}.prep-b button.on,.plans-b button.on{background:linear-gradient(#8a6f2f,#5b4818);border-color:var(--gold2);color:#fff6d6}
+.plans-b button:disabled{opacity:.4;cursor:default}.plans-b button.fix{background:linear-gradient(#3f7a3f,#2a5a2a);color:#fff}
+.bcam button.go{background:linear-gradient(#c9a64a,#8a6f2f);color:#1a1408;border-color:var(--gold2);font-weight:700}

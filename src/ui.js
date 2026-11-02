@@ -1022,7 +1022,7 @@ function doLoad(fromStart) {
 /* ---------- bucle principal ---------- */
 const SPEED_MS = [0, 1300, 750, 380, 170, 60];
 // con una batalla abierta en el panel el tiempo corre despacio (≥ 1,8 s por día) para que dé tiempo a ver el combate
-const dayMs = () => ((UI.battle || (UI.nb !== null && UI.nb !== undefined)) && R.skip3d) ? Math.max(1800, SPEED_MS[UI.speed] || 1800) : SPEED_MS[UI.speed];
+const dayMs = () => (((UI.battle || (UI.nb !== null && UI.nb !== undefined)) && R.skip3d) ? Math.max(1800, SPEED_MS[UI.speed] || 1800) : SPEED_MS[UI.speed]) / (UI.battle && R.bviz && R.bviz.ts !== undefined ? Math.max(0.1, R.bviz.ts) : 1);
 let _gt = 0;
 window.onFrame = function (t) {
   if (!UI.started) return;

@@ -604,9 +604,31 @@ button.block small{margin-left:6px}button.block small.dim{display:block;margin:2
 .rbtn{width:36px;height:36px}
 @media (min-width:901px){
   .window{zoom:var(--wz);width:calc(min(1080px,100vw - 40px)/var(--wz)) !important;top:calc((var(--ph,70px) + 12px)/var(--wz)) !important;max-height:calc((100vh - var(--ph,70px) - 84px)/var(--wz)) !important}
-  #statepanel,#armypanel,#battlepanel{zoom:var(--wz)}
+  #statepanel,#armypanel{zoom:var(--wz)}
 }
 #camctl .uibtn{font-family:var(--head);font-weight:700;font-size:13px}
+
+/* ===== suministros por ejército ===== */
+.resbox{display:flex;flex-direction:column;gap:3px;margin:2px 0 6px}
+.resrow{display:flex;align-items:center;gap:6px;font-size:12px}.resrow span{width:18px;text-align:center}
+.resrow i{flex:1;height:7px;background:rgba(0,0,0,.5);border-radius:4px;overflow:hidden;display:block}.resrow i b{display:block;height:100%;border-radius:4px}
+svg.orders polyline.sroute{fill:none;stroke-width:3;stroke-linejoin:round;stroke-linecap:round;stroke-dasharray:2 7;opacity:.9}
+svg.orders polyline.sroute.ok{stroke:#79d06a}svg.orders polyline.sroute.cut{stroke:#ff5a46;stroke-dasharray:7 6}
+svg.orders text.sdepot{font-size:16px;text-anchor:middle;dominant-baseline:central;paint-order:stroke;stroke:#000;stroke-width:3px}svg.orders text.cutx{fill:#ff5a46;font-weight:700;font-size:20px}
+
+/* ===== táctica: preparación, planes y velocidad ===== */
+.prep,.plans{border:1px solid var(--goldd);border-radius:8px;padding:8px 10px;margin:6px 0;background:rgba(18,24,30,.7)}
+.prep-h small,.plans-h small{display:block;color:var(--dim);margin-top:2px}
+.prep-r{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}.rchip{background:rgba(0,0,0,.4);border:1px solid rgba(201,166,87,.3);border-radius:10px;padding:1px 8px;font-size:12px}
+.prep-b,.plans-b{display:flex;gap:5px;flex-wrap:wrap}.prep-b button,.plans-b button{display:flex;flex-direction:column;align-items:flex-start;gap:0;padding:4px 9px}
+.prep-b button small{opacity:.75;font-size:10.5px}.prep-b button.nofunds{opacity:.45}.prep-b button.on,.plans-b button.on{background:#6a5524;border-color:var(--gold2)}
+.plans-b button.fix{background:#2d5a2d}.prep-s,.plans-s{font-size:12px;color:var(--dim);margin:5px 0}.prep-go{margin-top:6px;width:100%;font-size:15px;padding:7px}
+.bcam button.on{background:#6a5524;border-color:var(--gold2)}
+
+.prep-b button,.plans-b button{background:linear-gradient(#2d333b,#20252b);color:#e8e2d0;border:1px solid #4a4f58;border-radius:12px;font-size:12px;cursor:pointer}
+.prep-b button:hover,.plans-b button:hover{border-color:var(--gold);color:#fff}.prep-b button.on,.plans-b button.on{background:linear-gradient(#8a6f2f,#5b4818);border-color:var(--gold2);color:#fff6d6}
+.plans-b button:disabled{opacity:.4;cursor:default}.plans-b button.fix{background:linear-gradient(#3f7a3f,#2a5a2a);color:#fff}
+.bcam button.go{background:linear-gradient(#c9a64a,#8a6f2f);color:#1a1408;border-color:var(--gold2);font-weight:700}
 </style>
 </head>
 <body>
@@ -4298,7 +4320,7 @@ function sideStats(b, ids, isAttacker) {
     const dig = isAttacker ? 0 : Math.min(trT ? 10 : 6, a.dig || 0) * (trT ? 0.05 : 0.04) * (a.mode === 'hold' || a.mode === 'dig' ? 1.25 : 1) * (1 - 0.55 * clamp(atkArm * 2, 0, 1));
     const stl = typeof intelStealBonus === 'function' && sideKey ? intelStealBonus(a.tag, sideKey === 'A' ? b.B0 : b.A0) : 0;
     const tm = typeof terrMods === 'function' && sideKey ? terrMods(b, sideKey) : {att: 0, def: 0};
-    const am = (1 + mb.att + stl + stAtt + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup * landPen * mm * (1 + tm.att);
+    const am = (1 + mb.att + stl + stAtt + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup * landPen * mm * (1 + tm.att) * (typeof resPowderMod === 'function' ? resPowderMod(a) : 1);
     const dm = (1 + mb.def + stl + stDef + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + gm.def + dm0(a.tag, 'def') + air + dig) * sup * mm * (1 + tm.def);
     brave += gm.brave; gun += gm.art;
     a.divs.forEach(d => {
@@ -5777,7 +5799,7 @@ function drawOrders() {
     const cl = (a.id === sel ? 'sel' : '') + (foe ? ' foe' : '') + (a.chase ? ' chase' : '');
     h += `<polyline points="${pts.join(' ')}" class="${cl}"/><circle cx="${last[0]}" cy="${last[1]}" r="5" class="${cl}"/>`;
   });
-  svg.innerHTML = (typeof frontsSvg === 'function' ? frontsSvg() : '') + h;
+  svg.innerHTML = (typeof frontsSvg === 'function' ? frontsSvg() : '') + (typeof supplyRoutesSvg === 'function' ? supplyRoutesSvg() : '') + h;
 }
 
 function updateMarkers() {
@@ -7051,7 +7073,7 @@ function doLoad(fromStart) {
 /* ---------- bucle principal ---------- */
 const SPEED_MS = [0, 1300, 750, 380, 170, 60];
 // con una batalla abierta en el panel el tiempo corre despacio (≥ 1,8 s por día) para que dé tiempo a ver el combate
-const dayMs = () => ((UI.battle || (UI.nb !== null && UI.nb !== undefined)) && R.skip3d) ? Math.max(1800, SPEED_MS[UI.speed] || 1800) : SPEED_MS[UI.speed];
+const dayMs = () => (((UI.battle || (UI.nb !== null && UI.nb !== undefined)) && R.skip3d) ? Math.max(1800, SPEED_MS[UI.speed] || 1800) : SPEED_MS[UI.speed]) / (UI.battle && R.bviz && R.bviz.ts !== undefined ? Math.max(0.1, R.bviz.ts) : 1);
 let _gt = 0;
 window.onFrame = function (t) {
   if (!UI.started) return;
@@ -7144,6 +7166,7 @@ function renderArmyPanel() {
   <div class="kv"><span>Moral</span><b class="${armyMor(a) < 0.35 ? 'bad' : armyMor(a) > 0.7 ? 'good' : ''}">${morName(armyMor(a))} (${Math.round(armyMor(a) * 100)}%) · rinde ×${morMod(a).toFixed(2)}</b></div>${bar(armyMor(a), 1, '')}
   <div class="kv"><span>Entrenamiento</span><b>${trainName(armyTrain(a))} (${Math.round(armyTrain(a) * 100)}%) · rinde ×${(0.75 + 0.5 * armyTrain(a)).toFixed(2)}</b></div>${bar(armyTrain(a), 1, 'blue')}
   <div class="kv"><span>Suministro</span><b class="${(a.sup === undefined ? 1 : a.sup) < 0.5 ? 'bad' : ''}">${Math.round((a.sup === undefined ? 1 : a.sup) * 100)}%${a.cut > 0 ? ` · ⚠ cercado ${a.cut}/60 d` : ''}</b></div>${bar(a.sup === undefined ? 1 : a.sup, 1, (a.sup === undefined ? 1 : a.sup) < 0.5 ? 'bad' : 'good')}
+  ${typeof resBarsHtml === 'function' ? resBarsHtml(a) : ''}
   <div class="kv"><span>Hombres</span><b>${fmtN(armyMen(a), 0)}</b></div>
   <div class="kv"><span>Composición</span><b>${Object.keys(cnt).map(k => DIVS[k].icon + ' ' + cnt[k]).join(' · ')}</b></div>
   <div class="kv"><span>Atrincheramiento</span><b>${'■'.repeat(Math.round(a.dig || 0))}${'□'.repeat(6 - Math.round(a.dig || 0))}</b></div>
@@ -7152,7 +7175,7 @@ function renderArmyPanel() {
   ${own ? `<p class="hint"><b>Clic derecho</b>: mover (sobre un enemigo: perseguir). <b>Mayús + clic derecho</b>: añadir punto de ruta. <b>Ctrl/Mayús + clic en ficha</b>: grupo${group ? ` (<b>${sel.length} seleccionados</b>)` : ''}.</p>
   <div class="strpick"><small>Estrategia en combate:</small> <button class="${a.strat ? '' : 'on'}" data-act="armystrat" data-s="">🤖 Auto</button>${Object.keys(STRATS).map(k => `<button class="${a.strat === k ? 'on' : ''}" data-act="armystrat" data-s="${k}" data-tip="${STRATS[k].desc}">${STRATS[k].icon}</button>`).join('')}</div>
   <div class="ordgrid">
-    ${tg(UI.moveMode, 'movemode', '🎯 Mover')}${tg(UI.optFm || a.fm, 'optfm', '🥾 Marcha forzada')}${tg(UI.optRail || a.rail, 'optrail', '🚆 Ferrocarril')}${tg(UI.patrolNext, 'patrolmode', '🔁 Patrulla')}${tg(UI.landNext, 'landmode', '⚓ Desembarco')}
+    ${tg(UI.moveMode, 'movemode', '🎯 Mover')}${tg(UI.optFm || a.fm, 'optfm', '🥾 Marcha forzada')}${tg(UI.optRail || a.rail, 'optrail', '🚆 Ferrocarril')}${tg(UI.patrolNext, 'patrolmode', '🔁 Patrulla')}${tg(UI.showRoutes, 'showroutes', '📦 Rutas')}${tg(UI.landNext, 'landmode', '⚓ Desembarco')}
     ${tg(a.mode === 'hold', 'armymode', '🛡 Mantener', 'data-m="hold"')}${tg(a.mode === 'dig', 'armymode', '⛏ Atrincherar', 'data-m="dig"')}${tg(a.mode === 'train', 'armymode', '🎓 Entrenar', 'data-m="train"')}
     <button data-act="armystop" ${a.path.length || a.joinTo || a.patrol ? '' : 'disabled'}>✋ Detener</button><button data-act="armyretreat" ${a.battle ? 'disabled' : ''}>↩ Retirada</button><button data-act="armycap" ${a.battle ? 'disabled' : ''}>★ Capital</button>
     <button data-act="armysplit" ${a.divs.length < 2 || a.battle ? 'disabled' : ''}>✂ Dividir</button><button data-act="armydisband" ${a.battle ? 'disabled' : ''}>✖ Disolver</button>${b ? `<button data-act="selbattle" data-id="${b.id}">⚔ Batalla</button>` : ''}
@@ -7323,10 +7346,12 @@ function renderBattlePanel() {
     let ch = `<button data-act="bvzoom" data-d="1" data-tip="Acercar (rueda del ratón)">🔍＋</button><button data-act="bvzoom" data-d="-1" data-tip="Alejar">🔍－</button><button data-act="bvreset" data-tip="Vista completa (doble clic en el campo)">⤢ Vista completa</button><button data-act="bvfollow" class="${V && V.follow ? 'on' : ''}" data-tip="La cámara sigue al bloque seleccionado o bajo el ratón">🎥 Seguir</button>`;
     if (done && !rp) ch += `<button data-act="bvreplay" class="rp" data-tip="Vuelve a ver la batalla desde que abriste este panel">↻ Repetir la batalla</button>`;
     if (rp) ch += `<span class="sep"></span><button data-act="bvrpause">${rp.playing ? '⏸ Pausa' : '▶ Seguir'}</button>${[1, 2, 4].map(n => `<button data-act="bvrspeed" data-n="${n}" class="${rp.speed === n ? 'on' : ''}">×${n}</button>`).join('')}<button data-act="bvrexit">✖ Salir de la repetición</button>`;
+    if (!done && !rp && typeof tacSpeedHtml === 'function') ch += tacSpeedHtml(V);
     if (root._sc !== ch) { root._sc = ch; $('#bt-cam').innerHTML = ch; }
     const sel = V && V.sel && V.blocks.has(V.sel.d) ? V.sel : null; let oh = '';
     if (mySide && !done && !rp) oh = sel ? `<div class="ordhead">🎯 <b>${DIVS[sel.d.t].icon} ${BV_KIND[sel.type]}</b> · ${sel.a.name} <small>fuerza ${Math.round(sel.d.s * 100)}% · organización ${Math.round(sel.d.o / DIVS[sel.d.t].org * 100)}%</small></div><div class="ordbtns">${Object.keys(ORDERS).map(k => `<button data-act="bvorder" data-k="${k}" class="${bvOrder(sel) && bvOrder(sel).k === k ? 'on' : ''}" data-tip="<b>${ORDERS[k].name}</b><br>${ORDERS[k].desc}">${ORDERS[k].icon} ${ORDERS[k].name}</button>`).join('')}<button data-act="bvorder" data-k="cancel">✖ Sin orden</button></div>${sel.role === 'reserve' ? '<small class="dim">Está en reserva: aún no combate; la orden surtirá efecto cuando entre en línea.</small>' : ''}` : '<div class="ordhint">👆 Haz clic en uno de tus bloques para darle órdenes directas (cargar, resistir, flanquear o retirar).</div>';
     if (mySide && !done && !rp && hasTech(me(), 'chemical_weapons')) oh += `<div class="ordgas"><button data-act="bvgas" data-tip="<b>Ataque con gas</b><br>Castiga la organización y las bajas del enemigo durante 3 días. +6 infamia y −3 prestigio; las potencias lo condenan.">☣️ Ataque con gas</button></div>`;
+    if (typeof tacPanelHtml === 'function') oh = tacPanelHtml(b, V, sel) + oh;
     if (root._so !== oh) { root._so = oh; $('#bt-orders').innerHTML = oh; } }
   bvStart();
 }
@@ -7445,7 +7470,7 @@ function bvShade(hex, f) {
 }
 function bvNew(b) {
   return {id: b.id, blocks: new Map(), ghosts: [], corpses: [], parts: [], rings: [], t: 0, last: performance.now(), dayT: performance.now(), day: b.day, evSeq: b.evSeq || 0, adv: b.adv || 0, banner: null, rain: 0,
-    boost: {A: 0, B: 0}, panic: {A: 0, B: 0}, salvo: {A: 0, B: 0}, man: {A: null, B: null}, over: null, mouse: null, hover: null, bg: null, cam: {z: 1, x: BV_W / 2, y: BV_H / 2}, follow: false, replay: null, rec: {snaps: [], corp: [], parts: [], info: new Map(), last: -1, after: 0}, seed: b.id * 77 + 5, nid: 1, relT: {A: 3, B: 4.5}, wind: (b.id % 2 ? 1 : -1) * 6, sel: null};
+    boost: {A: 0, B: 0}, panic: {A: 0, B: 0}, salvo: {A: 0, B: 0}, man: {A: null, B: null}, over: null, mouse: null, hover: null, bg: null, cam: {z: 1, x: BV_W / 2, y: BV_H / 2}, follow: false, replay: null, rec: {snaps: [], corp: [], parts: [], info: new Map(), last: -1, after: 0}, seed: b.id * 77 + 5, nid: 1, relT: {A: 3, B: 4.5}, wind: (b.id % 2 ? 1 : -1) * 6, sel: null, ts: 0.5, tool: null, draw: null, selFort: null, dragBlk: null};
 }
 /* ---------- bloques y soldados ---------- */
 function bvMakeBlock(V, it, side) {
@@ -7495,6 +7520,7 @@ function bvLine(V, b, side) {
   const x0 = BV_W / 2 + V.adv * 100, st = bvStrat(b, side), att = b.att === side, dir = side === 'A' ? 1 : -1;
   const frac = clamp((performance.now() - V.dayT) / Math.max(400, dayMs()), 0, 1), dday = b.day - 1 + frac;
   let gap = 34;
+  if (b.prep) return x0 - dir * 36 * BV_K;
   if (st === 'frontal') gap = att ? 24 + 11 * Math.sin(V.t * 1.2) : 36;
   else if (st === 'hold') gap = att ? 52 : 74;
   else if (st === 'skirmish') gap = 62 + 8 * Math.sin(V.t * 1.4);
@@ -7544,6 +7570,7 @@ function bvRelief(V, b, dt) {
 }
 /* ---------- comportamiento de cada bloque ---------- */
 function bvHome(blk, L) {
+  if (blk.d.cust) return {x: L - (blk.side === 'A' ? 1 : -1) * (blk.d.cust.dep + blk.dep / 2), y: blk.d.cust.y};
   const dir = blk.side === 'A' ? 1 : -1, top = 54, bot = BV_H - 38, n = Math.max(1, blk.nLane); let depth, y;
   if (blk.role === 'line') { y = top + (blk.lane + 0.5) * (bot - top) / n; depth = 0; }
   else if (blk.role === 'art') { y = top + 24 + (blk.lane + 0.5) * (bot - top - 48) / n; depth = 78 + (blk.lane % 2) * 18; }
@@ -7560,15 +7587,20 @@ function bvOrder(blk) { const o = blk.d.ord; return o && G.date.t <= o.until && 
 function bvStepBlock(V, b, blk, dt, lines, all) {
   const od = bvOrder(blk), side = blk.side, dir = side === 'A' ? 1 : -1, opp = side === 'A' ? 'B' : 'A', st = od && od.k === 'charge' ? 'charge' : od && od.k === 'hold' ? 'hold' : bvStrat(b, side), att = b.att === side, L = lines[side], LE = lines[opp];
   const skey = st + '|' + blk.role; if (blk.skey !== skey) { blk.skey = skey; blk.fs = 0; blk.path = null; }
-  const compT = ((st === 'hold' && !att) || (od && od.k === 'hold')) && blk.role === 'line' ? 0.8 : 1; blk.comp += (compT - blk.comp) * Math.min(1, dt * 1.5); bvDims(blk);
+  blk.defLine = !!(blk.d.plan && blk.d.plan.k === 'defend');
+  const compT = ((st === 'hold' && !att) || (od && od.k === 'hold') || blk.defLine) && blk.role === 'line' ? 0.8 : 1; blk.comp += (compT - blk.comp) * Math.min(1, dt * 1.5); bvDims(blk);
   const home = bvHome(blk, L), F = blk.F, orgF = clamp(blk.d.o / DIVS[blk.d.t].org, 0, 1), t = V.t, foe = bvFoe(blk, all); blk.foe = foe;
-  let tx = home.x, ty = home.y, spd = F.spd, mode = 'hold', engaged = false, path = null;
+  let tx = home.x, ty = home.y, spd = F.spd, mode = 'hold', engaged = false, path = null, pp = null;
   const dist = foe ? Math.hypot(foe.x - blk.x, foe.y - blk.y) : 1e9;
   if (foe && foe.role !== 'reserve') { const reach = (blk.dep + foe.dep) / 2 + 4; engaged = Math.abs(foe.x - blk.x) < reach + 6 && Math.abs(foe.y - blk.y) < (blk.wid + foe.wid) / 2 * 0.95; }
   const contact = f => [f.x - dir * ((blk.dep + f.dep) / 2 + 7), f.y];
   const man = V.man[side], boosting = V.boost[side] > 0;
   if (V.over) {            // fin de la batalla
     if (V.over.loser === side) { mode = 'retreat'; tx = home.x - dir * 400; spd = F.spd * 1.4; } else { mode = 'victory'; tx = home.x + dir * 30; spd = F.spd * 0.6; }
+  } else if (b.prep) { mode = 'deploy'; spd = F.spd * 5;
+  } else if (blk.brk > 0) { mode = 'retreat'; tx = home.x - dir * 210; spd = F.spd * 1.5;
+  } else if (blk.role !== 'reserve' && blk.type !== 'art' && orgF < 0.1 + (1 - (blk.mor === undefined ? 0.8 : blk.mor)) * 0.1 + (blk.fat || 0) * 0.05) { mode = 'retreat'; tx = home.x - dir * 100; spd = F.spd * 1.0;
+  } else if ((pp = bvPlanStep(V, b, blk, dt, all, home)) !== null) { mode = pp.mode; tx = pp.tx; ty = pp.ty; spd = F.spd * pp.k; path = pp.path;
   } else if (blk.role === 'reserve') {
     mode = 'reserve'; tx = home.x + Math.sin(t * 0.5 + blk.ph) * 3; ty = home.y + Math.cos(t * 0.4 + blk.ph) * 2;
     if (blk.relief === 'in') { mode = 'advance'; spd = F.spd * 1.3; }
@@ -7605,7 +7637,7 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
   }
   blk.path = path;
   // ---- movimiento (el terreno frena: vado, bosque, cuesta) ----
-  blk.terr = bvTerrAt(V.tf, blk.x, blk.y, side); spd *= blk.terr.slow;
+  blk.terr = bvTerrAt(V.tf, blk.x, blk.y, side); if (b.forts && typeof tacFortAt === 'function' && tacFortAt(b, blk.x, blk.y)) blk.terr.cover = true; spd *= blk.terr.slow;
   if (blk.terr.water && (blk.sp || 0) > 5 && Math.random() < dt * 14) bvPart(V, {k: 'splash', x: blk.x + rnd(-blk.dep / 2, blk.dep / 2), y: blk.y + rnd(-blk.wid / 2, blk.wid / 2), life: 0.6});
   const dx = tx - blk.x, dy = ty - blk.y, d = Math.hypot(dx, dy) || 1, want = Math.min(spd, d * 2.4);
   blk.vx += (dx / d * want - blk.vx) * Math.min(1, dt * 2.6); blk.vy += (dy / d * want - blk.vy) * Math.min(1, dt * 2.6);
@@ -7680,7 +7712,7 @@ function pickFoeFig(blk) { const l = blk.figs.filter(f => f.alive); return l.len
 /* ---------- bucle ---------- */
 function bvFrame(V, b, ctx, now) {
   if (V.replay) { bvReplayFrame(V, b, ctx, now); return; }
-  const dt = Math.min(0.05, (now - V.last) / 1000); V.last = now; V.t += dt;
+  const dt = Math.min(0.05, (now - V.last) / 1000) * (V.ts === undefined ? 1 : V.ts); V.last = now; V.t += dt;
   if (b.day !== V.day) { V.day = b.day; V.dayT = now; }
   V.adv += ((b.adv || 0) - V.adv) * Math.min(1, dt * 2.2);
   if ((b.evSeq || 0) !== V.evSeq) { V.evSeq = b.evSeq; bvEvent(V, b, b.evK, b.evS); }
@@ -7697,6 +7729,7 @@ function bvFrame(V, b, ctx, now) {
   const lines = {A: bvLine(V, b, 'A'), B: bvLine(V, b, 'B')}, all = [...V.blocks.values()];
   if (!V.over) bvRelief(V, b, dt);
   all.forEach(blk => bvStepBlock(V, b, blk, dt, lines, all)); bvSeparate(all, dt);
+  if (typeof tacMorale === 'function') { tacMorale(V, b, all, dt); V._pfx = (V._pfx || 0) + dt; if (V._pfx > 1) { V._pfx = 0; tacPlanFx(V, b, all); } }
   all.forEach(blk => bvStepFigs(V, b, blk, dt)); V.ghosts.forEach(blk => bvStepFigs(V, b, blk, dt, true));
   V.ghosts = V.ghosts.filter(blk => blk.figs.some(f => f.alive || f.dying > 0));
   if (!b.ended) all.forEach(blk => bvFire(V, b, blk, dt, all));
@@ -7768,6 +7801,7 @@ function bvBuildBg(V, b) {
     g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = 'rgba(96,78,50,.55)'; g.lineWidth = r.w + 10; path(); g.stroke(); g.strokeStyle = 'rgba(52,104,146,.92)'; g.lineWidth = r.w; path(); g.stroke(); g.strokeStyle = 'rgba(150,196,228,.45)'; g.lineWidth = r.w * 0.45; path(); g.stroke(); g.strokeStyle = 'rgba(235,248,255,.35)'; g.lineWidth = 1; for (let i = 0; i < 40; i++) { const y = H(i, 80) * BV_H, x = r.x + Math.sin(y / 70 + r.ph) * r.amp + (H(i, 81) - 0.5) * r.w * 0.6; g.beginPath(); g.moveTo(x - 4, y); g.lineTo(x + 4, y + 1); g.stroke(); }
     r.fords.forEach(f => { const x = r.x + Math.sin(f.y / 70 + r.ph) * r.amp; g.fillStyle = 'rgba(176,152,108,.8)'; g.fillRect(x - r.w / 2 - 8, f.y - f.w / 2, r.w + 16, f.w); g.fillStyle = 'rgba(120,98,64,.5)'; for (let i = 0; i < 14; i++) g.fillRect(x - r.w / 2 - 6 + H(i + f.y, 82) * (r.w + 12), f.y - f.w / 2 + H(i + f.y, 83) * f.w, 3, 2); g.strokeStyle = 'rgba(70,52,30,.5)'; g.lineWidth = 1; g.strokeRect(x - r.w / 2 - 8, f.y - f.w / 2, r.w + 16, f.w); }); }
   if (tf.farm) { const f = tf.farm, x = f.x - f.w / 2, y = f.y - f.h / 2; g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(x + 5, y + 5, f.w, f.h); g.fillStyle = '#a58a62'; g.fillRect(x, y, f.w, f.h); g.fillStyle = '#7a3a2a'; g.beginPath(); g.moveTo(x - 4, y); g.lineTo(x + f.w / 2, y - 15); g.lineTo(x + f.w + 4, y); g.fill(); g.fillStyle = '#3a2a1c'; g.fillRect(x + f.w / 2 - 4, y + f.h - 14, 8, 14); g.strokeStyle = 'rgba(90,66,40,.7)'; g.lineWidth = 1.2; g.strokeRect(x - 12, y - 10, f.w + 24, f.h + 20); }
+  if (typeof tacBgExtras === 'function') tacBgExtras(g, V, b, H);
   // vegetación y rocas por bioma
   const nT = bio === 2 || bio === 6 ? 50 : bio === 1 ? 14 : bio === 4 ? 9 : 5;
   for (let i = 0; i < nT; i++) { const band = H(i, 40) < 0.7, x = H(i, 41) * BV_W, y = band ? (H(i, 42) < 0.5 ? 26 + H(i, 43) * 52 : BV_H - 16 - H(i, 43) * 48) : 70 + H(i, 44) * (BV_H - 140); if (Math.abs(y - ry) < 14 && bio !== 6) continue; tree(x, y, 5 + H(i, 45) * 7, bio === 6); }
@@ -7835,6 +7869,7 @@ function bvDraw(V, b, g, lines, all) {
   ['A', 'B'].forEach(s => { if (bvStrat(b, s) === 'hold' && !V.tf.hill) { const dir = s === 'A' ? 1 : -1, cx = lines[s] - dir * 34, rg = g.createRadialGradient(cx, H / 2, 10, cx, H / 2, 150); rg.addColorStop(0, 'rgba(210,190,130,.34)'); rg.addColorStop(0.6, 'rgba(120,96,56,.26)'); rg.addColorStop(1, 'rgba(70,52,30,0)'); g.fillStyle = rg; g.beginPath(); g.ellipse(cx, H / 2 + 4, 90, H / 2 - 40, 0, 0, 6.3); g.fill();
     g.strokeStyle = 'rgba(245,225,170,.2)'; g.lineWidth = 1.2; for (let i = 1; i <= 3; i++) { g.beginPath(); g.ellipse(cx, H / 2 + 4, 90 - i * 22, H / 2 - 40 - i * 34, 0, 0, 6.3); g.stroke(); } } });
   bvTrenches(g, V, b, lines);
+  if (typeof tacDrawPrepZone === 'function') { tacDrawPrepZone(g, V, b); tacDrawForts(g, V, b); }
   // línea de contacto
   g.strokeStyle = 'rgba(255,230,150,.16)'; g.setLineDash([5, 7]); g.beginPath(); const mx = (lines.A + lines.B) / 2; g.moveTo(mx, 30); g.lineTo(mx, H - 4); g.stroke(); g.setLineDash([]);
   // caídos
@@ -7849,6 +7884,7 @@ function bvDraw(V, b, g, lines, all) {
     g.strokeStyle = `rgba(255,240,150,${pulse})`; g.lineWidth = 2; g.setLineDash([7, 4]); g.beginPath(); [pr(-hw, -hh2), pr(hw, -hh2), pr(hw, hh2), pr(-hw, hh2)].forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.closePath(); g.stroke(); g.setLineDash([]); }
   blocks.forEach(blk => { if (!blk.path || blk.path.length < 2) return; g.strokeStyle = blk.side === 'A' ? 'rgba(255,170,140,.5)' : 'rgba(150,200,255,.5)'; g.fillStyle = g.strokeStyle; g.lineWidth = 1.6; g.setLineDash([6, 5]); g.beginPath(); blk.path.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.stroke(); g.setLineDash([]);
     const a = blk.path[blk.path.length - 2], e = blk.path[blk.path.length - 1], an = Math.atan2(e[1] - a[1], e[0] - a[0]); g.beginPath(); g.moveTo(e[0] + Math.cos(an) * 8, e[1] + Math.sin(an) * 8); g.lineTo(e[0] + Math.cos(an + 2.5) * 7, e[1] + Math.sin(an + 2.5) * 7); g.lineTo(e[0] + Math.cos(an - 2.5) * 7, e[1] + Math.sin(an - 2.5) * 7); g.fill(); });
+  if (typeof tacDrawPlans === 'function') tacDrawPlans(g, V, b, all);
   // soldados (ordenados por y)
   const figs = []; all.concat(V.ghosts).forEach(blk => blk.figs.forEach(f => { if (f.alive || f.dying > 0) figs.push([blk, f]); })); figs.sort((p, q) => p[1].y - q[1].y);
   figs.forEach(([blk, f]) => bvFig(g, V, blk, f));
@@ -7876,6 +7912,7 @@ function bvOverlay(V, b, g, lines, all) {
   g.fillStyle = 'rgba(8,12,16,.82)'; g.fillRect(0, 0, W, 34); g.fillStyle = ca; g.fillRect(0, 2, W * m, 6); g.fillStyle = cb2; g.fillRect(W * m, 2, W * (1 - m), 6); g.fillStyle = '#fff'; g.fillRect(W * m - 1, 0, 2, 11);
   g.font = 'bold 16px sans-serif'; g.textBaseline = 'middle'; g.fillStyle = '#f5ecd0'; g.textAlign = 'left'; g.fillText(`${G.C[b.A0].name} · ${fmtN(men('A'), 0)} h.`, 8, 23); g.textAlign = 'right'; g.fillText(`${fmtN(men('B'), 0)} h. · ${G.C[b.B0].name}`, W - 8, 23);
   g.textAlign = 'center'; g.fillStyle = '#ffe28a'; g.fillText(b.ended ? 'Batalla terminada' : m > 0.58 ? `Va ganando ${G.C[b.A0].name}` : m < 0.42 ? `Va ganando ${G.C[b.B0].name}` : 'Combate igualado', W / 2, 23);
+  if (b.prep) { g.fillStyle = 'rgba(30,22,6,.82)'; g.fillRect(W / 2 - 190, 40, 380, 26); g.fillStyle = '#ffd37a'; g.font = 'bold 15px sans-serif'; g.textAlign = 'center'; g.fillText('⚙️ FASE DE PREPARACIÓN · despliega y fortifica', W / 2, 53); }
   // estrategia y reparto de órdenes de cada bando
   ['A', 'B'].forEach(s => { const st = STRATS[bvStrat(b, s)], cnt = {}; all.forEach(x => { if (x.side === s) cnt[BV_PHASE[x.mode] || 'línea'] = (cnt[BV_PHASE[x.mode] || 'línea'] || 0) + 1; });
     const txt = `${st.icon} ${st.name}`, sub = Object.keys(cnt).map(k => `${cnt[k]} ${k}`).join(' · '), left = s === 'A';
@@ -7948,6 +7985,7 @@ function bvReplayFrame(V, b, g, now) {
 /* ---------- ratón: clic, arrastre y rueda ---------- */
 function bvClick(V) {
   if (V.replay) return; const h = V.hover;
+  { const bb = G.battles.find(x => x.id === UI.battle); if (bb && V.draw && !bb.ended && V.mouse && typeof tacClickMap === 'function') { const [wx, wy] = bvToWorld(V, V.mouse.x, V.mouse.y); if (tacClickMap(V, bb, wx, wy)) { renderBattlePanel(); return; } } }
   if (h && h.tag === G.player && !V.over) V.sel = V.sel === h ? null : h; else if (!h) V.sel = null;
   if (typeof renderBattlePanel === 'function') renderBattlePanel();
 }
@@ -7955,13 +7993,14 @@ function bvBind(cv) {
   if (cv._bvb) return; cv._bvb = true;
   const pos = e => { const r = cv.getBoundingClientRect(); return {x: (e.clientX - r.left) / r.width * BV_W, y: (e.clientY - r.top) / r.height * BV_H}; };
   cv.addEventListener('mousemove', e => { if (R.bviz) R.bviz.mouse = pos(e); }); cv.addEventListener('mouseleave', () => { if (R.bviz) R.bviz.mouse = null; });
-  cv.addEventListener('mousedown', e => { const V = R.bviz; if (!V || e.button !== 0) return; const r = cv.getBoundingClientRect(); window._bvDrag = {x0: e.clientX, y0: e.clientY, cx: V.cam.x, cy: V.cam.y, w: r.width, moved: false}; });
+  cv.addEventListener('contextmenu', e => { e.preventDefault(); const V = R.bviz; if (V && (V.draw || V.tool)) { V.draw = null; V.tool = null; renderBattlePanel(); } });
+  cv.addEventListener('mousedown', e => { const V = R.bviz; if (!V || e.button !== 0) return; { const bb = G.battles.find(x => x.id === UI.battle); if (bb && typeof tacMouseDown === 'function' && tacMouseDown(V, bb, e, pos(e))) { window._bvDrag = null; return; } } const r = cv.getBoundingClientRect(); window._bvDrag = {x0: e.clientX, y0: e.clientY, cx: V.cam.x, cy: V.cam.y, w: r.width, moved: false}; });
   cv.addEventListener('wheel', e => { const V = R.bviz; if (!V) return; e.preventDefault(); const p = pos(e); bvZoomAt(V, e.deltaY < 0 ? 1.2 : 1 / 1.2, p.x, p.y); V.follow = false; }, {passive: false});
-  cv.addEventListener('dblclick', () => { const V = R.bviz; if (V) { V.cam.z = 1; V.cam.x = BV_W / 2; V.cam.y = BV_H / 2; V.follow = false; } });
+  cv.addEventListener('dblclick', () => { const V = R.bviz; if (V && V.draw && V.draw.pts.length) { ACT.tacplan({k: 'fix'}); return; } if (V) { V.cam.z = 1; V.cam.x = BV_W / 2; V.cam.y = BV_H / 2; V.follow = false; } });
   if (!window._bvWin) { window._bvWin = true;
-    window.addEventListener('mousemove', e => { const d = window._bvDrag, V = R.bviz; if (!d || !V) return; const dx = e.clientX - d.x0, dy = e.clientY - d.y0; if (Math.hypot(dx, dy) > 4) d.moved = true;
+    window.addEventListener('mousemove', e => { const V0 = R.bviz; if (V0 && V0.dragBlk) { const cv0 = document.getElementById('bmap'), bb = G.battles.find(x => x.id === UI.battle); if (cv0 && bb) { const r0 = cv0.getBoundingClientRect(); tacMouseMove(V0, bb, {x: (e.clientX - r0.left) / r0.width * BV_W, y: (e.clientY - r0.top) / r0.height * BV_H}); } return; } const d = window._bvDrag, V = R.bviz; if (!d || !V) return; const dx = e.clientX - d.x0, dy = e.clientY - d.y0; if (Math.hypot(dx, dy) > 4) d.moved = true;
       if (d.moved && V.cam.z > 1) { const k = BV_W / d.w; V.cam.x = d.cx - dx * k / V.cam.z; V.cam.y = d.cy - dy * k / V.cam.z; V.follow = false; bvClampCam(V); } });
-    window.addEventListener('mouseup', () => { const d = window._bvDrag; window._bvDrag = null; if (d && !d.moved && R.bviz) bvClick(R.bviz); }); }
+    window.addEventListener('mouseup', () => { if (R.bviz && typeof tacMouseUp === 'function' && tacMouseUp(R.bviz)) return; const d = window._bvDrag; window._bvDrag = null; if (d && !d.moved && R.bviz) bvClick(R.bviz); }); }
 }
 Object.assign(ACT, {
   bvzoom: d => { const V = R.bviz; if (V) { bvZoomAt(V, +d.d > 0 ? 1.4 : 1 / 1.4); V.follow = false; } },
@@ -7998,6 +8037,7 @@ function battleTerrain(b) {
   const nF = bio === 2 || bio === 6 ? 4 + Math.floor(H(13) * 3) : H(14) < 0.45 ? 1 + Math.floor(H(15) * 2) : 0;
   for (let i = 0; i < nF; i++) { const top = H(20 + i) < 0.5, r = 34 + H(30 + i) * 34; tf.forests.push({x: 90 + H(40 + i) * (W - 180), y: top ? 36 + H(50 + i) * 90 : Hh - 36 - H(50 + i) * 80, r}); }
   if ((bio === 1 || bio === 4) && H(60) < 0.5) tf.farm = {x: W / 2 + dd * (96 + H(61) * 30), y: Hh * (0.3 + H(62) * 0.4), w: 46, h: 28, side: defSide};
+  if (typeof tacTerrainExtra === 'function') tacTerrainExtra(b, tf);
   b.tf = tf; return tf;
 }
 // modificadores reales de ataque y defensa de un bando por el terreno
@@ -8007,6 +8047,8 @@ function terrMods(b, side) {
   if (tf.river && isAtt && b.day <= 3) att -= 0.07 * (st === 'flank' ? 0.4 : 1);
   if (tf.forests.length >= 2) { if (!isAtt) def += 0.04; if (st === 'charge') att -= 0.05; }
   if (tf.farm && tf.farm.side === side) def += 0.03;
+  if (tf.hamlet && !isAtt) def += 0.03; if (tf.rocks && tf.rocks.length && !isAtt) def += 0.02; if (tf.marsh && tf.marsh.length && isAtt && b.day <= 3) att -= 0.02;
+  if (typeof tacMods === 'function') { const pm = tacMods(b, side); att += pm.att; def += pm.def; }
   return {att, def};
 }
 // descripción de los rasgos para el panel: [icono, texto, detalle]
@@ -8017,6 +8059,12 @@ function terrainInfo(b) {
   if (tf.forests.length >= 2) out.push(['🌲', 'Bosques', 'Cobertura para el defensor (+4% defensa); las cargas pierden 5% de ataque entre los árboles.']);
   else if (tf.forests.length === 1) out.push(['🌳', 'Arboleda', 'Un bosquecillo que da cobertura y frena a quien lo cruza.']);
   if (tf.farm) out.push(['🏠', `Granja de ${nm(tf.farm.side)}`, `Punto fuerte: +3% defensa para ${nm(tf.farm.side)}.`]);
+  if (tf.marsh && tf.marsh.length) out.push(['🟩', 'Pantano', 'Terreno encharcado: los bloques avanzan a la mitad de velocidad y la caballería no puede cargar con eficacia. El atacante pierde 2% de ataque los primeros días.']);
+  if (tf.pond) out.push(['💧', 'Laguna', 'Masa de agua casi infranqueable: hay que rodearla.']);
+  if (tf.rocks && tf.rocks.length) out.push(['🪨', 'Roquedal', 'Roca y cobertura: frena a quien lo cruza (−40%) y da +2% de defensa al defensor.']);
+  if (tf.hamlet) out.push(['🏘️', 'Aldea amurallada', 'Casas y muros de piedra: cobertura para quien se sitúe dentro y +3% de defensa para el defensor.']);
+  if (tf.hill2) out.push(['⛰️', 'Loma secundaria', 'Una segunda elevación que domina el centro del campo.']);
+  if ((b.forts || []).some(f => f.kind === 'fort')) { const f = b.forts.find(x => x.kind === 'fort'); out.push(['🏯', 'Fuerte de la provincia', `Fuerte nivel ${f.lvl || 1} del defensor, con ${f.guns} cañones. Se puede bombardear y destruir.`]); }
   if (!out.length) out.push(['🌾', 'Terreno abierto', 'Sin accidentes relevantes: gana el mejor ejército.']);
   return out;
 }
@@ -8027,6 +8075,7 @@ function bvTerrAt(tf, x, y, side) {
   tf.forests.forEach(f => { if (Math.hypot(x - f.x, y - f.y) < f.r * 0.95) { o.cover = true; o.slow = Math.min(o.slow, 0.68); } });
   if (tf.hill && ((x - tf.hill.x) / tf.hill.rx) ** 2 + ((y - tf.hill.y) / tf.hill.ry) ** 2 < 1) { o.hill = true; if (tf.hill.side !== side) o.slow = Math.min(o.slow, 0.82); }
   if (tf.farm && Math.abs(x - tf.farm.x) < tf.farm.w / 2 + 6 && Math.abs(y - tf.farm.y) < tf.farm.h / 2 + 6) o.cover = true;
+  if (typeof tacTerrAtExtra === 'function') tacTerrAtExtra(tf, x, y, side, o);
   return o;
 }
 
@@ -9992,6 +10041,417 @@ function occupationHtml() {
     <div class="col"><div class="card"><h3>Tus provincias ocupadas por enemigos</h3>${lost.length ? lost.slice(0, 20).map(pid => `<div class="kv sm clk" data-act="focusprov" data-id="${pid}"><span>${provName(pid)}</span><b>${flag(G.P[pid].by, 'sm')} resistencia ${Math.round(provRes(pid))}%</b></div>`).join('') : '<p class="hint">Ninguna.</p>'}<p class="hint">Si la población resiste, el ocupante tendrá problemas: puedes recuperarla cuando se desborde.</p></div></div></div>`;
 }
 MX_TABS.push({id: 'occupation', label: '🏴 Ocupación', html: occupationHtml});
+
+/* ===== SUMINISTROS POR EJÉRCITO Y RUTAS DE ABASTECIMIENTO =====
+   Cada ejército lleva sus propias reservas (por división): comida, agua, pólvora, madera y materiales de fortificación. Se gastan cada día
+   (más al marchar, en el desierto o combatiendo) y SOLO se reponen si existe una ruta de suministro SEGURA: una cadena de provincias desde
+   el ejército hasta un centro de suministro propio (capital, puerto o red controlada) sin tropas enemigas ni territorio ocupado por el medio.
+   Sin ruta segura el ejército vive de lo que encuentra (muy poco), y al agotarse la comida o el agua pierde organización y fuerza; sin
+   pólvora dispara a medias; sin madera y materiales no puede levantar fuertes en la batalla. */
+const RES_KEYS = ['food', 'water', 'powder', 'wood', 'mat'];
+const RES_INFO = {
+  food: {n: 'Comida', ic: '🌾', cap: 30, col: '#c9a64a'}, water: {n: 'Agua', ic: '💧', cap: 20, col: '#4aa3d9'}, powder: {n: 'Pólvora', ic: '💥', cap: 20, col: '#9a9a9a'},
+  wood: {n: 'Madera', ic: '🪵', cap: 12, col: '#a0703c'}, mat: {n: 'Materiales de fortificación', ic: '🧱', cap: 10, col: '#c26a52'}
+};
+function armyRes(a) { if (!a.res) a.res = {food: 24, water: 16, powder: 15, wood: 7, mat: 5}; return a.res; }
+// índice día a día: qué bandos hay en cada provincia
+function resHostIdx() {
+  const m = new Map(); G.armies.forEach(o => { if (o.sea) return; let s = m.get(o.loc); if (!s) m.set(o.loc, s = new Set()); s.add(o.tag); }); return m;
+}
+const resHostile = (tag, pid, idx) => { const s = idx.get(pid); if (s) for (const t of s) if (t !== tag && hostileTags(tag, t)) return true; const by = G.P[pid].by; return !!(by && hostileTags(tag, by)); };
+// ruta desde el ejército hacia el centro de suministro, siguiendo el gradiente de la red; es «segura» si ninguna provincia del trayecto está amenazada
+function supplyRouteOf(a, idx) {
+  const lvl = G.sup && G.sup[a.tag] ? G.sup[a.tag].m : null, path = [a.loc];
+  if (!lvl) return {path, ok: true, safe: true, cutAt: -1};
+  const seen = new Set([a.loc]); let cur = a.loc;
+  for (let i = 0; i < 45; i++) {
+    const v = lvl.get(cur) || 0; let best = -1, bv = v + 1e-6;
+    MAP.provs[cur].nb.forEach(q => { const w = lvl.get(q) || 0; if (w > bv && !seen.has(q)) { bv = w; best = q; } });
+    if (best < 0) break; path.push(best); seen.add(best); cur = best;
+  }
+  const ok = (lvl.get(cur) || 0) >= 0.5 && (lvl.get(a.loc) || 0) > 0.08;
+  let cutAt = -1;
+  for (let i = a.battle ? 1 : 0; i < path.length; i++) if (resHostile(a.tag, path[i], idx) && !(i === 0 && !a.battle && !armiesHostileAt(a, idx))) { cutAt = i; break; }
+  return {path, ok, safe: ok && cutAt < 0, cutAt};
+}
+function armiesHostileAt(a, idx) { const s = idx.get(a.loc); if (s) for (const t of s) if (t !== a.tag && hostileTags(a.tag, t)) return true; return false; }
+function resCons(a) {
+  const bio = MAP.provs[a.loc].biome, moving = a.path && a.path.length > 0 && !a.battle, dig = a.mode === 'dig';
+  return {food: moving ? 1.15 : 1, water: (bio === 3 ? 1.7 : 1) * (moving ? 1.1 : 1), powder: 0.04, wood: dig ? 0.5 : 0.05, mat: dig ? 0.12 : 0.02};
+}
+function armyResDay(a, idx) {
+  const r = armyRes(a), rt = a.rt = supplyRouteOf(a, idx), bio = MAP.provs[a.loc].biome, use = resCons(a), lvl = clamp(a.sup === undefined ? 1 : a.sup, 0, 1);
+  RES_KEYS.forEach(k => { r[k] = Math.max(0, r[k] - use[k]); });
+  if (rt.safe) { const f = 0.4 + lvl * 0.8; r.food += 3 * f; r.water += 3 * f; r.powder += 1.6 * f; r.wood += 1.1 * f; r.mat += 0.8 * f; }
+  else { r.food += 0.25; if (bio !== 3) r.water += 0.8; if (bio === 2 || bio === 6) r.wood += 0.5; }          // forrajeo: casi nada
+  RES_KEYS.forEach(k => { r[k] = clamp(r[k], 0, RES_INFO[k].cap); });
+  let k = (r.food <= 0 ? 1 : 0) + (r.water <= 0 ? 1.6 : 0);
+  if (k > 0) { a.divs.forEach(d => { d.o = Math.max(0, d.o - DIVS[d.t].org * 0.022 * k); d.s = Math.max(0, d.s - 0.0025 * k); }); a.divs = a.divs.filter(d => d.s > 0.04); if (!a.divs.length) a._dead = true; }
+  // aviso al jugador (una vez cada mes por ejército)
+  if (a.tag === G.player && (G.date.t - (a._resWarn || -99) > 30)) {
+    const low = RES_KEYS.filter(q => q !== 'wood' && q !== 'mat' && r[q] < RES_INFO[q].cap * 0.2);
+    if (low.length) { a._resWarn = G.date.t; notify('war', `${a.name}: reservas bajas de ${low.map(q => RES_INFO[q].n.toLowerCase()).join(' y ')}${rt.safe ? '' : ' y la ruta de suministro está cortada'}.`, provState(a.loc)); }
+  }
+}
+function resDay() {
+  const idx = resHostIdx(); G.armies.forEach(a => { if (a.sea) return; armyResDay(a, idx); });
+  if (G.armies.some(a => a._dead)) { G.armies = G.armies.filter(a => !a._dead); G.battles = G.battles.filter(b => b.A.some(armyById) && b.B.some(armyById)); }
+}
+const _supplyDay0 = supplyDay;
+supplyDay = function () { _supplyDay0(); resDay(); };
+// gasto de pólvora en combate (por división, cada día de batalla)
+function armyBattleUse(a) { const r = armyRes(a), art = a.divs.length ? a.divs.filter(d => dKind(d) === 'art').length / a.divs.length : 0; r.powder = Math.max(0, r.powder - (0.75 + art * 1.1)); r.food = Math.max(0, r.food - 0.15); }
+const resPowderMod = a => { const p = armyRes(a).powder; return p >= 6 ? 1 : p > 1 ? 0.88 + (p - 1) / 5 * 0.12 : 0.62; };
+// total (por división media) de un bando, para gastar en fuertes
+function sideRes(ids) { const as = ids.map(armyById).filter(Boolean), n = as.reduce((s, a) => s + a.divs.length, 0) || 1, t = {}; RES_KEYS.forEach(k => { t[k] = as.reduce((s, a) => s + armyRes(a)[k] * a.divs.length, 0) / n; }); return {t, as, n}; }
+function spendSideRes(ids, cost) { const {as, n} = sideRes(ids); as.forEach(a => { RES_KEYS.forEach(k => { if (cost[k]) armyRes(a)[k] = Math.max(0, armyRes(a)[k] - cost[k]); }); }); void n; }
+function resBarsHtml(a) {
+  const r = armyRes(a), rt = a.rt;
+  const rows = RES_KEYS.map(k => { const i = RES_INFO[k], f = r[k] / i.cap; return `<div class="resrow" data-tip="<b>${i.n}</b><br>${Math.round(r[k] * 10) / 10} de ${i.cap} (por división)"><span>${i.ic}</span><i><b style="width:${Math.round(f * 100)}%;background:${f < 0.2 ? '#e8644f' : i.col}"></b></i></div>`; }).join('');
+  const st = !rt ? '<span class="dim">calculando…</span>' : rt.safe ? `<span class="good">✔ segura (${rt.path.length - 1} prov.)</span>` : !rt.ok ? '<span class="bad">✖ sin red de suministro</span>' : `<span class="bad">⚠ cortada${rt.cutAt >= 0 ? ' en ' + provName(rt.path[rt.cutAt]) : ''}</span>`;
+  return `<div class="kv"><span>Ruta de suministro</span><b>${st}</b></div><div class="resbox">${rows}</div>`;
+}
+// líneas de las rutas de suministro en el mapa (SVG), para el ejército seleccionado y los propios con ruta cortada
+function supplyRoutesSvg() {
+  let h = ''; const sel = window.UI && UI.selArmy;
+  G.armies.forEach(a => {
+    if (a.sea || a.tag !== G.player || !a.rt || a.rt.path.length < 2) return; if (!(a.id === sel || !a.rt.safe || UI.showRoutes)) return; if (typeof armyVisible === 'function' && !armyVisible(a)) return;
+    const pts = a.rt.path.map(pid => { const pv = MAP.provs[pid], p = worldToScreen(pv.lon, 0.5, -pv.lat); return p[0].toFixed(1) + ',' + p[1].toFixed(1); }), last = pts[pts.length - 1].split(',');
+    h += `<polyline points="${pts.join(' ')}" class="sroute ${a.rt.safe ? 'ok' : 'cut'}"/><text x="${last[0]}" y="${last[1]}" class="sdepot">🏭</text>`;
+    if (!a.rt.safe && a.rt.cutAt >= 0) { const pv = MAP.provs[a.rt.path[a.rt.cutAt]], p = worldToScreen(pv.lon, 0.5, -pv.lat); h += `<text x="${p[0].toFixed(1)}" y="${p[1].toFixed(1)}" class="sdepot cutx">✖</text>`; }
+  });
+  return h;
+}
+Object.assign(ACT, {showroutes: () => { UI.showRoutes = !UI.showRoutes; R.dirty = true; if (typeof drawOrders === 'function') drawOrders(); }});
+
+/* ===== TÁCTICA: preparación, fuertes, planes dibujados, cámara lenta y moral de los bloques =====
+   · FASE DE PREPARACIÓN: al comenzar una batalla en la que participas, el combate queda congelado. Arrastra tus bloques por tu mitad del campo,
+     levanta fuertes (trinchera, reducto, batería) gastando madera, materiales y pólvora de las reservas del ejército, añade cañones, o apóyate
+     en los fuertes del mapa. Al pulsar «¡Comenzar!» la colocación se convierte en bonos reales de ataque y defensa.
+   · PLANES POR UNIDAD: flechas de ataque, objetivo concreto, flanqueo con puntos de paso, línea defensiva y retirada; se pueden cambiar en
+     pleno combate. · CÁMARA LENTA: 0 (pausa táctica), ×0,25, ×0,5 y ×1.
+   · MORAL: el cansancio y la desmoralización hacen que un bloque rompa filas ante una carga de caballería; los fuertes pueden destruirse. */
+const FORT_KINDS = {
+  trench: {n: 'Trinchera', ic: '⛏️', w: 78, h: 14, cost: {wood: 1.5, mat: 0.6}, hp: 100, def: 0.05, need: 2, desc: 'Foso y parapeto largo: +5% de defensa si hay al menos 2 bloques tras él.'},
+  redoubt: {n: 'Reducto', ic: '🏰', w: 58, h: 46, cost: {wood: 3, mat: 2.5}, hp: 190, def: 0.09, need: 2, desc: 'Fortín de tierra y madera: +9% de defensa; resiste más el cañoneo.'},
+  battery: {n: 'Batería', ic: '💣', w: 48, h: 30, cost: {wood: 2, mat: 3, powder: 2}, hp: 130, def: 0.04, need: 1, guns: 2, desc: 'Plataforma con 2 cañones: +3% de ataque por cañón y +4% de defensa.'},
+  fort: {n: 'Fuerte', ic: '🏯', w: 96, h: 70, cost: {}, hp: 260, def: 0.07, need: 3, guns: 1, desc: 'Fuerte permanente de la provincia: gran defensa y cañones.'}
+};
+const FORT_MAX = 6, FORT_GUN_COST = {wood: 1, mat: 1.5, powder: 1.5}, FORT_CAP_DEF = 0.18;
+const fmtCost = c => Object.keys(c).map(k => RES_INFO[k].ic + c[k]).join(' ');
+const tacCan = (ids, cost) => { const t = sideRes(ids).t; return Object.keys(cost).every(k => t[k] >= cost[k] - 1e-6); };
+const sideIds = (b, s) => s === 'A' ? b.A : b.B;
+const playerSide = b => b.A0 === G.player ? 'A' : b.B0 === G.player ? 'B' : null;
+const tacLineBase = (b, side) => BV_W / 2 - (side === 'A' ? 1 : -1) * 36 * BV_K;
+/* ---------- fuertes ---------- */
+function tacAddFort(b, side, kind, x, y) {
+  const K = FORT_KINDS[kind]; b.forts = b.forts || [];
+  const f = {id: (b.fortSeq = (b.fortSeq || 0) + 1), side, kind, x, y, w: K.w, h: K.h, hp: K.hp, hpMax: K.hp, guns: K.guns || 0}; b.forts.push(f); return f;
+}
+const tacForts = (b, side) => (b.forts || []).filter(f => f.side === side && f.hp > 0);
+function tacFortAt(b, x, y) { return (b.forts || []).find(f => f.hp > 0 && Math.abs(x - f.x) < f.w / 2 + 6 && Math.abs(y - f.y) < f.h / 2 + 6); }
+function tacZoneOk(b, side, x, y) {
+  const lo = side === 'A' ? 50 : BV_W / 2 + 30, hi = side === 'A' ? BV_W / 2 - 30 : BV_W - 50;
+  return x >= lo && x <= hi && y >= 48 && y <= BV_H - 28;
+}
+function tacBuildFort(b, side, kind, x, y) {
+  const K = FORT_KINDS[kind], ids = sideIds(b, side);
+  if ((b.forts || []).filter(f => f.side === side && f.kind !== 'fort').length >= FORT_MAX) return {ok: false, msg: `Máximo ${FORT_MAX} obras por bando.`};
+  if (!tacZoneOk(b, side, x, y)) return {ok: false, msg: 'Solo puedes construir en tu mitad del campo.'};
+  const tf = battleTerrain(b), t = bvTerrAt(tf, x, y, side); if (t.water) return {ok: false, msg: 'No se puede construir en el agua.'};
+  if ((b.forts || []).some(f => f.hp > 0 && Math.abs(f.x - x) < (f.w + K.w) / 2 && Math.abs(f.y - y) < (f.h + K.h) / 2)) return {ok: false, msg: 'Ya hay una obra en ese lugar.'};
+  if (!tacCan(ids, K.cost)) return {ok: false, msg: `Faltan reservas: ${fmtCost(K.cost)} por división.`};
+  spendSideRes(ids, K.cost); const f = tacAddFort(b, side, kind, x, y); return {ok: true, f};
+}
+function tacAddGun(b, f) {
+  const side = f.side, ids = sideIds(b, side); if (!(f.kind === 'battery' || f.kind === 'redoubt' || f.kind === 'fort')) return {ok: false, msg: 'Solo baterías, reductos y fuertes admiten cañones.'};
+  if (f.guns >= 4) return {ok: false, msg: 'Esa obra ya tiene el máximo de cañones.'};
+  if (!tacCan(ids, FORT_GUN_COST)) return {ok: false, msg: `Faltan reservas: ${fmtCost(FORT_GUN_COST)} por división.`};
+  spendSideRes(ids, FORT_GUN_COST); f.guns++; return {ok: true};
+}
+function tacDelFort(b, f) {
+  if (f.kind === 'fort') return {ok: false, msg: 'Un fuerte del mapa no se puede desmontar.'};
+  const K = FORT_KINDS[f.kind], ids = sideIds(b, f.side), back = {}; Object.keys(K.cost).forEach(k => { back[k] = -K.cost[k] * 0.5; }); spendSideRes(ids, back);
+  b.forts = b.forts.filter(x => x !== f); return {ok: true};
+}
+// la IA fortifica según su estrategia y reservas
+function tacAiFortify(b, side) {
+  const ids = sideIds(b, side), isDef = b.att !== side, strat = (side === 'A' ? b.strA : b.strB) || 'frontal'; if (!isDef && strat !== 'hold') return;
+  const dir = side === 'A' ? 1 : -1, base = tacLineBase(b, side), as = ids.map(armyById).filter(Boolean), art = as.some(a => a.divs.some(d => dKind(d) === 'art')), tf = battleTerrain(b);
+  const n = isDef ? 3 : 1, ys = [BV_H * 0.28, BV_H * 0.5, BV_H * 0.72];
+  for (let i = 0; i < n; i++) {
+    const kind = i === 1 && art ? 'battery' : (isDef && i === 0 ? 'redoubt' : 'trench'), K = FORT_KINDS[kind], x = base - dir * (K.w / 2 + 4 + (kind === 'trench' ? 2 : 14)), y = ys[i] + (hash2(b.id, i, 5) - 0.5) * 30;
+    if (!tacCan(ids, K.cost) || bvTerrAt(tf, x, y, side).water) continue; tacBuildFort(b, side, kind, x, y);
+  }
+}
+/* ---------- bonos reales por la preparación ---------- */
+function tacHpFrac(b, side) { const fs = tacForts(b, side), all = (b.forts || []).filter(f => f.side === side); const mx = all.reduce((s, f) => s + f.hpMax, 0); return mx ? fs.reduce((s, f) => s + f.hp, 0) / mx : 1; }
+function tacPrepScore(V, b, side) {
+  const fs = (b.forts || []).filter(f => f.side === side), dir = side === 'A' ? 1 : -1, tf = battleTerrain(b);
+  const blks = V ? [...V.blocks.values()].filter(x => x.side === side) : [], L = tacLineBase(b, side); let att = 0, def = 0, fortDef = 0, fortAtt = 0;
+  const pos = blks.map(k => ({k, p: bvHome(k, L)}));
+  fs.forEach(f => { const K = FORT_KINDS[f.kind], occ = V ? pos.filter(o => Math.abs(o.p.x - f.x) < f.w / 2 + 26 && Math.abs(o.p.y - f.y) < f.h / 2 + 26).length : 2; const share = clamp(occ / K.need, 0, 1) * (V ? 1 : 0.8);
+    fortDef += (K.def + (f.kind === 'redoubt' ? 0 : 0)) * share; fortAtt += f.guns * 0.03 * (f.kind === 'trench' ? 0 : share > 0 ? 1 : 0.5); if (f.guns) fortDef += 0.01 * f.guns * share; });
+  if (V && pos.length) {
+    const line = pos.filter(o => o.k.type !== 'art' && o.k.role !== 'reserve'), nl = Math.max(1, line.length);
+    const onHill = line.filter(o => bvTerrAt(tf, o.p.x, o.p.y, side).hill).length / nl, onCover = line.filter(o => bvTerrAt(tf, o.p.x, o.p.y, side).cover).length / nl;
+    def += 0.05 * onHill + 0.03 * onCover;
+    const arts = pos.filter(o => o.k.type === 'art'), okArt = arts.length ? arts.filter(o => { const d = dir * (L - o.p.x); return d > 24 && d < 210; }).length / arts.length : 0; att += 0.04 * okArt;
+    const cav = pos.filter(o => o.k.type === 'cav' || o.k.type === 'tank'); if (cav.length) att += 0.03 * (cav.filter(o => o.p.y < 130 || o.p.y > BV_H - 100).length / cav.length);
+    const cover = line.reduce((s, o) => s + o.k.wid, 0) / (BV_H - 70); if (line.length >= 2 && cover < 0.5) def -= 0.04;
+    if (line.length >= 3 && cover >= 0.8) def += 0.02;
+  }
+  return {att, def, fortDef, fortAtt};
+}
+function tacApplyPrep(b) {
+  const V = R.bviz && R.bviz.id === b.id ? R.bviz : null; b.pb = {};
+  ['A', 'B'].forEach(s => { b.pb[s] = tacPrepScore(s === playerSide(b) ? V : null, b, s); });
+  b.prep = false; b.prepDone = true;
+}
+// modificadores que lee terrMods cada día
+function tacMods(b, side) {
+  const o = {att: 0, def: 0}; const pb = b.pb && b.pb[side]; if (pb) { const hf = tacHpFrac(b, side); o.att += Math.min(0.12, pb.att + Math.min(0.06, pb.fortAtt * hf)); o.def += pb.def + Math.min(FORT_CAP_DEF, pb.fortDef * hf); }
+  const tc = b.tac && b.tac[side]; if (tc) { o.att += tc.att || 0; o.def += tc.def || 0; }
+  return o;
+}
+// el cañoneo y los asaltos desgastan los fuertes del defensor
+function tacFortDamage(b) {
+  ['A', 'B'].forEach(side => {
+    const fs = tacForts(b, side); if (!fs.length) return; const foe = side === 'A' ? 'B' : 'A', as = sideIds(b, foe).map(armyById).filter(Boolean);
+    const arts = as.reduce((n, a) => n + a.divs.filter(d => dKind(d) === 'art').length, 0), push = Math.max(0, (side === 'A' ? -1 : 1) * (b.adv || 0)) * 10;
+    const dmg = (2.5 + arts * 7 + push) * (0.8 + Math.random() * 0.4) / fs.length;
+    fs.forEach(f => { const was = f.hp; f.hp = Math.max(0, f.hp - dmg * (f.kind === 'trench' ? 0.8 : 1)); if (was > 0 && f.hp <= 0) { const ev = {k: 'panic', d: b.day, t: `${FORT_KINDS[f.kind].ic} ¡Cae ${FORT_KINDS[f.kind].n.toLowerCase()} de ${G.C[side === 'A' ? b.A0 : b.B0].name}!`}; (b.log = b.log || []).push(ev); if (b.log.length > 30) b.log.shift(); } });
+  });
+}
+/* ---------- ciclo del combate: preparación y tareas diarias ---------- */
+const _battleDay0 = battleDay;
+battleDay = function (b) {
+  if (!b.tacInit) {
+    b.tacInit = true; b.forts = b.forts || []; b.tac = {A: {att: 0, def: 0}, B: {att: 0, def: 0}};
+    const pf = G.P[b.prov] && G.P[b.prov].fort || 0; if (pf > 0) { const defSide = b.att === 'A' ? 'B' : 'A', K = FORT_KINDS.fort, dir = defSide === 'A' ? 1 : -1, f = tacAddFort(b, defSide, 'fort', BV_W / 2 - dir * (112 + 12), BV_H / 2); f.hpMax = f.hp = K.hp * (0.6 + 0.4 * pf); f.guns = Math.min(4, pf); f.lvl = pf; }
+    const ps = playerSide(b);
+    ['A', 'B'].forEach(s => { if (s !== ps) tacAiFortify(b, s); });
+    if (ps) {
+      b.prep = true; b.prepT = G.date.t;
+      if (!UI.battle) { UI.battle = b.id; if (typeof renderBattlePanel === 'function') renderBattlePanel(); }
+      notify('war', `Preparación de la batalla de ${provName(b.prov)}: despliega tus tropas y levanta fuertes antes de comenzar.`, b.state);
+    } else { tacApplyPrep(b); }
+  }
+  if (b.prep) { if (UI.battle !== b.id && G.date.t - (b.prepT || 0) > 3) tacApplyPrep(b); else return; }
+  _battleDay0(b);
+  if (b.ended) return;
+  tacFortDamage(b);
+  [b.A, b.B].forEach(ids => ids.map(armyById).filter(Boolean).forEach(a => { if (typeof armyBattleUse === 'function') armyBattleUse(a); }));
+};
+/* ---------- planes dibujados ---------- */
+const PLANS = {
+  attack: {n: 'Atacar', ic: '➡️', col: '#ff6a52', hint: 'Haz clic donde quieres que avance (varios clics = ruta). Pulsa «Fijar» o doble clic para terminar.', multi: true},
+  target: {n: 'Objetivo', ic: '🎯', col: '#ff3a3a', hint: 'Haz clic sobre el bloque ENEMIGO que debe atacar.', multi: false},
+  flank: {n: 'Flanquear', ic: '↪️', col: '#ffb43c', hint: 'Marca los puntos del rodeo (por los extremos) y acaba cerca del flanco enemigo. «Fijar» o doble clic para terminar.', multi: true},
+  defend: {n: 'Línea defensiva', ic: '🛡️', col: '#5aa8ff', hint: 'Marca los dos extremos de la línea que debe mantener.', multi: 2},
+  retreat: {n: 'Retirada', ic: '↩️', col: '#b7bcc4', hint: 'Haz clic en el punto hasta donde debe retirarse.', multi: false}
+};
+function tacSetPlan(V, plan) { if (!V.sel) return; V.sel.d.plan = plan; V.sel.skey = ''; plan.i = 0; }
+function tacClickMap(V, b, wx, wy, dbl) {
+  const dr = V.draw; if (!dr || !V.sel) return false; const P = PLANS[dr.k];
+  if (dr.k === 'target') { const h = V.hover; if (h && h.side !== V.sel.side && h.mode !== 'rout') { tacSetPlan(V, {k: 'target', foe: h.d, pts: []}); V.draw = null; bvBanner(V, `🎯 ${V.sel.a.name} → ${DIVS[h.d.t].name} enemiga`, V.sel.side, ''); } else toast('🎯', 'Haz clic sobre un bloque enemigo.'); return true; }
+  dr.pts.push([clamp(wx, 20, BV_W - 20), clamp(wy, 34, BV_H - 14)]);
+  const done = P.multi === true ? dbl : P.multi === 2 ? dr.pts.length >= 2 : true;
+  if (done) { tacSetPlan(V, {k: dr.k, pts: dr.pts.slice()}); V.draw = null; bvBanner(V, `${P.ic} ${P.n}: ${V.sel.a.name}`, V.sel.side, ''); }
+  return true;
+}
+// ejecución de un plan por un bloque: devuelve null si no hay plan activo
+function bvPlanStep(V, b, blk, dt, all, home) {
+  const pl = blk.d.plan; if (!pl || V.over || b.ended) return null; const dir = blk.side === 'A' ? 1 : -1, F = blk.F, foes = all.filter(o => o.side !== blk.side && o.mode !== 'rout' && o.role !== 'reserve');
+  const near = foes.reduce((m, o) => { const d = Math.hypot(o.x - blk.x, o.y - blk.y); return !m || d < m.d ? {o, d} : m; }, null);
+  const contact = f => [f.x - dir * ((blk.dep + f.dep) / 2 + 7), f.y], engaged = !!near && Math.abs(near.o.x - blk.x) < (blk.dep + near.o.dep) / 2 + 10 && Math.abs(near.o.y - blk.y) < (blk.wid + near.o.wid) / 2 * 0.95;
+  if (pl.k === 'target') {
+    const f = V.blocks.get(pl.foe); if (!f || f.mode === 'rout') { pl.done = true; delete blk.d.plan; return null; }
+    const [tx, ty] = contact(f), d = Math.hypot(tx - blk.x, ty - blk.y), eng = Math.hypot(f.x - blk.x, f.y - blk.y) < (blk.dep + f.dep) / 2 + 12; blk.foe = f;
+    if (eng) return {mode: 'melee', tx: blk.x, ty: blk.y, k: 0, path: null};
+    if (blk.type === 'cav') return {mode: 'gallop', tx, ty, k: 2.6, path: [[blk.x, blk.y], [tx, ty]]};
+    return {mode: d < 150 ? 'fire' : 'advance', tx, ty, k: d < 150 ? 0.7 : 1.15, path: [[blk.x, blk.y], [tx, ty]]};
+  }
+  if (pl.k === 'attack' || pl.k === 'flank') {
+    const last = pl.i >= pl.pts.length; let tx, ty, spd = 1;
+    if (!last) { [tx, ty] = pl.pts[pl.i]; if (Math.hypot(tx - blk.x, ty - blk.y) < 16) { pl.i++; if (pl.i >= pl.pts.length && pl.k === 'flank') blk.flkOk = true; } } else { tx = blk.x; ty = blk.y; }
+    const path = [[blk.x, blk.y]].concat(pl.pts.slice(Math.min(pl.i, pl.pts.length - 1)));
+    if (pl.k === 'flank') { spd = blk.type === 'cav' ? 2.4 : blk.type === 'tank' ? 1.9 : 1.7; if (!last) return {mode: 'flank', tx, ty, k: spd, path}; blk.foe = near ? near.o : blk.foe; if (near && near.d < 200) { const [cx, cy] = contact(near.o); return {mode: engaged ? 'melee' : 'charge', tx: engaged ? blk.x : cx, ty: engaged ? blk.y : cy, k: engaged ? 0 : 3, path: null}; } return {mode: 'hold', tx: blk.x, ty: blk.y, k: 0, path: null}; }
+    if (!last) return {mode: near && near.d < 150 && blk.type !== 'cav' ? 'fire' : 'advance', tx, ty, k: near && near.d < 150 ? 0.55 : 1.2, path};
+    if (engaged) return {mode: 'melee', tx: blk.x, ty: blk.y, k: 0, path: null};
+    return {mode: near && near.d < 170 ? 'fire' : 'hold', tx: blk.x, ty: blk.y, k: 0, path: null};
+  }
+  if (pl.k === 'defend') {
+    const [p1, p2] = pl.pts, ti = pl.pts.length > 1 ? (blk.lane + 0.5) / Math.max(1, blk.nLane) : 0.5, mx = pl.pts.length > 1 ? p1[0] + (p2[0] - p1[0]) * ti : p1[0], my = pl.pts.length > 1 ? p1[1] + (p2[1] - p1[1]) * ti : p1[1];
+    blk.defLine = true; const d = Math.hypot(mx - blk.x, my - blk.y);
+    if (d > 10) return {mode: 'advance', tx: mx, ty: my, k: 1.2, path: [[blk.x, blk.y], [mx, my]]};
+    if (engaged) return {mode: 'melee', tx: blk.x, ty: blk.y, k: 0, path: null};
+    return {mode: near && near.d < 175 ? 'fire' : 'hold', tx: mx, ty: my, k: 0.3, path: null};
+  }
+  if (pl.k === 'retreat') {
+    const [tx, ty] = pl.pts[0], d = Math.hypot(tx - blk.x, ty - blk.y); blk.foe = null;
+    return d > 10 ? {mode: 'retreat', tx, ty, k: 1.3, path: [[blk.x, blk.y], [tx, ty]]} : {mode: 'hold', tx: blk.x, ty: blk.y, k: 0, path: null};
+  }
+  return null;
+}
+// efectos reales de los planes (flanqueos logrados, líneas defensivas) para el cálculo diario
+function tacPlanFx(V, b, all) {
+  const out = {A: {att: 0, def: 0}, B: {att: 0, def: 0}};
+  all.forEach(blk => { const s = blk.side; if (blk.role === 'reserve' && !blk.d.plan) return;
+    if (blk.defLine && blk.d.plan && blk.d.plan.k === 'defend' && blk.mode !== 'rout') out[s].def += 0.02;
+    if (blk.mode === 'melee' && blk.foe) { const f = blk.foe, ang = Math.abs(bvAng(f.hd, Math.atan2(blk.y - f.y, blk.x - f.x))); if (ang > 1.9) { out[s].att += 0.03; out[f.side].def -= 0.02; } } });
+  ['A', 'B'].forEach(s => { out[s].att = Math.min(0.12, out[s].att); out[s].def = clamp(out[s].def, -0.08, 0.08); });
+  b.tac = out;
+}
+/* ---------- moral y cansancio: cargas de caballería ---------- */
+function tacMorale(V, b, all, dt) {
+  if (V.over || b.prep) return;
+  all.forEach(blk => {
+    blk.fat = clamp((blk.fat || 0) + dt * ((blk.sp || 0) / Math.max(1, blk.F.spd) * 0.012 * (blk.mode === 'gallop' || blk.mode === 'charge' ? 2 : 1) + (blk.mode === 'melee' ? 0.03 : 0) + (blk.mode === 'fire' ? 0.004 : 0) - (blk.sp < 4 && (blk.mode === 'hold' || blk.mode === 'reserve') ? 0.02 : 0)), 0, 1);
+    if (blk.brk > 0) blk.brk -= dt;
+    if (V.t - (blk._mt || -9) > 1.5) { blk._mt = V.t; blk.mor = typeof armyMor === 'function' ? armyMor(blk.a) : 0.8; }
+    if ((blk.warnT || -99) < V.t - 9) blk.warn = false;
+  });
+  all.forEach(cav => {
+    if ((cav.type !== 'cav' && cav.type !== 'tank') || !(cav.mode === 'gallop' || cav.mode === 'charge') || (cav.sp || 0) < 16 || cav.brk > 0) return;
+    all.forEach(v => {
+      if (v.side === cav.side || (v.type !== 'inf' && v.type !== 'art') || v.mode === 'rout' || v.brk > 0 || v.warn) return;
+      const d = Math.hypot(v.x - cav.x, v.y - cav.y); if (d > (cav.dep + v.dep) / 2 + 46) return;
+      const toC = Math.atan2(cav.y - v.y, cav.x - v.x), side = Math.abs(bvAng(v.hd, toC)), orgF = clamp(v.d.o / DIVS[v.d.t].org, 0, 1), mor = v.mor === undefined ? 0.8 : v.mor, tr = v.terr || {};
+      let p = 0.08 + (1 - orgF) * 0.7 + (1 - mor) * 0.6 + (v.fat || 0) * 0.5;
+      if (side > 1.9) p += 0.32; else if (side > 1.1) p += 0.14;                                  // cargados por el flanco o la espalda
+      if (v.mode === 'hold' || v.defLine || v.comp < 0.9) p -= 0.22;                                 // en cuadro / línea cerrada
+      if (tr.cover || tr.hill || tacFortAt(b, v.x, v.y)) p -= 0.2; if (tr.water) p += 0.1;
+      if (v.type === 'art') p += 0.12; if (cav.type === 'tank') p += 0.3;
+      p = clamp(p, 0.03, 0.97); v.warn = true; v.warnT = V.t;
+      const cn = G.C[cav.tag].name, vn = G.C[v.tag].name;
+      if (Math.random() < p) {                                                                         // rompen filas
+        v.brk = 7; v.d.o = Math.max(0, v.d.o - DIVS[v.d.t].org * 0.22); v.d.s = Math.max(0, v.d.s - 0.012); v.fat = Math.min(1, (v.fat || 0) + 0.2);
+        v.figs.forEach(f => { if (f.alive && !f.flee && Math.random() < 0.62) bvFlee(V, v, f, 1.1); });
+        bvBanner(V, `🐎 ¡La carga de ${cn} rompe a ${vn}!`, cav.side, ''); (b.log = b.log || []).push({k: 'cav', d: b.day, t: `La caballería de ${cn} rompe una división de ${vn}: huye en desorden.`}); if (b.log.length > 30) b.log.shift();
+      } else {                                                                                         // resisten y la caballería sufre
+        cav.d.s = Math.max(0, cav.d.s - 0.026); cav.d.o = Math.max(0, cav.d.o - DIVS[cav.d.t].org * 0.12); cav.brk = 4; cav.fat = Math.min(1, (cav.fat || 0) + 0.25);
+        bvBanner(V, `🛡️ ${vn} resiste la carga de ${cn}`, v.side, '');
+      }
+    });
+  });
+}
+/* ---------- dibujo: fuertes, zonas, planes ---------- */
+function tacDrawForts(g, V, b) {
+  (b.forts || []).forEach(f => {
+    const K = FORT_KINDS[f.kind], x = f.x, y = f.y, w = f.w, h = f.h, dead = f.hp <= 0, hpf = clamp(f.hp / f.hpMax, 0, 1), dir = f.side === 'A' ? 1 : -1, sel = V.selFort === f.id;
+    g.save(); g.translate(x, y); g.globalAlpha = dead ? 0.55 : 1;
+    if (dead) { g.fillStyle = 'rgba(60,44,30,.8)'; for (let i = 0; i < 14; i++) { const rx = (hash2(f.id, i, 1) - 0.5) * w, ry = (hash2(f.id, i, 2) - 0.5) * h; g.fillRect(rx, ry, 5 + hash2(f.id, i, 3) * 6, 3); } g.restore(); return; }
+    g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(-w / 2 + 3, -h / 2 + 4, w, h);
+    if (f.kind === 'trench') { g.fillStyle = '#2d2114'; g.fillRect(-w / 2, -h / 2 + 2, w, h - 4); g.fillStyle = '#6b5638'; g.fillRect(-w / 2, -h / 2 - 2 + (dir > 0 ? h - 2 : 0), w, 4); g.fillStyle = 'rgba(176,150,98,.9)'; for (let i = -w / 2; i < w / 2; i += 8) { g.beginPath(); g.ellipse(i + 4, dir > 0 ? h / 2 + 1 : -h / 2 - 1, 3.5, 2, 0, 0, 6.3); g.fill(); } }
+    else if (f.kind === 'redoubt' || f.kind === 'fort') {
+      g.fillStyle = '#5e4a30'; g.fillRect(-w / 2, -h / 2, w, h); g.fillStyle = '#3a2d1c'; g.fillRect(-w / 2 + 6, -h / 2 + 6, w - 12, h - 12); g.strokeStyle = '#8c7348'; g.lineWidth = 2; g.strokeRect(-w / 2, -h / 2, w, h);
+      if (f.kind === 'fort') { g.fillStyle = '#7d7466'; [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([sx, sy]) => { g.beginPath(); g.moveTo(sx * w / 2, sy * h / 2 - 9); g.lineTo(sx * w / 2 + 9, sy * h / 2); g.lineTo(sx * w / 2, sy * h / 2 + 9); g.lineTo(sx * w / 2 - 9, sy * h / 2); g.closePath(); g.fill(); }); g.strokeStyle = '#a89a80'; g.lineWidth = 1.4; g.strokeRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6); }
+      g.fillStyle = G.C[f.side === 'A' ? b.A0 : b.B0].color; g.fillRect(-1, -h / 2 - 12, 1.5, 12); g.fillRect(0, -h / 2 - 12, 9, 6);
+    } else { g.fillStyle = '#5e4a30'; g.beginPath(); g.ellipse(-dir * 4, 0, w / 2, h / 2, 0, 0, 6.3); g.fill(); g.fillStyle = '#3a2d1c'; g.beginPath(); g.ellipse(-dir * 4, 0, w / 2 - 6, h / 2 - 6, 0, 0, 6.3); g.fill(); g.strokeStyle = '#8c7348'; g.lineWidth = 1.5; g.beginPath(); g.ellipse(-dir * 4, 0, w / 2, h / 2, 0, 0, 6.3); g.stroke(); }
+    for (let i = 0; i < f.guns; i++) { const gy = (i - (f.guns - 1) / 2) * 10; g.strokeStyle = '#4e5359'; g.lineWidth = 3; g.lineCap = 'round'; g.beginPath(); g.moveTo(-dir * 3, gy); g.lineTo(dir * 11, gy); g.stroke(); g.fillStyle = '#2a2018'; g.beginPath(); g.arc(-dir * 4, gy, 2.6, 0, 6.3); g.fill(); g.lineCap = 'butt'; }
+    g.globalAlpha = 1; g.fillStyle = 'rgba(0,0,0,.6)'; g.fillRect(-w / 2, h / 2 + 4, w, 4); g.fillStyle = hpf > 0.5 ? '#79c35a' : hpf > 0.25 ? '#e0b04a' : '#e8644f'; g.fillRect(-w / 2, h / 2 + 4, w * hpf, 4);
+    if (sel) { g.strokeStyle = '#fff3a0'; g.setLineDash([5, 3]); g.lineWidth = 1.6; g.strokeRect(-w / 2 - 5, -h / 2 - 5, w + 10, h + 10); g.setLineDash([]); }
+    g.restore();
+  });
+}
+function tacDrawPrepZone(g, V, b) {
+  if (!b.prep) return; const ps = playerSide(b); if (!ps) return; const lo = ps === 'A' ? 50 : BV_W / 2 + 30, hi = ps === 'A' ? BV_W / 2 - 30 : BV_W - 50;
+  g.fillStyle = 'rgba(255,230,140,.07)'; g.fillRect(lo, 48, hi - lo, BV_H - 76); g.strokeStyle = 'rgba(255,230,140,.5)'; g.setLineDash([8, 6]); g.lineWidth = 1.4; g.strokeRect(lo, 48, hi - lo, BV_H - 76); g.setLineDash([]);
+  if (V.tool && V.mouse) { const [wx, wy] = bvToWorld(V, V.mouse.x, V.mouse.y), K = FORT_KINDS[V.tool.k], ok = tacZoneOk(b, ps, wx, wy); g.globalAlpha = 0.6; g.fillStyle = ok ? '#8fd16a' : '#e8644f'; g.fillRect(wx - K.w / 2, wy - K.h / 2, K.w, K.h); g.globalAlpha = 1; g.strokeStyle = '#fff'; g.strokeRect(wx - K.w / 2, wy - K.h / 2, K.w, K.h); }
+}
+function tacArrow(g, pts, col, dash, w) {
+  if (pts.length < 2) return; g.strokeStyle = col; g.fillStyle = col; g.lineWidth = w || 2.4; g.setLineDash(dash || []); g.lineJoin = 'round'; g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.stroke(); g.setLineDash([]);
+  const a = pts[pts.length - 2], e = pts[pts.length - 1], an = Math.atan2(e[1] - a[1], e[0] - a[0]); g.beginPath(); g.moveTo(e[0] + Math.cos(an) * 9, e[1] + Math.sin(an) * 9); g.lineTo(e[0] + Math.cos(an + 2.5) * 8, e[1] + Math.sin(an + 2.5) * 8); g.lineTo(e[0] + Math.cos(an - 2.5) * 8, e[1] + Math.sin(an - 2.5) * 8); g.closePath(); g.fill();
+}
+function tacDrawPlans(g, V, b, all) {
+  const ps = playerSide(b); if (!ps || V.replay) return;
+  all.forEach(blk => { const pl = blk.d.plan; if (!pl || blk.side !== ps) return; const P = PLANS[pl.k], sel = V.sel === blk; g.globalAlpha = sel ? 1 : 0.7; const col = P.col;
+    if (pl.k === 'target') { const f = V.blocks.get(pl.foe); if (f) { tacArrow(g, [[blk.x, blk.y], [f.x, f.y]], col, [], sel ? 2.8 : 2); g.strokeStyle = col; g.lineWidth = 1.6; g.beginPath(); g.arc(f.x, f.y, Math.max(f.dep, f.wid) / 2 + 8, 0, 6.3); g.stroke(); g.beginPath(); g.moveTo(f.x - 12, f.y); g.lineTo(f.x + 12, f.y); g.moveTo(f.x, f.y - 12); g.lineTo(f.x, f.y + 12); g.stroke(); } }
+    else if (pl.k === 'defend') { const [p1, p2] = pl.pts.length > 1 ? pl.pts : [pl.pts[0], pl.pts[0]]; g.strokeStyle = col; g.lineWidth = 5; g.lineCap = 'round'; g.beginPath(); g.moveTo(p1[0], p1[1]); g.lineTo(p2[0], p2[1]); g.stroke(); g.lineCap = 'butt'; g.fillStyle = col; for (let i = 0; i <= 4; i++) { const t = i / 4; g.beginPath(); g.arc(p1[0] + (p2[0] - p1[0]) * t, p1[1] + (p2[1] - p1[1]) * t, 3.2, 0, 6.3); g.fill(); } }
+    else { const pts = [[blk.x, blk.y]].concat(pl.pts); tacArrow(g, pts, col, pl.k === 'flank' ? [9, 5] : pl.k === 'retreat' ? [4, 5] : [], sel ? 3 : 2.2); g.fillStyle = col; pl.pts.slice(0, -1).forEach(p => { g.beginPath(); g.arc(p[0], p[1], 3, 0, 6.3); g.fill(); }); }
+    g.globalAlpha = 1; });
+  if (V.draw && V.draw.pts.length && V.sel) { const P = PLANS[V.draw.k], pts = [[V.sel.x, V.sel.y]].concat(V.draw.pts); if (V.mouse) { const [wx, wy] = bvToWorld(V, V.mouse.x, V.mouse.y); pts.push([wx, wy]); } tacArrow(g, pts, P.col, [3, 4], 2.4); }
+}
+/* ---------- terreno detallado: capas extra del fondo ---------- */
+function tacBgExtras(g, V, b, H) {
+  const tf = battleTerrain(b), bio = tf.bio;
+  (tf.marsh || []).forEach((m, i) => { const rg = g.createRadialGradient(m.x, m.y, 4, m.x, m.y, Math.max(m.rx, m.ry)); rg.addColorStop(0, 'rgba(58,84,66,.75)'); rg.addColorStop(0.7, 'rgba(70,98,70,.55)'); rg.addColorStop(1, 'rgba(70,98,70,0)'); g.fillStyle = rg; g.beginPath(); g.ellipse(m.x, m.y, m.rx, m.ry, 0, 0, 6.3); g.fill(); g.strokeStyle = 'rgba(150,200,210,.5)'; g.lineWidth = 1; for (let k = 0; k < 16; k++) { const x = m.x + (H(k + i * 50, 91) - 0.5) * m.rx * 1.5, y = m.y + (H(k + i * 50, 92) - 0.5) * m.ry * 1.4; g.beginPath(); g.moveTo(x - 4, y); g.lineTo(x + 4, y); g.stroke(); g.strokeStyle = 'rgba(40,70,40,.8)'; g.beginPath(); g.moveTo(x, y); g.lineTo(x, y - 5); g.stroke(); g.strokeStyle = 'rgba(150,200,210,.5)'; } });
+  if (tf.pond) { const p = tf.pond; g.fillStyle = 'rgba(96,78,50,.55)'; g.beginPath(); g.ellipse(p.x, p.y, p.rx + 6, p.ry + 6, 0, 0, 6.3); g.fill(); const rg = g.createRadialGradient(p.x - p.rx * 0.2, p.y - p.ry * 0.2, 2, p.x, p.y, p.rx); rg.addColorStop(0, 'rgba(120,176,214,.95)'); rg.addColorStop(1, 'rgba(52,104,146,.95)'); g.fillStyle = rg; g.beginPath(); g.ellipse(p.x, p.y, p.rx, p.ry, 0, 0, 6.3); g.fill(); g.strokeStyle = 'rgba(235,248,255,.4)'; g.lineWidth = 1; g.beginPath(); g.ellipse(p.x, p.y, p.rx * 0.6, p.ry * 0.55, 0, 0, 6.3); g.stroke(); }
+  (tf.rocks || []).forEach((r, i) => { for (let k = 0; k < 7; k++) { const x = r.x + (H(k + i * 30, 95) - 0.5) * r.r * 1.6, y = r.y + (H(k + i * 30, 96) - 0.5) * r.r * 1.2, w = 6 + H(k + i * 30, 97) * 10; g.fillStyle = 'rgba(40,36,34,.35)'; g.beginPath(); g.ellipse(x + 2, y + 3, w, w * 0.5, 0, 0, 6.3); g.fill(); g.fillStyle = bio === 8 ? 'rgba(220,224,230,.9)' : 'rgba(126,118,108,1)'; g.beginPath(); g.moveTo(x - w, y + w * 0.4); g.lineTo(x - w * 0.3, y - w * 0.7); g.lineTo(x + w * 0.6, y - w * 0.5); g.lineTo(x + w, y + w * 0.4); g.closePath(); g.fill(); g.fillStyle = 'rgba(255,255,255,.25)'; g.beginPath(); g.moveTo(x - w * 0.3, y - w * 0.7); g.lineTo(x + w * 0.6, y - w * 0.5); g.lineTo(x, y - w * 0.1); g.closePath(); g.fill(); } });
+  if (tf.hamlet) { const h = tf.hamlet; tf.hamlet.houses.forEach(o => { const x = h.x + o[0], y = h.y + o[1]; g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(x - 8 + 4, y - 6 + 4, 20, 14); g.fillStyle = '#b09a74'; g.fillRect(x - 8, y - 6, 20, 14); g.fillStyle = o[2] ? '#7a3a2a' : '#5e4a38'; g.beginPath(); g.moveTo(x - 10, y - 6); g.lineTo(x + 2, y - 15); g.lineTo(x + 14, y - 6); g.closePath(); g.fill(); g.fillStyle = '#3a2a1c'; g.fillRect(x - 1, y + 1, 4, 7); });
+    g.strokeStyle = 'rgba(120,108,92,.95)'; g.lineWidth = 2.2; h.walls.forEach(wl => { g.beginPath(); g.moveTo(h.x + wl[0], h.y + wl[1]); g.lineTo(h.x + wl[2], h.y + wl[3]); g.stroke(); }); }
+  (tf.hill2 ? [tf.hill2] : []).forEach(h => { const rg = g.createRadialGradient(h.x, h.y, 4, h.x, h.y, Math.max(h.rx, h.ry)); rg.addColorStop(0, 'rgba(236,222,170,.4)'); rg.addColorStop(1, 'rgba(80,60,34,0)'); g.fillStyle = rg; g.beginPath(); g.ellipse(h.x, h.y, h.rx * 1.1, h.ry * 1.1, 0, 0, 6.3); g.fill(); g.strokeStyle = 'rgba(252,238,186,.22)'; g.lineWidth = 1.1; for (let i = 0; i < 3; i++) { g.beginPath(); g.ellipse(h.x, h.y, h.rx * (1 - i * 0.25), h.ry * (1 - i * 0.25), 0, 0, 6.3); g.stroke(); } });
+}
+// rasgos extra deterministas (se añaden a battleTerrain)
+function tacTerrainExtra(b, tf) {
+  const H = k => hash2(b.id * 17 + 3, b.prov, 100 + k), bio = tf.bio, W = BV_W, Hh = BV_H, defSide = b.att === 'A' ? 'B' : 'A', dd = defSide === 'A' ? -1 : 1;
+  tf.marsh = []; if ((bio === 1 || bio === 4 || bio === 6 || bio === 2) && H(1) < 0.42) { const n = 1 + (H(2) < 0.4 ? 1 : 0); for (let i = 0; i < n; i++) tf.marsh.push({x: 130 + H(3 + i) * (W - 260), y: 70 + H(6 + i) * (Hh - 140), rx: 52 + H(9 + i) * 40, ry: 30 + H(12 + i) * 24}); }
+  tf.pond = H(15) < (bio === 1 || bio === 4 ? 0.28 : 0.1) ? {x: 150 + H(16) * (W - 300), y: 80 + H(17) * (Hh - 160), rx: 24 + H(18) * 20, ry: 15 + H(19) * 11} : null;
+  tf.rocks = []; if ((bio === 3 || bio === 7 || bio === 8 || bio === 5) && H(20) < 0.7) { const n = 1 + Math.floor(H(21) * 3); for (let i = 0; i < n; i++) tf.rocks.push({x: 120 + H(22 + i) * (W - 240), y: 60 + H(25 + i) * (Hh - 120), r: 26 + H(28 + i) * 22}); }
+  tf.hamlet = null; if ((bio === 1 || bio === 4 || bio === 2) && H(30) < 0.38) { const x = W / 2 - dd * (60 + H(31) * 70) * -1, y = 70 + H(32) * (Hh - 140); const hs = [[-18, -10, 1], [10, -14, 0], [-4, 12, 1], [22, 10, 0]]; tf.hamlet = {x, y, houses: hs, walls: [[-30, -24, 34, -24], [34, -24, 34, 26], [-30, 26, 34, 26]], side: defSide}; }
+  tf.hill2 = tf.hill && H(35) < 0.35 ? {x: W / 2 - (tf.hill.x - W / 2) * 0.8 + (H(36) - 0.5) * 80, y: 80 + H(37) * (Hh - 160), rx: 44 + H(38) * 24, ry: 52 + H(39) * 24} : null;
+  tf.road = (() => { const ry = BV_H * (0.58 + (hash2(1, b.id * 77 + 5, 31) - 0.5) * 0.22), P0 = [-10, ry + 14], C1 = [W * 0.3, ry - 30], C2 = [W * 0.6, ry + 40], P3 = [W + 10, ry - 8], pts = []; for (let i = 0; i <= 40; i++) { const t = i / 40, u = 1 - t; pts.push([u * u * u * P0[0] + 3 * u * u * t * C1[0] + 3 * u * t * t * C2[0] + t * t * t * P3[0], u * u * u * P0[1] + 3 * u * u * t * C1[1] + 3 * u * t * t * C2[1] + t * t * t * P3[1]]); } return {pts}; })();
+}
+const tacRoadAt = (tf, x, y) => { if (!tf.road) return false; let best = 1e9; tf.road.pts.forEach(p => { if (Math.abs(p[0] - x) < 30) best = Math.min(best, Math.hypot(p[0] - x, p[1] - y)); }); return best < 9; };
+function tacTerrAtExtra(tf, x, y, side, o) {
+  (tf.marsh || []).forEach(m => { if (((x - m.x) / m.rx) ** 2 + ((y - m.y) / m.ry) ** 2 < 1) { o.marsh = true; o.slow = Math.min(o.slow, 0.5); } });
+  if (tf.pond && ((x - tf.pond.x) / tf.pond.rx) ** 2 + ((y - tf.pond.y) / tf.pond.ry) ** 2 < 1) { o.water = true; o.slow = Math.min(o.slow, 0.3); }
+  (tf.rocks || []).forEach(r => { if (Math.hypot(x - r.x, y - r.y) < r.r) { o.cover = true; o.slow = Math.min(o.slow, 0.6); } });
+  if (tf.hamlet && Math.abs(x - tf.hamlet.x) < 36 && Math.abs(y - tf.hamlet.y) < 30) { o.cover = true; o.village = true; }
+  if (tf.hill2 && ((x - tf.hill2.x) / tf.hill2.rx) ** 2 + ((y - tf.hill2.y) / tf.hill2.ry) ** 2 < 1) o.hill = true;
+  if (o.slow >= 1 && tacRoadAt(tf, x, y)) o.slow = 1.3;
+}
+/* ---------- ratón: arrastrar bloques, construir y dibujar planes ---------- */
+function tacMouseDown(V, b, e, p) {
+  if (V.replay || b.ended) return false; const ps = playerSide(b); if (!ps) return false; const [wx, wy] = bvToWorld(V, p.x, p.y);
+  if (b.prep) {
+    if (V.tool) { const r = tacBuildFort(b, ps, V.tool.k, wx, wy); if (!r.ok) toast('⚠️', r.msg); else { V.selFort = r.f.id; } renderBattlePanel(); return true; }
+    const h = V.hover; if (h && h.side === ps) { V.sel = h; V.dragBlk = h; V.selFort = null; renderBattlePanel(); return true; }
+    const f = tacFortAt(b, wx, wy); if (f && f.side === ps) { V.selFort = f.id; V.sel = null; renderBattlePanel(); return true; }
+  }
+  return false;
+}
+function tacMouseMove(V, b, p) { const k = V.dragBlk; if (!k || !b.prep) return false; const ps = playerSide(b), dir = ps === 'A' ? 1 : -1, [wx, wy] = bvToWorld(V, p.x, p.y), L = tacLineBase(b, ps); const lo = ps === 'A' ? 50 : BV_W / 2 + 30, hi = ps === 'A' ? BV_W / 2 - 30 : BV_W - 50; const x = clamp(wx, lo, hi), y = clamp(wy, 48, BV_H - 28);
+  k.d.cust = {dep: dir * (L - x) - k.dep / 2, y}; return true; }
+function tacMouseUp(V) { if (V.dragBlk) { V.dragBlk = null; return true; } return false; }
+/* ---------- acciones del panel ---------- */
+Object.assign(ACT, {
+  tacfort: d => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !b || !b.prep) return; V.tool = V.tool && V.tool.k === d.k ? null : {k: d.k}; V.draw = null; renderBattlePanel(); },
+  tacgun: () => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !b || !b.prep) return; const f = (b.forts || []).find(x => x.id === V.selFort); if (!f) { toast('⚠️', 'Selecciona primero una obra (clic sobre ella).'); return; } const r = tacAddGun(b, f); if (!r.ok) toast('⚠️', r.msg); renderBattlePanel(); },
+  tacdel: () => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !b || !b.prep) return; const f = (b.forts || []).find(x => x.id === V.selFort); if (!f) { toast('⚠️', 'Selecciona primero una obra.'); return; } const r = tacDelFort(b, f); if (!r.ok) toast('⚠️', r.msg); V.selFort = null; renderBattlePanel(); },
+  tacstart: () => { const b = G.battles.find(x => x.id === UI.battle); if (!b || !b.prep) return; const V = R.bviz; if (V) { V.tool = null; V.dragBlk = null; V.selFort = null; } tacApplyPrep(b); const ps = playerSide(b), pb = b.pb[ps]; toast('⚔️', `¡Comienza la batalla! Preparación: ataque ${((pb.att + pb.fortAtt) * 100).toFixed(0)}% · defensa ${((pb.def + Math.min(FORT_CAP_DEF, pb.fortDef)) * 100).toFixed(0)}%.`); R.bvPrevPause = false; G.paused = false; UI.tactPaused = false; renderBattlePanel(); },
+  tacplan: d => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !V.sel || !b || b.ended || V.replay) return; if (V.sel.side !== playerSide(b)) return; V.tool = null;
+    if (d.k === 'clear') { delete V.sel.d.plan; V.sel.skey = ''; V.draw = null; toast('🎯', 'Plan cancelado.'); } else if (d.k === 'fix') { const dr = V.draw; if (dr && dr.pts.length) { tacSetPlan(V, {k: dr.k, pts: dr.pts.slice()}); bvBanner(V, `${PLANS[dr.k].ic} ${PLANS[dr.k].n}: ${V.sel.a.name}`, V.sel.side, ''); } V.draw = null; }
+    else if (PLANS[d.k]) { V.draw = V.draw && V.draw.k === d.k ? null : {k: d.k, pts: []}; if (V.draw) toast(PLANS[d.k].ic, PLANS[d.k].hint); }
+    renderBattlePanel(); },
+  bvts: d => { const V = R.bviz; if (!V) return; const n = +d.n; V.ts = n; if (n === 0) { if (!G.paused) { G.paused = true; UI.tactPaused = true; } } else if (UI.tactPaused || G.paused) { const b = G.battles.find(x => x.id === UI.battle); if (!b || !b.prep) { G.paused = false; UI.tactPaused = false; R.bvPrevPause = false; } } V.last = performance.now(); renderBattlePanel(); }
+});
+// HTML del panel: preparación, planes y velocidad
+function tacPanelHtml(b, V, sel) {
+  const ps = playerSide(b); if (!ps || !V) return '';
+  let h = ''; const ids = sideIds(b, ps);
+  if (b.prep) {
+    const t = sideRes(ids).t, chips = RES_KEYS.map(k => `<span class="rchip" data-tip="${RES_INFO[k].n} (por división)">${RES_INFO[k].ic} ${t[k].toFixed(1)}</span>`).join(''), selF = (b.forts || []).find(x => x.id === V.selFort);
+    h += `<div class="prep"><div class="prep-h"><b>⚙️ Fase de preparación</b><small>El combate está detenido. Arrastra tus bloques por tu mitad del campo (zona marcada) y levanta fuertes con las reservas de tu ejército.</small></div>
+    <div class="prep-r">${chips}</div><div class="prep-b">${['trench', 'redoubt', 'battery'].map(k => { const K = FORT_KINDS[k], ok = tacCan(ids, K.cost); return `<button data-act="tacfort" data-k="${k}" class="${V.tool && V.tool.k === k ? 'on' : ''} ${ok ? '' : 'nofunds'}" data-tip="<b>${K.n}</b><br>${K.desc}<br>Coste por división: ${fmtCost(K.cost)}">${K.ic} ${K.n}<small>${fmtCost(K.cost)}</small></button>`; }).join('')}
+    <button data-act="tacgun" data-tip="<b>Añadir un cañón</b> a la obra seleccionada. Cuesta ${fmtCost(FORT_GUN_COST)} por división.">➕ Cañón<small>${fmtCost(FORT_GUN_COST)}</small></button><button data-act="tacdel" data-tip="Desmonta la obra seleccionada (recuperas la mitad de los recursos).">🗑 Quitar</button></div>
+    <div class="prep-s">${selF ? `Seleccionado: <b>${FORT_KINDS[selF.kind].ic} ${FORT_KINDS[selF.kind].n}</b> · cañones ${selF.guns}` : V.tool ? `Haz clic en tu zona para colocar: <b>${FORT_KINDS[V.tool.k].n}</b>` : (b.forts || []).some(f => f.kind === 'fort') ? 'Hay un fuerte de la provincia: sitúa tus bloques y cañones junto a él.' : 'Elige una obra o arrastra un bloque.'}</div>
+    <button class="primary prep-go" data-act="tacstart">▶ ¡Comenzar la batalla!</button></div>`;
+    return h;
+  }
+  if (!b.ended && !V.replay) {
+    const sel2 = sel && sel.side === ps ? sel : null, cur = sel2 && sel2.d.plan;
+    h += `<div class="plans"><div class="plans-h">🖊️ <b>Planes por unidad</b> <small>${sel2 ? `${DIVS[sel2.d.t].icon} ${sel2.a.name}${cur ? ` · plan: ${PLANS[cur.k].ic} ${PLANS[cur.k].n}` : ' · sin plan'}` : 'Selecciona uno de tus bloques y dibuja su flecha en el campo.'}</small></div>
+    <div class="plans-b">${Object.keys(PLANS).map(k => `<button data-act="tacplan" data-k="${k}" class="${V.draw && V.draw.k === k ? 'on' : ''}" ${sel2 ? '' : 'disabled'} data-tip="<b>${PLANS[k].n}</b><br>${PLANS[k].hint}">${PLANS[k].ic} ${PLANS[k].n}</button>`).join('')}
+    ${V.draw && PLANS[V.draw.k].multi === true ? `<button data-act="tacplan" data-k="fix" class="fix">✔ Fijar</button>` : ''}<button data-act="tacplan" data-k="clear" ${cur ? '' : 'disabled'}>✖ Borrar</button></div>${V.draw ? `<div class="plans-s">${PLANS[V.draw.k].hint}</div>` : ''}</div>`;
+  }
+  return h;
+}
+function tacSpeedHtml(V) { const bb = G.battles.find(x => x.id === UI.battle); return `${bb && bb.prep && playerSide(bb) ? '<button data-act="tacstart" class="go">▶ ¡Comenzar la batalla!</button>' : ''}<span class="sep"></span><small class="dim">Velocidad:</small>${[[0, '⏸', 'Pausa táctica: nada se mueve; puedes dar órdenes'], [0.25, '🐢', 'Cámara muy lenta (×0,25)'], [0.5, '🐌', 'Cámara lenta (×0,5)'], [1, '▶', 'Velocidad normal (×1)']].map(([n, ic, tp]) => `<button data-act="bvts" data-n="${n}" class="${(V ? V.ts : 0.5) === n ? 'on' : ''}" data-tip="${tp}">${ic}${n ? ' ×' + n : ''}</button>`).join('')}`; }
+
+const _endBattle0 = endBattle;
+endBattle = function (b, winner) { [b.A, b.B].forEach(ids => ids.map(armyById).filter(Boolean).forEach(a => a.divs.forEach(d => { delete d.cust; delete d.plan; }))); _endBattle0(b, winner); };
 
 /* ===== MARISCALES Y PLANES DE BATALLA =====
    Un mariscal manda un grupo de ejércitos (o un frente completo) y aporta bonificaciones de planificación: cuanto mejor es, antes está
@@ -12209,6 +12669,8 @@ const MANUAL = [
 {id: 'mil2', title: '16f. Aviación, marina, doctrinas, plantillas, producción y mariscales', html: `
 <p>La ventana <b>Ejército y guerra</b> tiene pestañas nuevas: <b>Plantillas</b>, <b>Producción</b>, <b>Aviación</b>, <b>Marina</b>, <b>Doctrinas</b>, <b>Ocupación</b> y <b>Mariscales</b>.</p>
 <h4>✈️ Aviación (Era 3, hacia 1905-1915)</h4><p>Con <b>Aviación Militar</b> (≈1903) se desbloquean las <b>Fábricas Aeronáuticas</b> (acero, motores y tela; los motores salen de las Fábricas de Motores, tecnología Motor de Combustión). <b>Cazas</b> (≈1910) y <b>Bombarderos</b> (≈1911) permiten formar <b>escuadrones</b> de hasta 100 aviones con el inventario nacional (línea de producción de aviones). Se despliegan en <b>regiones aéreas</b> (grupos de estados vecinos) con una misión: <b>superioridad aérea</b> (hasta +25% de ataque terrestre para quien domina el cielo de la región), <b>apoyo cercano</b> (daño directo al enemigo en las batallas de la región), <b>bombardeo estratégico</b> (reduce la producción de los edificios del estado enemigo) o <b>intercepción</b>. Los escuadrones pierden aviones en el combate aéreo y se refuerzan desde el inventario. Con un escuadrón en una región también ves los ejércitos enemigos de esa región (reconocimiento aéreo).</p>
+<h4>⚙️ Preparación de la batalla y órdenes tácticas</h4><p>Al empezar una batalla en la que participas, el combate se <b>detiene</b> y se abre el panel: es la <b>fase de preparación</b>. Arrastra tus bloques por tu mitad del campo (zona punteada), levanta <b>trincheras, reductos y baterías</b> con las reservas de tu ejército (madera, materiales y pólvora) y añade <b>cañones</b>. Si la provincia tiene un <b>fuerte</b>, el defensor lo usa: sitúa tus unidades junto a él. Colocar bien (artillería detrás, caballería en las alas, tropas en colinas, bosques o dentro de las obras) da bonos reales de ataque y defensa; las obras se pueden destruir a cañonazos. Pulsa <b>¡Comenzar la batalla!</b> cuando estés listo.</p><p>En pleno combate selecciona un bloque y dibuja su <b>plan</b>: ➡️ atacar un punto, 🎯 un bloque enemigo concreto, ↪️ flanqueo por puntos de paso, 🛡️ línea defensiva o ↩️ retirada. Clic derecho cancela el dibujo y puedes cambiar los planes cuando quieras. La <b>velocidad</b> (⏸ pausa táctica, ×0,25, ×0,5, ×1) permite gestionar el combate en cámara lenta. El <b>cansancio y la moral</b> importan: tropas agotadas o desmoralizadas rompen filas ante una carga de caballería (se resisten mejor en cuadro, tras obras o en terreno cubierto).</p>
+<h4>📦 Suministros y rutas de abastecimiento</h4><p>Cada ejército lleva <b>comida, agua, pólvora, madera y materiales de fortificación</b>. Se gastan cada día (más al marchar, en el desierto o combatiendo) y <b>solo se reponen si hay una ruta de suministro segura</b> hasta un centro propio: sin tropas enemigas ni territorio ocupado por el camino. Activa <b>📦 Rutas</b> en el panel del ejército para verlas en el mapa (verde = segura, roja = cortada). Sin comida ni agua el ejército pierde fuerza y organización; sin pólvora dispara a medias; sin madera y materiales no puede fortificar.</p>
 <h4>⚓ Marina de guerra</h4><p>Los buques se construyen en <b>Astilleros</b> (estados con puerto) con el tonelaje de la línea de <b>Buques</b>: fragata de vela (1836), fragata de vapor (≈1850), acorazado (≈1860), crucero (≈1895), submarino (≈1900) y acorazado <i>dreadnought</i> (≈1906). Las <b>flotas</b> navegan por <b>zonas marítimas</b> con un almirante y una misión: <b>patrulla</b>, <b>bloqueo</b> (corta ingresos y suministro por mar del rival y suma hasta ±22 puntos de guerra), <b>escolta de convoyes</b> (protege tu comercio) e <b>incursión</b> (daña el comercio enemigo). Las batallas navales son automáticas. Para <b>desembarcar</b> sin pérdidas tus transportes necesitan que el enemigo no domine las zonas de origen y destino: si lo hace, el ejército pierde fuerza cada día en el mar.</p>
 <h4>👁️ Marina visible</h4><p>Las flotas aparecen en el mapa como fichas con bandera (⚓ nº de buques y su misión) y, con el zoom cerca, como buques en 3D. Las fichas de otros países solo se ven si compartes zona con ellos o tienen una batalla. Si hay combate la ficha parpadea con ⚔: púlsala para abrir el <b>visor de batalla naval</b>, donde ves las dos líneas cañoneándose, los incendios y los hundimientos; el tiempo corre despacio mientras lo miras (botón para pausar o continuar).</p>
 <h4>🎖️ Doctrinas y experiencia</h4><p>Ganas <b>experiencia terrestre</b> combatiendo y entrenando (modo Entrenar), y experiencia <b>naval</b> y <b>aérea</b> con sus misiones y batallas. Con ella compras escalones de un árbol de doctrinas de <b>ramas excluyentes</b>: terrestres (<i>defensa en profundidad</i>, <i>ofensiva móvil</i>, <i>fuego superior</i>, <i>movilización de masas</i>), aéreas (<i>superioridad aérea</i> o <i>bombardeo estratégico</i>) y navales (<i>flota de batalla</i> o <i>guerra de corso</i>). Cada escalón está disponible desde un año concreto.</p>

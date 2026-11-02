@@ -66,3 +66,7 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 ## Sesión: época 1910 y menús compactos
 - Épocas jugables: **1836** y **1910** (se eliminan 1861 y 1900). El mundo de 1910 sale de una simulación de la IA (economía, tecnología) con el reparto territorial de 1910-1914 fijado por `tools/anclar_1910.js` a partir de mapas históricos (imperios coloniales, Alemania e Italia unidas, reparto de África y Asia) y las alianzas de la Entente y la Tríplice.
 - Interfaz: barra inferior y datos del país pequeños y pegados al margen; ventanas y paneles desplegables grandes (botón Aa: 1×/1,25×/1,5×, guarda en localStorage). El panel en el que haces clic pasa por delante de los demás (`Z_PANELS` en asesor.js).
+
+## Sesión: táctica y suministros
+- `src/suministros.js`: reservas por ejército (comida, agua, pólvora, madera, materiales), ruta de suministro segura (si se corta no hay reposición), hambre/sed/pólvora con efectos reales, aviso al jugador, líneas de ruta en el mapa y botón 📦 Rutas.
+- `src/tactica.js`: fase de preparación (el combate se detiene al empezar), despliegue por arrastre, fuertes (trinchera, reducto, batería, cañones, fuertes del mapa) con coste en reservas y bonos reales, planes dibujables por unidad (atacar, objetivo, flanqueo, línea defensiva, retirada) editables en combate, cámara lenta (⏸/×0,25/×0,5/×1), cansancio y moral con retirada ante cargas de caballería, terreno más detallado (pantano, laguna, roquedal, aldea amurallada, loma extra, camino).

@@ -64,6 +64,7 @@ function renderArmyPanel() {
   <div class="kv"><span>Moral</span><b class="${armyMor(a) < 0.35 ? 'bad' : armyMor(a) > 0.7 ? 'good' : ''}">${morName(armyMor(a))} (${Math.round(armyMor(a) * 100)}%) · rinde ×${morMod(a).toFixed(2)}</b></div>${bar(armyMor(a), 1, '')}
   <div class="kv"><span>Entrenamiento</span><b>${trainName(armyTrain(a))} (${Math.round(armyTrain(a) * 100)}%) · rinde ×${(0.75 + 0.5 * armyTrain(a)).toFixed(2)}</b></div>${bar(armyTrain(a), 1, 'blue')}
   <div class="kv"><span>Suministro</span><b class="${(a.sup === undefined ? 1 : a.sup) < 0.5 ? 'bad' : ''}">${Math.round((a.sup === undefined ? 1 : a.sup) * 100)}%${a.cut > 0 ? ` · ⚠ cercado ${a.cut}/60 d` : ''}</b></div>${bar(a.sup === undefined ? 1 : a.sup, 1, (a.sup === undefined ? 1 : a.sup) < 0.5 ? 'bad' : 'good')}
+  ${typeof resBarsHtml === 'function' ? resBarsHtml(a) : ''}
   <div class="kv"><span>Hombres</span><b>${fmtN(armyMen(a), 0)}</b></div>
   <div class="kv"><span>Composición</span><b>${Object.keys(cnt).map(k => DIVS[k].icon + ' ' + cnt[k]).join(' · ')}</b></div>
   <div class="kv"><span>Atrincheramiento</span><b>${'■'.repeat(Math.round(a.dig || 0))}${'□'.repeat(6 - Math.round(a.dig || 0))}</b></div>
@@ -72,7 +73,7 @@ function renderArmyPanel() {
   ${own ? `<p class="hint"><b>Clic derecho</b>: mover (sobre un enemigo: perseguir). <b>Mayús + clic derecho</b>: añadir punto de ruta. <b>Ctrl/Mayús + clic en ficha</b>: grupo${group ? ` (<b>${sel.length} seleccionados</b>)` : ''}.</p>
   <div class="strpick"><small>Estrategia en combate:</small> <button class="${a.strat ? '' : 'on'}" data-act="armystrat" data-s="">🤖 Auto</button>${Object.keys(STRATS).map(k => `<button class="${a.strat === k ? 'on' : ''}" data-act="armystrat" data-s="${k}" data-tip="${STRATS[k].desc}">${STRATS[k].icon}</button>`).join('')}</div>
   <div class="ordgrid">
-    ${tg(UI.moveMode, 'movemode', '🎯 Mover')}${tg(UI.optFm || a.fm, 'optfm', '🥾 Marcha forzada')}${tg(UI.optRail || a.rail, 'optrail', '🚆 Ferrocarril')}${tg(UI.patrolNext, 'patrolmode', '🔁 Patrulla')}${tg(UI.landNext, 'landmode', '⚓ Desembarco')}
+    ${tg(UI.moveMode, 'movemode', '🎯 Mover')}${tg(UI.optFm || a.fm, 'optfm', '🥾 Marcha forzada')}${tg(UI.optRail || a.rail, 'optrail', '🚆 Ferrocarril')}${tg(UI.patrolNext, 'patrolmode', '🔁 Patrulla')}${tg(UI.showRoutes, 'showroutes', '📦 Rutas')}${tg(UI.landNext, 'landmode', '⚓ Desembarco')}
     ${tg(a.mode === 'hold', 'armymode', '🛡 Mantener', 'data-m="hold"')}${tg(a.mode === 'dig', 'armymode', '⛏ Atrincherar', 'data-m="dig"')}${tg(a.mode === 'train', 'armymode', '🎓 Entrenar', 'data-m="train"')}
     <button data-act="armystop" ${a.path.length || a.joinTo || a.patrol ? '' : 'disabled'}>✋ Detener</button><button data-act="armyretreat" ${a.battle ? 'disabled' : ''}>↩ Retirada</button><button data-act="armycap" ${a.battle ? 'disabled' : ''}>★ Capital</button>
     <button data-act="armysplit" ${a.divs.length < 2 || a.battle ? 'disabled' : ''}>✂ Dividir</button><button data-act="armydisband" ${a.battle ? 'disabled' : ''}>✖ Disolver</button>${b ? `<button data-act="selbattle" data-id="${b.id}">⚔ Batalla</button>` : ''}
@@ -243,10 +244,12 @@ function renderBattlePanel() {
     let ch = `<button data-act="bvzoom" data-d="1" data-tip="Acercar (rueda del ratón)">🔍＋</button><button data-act="bvzoom" data-d="-1" data-tip="Alejar">🔍－</button><button data-act="bvreset" data-tip="Vista completa (doble clic en el campo)">⤢ Vista completa</button><button data-act="bvfollow" class="${V && V.follow ? 'on' : ''}" data-tip="La cámara sigue al bloque seleccionado o bajo el ratón">🎥 Seguir</button>`;
     if (done && !rp) ch += `<button data-act="bvreplay" class="rp" data-tip="Vuelve a ver la batalla desde que abriste este panel">↻ Repetir la batalla</button>`;
     if (rp) ch += `<span class="sep"></span><button data-act="bvrpause">${rp.playing ? '⏸ Pausa' : '▶ Seguir'}</button>${[1, 2, 4].map(n => `<button data-act="bvrspeed" data-n="${n}" class="${rp.speed === n ? 'on' : ''}">×${n}</button>`).join('')}<button data-act="bvrexit">✖ Salir de la repetición</button>`;
+    if (!done && !rp && typeof tacSpeedHtml === 'function') ch += tacSpeedHtml(V);
     if (root._sc !== ch) { root._sc = ch; $('#bt-cam').innerHTML = ch; }
     const sel = V && V.sel && V.blocks.has(V.sel.d) ? V.sel : null; let oh = '';
     if (mySide && !done && !rp) oh = sel ? `<div class="ordhead">🎯 <b>${DIVS[sel.d.t].icon} ${BV_KIND[sel.type]}</b> · ${sel.a.name} <small>fuerza ${Math.round(sel.d.s * 100)}% · organización ${Math.round(sel.d.o / DIVS[sel.d.t].org * 100)}%</small></div><div class="ordbtns">${Object.keys(ORDERS).map(k => `<button data-act="bvorder" data-k="${k}" class="${bvOrder(sel) && bvOrder(sel).k === k ? 'on' : ''}" data-tip="<b>${ORDERS[k].name}</b><br>${ORDERS[k].desc}">${ORDERS[k].icon} ${ORDERS[k].name}</button>`).join('')}<button data-act="bvorder" data-k="cancel">✖ Sin orden</button></div>${sel.role === 'reserve' ? '<small class="dim">Está en reserva: aún no combate; la orden surtirá efecto cuando entre en línea.</small>' : ''}` : '<div class="ordhint">👆 Haz clic en uno de tus bloques para darle órdenes directas (cargar, resistir, flanquear o retirar).</div>';
     if (mySide && !done && !rp && hasTech(me(), 'chemical_weapons')) oh += `<div class="ordgas"><button data-act="bvgas" data-tip="<b>Ataque con gas</b><br>Castiga la organización y las bajas del enemigo durante 3 días. +6 infamia y −3 prestigio; las potencias lo condenan.">☣️ Ataque con gas</button></div>`;
+    if (typeof tacPanelHtml === 'function') oh = tacPanelHtml(b, V, sel) + oh;
     if (root._so !== oh) { root._so = oh; $('#bt-orders').innerHTML = oh; } }
   bvStart();
 }

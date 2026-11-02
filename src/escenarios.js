@@ -1,12 +1,11 @@
-/* ===== ÉPOCAS ALTERNATIVAS: 1836 (clásica), 1861 y 1900 =====
-   Los mundos de 1861 y 1900 son instantáneas (gzip + base64) de una simulación de la IA desde 1836, generadas con tools/generar_escenario.js
-   y elegidas por su verosimilitud. Se incrustan en el HTML y se cargan como una partida guardada: eliges la época, el mundo cambia y
+/* ===== ÉPOCAS ALTERNATIVAS: 1836 (clásica) y 1910 =====
+   El mundo de 1910 es una instantánea (gzip + base64) de una simulación de la IA desde 1836, generadas con tools/generar_escenario.js
+   y con el reparto territorial de 1910-1914 fijado a partir de mapas históricos (tools/anclar_1910.js). Se incrustan en el HTML y se cargan como una partida guardada: eliges la época, el mundo cambia y
    después eliges país (solo los que existen en esa fecha). */
 const SCEN_DATA = {/*SCEN_DATA*/};
 const SCEN_LIST = [
   [1836, '1836', 'Clásica', 'El mundo al empezar la era industrial: imperios coloniales, monarquías absolutas y mucho por construir.'],
-  [1861, '1861', 'Guerra y rebelión', 'Confederados y rebeldes Taiping en armas, Alemania e Italia unidas y el vapor transformando el mundo.'],
-  [1900, '1900', 'El cambio de siglo', 'Potencias industriales rivales, aviones en el horizonte y un mundo repartido entre pocos imperios.']
+  [1910, '1910', 'La víspera de la Gran Guerra', 'Imperios coloniales en su apogeo, Alemania e Italia unidas, dos bloques de alianzas en Europa y aviones, acorazados y ametralladoras en el horizonte.']
 ].filter(e => e[0] === 1836 || SCEN_DATA[e[0]]);
 async function scenUnzip(b64) {
   const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));

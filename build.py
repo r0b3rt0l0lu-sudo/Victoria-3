@@ -9,7 +9,7 @@ css = rd('src/style.css')
 order = ['icons.js', 'geo.js', 'data.js', 'nombres.js', 'cities.js', 'mapgen.js', 'provinces.js', 'mapsmooth.js', 'sim.js', 'crisis.js', 'diplo.js', 'military.js', 'logistics.js', 'milecon.js', 'dcrisis.js', 'render.js', 'render3d.js', 'ui.js', 'ui_mil.js', 'battleviz.js', 'terreno.js', 'politics2.js', 'national.js', 'peace.js', 'coalition.js', 'landing.js', 'intel.js', 'espionaje.js', 'mil2.js', 'doctrinas.js', 'plantillas.js', 'produccion.js', 'aviacion.js', 'marina.js', 'resistencia.js', 'mariscales.js', 'ia_guerra.js', 'ia_operaciones.js', 'ia_v3.js', 'moral.js', 'resumenes.js', 'asesor.js', 'ofertas_paz.js', 'navalviz.js', 'graficos.js', 'rendimiento.js', 'content.js', 'historia.js', 'escenarios.js', 'manual.js', 'main.js']
 def scen_data():
     out = []
-    for y in (1861, 1900):
+    for y in (1910,):
         p = os.path.join(root, 'escenarios', f'{y}.b64')
         if os.path.exists(p): out.append(f'{y}:"' + open(p).read().strip() + '"')
     return ','.join(out)

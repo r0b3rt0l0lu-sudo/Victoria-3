@@ -131,10 +131,10 @@ function buildHud() {
   $('#crest').innerHTML = '';
   syncCamBtns(); iconize($('#hud')); applyUiSize();
 }
-const UI_SIZES = [1, 1.2, 1.4];
+const UI_SIZES = [1, 1.25, 1.5];
 function applyUiSize(n) {
   let i = 1; try { i = n !== undefined ? n : +(localStorage.getItem('vic_ui') || 1); if (!(i >= 0 && i <= 2)) i = 1; if (n !== undefined) localStorage.setItem('vic_ui', i); } catch (e) { if (n !== undefined) i = n; }
-  UI.sz = i; document.documentElement.style.setProperty('--wz', UI_SIZES[i]); document.documentElement.style.setProperty('--mz', UI_SIZES[i]);
+  UI.sz = i; document.documentElement.style.setProperty('--wz', UI_SIZES[i]); 
   const b = document.getElementById('btn-ui'); if (b) b.innerHTML = ['Aa', 'Aa+', 'Aa++'][i];
 }
 

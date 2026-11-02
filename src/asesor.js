@@ -58,3 +58,15 @@ Object.assign(ACT, {
 document.addEventListener('click', e => { const a = document.getElementById('advisor'); if (a && a.classList.contains('open') && !e.target.closest('#advisor') && !e.target.closest('#btn-advisor')) advisorToggle(false); });
 // refresca el panel abierto con el estado actual (cada pocos segundos)
 setInterval(() => { const a = document.getElementById('advisor'); if (a && a.classList.contains('open') && UI.started) { _advCache.t = -1; a.innerHTML = advisorHtml(); } }, 4000);
+
+/* ---------- el panel en el que haces clic pasa por delante de los demás desplegables ---------- */
+const Z_PANELS = ['statepanel', 'armypanel', 'windows', 'battlepanel', 'advisor'];
+function zApply() { Z_PANELS.forEach((id, i) => { const e = document.getElementById(id); if (e) e.style.zIndex = 30 + i; }); }
+document.addEventListener('mousedown', e => {
+  const p = Z_PANELS.find(id => { const el = document.getElementById(id); return el && el.contains(e.target); });
+  if (!p || Z_PANELS[Z_PANELS.length - 1] === p) return;
+  Z_PANELS.splice(Z_PANELS.indexOf(p), 1); Z_PANELS.push(p); zApply();
+}, true);
+// al abrir un panel, queda delante
+['battlepanel', 'statepanel', 'armypanel', 'windows'].forEach(id => { const e = document.getElementById(id); if (e) new MutationObserver(() => { if (e.innerHTML && Z_PANELS[Z_PANELS.length - 1] !== id && !e.dataset.zs) { e.dataset.zs = 1; Z_PANELS.splice(Z_PANELS.indexOf(id), 1); Z_PANELS.push(id); zApply(); } else if (!e.innerHTML) delete e.dataset.zs; }).observe(e, {childList: true}); });
+zApply();

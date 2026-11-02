@@ -121,6 +121,7 @@ function bvRelief(V, b, dt) {
 }
 /* ---------- comportamiento de cada bloque ---------- */
 function bvHome(blk, L) {
+  if (blk.d.cust && blk.d.cust.abs) return {x: blk.d.cust.x, y: blk.d.cust.y};
   if (blk.d.cust) return {x: L - (blk.side === 'A' ? 1 : -1) * (blk.d.cust.dep + blk.dep / 2), y: blk.d.cust.y};
   const dir = blk.side === 'A' ? 1 : -1, top = 54, bot = BV_H - 38, n = Math.max(1, blk.nLane); let depth, y;
   if (blk.role === 'line') { y = top + (blk.lane + 0.5) * (bot - top) / n; depth = 0; }
@@ -211,7 +212,7 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
 // separación entre bloques (no se solapan salvo los que están trabados en combate)
 function bvSeparate(all, dt) {
   for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
-    const a = all[i], c = all[j]; if (a.side !== c.side && (a.mode === 'melee' || c.mode === 'melee' || a.mode === 'charge' || c.mode === 'charge' || a.mode === 'gallop')) continue;
+    const a = all[i], c = all[j]; if (a.side === c.side && ((a.d.cust && a.d.cust.fort) || (c.d.cust && c.d.cust.fort))) continue; if (a.side !== c.side && (a.mode === 'melee' || c.mode === 'melee' || a.mode === 'charge' || c.mode === 'charge' || a.mode === 'gallop')) continue;
     const ox = (a.dep + c.dep) / 2 - Math.abs(a.x - c.x), oy = (a.wid + c.wid) / 2 - Math.abs(a.y - c.y);
     if (ox > 0 && oy > 0) { const push = Math.min(ox, oy) * 0.5 * Math.min(1, dt * 4); if (oy <= ox) { const s = a.y < c.y ? -1 : 1; a.y += s * push; c.y -= s * push; } else { const s = a.x < c.x ? -1 : 1; a.x += s * push * 0.6; c.x -= s * push * 0.6; } }
   }
@@ -471,6 +472,7 @@ function bvOverlay(V, b, g, lines, all) {
     g.fillStyle = 'rgba(8,12,16,.7)'; g.fillRect(x, 40, bw, 38); g.fillStyle = s === 'A' ? '#e8644f' : '#6aa8e8'; g.fillRect(left ? x : x + bw - 3, 40, 3, 38);
     g.textAlign = left ? 'left' : 'right'; const tx = left ? x + 10 : x + bw - 10; g.font = 'bold 14.5px sans-serif'; g.fillStyle = '#f5ecd0'; g.fillText(txt, tx, 53); g.font = '12.5px sans-serif'; g.fillStyle = '#b9c0c8'; g.fillText(sub, tx, 70); });
   if (V.banner) { const k = V.banner.age, a = k < 0.3 ? k / 0.3 : k > 2.3 ? (2.8 - k) / 0.5 : 1; g.globalAlpha = clamp(a, 0, 1); g.fillStyle = 'rgba(10,12,16,.82)'; g.fillRect(W / 2 - 200, H - 50, 400, 32); g.fillStyle = V.banner.side === 'A' ? '#ffb89c' : '#a8d0ff'; g.font = 'bold 17px sans-serif'; g.textAlign = 'center'; g.fillText(`${V.banner.icon || ''} ${V.banner.text}`, W / 2, H - 33); g.globalAlpha = 1; }
+  { const hint = V.draw && PLANS[V.draw.k] ? `${PLANS[V.draw.k].ic} ${PLANS[V.draw.k].hint}  (Esc cancela)` : V.tool ? 'Haz clic en tu zona para construir (Esc cancela)' : V.garr ? '🏰 Elige un bloque tuyo y haz clic en un fuerte' : ''; if (hint) { g.font = 'bold 13px sans-serif'; const w = g.measureText(hint).width + 24; g.fillStyle = 'rgba(10,12,16,.9)'; g.fillRect(W / 2 - w / 2, H - 30, w, 24); g.strokeStyle = '#ffd37a'; g.lineWidth = 1; g.strokeRect(W / 2 - w / 2, H - 30, w, 24); g.fillStyle = '#ffe9a8'; g.textAlign = 'center'; g.fillText(hint, W / 2, H - 18); } }
   // ficha del bloque bajo el ratón
   const h = V.hover; if (h) {
     const orgF = clamp(h.d.o / DIVS[h.d.t].org, 0, 1), mor = typeof armyMor === 'function' ? armyMor(h.a) : 0.8, gen = h.a.gen || {name: '—', lvl: 1};

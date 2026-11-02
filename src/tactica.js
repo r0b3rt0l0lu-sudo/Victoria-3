@@ -11,7 +11,7 @@ const FORT_KINDS = {
   battery: {n: 'Batería', ic: '💣', w: 48, h: 30, cost: {wood: 2, mat: 3, powder: 2}, hp: 130, def: 0.04, need: 1, guns: 2, desc: 'Plataforma con 2 cañones: +3% de ataque por cañón y +4% de defensa.'},
   fort: {n: 'Fuerte', ic: '🏯', w: 96, h: 70, cost: {}, hp: 260, def: 0.07, need: 3, guns: 1, desc: 'Fuerte permanente de la provincia: gran defensa y cañones.'}
 };
-const FORT_MAX = 6, FORT_GUN_COST = {wood: 1, mat: 1.5, powder: 1.5}, FORT_CAP_DEF = 0.18;
+const FORT_MAX = 2, FORT_GUN_COST = {wood: 1, mat: 1.5, powder: 1.5}, FORT_CAP_DEF = 0.18;
 const fmtCost = c => Object.keys(c).map(k => RES_INFO[k].ic + c[k]).join(' ');
 const tacCan = (ids, cost) => { const t = sideRes(ids).t; return Object.keys(cost).every(k => t[k] >= cost[k] - 1e-6); };
 const sideIds = (b, s) => s === 'A' ? b.A : b.B;
@@ -30,7 +30,7 @@ function tacZoneOk(b, side, x, y) {
 }
 function tacBuildFort(b, side, kind, x, y) {
   const K = FORT_KINDS[kind], ids = sideIds(b, side);
-  if ((b.forts || []).filter(f => f.side === side && f.kind !== 'fort').length >= FORT_MAX) return {ok: false, msg: `Máximo ${FORT_MAX} obras por bando.`};
+  if ((b.forts || []).filter(f => f.side === side && f.kind !== 'fort').length >= FORT_MAX) return {ok: false, msg: `Solo puedes construir ${FORT_MAX} fuertes como máximo (sin contar el fuerte de la provincia).`};
   if (!tacZoneOk(b, side, x, y)) return {ok: false, msg: 'Solo puedes construir en tu mitad del campo.'};
   const tf = battleTerrain(b), t = bvTerrAt(tf, x, y, side); if (t.water) return {ok: false, msg: 'No se puede construir en el agua.'};
   if ((b.forts || []).some(f => f.hp > 0 && Math.abs(f.x - x) < (f.w + K.w) / 2 && Math.abs(f.y - y) < (f.h + K.h) / 2)) return {ok: false, msg: 'Ya hay una obra en ese lugar.'};
@@ -43,7 +43,23 @@ function tacAddGun(b, f) {
   if (!tacCan(ids, FORT_GUN_COST)) return {ok: false, msg: `Faltan reservas: ${fmtCost(FORT_GUN_COST)} por división.`};
   spendSideRes(ids, FORT_GUN_COST); f.guns++; return {ok: true};
 }
+// guarnición: los bloques asignados se instalan dentro del fuerte
+function tacGarrisonOf(b, f) { const out = []; sideIds(b, f.side).map(armyById).filter(Boolean).forEach(a => a.divs.forEach(d => { if (d.cust && d.cust.fort === f.id) out.push(d); })); return out; }
+function tacLayoutFort(b, f) {
+  const gs = tacGarrisonOf(b, f), n = gs.length; if (!n) return; const horiz = f.w >= f.h, long = horiz ? f.w : f.h, sp = Math.min(40, (long - 8) / Math.max(1, n));
+  gs.forEach((d, i) => { const o = (i - (n - 1) / 2) * sp; d.cust = {abs: true, x: horiz ? f.x + o : f.x, y: horiz ? f.y : f.y + o, fort: f.id}; });
+}
+function tacGarrison(b, f, blk) {
+  const K = FORT_KINDS[f.kind]; if (f.hp <= 0) return {ok: false, msg: 'Esa obra está destruida.'};
+  if (blk.type === 'art' && f.kind === 'trench') return {ok: false, msg: 'La artillería no puede guarnecer una trinchera.'};
+  const gs = tacGarrisonOf(b, f).filter(d => d !== blk.d); if (gs.length >= K.need) return {ok: false, msg: `Guarnición completa (${K.need} bloques como máximo).`};
+  const old = blk.d.cust && blk.d.cust.fort; blk.d.cust = {abs: true, x: f.x, y: f.y, fort: f.id}; tacLayoutFort(b, f);
+  if (old && old !== f.id) { const of = (b.forts || []).find(q => q.id === old); if (of) tacLayoutFort(b, of); }
+  return {ok: true};
+}
+function tacRelease(b, f) { tacGarrisonOf(b, f).forEach(d => { delete d.cust; }); }
 function tacDelFort(b, f) {
+  tacRelease(b, f);
   if (f.kind === 'fort') return {ok: false, msg: 'Un fuerte del mapa no se puede desmontar.'};
   const K = FORT_KINDS[f.kind], ids = sideIds(b, f.side), back = {}; Object.keys(K.cost).forEach(k => { back[k] = -K.cost[k] * 0.5; }); spendSideRes(ids, back);
   b.forts = b.forts.filter(x => x !== f); return {ok: true};
@@ -94,7 +110,7 @@ function tacFortDamage(b) {
     const fs = tacForts(b, side); if (!fs.length) return; const foe = side === 'A' ? 'B' : 'A', as = sideIds(b, foe).map(armyById).filter(Boolean);
     const arts = as.reduce((n, a) => n + a.divs.filter(d => dKind(d) === 'art').length, 0), push = Math.max(0, (side === 'A' ? -1 : 1) * (b.adv || 0)) * 10;
     const dmg = (2.5 + arts * 7 + push) * (0.8 + Math.random() * 0.4) / fs.length;
-    fs.forEach(f => { const was = f.hp; f.hp = Math.max(0, f.hp - dmg * (f.kind === 'trench' ? 0.8 : 1)); if (was > 0 && f.hp <= 0) { const ev = {k: 'panic', d: b.day, t: `${FORT_KINDS[f.kind].ic} ¡Cae ${FORT_KINDS[f.kind].n.toLowerCase()} de ${G.C[side === 'A' ? b.A0 : b.B0].name}!`}; (b.log = b.log || []).push(ev); if (b.log.length > 30) b.log.shift(); } });
+    fs.forEach(f => { const was = f.hp; f.hp = Math.max(0, f.hp - dmg * (f.kind === 'trench' ? 0.8 : 1)); if (was > 0 && f.hp <= 0) { tacRelease(b, f); const ev = {k: 'panic', d: b.day, t: `${FORT_KINDS[f.kind].ic} ¡Cae ${FORT_KINDS[f.kind].n.toLowerCase()} de ${G.C[side === 'A' ? b.A0 : b.B0].name}!`}; (b.log = b.log || []).push(ev); if (b.log.length > 30) b.log.shift(); } });
   });
 }
 /* ---------- ciclo del combate: preparación y tareas diarias ---------- */
@@ -119,9 +135,9 @@ battleDay = function (b) {
 };
 /* ---------- planes dibujados ---------- */
 const PLANS = {
-  attack: {n: 'Atacar', ic: '➡️', col: '#ff6a52', hint: 'Haz clic donde quieres que avance (varios clics = ruta). Pulsa «Fijar» o doble clic para terminar.', multi: true},
+  attack: {n: 'Atacar', ic: '➡️', col: '#ff6a52', hint: 'Haz UN clic en el campo donde debe atacar (Mayús+clic añade puntos de paso intermedios).', multi: true, n1: 1},
   target: {n: 'Objetivo', ic: '🎯', col: '#ff3a3a', hint: 'Haz clic sobre el bloque ENEMIGO que debe atacar.', multi: false},
-  flank: {n: 'Flanquear', ic: '↪️', col: '#ffb43c', hint: 'Marca los puntos del rodeo (por los extremos) y acaba cerca del flanco enemigo. «Fijar» o doble clic para terminar.', multi: true},
+  flank: {n: 'Flanquear', ic: '↪️', col: '#ffb43c', hint: 'Haz 2 clics: primero el punto de rodeo (por un extremo) y después el flanco enemigo donde golpea (Mayús+clic añade más puntos).', multi: true, n1: 2},
   defend: {n: 'Línea defensiva', ic: '🛡️', col: '#5aa8ff', hint: 'Marca los dos extremos de la línea que debe mantener.', multi: 2},
   retreat: {n: 'Retirada', ic: '↩️', col: '#b7bcc4', hint: 'Haz clic en el punto hasta donde debe retirarse.', multi: false}
 };
@@ -130,7 +146,7 @@ function tacClickMap(V, b, wx, wy, dbl) {
   const dr = V.draw; if (!dr || !V.sel) return false; const P = PLANS[dr.k];
   if (dr.k === 'target') { const h = V.hover; if (h && h.side !== V.sel.side && h.mode !== 'rout') { tacSetPlan(V, {k: 'target', foe: h.d, pts: []}); V.draw = null; bvBanner(V, `🎯 ${V.sel.a.name} → ${DIVS[h.d.t].name} enemiga`, V.sel.side, ''); } else toast('🎯', 'Haz clic sobre un bloque enemigo.'); return true; }
   dr.pts.push([clamp(wx, 20, BV_W - 20), clamp(wy, 34, BV_H - 14)]);
-  const done = P.multi === true ? dbl : P.multi === 2 ? dr.pts.length >= 2 : true;
+  const sh = !!window._tacShift, done = dbl || (P.multi === true ? (!sh && dr.pts.length >= (P.n1 || 1)) : P.multi === 2 ? dr.pts.length >= 2 : true);
   if (done) { tacSetPlan(V, {k: dr.k, pts: dr.pts.slice()}); V.draw = null; bvBanner(V, `${P.ic} ${P.n}: ${V.sel.a.name}`, V.sel.side, ''); }
   return true;
 }
@@ -224,6 +240,7 @@ function tacDrawForts(g, V, b) {
       g.fillStyle = G.C[f.side === 'A' ? b.A0 : b.B0].color; g.fillRect(-1, -h / 2 - 12, 1.5, 12); g.fillRect(0, -h / 2 - 12, 9, 6);
     } else { g.fillStyle = '#5e4a30'; g.beginPath(); g.ellipse(-dir * 4, 0, w / 2, h / 2, 0, 0, 6.3); g.fill(); g.fillStyle = '#3a2d1c'; g.beginPath(); g.ellipse(-dir * 4, 0, w / 2 - 6, h / 2 - 6, 0, 0, 6.3); g.fill(); g.strokeStyle = '#8c7348'; g.lineWidth = 1.5; g.beginPath(); g.ellipse(-dir * 4, 0, w / 2, h / 2, 0, 0, 6.3); g.stroke(); }
     for (let i = 0; i < f.guns; i++) { const gy = (i - (f.guns - 1) / 2) * 10; g.strokeStyle = '#4e5359'; g.lineWidth = 3; g.lineCap = 'round'; g.beginPath(); g.moveTo(-dir * 3, gy); g.lineTo(dir * 11, gy); g.stroke(); g.fillStyle = '#2a2018'; g.beginPath(); g.arc(-dir * 4, gy, 2.6, 0, 6.3); g.fill(); g.lineCap = 'butt'; }
+    { const gn = tacGarrisonOf(b, f).length; if (gn) { g.fillStyle = 'rgba(10,12,16,.85)'; g.fillRect(-14, -h / 2 - 16, 28, 13); g.fillStyle = '#ffe9a8'; g.font = 'bold 10px sans-serif'; g.textAlign = 'center'; g.fillText('👥 ' + gn, 0, -h / 2 - 6); } }
     g.globalAlpha = 1; g.fillStyle = 'rgba(0,0,0,.6)'; g.fillRect(-w / 2, h / 2 + 4, w, 4); g.fillStyle = hpf > 0.5 ? '#79c35a' : hpf > 0.25 ? '#e0b04a' : '#e8644f'; g.fillRect(-w / 2, h / 2 + 4, w * hpf, 4);
     if (sel) { g.strokeStyle = '#fff3a0'; g.setLineDash([5, 3]); g.lineWidth = 1.6; g.strokeRect(-w / 2 - 5, -h / 2 - 5, w + 10, h + 10); g.setLineDash([]); }
     g.restore();
@@ -280,19 +297,22 @@ function tacTerrAtExtra(tf, x, y, side, o) {
 function tacMouseDown(V, b, e, p) {
   if (V.replay || b.ended) return false; const ps = playerSide(b); if (!ps) return false; const [wx, wy] = bvToWorld(V, p.x, p.y);
   if (b.prep) {
-    if (V.tool) { const r = tacBuildFort(b, ps, V.tool.k, wx, wy); if (!r.ok) toast('⚠️', r.msg); else { V.selFort = r.f.id; } renderBattlePanel(); return true; }
+    if (V.tool) { const r = tacBuildFort(b, ps, V.tool.k, wx, wy); if (!r.ok) toast('⚠️', r.msg); else { V.selFort = r.f.id; V.tool = null; } renderBattlePanel(); return true; }
+    if (V.garr) { const f0 = tacFortAt(b, wx, wy); if (f0 && f0.side === ps) { if (!V.sel || V.sel.side !== ps) toast('⚠️', 'Primero selecciona uno de tus bloques.'); else { const r = tacGarrison(b, f0, V.sel); if (!r.ok) toast('⚠️', r.msg); else toast('🏰', `${V.sel.a.name} guarnece ${FORT_KINDS[f0.kind].n.toLowerCase()}.`); } renderBattlePanel(); return true; } }
+    if (V.draw) return false;
     const h = V.hover; if (h && h.side === ps) { V.sel = h; V.dragBlk = h; V.selFort = null; renderBattlePanel(); return true; }
     const f = tacFortAt(b, wx, wy); if (f && f.side === ps) { V.selFort = f.id; V.sel = null; renderBattlePanel(); return true; }
   }
   return false;
 }
 function tacMouseMove(V, b, p) { const k = V.dragBlk; if (!k || !b.prep) return false; const ps = playerSide(b), dir = ps === 'A' ? 1 : -1, [wx, wy] = bvToWorld(V, p.x, p.y), L = tacLineBase(b, ps); const lo = ps === 'A' ? 50 : BV_W / 2 + 30, hi = ps === 'A' ? BV_W / 2 - 30 : BV_W - 50; const x = clamp(wx, lo, hi), y = clamp(wy, 48, BV_H - 28);
-  k.d.cust = {dep: dir * (L - x) - k.dep / 2, y}; return true; }
-function tacMouseUp(V) { if (V.dragBlk) { V.dragBlk = null; return true; } return false; }
+  const old = k.d.cust && k.d.cust.fort; k.d.cust = {dep: dir * (L - x) - k.dep / 2, y}; V.dragPos = [x, y]; if (old) { const f = (b.forts || []).find(q => q.id === old); if (f) tacLayoutFort(b, f); } return true; }
+function tacMouseUp(V) { if (V.dragBlk) { const k = V.dragBlk, b = G.battles.find(x => x.id === UI.battle); V.dragBlk = null; if (b && V.dragPos) { const f = tacFortAt(b, V.dragPos[0], V.dragPos[1]); if (f && f.side === k.side) { const r = tacGarrison(b, f, k); if (!r.ok) toast('⚠️', r.msg); } } renderBattlePanel(); return true; } return false; }
 /* ---------- acciones del panel ---------- */
 Object.assign(ACT, {
   tacfort: d => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !b || !b.prep) return; V.tool = V.tool && V.tool.k === d.k ? null : {k: d.k}; V.draw = null; renderBattlePanel(); },
   tacgun: () => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !b || !b.prep) return; const f = (b.forts || []).find(x => x.id === V.selFort); if (!f) { toast('⚠️', 'Selecciona primero una obra (clic sobre ella).'); return; } const r = tacAddGun(b, f); if (!r.ok) toast('⚠️', r.msg); renderBattlePanel(); },
+  tacgar: () => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !b || !b.prep) return; V.garr = !V.garr; V.tool = null; V.draw = null; if (V.garr) toast('🏰', 'Selecciona un bloque tuyo y haz clic en un fuerte para guarnecerlo.'); renderBattlePanel(); },
   tacdel: () => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !b || !b.prep) return; const f = (b.forts || []).find(x => x.id === V.selFort); if (!f) { toast('⚠️', 'Selecciona primero una obra.'); return; } const r = tacDelFort(b, f); if (!r.ok) toast('⚠️', r.msg); V.selFort = null; renderBattlePanel(); },
   tacstart: () => { const b = G.battles.find(x => x.id === UI.battle); if (!b || !b.prep) return; const V = R.bviz; if (V) { V.tool = null; V.dragBlk = null; V.selFort = null; } tacApplyPrep(b); const ps = playerSide(b), pb = b.pb[ps]; toast('⚔️', `¡Comienza la batalla! Preparación: ataque ${((pb.att + pb.fortAtt) * 100).toFixed(0)}% · defensa ${((pb.def + Math.min(FORT_CAP_DEF, pb.fortDef)) * 100).toFixed(0)}%.`); R.bvPrevPause = false; G.paused = false; UI.tactPaused = false; renderBattlePanel(); },
   tacplan: d => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !V.sel || !b || b.ended || V.replay) return; if (V.sel.side !== playerSide(b)) return; V.tool = null;
@@ -309,16 +329,15 @@ function tacPanelHtml(b, V, sel) {
     const t = sideRes(ids).t, chips = RES_KEYS.map(k => `<span class="rchip" data-tip="${RES_INFO[k].n} (por división)">${RES_INFO[k].ic} ${t[k].toFixed(1)}</span>`).join(''), selF = (b.forts || []).find(x => x.id === V.selFort);
     h += `<div class="prep"><div class="prep-h"><b>⚙️ Fase de preparación</b><small>El combate está detenido. Arrastra tus bloques por tu mitad del campo (zona marcada) y levanta fuertes con las reservas de tu ejército.</small></div>
     <div class="prep-r">${chips}</div><div class="prep-b">${['trench', 'redoubt', 'battery'].map(k => { const K = FORT_KINDS[k], ok = tacCan(ids, K.cost); return `<button data-act="tacfort" data-k="${k}" class="${V.tool && V.tool.k === k ? 'on' : ''} ${ok ? '' : 'nofunds'}" data-tip="<b>${K.n}</b><br>${K.desc}<br>Coste por división: ${fmtCost(K.cost)}">${K.ic} ${K.n}<small>${fmtCost(K.cost)}</small></button>`; }).join('')}
-    <button data-act="tacgun" data-tip="<b>Añadir un cañón</b> a la obra seleccionada. Cuesta ${fmtCost(FORT_GUN_COST)} por división.">➕ Cañón<small>${fmtCost(FORT_GUN_COST)}</small></button><button data-act="tacdel" data-tip="Desmonta la obra seleccionada (recuperas la mitad de los recursos).">🗑 Quitar</button></div>
-    <div class="prep-s">${selF ? `Seleccionado: <b>${FORT_KINDS[selF.kind].ic} ${FORT_KINDS[selF.kind].n}</b> · cañones ${selF.guns}` : V.tool ? `Haz clic en tu zona para colocar: <b>${FORT_KINDS[V.tool.k].n}</b>` : (b.forts || []).some(f => f.kind === 'fort') ? 'Hay un fuerte de la provincia: sitúa tus bloques y cañones junto a él.' : 'Elige una obra o arrastra un bloque.'}</div>
+    <button data-act="tacgar" class="${V.garr ? 'on' : ''}" data-tip="<b>Guarnecer</b><br>Selecciona uno de tus bloques, pulsa este botón y haz clic en un fuerte: el bloque se instala dentro. También puedes arrastrar el bloque encima del fuerte. Capacidad: trinchera 2, reducto 2, batería 1, fuerte 3.">🏰 Guarnecer</button><button data-act="tacgun" data-tip="<b>Añadir un cañón</b> a la obra seleccionada. Cuesta ${fmtCost(FORT_GUN_COST)} por división.">➕ Cañón<small>${fmtCost(FORT_GUN_COST)}</small></button><button data-act="tacdel" data-tip="Desmonta la obra seleccionada (recuperas la mitad de los recursos).">🗑 Quitar</button></div>
+    <div class="prep-s">${selF ? `Seleccionado: <b>${FORT_KINDS[selF.kind].ic} ${FORT_KINDS[selF.kind].n}</b> · cañones ${selF.guns}` : V.tool ? `Haz clic en tu zona para colocar: <b>${FORT_KINDS[V.tool.k].n}</b>` : (V.garr ? 'Modo guarnición: elige un bloque tuyo y haz clic en un fuerte para instalarlo dentro.' : (b.forts || []).some(f => f.kind === 'fort') ? 'Hay un fuerte de la provincia: arrastra un bloque encima o usa «Guarnecer».' : 'Elige una obra o arrastra un bloque.')}</div>
     <button class="primary prep-go" data-act="tacstart">▶ ¡Comenzar la batalla!</button></div>`;
-    return h;
   }
   if (!b.ended && !V.replay) {
     const sel2 = sel && sel.side === ps ? sel : null, cur = sel2 && sel2.d.plan;
     h += `<div class="plans"><div class="plans-h">🖊️ <b>Planes por unidad</b> <small>${sel2 ? `${DIVS[sel2.d.t].icon} ${sel2.a.name}${cur ? ` · plan: ${PLANS[cur.k].ic} ${PLANS[cur.k].n}` : ' · sin plan'}` : 'Selecciona uno de tus bloques y dibuja su flecha en el campo.'}</small></div>
     <div class="plans-b">${Object.keys(PLANS).map(k => `<button data-act="tacplan" data-k="${k}" class="${V.draw && V.draw.k === k ? 'on' : ''}" ${sel2 ? '' : 'disabled'} data-tip="<b>${PLANS[k].n}</b><br>${PLANS[k].hint}">${PLANS[k].ic} ${PLANS[k].n}</button>`).join('')}
-    ${V.draw && PLANS[V.draw.k].multi === true ? `<button data-act="tacplan" data-k="fix" class="fix">✔ Fijar</button>` : ''}<button data-act="tacplan" data-k="clear" ${cur ? '' : 'disabled'}>✖ Borrar</button></div>${V.draw ? `<div class="plans-s">${PLANS[V.draw.k].hint}</div>` : ''}</div>`;
+    ${V.draw && V.draw.pts.length ? `<button data-act="tacplan" data-k="fix" class="fix">✔ Fijar</button>` : ''}<button data-act="tacplan" data-k="clear" ${cur ? '' : 'disabled'}>✖ Borrar</button></div>${V.draw ? `<div class="plans-s">${PLANS[V.draw.k].hint}</div>` : ''}</div>`;
   }
   return h;
 }
@@ -326,3 +345,8 @@ function tacSpeedHtml(V) { const bb = G.battles.find(x => x.id === UI.battle); r
 
 const _endBattle0 = endBattle;
 endBattle = function (b, winner) { [b.A, b.B].forEach(ids => ids.map(armyById).filter(Boolean).forEach(a => a.divs.forEach(d => { delete d.cust; delete d.plan; }))); _endBattle0(b, winner); };
+
+window.addEventListener('keydown', e => { if (e.key === 'Shift') window._tacShift = true; const V = R.bviz; if (!V || !UI.battle) return;
+  if (e.key === 'Escape' && (V.draw || V.tool || V.garr)) { V.draw = null; V.tool = null; V.garr = false; renderBattlePanel(); e.stopPropagation(); }
+  else if (e.key === 'Enter' && V.draw && V.draw.pts.length) { ACT.tacplan({k: 'fix'}); e.stopPropagation(); } }, true);
+window.addEventListener('keyup', e => { if (e.key === 'Shift') window._tacShift = false; });

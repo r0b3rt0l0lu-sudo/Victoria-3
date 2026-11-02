@@ -566,6 +566,27 @@ button.block small{margin-left:6px}button.block small.dim{display:block;margin:2
 .ws-goal{margin-top:10px;font-size:12.5px}.ws-goal small{color:var(--dim)}.ws-note{color:#cfc8b2;font-size:13px;margin:12px 0}.ws-card button{display:block;margin:4px auto 0;padding:8px 30px}
 @media (max-width:700px){.bsum-grid,.ws-grid,.ws-sides{grid-template-columns:1fr}}
 .ordgas{margin-top:6px}.ordgas button{background:linear-gradient(#4a5a22,#2c3812);color:#e6f2b8;border:1px solid #9fb447;border-radius:14px;padding:4px 12px;font-size:12px;cursor:pointer}.ordgas button:hover{filter:brightness(1.2)}
+
+/* ===== asesor ===== */
+#topright .rbtn{position:relative}.rbtn .badge{position:absolute;top:-4px;right:-4px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:#e8644f;color:#fff;font:700 10.5px sans-serif;font-style:normal;display:none;align-items:center;justify-content:center;border:1px solid #fff4}
+#btn-advisor.alert{border-color:#e8644f;animation:pulse 1.4s infinite}
+#datebox{right:410px}#plaque{max-width:max(400px,calc(100vw - 960px))}
+@media (max-width:1100px){#datebox{right:12px}#plaque{max-width:calc(100vw - 420px)}#plaque .chips{max-width:calc(100vw - 600px)}}
+#advisor{position:fixed;right:12px;top:62px;width:min(380px,calc(100vw - 24px));max-height:calc(100vh - 150px);overflow:auto;z-index:100;display:none;background:linear-gradient(180deg,#27303a,#161c22);border:1px solid var(--gold);border-radius:12px;box-shadow:0 12px 36px rgba(0,0,0,.8)}
+#advisor.open{display:block}.adv-head{display:flex;align-items:baseline;gap:10px;padding:11px 14px;border-bottom:1px solid var(--goldd);background:linear-gradient(180deg,rgba(120,90,30,.3),transparent)}
+.adv-head b{font-family:var(--head);font-size:17px;color:var(--gold2);letter-spacing:.05em}.adv-head small{color:var(--dim);font-size:12px;flex:1}.adv-head .x{background:none;border:none;color:var(--dim);cursor:pointer;font-size:15px}
+.adv-list{padding:8px}.tip{display:flex;align-items:center;gap:10px;padding:9px 10px;margin:5px 0;border-radius:9px;background:rgba(255,255,255,.045);border-left:4px solid #8a8f99}
+.tip.p1{border-left-color:#e8644f;background:rgba(232,100,79,.1)}.tip.p2{border-left-color:#e0b04a}.tip.p3{border-left-color:#6aa8e8}
+.tip .ti{font-size:22px;flex:none}.tip .tt{flex:1;min-width:0;line-height:1.3}.tip .tt b{display:block;font-size:13.5px;color:#fff3d0}.tip .tt small{display:block;color:#c9c4b4;font-size:12px;margin-top:2px}.tip .tt em{font-style:normal;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim)}
+.tip button{flex:none;background:linear-gradient(#8a6f2f,#5b4818);color:#fff6d6;border:1px solid var(--gold2);border-radius:14px;padding:4px 14px;cursor:pointer;font-size:12px}.tip button:hover{filter:brightness(1.2)}
+.adv-ok{padding:16px;text-align:center;color:#a9d98c;font-size:13px}.adv-foot{display:block;padding:6px 14px 10px;color:var(--dim);font-size:11px}
+
+/* ===== arreglos de texto superpuesto (auditoría profunda) ===== */
+.window .cols>.col{min-width:0}.window .cols>.col>.card{overflow-x:auto}
+.window .tbl th{white-space:normal;line-height:1.15}
+.foes>small.dim{display:block;margin:8px 0 3px}
+.manual nav{flex:none}
+@media (max-width:1100px){.manual nav{max-height:112px;overflow-y:auto;margin-bottom:12px;padding-bottom:4px}}
 </style>
 </head>
 <body>
@@ -6083,6 +6104,7 @@ function buildHud() {
     <div class="speeds">${[1, 2, 3, 4, 5].map(i => `<button class="spd s" data-act="speed" data-n="${i}" data-tip="Velocidad ${i} <small>(, y . cambian la velocidad)</small>"><i></i></button>`).join('')}</div>
   </div>
   <div id="topright">
+    <button class="rbtn" data-act="advisor" id="btn-advisor" data-tip="<b>Asesor</b><br>Qué conviene hacer ahora: avisos y accesos directos.">🧭<i class="badge"></i></button>
     <button class="rbtn" data-act="search" data-tip="<b>Buscar</b><br>País, estado o ciudad. <small>Ctrl+K o /</small>">🔍</button>
     <button class="rbtn" data-act="win" data-w="achievements" data-tip="<b>Logros</b><br>Metas que desbloquean prestigio.">🏅</button>
     <button class="rbtn" data-act="save" data-tip="<b>Guardar partida</b>">💾</button>
@@ -6149,6 +6171,7 @@ function updateHud(force) {
   set('ch-mail', G.proposals.length, '<b>Propuestas diplomáticas</b><br>' + (G.proposals.length ? 'Tienes propuestas pendientes' : 'Sin propuestas'));
   $('#ch-mail').classList.toggle('alert', G.proposals.length > 0);
   { const mc = $('#modecap'); if (mc) { const m = MAP_MODES.find(x => x.id === R.mode); mc.textContent = m ? 'Mapa: ' + m.name : ''; } }
+  if (typeof advisorBadge === 'function') advisorBadge();
   $('#datetxt').textContent = dateStr();
   $('#btn-pause').textContent = G.paused ? '▶' : '⏸';
   $$('#datebox .speeds .s').forEach((b, i) => b.classList.toggle('on', i < UI.speed));
@@ -6158,6 +6181,7 @@ function updateHud(force) {
 /* ---------- ventanas ---------- */
 const WINDOWS = {};
 function openWindow(id) {
+  UI.seen = UI.seen || {}; UI.seen[id] = true;
   if (UI.win === id) { closeWindow(); return; }
   UI.win = id; renderWindow(true);
   $$('#menu .mbtn').forEach(b => b.classList.toggle('on', b.id === 'mb-' + id));
@@ -6966,7 +6990,7 @@ function selectStartCountry(tag) {
 function startGame() {
   const tag = UI.startTag;
   G.player = tag; G.tags.forEach(t => G.C[t].ai = t !== tag);
-  UI.started = true; G.paused = true; achSnapshot(G.C[tag]); document.body.classList.remove('starting');
+  UI.started = true; UI.startT = G.date.t; UI.seen = {}; G.paused = true; achSnapshot(G.C[tag]); document.body.classList.remove('starting');
   $('#start').classList.add('hide'); setTimeout(() => $('#start').style.display = 'none', 600);
   $('#hud').classList.add('show');
   buildHud(); updateHud(); computeLabels();
@@ -10531,6 +10555,66 @@ function recentBattlesHtml() {
   return `<div class="card"><h3>Batallas recientes</h3>${l.length ? l.map(b => { const s = b.sum, win = s.mine === s.winner; return `<div class="kv sm clk" data-act="selbattle" data-id="${b.id}"><span>${win ? '🏆' : '💀'} ${provName(b.prov)} <small class="dim">${s.date}</small></span><b>${fmtN(s.lost[s.mine], 0)} bajas · 📋 resumen</b></div>`; }).join('') : '<small class="dim">Aún no has librado ninguna batalla en esta sesión.</small>'}</div>`;
 }
 
+/* ===== ASESOR: «¿qué hago ahora?» =====
+   Un botón 🧭 junto a los de la barra superior muestra una insignia con los avisos importantes y abre un panel con consejos priorizados según
+   el estado real del país (deuda, investigación parada, obras sin cola, guerra y batallas, propuestas, riesgo de guerra civil…). Cada
+   consejo lleva un botón que abre la ventana exacta donde se resuelve. Al empezar también guía los primeros pasos. */
+function advisorTips(c) {
+  const tips = [], add = (pri, icon, title, text, go) => tips.push(Object.assign({pri, icon, title, text}, go || {})), st = c.stats, W = (w, k, t) => ({w, k, t});
+  const bal = st.income - st.expense - (c.budget.expense.constr || 0) - (c.budget.expense.pub || 0) - (c.budget.expense.interest || 0) - (c.budget.expense.army || 0) - (c.budget.expense.equip || 0);
+  const mine = G.battles.filter(b => b.A0 === G.player || b.B0 === G.player || b.A.some(id => (armyById(id) || {}).tag === G.player) || b.B.some(id => (armyById(id) || {}).tag === G.player));
+  // ---- urgentes ----
+  if (c.treasury < 0 || (c.debt && c.debt > Math.max(1, st.income) * 12)) add(1, '💸', 'Estás endeudado', `Tu tesorería es ${money(c.treasury)} y los intereses te asfixian. Sube los impuestos o recorta gastos.`, W('budget'));
+  else if (bal < 0 && c.treasury < st.income * 6) add(1, '📉', 'Gastas más de lo que ingresas', `Balance semanal ${money(bal)}. A este ritmo te quedarás sin fondos: revisa impuestos y gasto público.`, W('budget'));
+  mine.forEach(b => add(1, '⚔️', `Batalla en ${provName(b.prov)}`, 'Hay un combate en el que participas. Entra al panel para ver el campo, dar órdenes a tus bloques y cambiar la estrategia.', {battle: b.id}));
+  if (typeof cwRisk === 'function' && typeof rule === 'function' && rule('civil')) { const R = cwRisk(c); if (R.pct >= 40) add(1, '🚨', `Riesgo de guerra civil ${R.pct}%`, `${R.why.slice(0, 2).join(' · ')}. Sube la legitimidad con reformas o reduce los radicales.`, W('politics', 'pol', 'laws')); }
+  if (c.wars.length && c.eqFill && ['rifles', 'gunpowder'].some(g => (c.eqFill[g] === undefined ? 1 : c.eqFill[g]) < 0.6)) add(1, '🔫', 'Tus tropas se quedan sin armas', 'Faltan fusiles o pólvora. Asigna más fábricas a la producción militar o compra equipo.', W('military', 'mil', 'production'));
+  // ---- importantes ----
+  if (!c.research && TECHS.some(t => techAvailable(c, t))) add(2, '💡', 'No estás investigando nada', 'La innovación se acumula sin usar. Elige una tecnología: las industriales mejoran toda tu economía.', W('tech'));
+  if (c.queue && !c.queue.length && !(c.projects && c.projects.length) && c.treasury > st.income * 4) add(2, '🏗️', 'La cola de obras está vacía', 'Tienes fondos y capacidad de construcción sin usar. Construye fábricas, granjas o astilleros.', W('construction'));
+  if (G.proposals.length) add(2, '✉️', `${G.proposals.length} propuesta${G.proposals.length > 1 ? 's' : ''} diplomática${G.proposals.length > 1 ? 's' : ''}`, 'Otros países esperan tu respuesta: tratados, alianzas o garantías.', W('diplomacy', 'dip', 'pacts'));
+  if (c.legitimacy < 40 && !(typeof cwRisk === 'function' && cwRisk(c).pct >= 40)) add(2, '🏛️', 'Legitimidad baja', `Está en ${Math.round(c.legitimacy)}%: crecen los disturbios. Prueba con reformas o con los grupos de interés que te apoyan.`, W('politics', 'pol', 'igs'));
+  if (c.wars.length) { const idle = armiesOf(G.player).filter(a => !a.sea && !a.battle && !a.path.length && !a.front && !a.mode).length; if (idle >= 2) add(2, '🪖', `${idle} ejércitos sin órdenes`, 'Estás en guerra y tienes tropas paradas. Dibuja un frente de ataque o de defensa, o muévelas.', W('military', 'mil', 'armies')); }
+  // ---- sugerencias ----
+  if (c.influence > 140) add(3, '🕊️', `Influencia sin gastar (${Math.floor(c.influence)})`, 'Úsala en reformas, en mejorar relaciones o en fabricar casus belli.', W('diplomacy', 'dip', 'world'));
+  if (c.nat && !c.nat.cur && G.date.t > 90) add(3, '🌳', 'Elige una decisión nacional', 'Las decisiones dan ventajas permanentes a tu país.', W('national'));
+  if (!c.wars.length && (c.stats.indLevels || 0) < 20 && c.treasury > st.income * 8) add(3, '🏭', 'Tienes ahorros: invierte en industria', 'En tiempos de paz lo que más rinde es construir y mejorar tus leyes económicas.', W('production', 'prod', 'buildings'));
+  // ---- primeros pasos ----
+  const early = UI.startT !== undefined && G.date.t - UI.startT < 540, seen = UI.seen || {};
+  if (early) {
+    if (G.paused) add(3, '▶️', 'El juego está en pausa', 'Pulsa ▶ (o la barra espaciadora) para que pase el tiempo. Las teclas , y . cambian la velocidad.', null);
+    if (!seen.production) add(3, '🏭', 'Conoce tu economía', 'Mira qué produce y qué necesita tu país. Las teclas 1–9 abren las ventanas de la barra inferior.', W('production'));
+    if (!seen.politics) add(3, '🏛️', 'Revisa tu política', 'Las leyes y los grupos de interés definen cuánto poder tiene tu gobierno.', W('politics'));
+  }
+  return tips.sort((a, b) => a.pri - b.pri).slice(0, 8);
+}
+let _advCache = {t: -1, n: 0, list: []};
+function advisorCached() { const now = performance.now(); if (now - _advCache.t > 1500) { const c = me(); _advCache.t = now; _advCache.list = c ? advisorTips(c) : []; _advCache.n = _advCache.list.filter(t => t.pri <= 2).length; } return _advCache; }
+function advisorBadge() { const b = document.getElementById('btn-advisor'); if (!b) return; const n = advisorCached().n, i = b.querySelector('.badge'); if (i) { i.textContent = n; i.style.display = n ? 'flex' : 'none'; } b.classList.toggle('alert', advisorCached().list.some(t => t.pri === 1)); }
+function advisorHtml() {
+  const l = advisorCached().list, P = ['', 'Urgente', 'Importante', 'Sugerencia'];
+  return `<div class="adv-head"><b>🧭 Asesor</b><small>Qué conviene hacer ahora</small><button class="x" data-act="advisor">✕</button></div>
+  <div class="adv-list">${l.length ? l.map(t => `<div class="tip p${t.pri}"><span class="ti">${t.icon}</span><div class="tt"><b>${t.title}</b><small>${t.text}</small><em>${P[t.pri]}</em></div>${t.w || t.battle ? `<button data-act="tipgo" ${t.battle ? `data-b="${t.battle}"` : `data-w="${t.w}"`} ${t.k ? `data-k="${t.k}" data-t="${t.t}"` : ''}>Ir</button>` : ''}</div>`).join('') : '<div class="adv-ok">✅ Todo en orden. No hay nada urgente: sigue construyendo o explora la Diplomacia.</div>'}</div>
+  <small class="adv-foot">Se actualiza solo. Atajos: 1–9 abren las ventanas, F1 el manual.</small>`;
+}
+function advisorToggle(force) {
+  let e = document.getElementById('advisor');
+  if (!e) { e = document.createElement('div'); e.id = 'advisor'; document.body.appendChild(e); }
+  const open = force !== undefined ? force : !e.classList.contains('open');
+  e.classList.toggle('open', open); if (open) { _advCache.t = -1; e.innerHTML = advisorHtml(); }
+}
+Object.assign(ACT, {
+  advisor: () => advisorToggle(),
+  tipgo: d => {
+    advisorToggle(false);
+    if (d.b) { UI.battle = +d.b; renderBattlePanel(); return; }
+    if (d.k) UI.winTab[d.k] = d.t; UI.win = null; openWindow(d.w);
+  }
+});
+document.addEventListener('click', e => { const a = document.getElementById('advisor'); if (a && a.classList.contains('open') && !e.target.closest('#advisor') && !e.target.closest('#btn-advisor')) advisorToggle(false); });
+// refresca el panel abierto con el estado actual (cada pocos segundos)
+setInterval(() => { const a = document.getElementById('advisor'); if (a && a.classList.contains('open') && UI.started) { _advCache.t = -1; a.innerHTML = advisorHtml(); } }, 4000);
+
 /* ===== OFERTAS DE PAZ INTERMEDIAS =====
    Durante una guerra, tanto el jugador como la IA pueden proponer un acuerdo de paz sin esperar a una victoria total:
    · EXIGIR   (quien va ganando) pide territorios ocupados, reparaciones, humillación…; el rival acepta si le sale a cuenta.
@@ -11753,6 +11837,7 @@ const MANUAL = [
 <h4>Menú inferior</h4><p>Ocho botones: Presupuesto, Producción y mercado, Población, Política, Tecnología, Diplomacia, Ejército y guerra, Construcción. A la derecha: 🔍 buscador, 💾 guardar, 📂 cargar, 📜 diario y 📖 este manual.</p>
 <h4>Minimapa y modos de mapa</h4><p>Abajo a la derecha. Haz clic en el minimapa para saltar a cualquier punto. Los botones circulares cambian el modo de mapa: político, terreno, población, nivel de vida, alfabetización, prosperidad, malestar, relaciones y <b>bloques y alianzas</b>.</p>
 <h4>Buscador</h4><p>Pulsa 🔍, <b>Ctrl+K</b> o <b>/</b> y escribe el nombre de un país o de un estado para saltar a él. En Diplomacia y en la pantalla de inicio hay además un buscador de países en la propia lista.</p>
+<h4>Asesor 🧭</h4><p>El botón 🧭 de la barra superior muestra una insignia con los avisos importantes (deuda, riesgo de guerra civil, batallas, investigación parada…). Al pulsarlo ves consejos ordenados por urgencia y un botón <b>Ir</b> que abre la ventana exacta donde se resuelve cada uno.</p>
 <h4>Avisos</h4><p>Los mensajes aparecen arriba a la derecha. Si pulsas uno que menciona un lugar, el mapa se centra allí. Algunos eventos detienen el juego y te piden una decisión.</p>`},
 
 {id: 'map', title: '4. El mapa y la cámara', html: `
@@ -11956,6 +12041,7 @@ const MANUAL = [
 <h4>Restricciones</h4><p>No puedes atacar a aliados, a quien tenga un pacto de no agresión contigo, a miembros de tu bloque, a tu soberano o vasallos. Un vasallo no puede declarar guerras. Si atacas a un país garantizado, sus garantes intervendrán.</p>`},
 
 {id: 'war', title: '16. La guerra y los ejércitos', html: `
+<h4>Panel de batalla</h4><p>Pulsa el botón ⚔ rojo sobre una batalla para abrir su panel. Cada cuadrado es una <b>división</b> que maniobra por su cuenta según la estrategia. <b>Rueda</b> = zoom, <b>arrastrar</b> = mover, <b>clic en uno de tus bloques</b> = darle una orden (cargar, resistir, flanquear, retirar; 4 días). El <b>terreno</b> importa: una colina da +8% de defensa a su dueño, un río resta ataque al que lo cruza y los bosques dan cobertura. Con la tecnología de trincheras el defensor se atrinchera hasta nivel 10 (alambradas incluidas) y los <b>carros de combate</b> reducen ese bono; las <b>armas químicas</b> permiten un ataque con gas (castiga al enemigo a costa de infamia y prestigio). Al terminar aparece un <b>resumen</b> y puedes ver la <b>repetición</b>; al acabar una guerra tuya, un informe con bajas, prisioneros y ocupaciones.</p>
 <h4>Participantes</h4><p>Al declarar la guerra, los <b>aliados</b> y los miembros de bloques militares de cada bando son llamados (aceptan con una probabilidad según relaciones). Los <b>garantes</b> del defensor y sus <b>vasallos</b> también se suman. Se informa de quién entra.</p>
 <h4>Divisiones y reclutamiento</h4><p>Un ejército se compone de <b>divisiones</b> de 8.000 hombres: <b>infantería</b> (barata, fuerte en defensa), <b>caballería</b> (rápida) y <b>artillería</b> (mucho ataque, lenta y frágil). Se reclutan en <b>Ejército y guerra → Reclutamiento</b> en estados con <b>Cuarteles</b>: cuestan dinero y 8.000 campesinos del estado, y tardan 24–42 días en instruirse. El máximo de divisiones depende de los soldados de tu país (soldados ÷ 8.000). Hasta 12 divisiones forman un ejército, al mando de un <b>general</b> aleatorio con Ataque, Defensa y Logística que gana experiencia.</p>
 <h4>Mover ejércitos</h4><p>Cada ejército aparece como una ficha con bandera y nº de divisiones. <b>Clic</b> en la ficha (o en la lista) para seleccionarlo y abrir su panel; después <b>clic derecho</b> sobre un estado para ordenar el movimiento: el ejército sigue una ruta por los estados vecinos (se dibuja punteada) y tarda según el terreno, la velocidad de sus divisiones y la logística. Puedes detenerlo, enviarlo a la capital, dividirlo, fusionarlo con otro del mismo estado o disolverlo (devuelve parte de los soldados). No se puede cruzar el territorio de países con pacto de no agresión, garantía o alianza, ni de vasallos o bloque.</p>

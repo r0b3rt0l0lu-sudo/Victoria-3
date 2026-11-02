@@ -32,6 +32,8 @@ Juego de un solo archivo HTML (`index.html`, autónomo) generado por `build.py` 
 | Historia: guerra civil/secesión por crisis, países dormidos (CSA, rebeldes), eventos históricos (1848, unificaciones alemana e italiana, guerra civil americana, Taiping, Meiji) | Hecho (`src/historia.js`) |
 | Moral de ejércitos, prisioneros (puntuación de guerra y devolución en la paz) y coordinación de aliados de la IA | Hecho (`src/moral.js`) |
 | Combate: visor táctico por bloques, terreno con efecto real (colina, río con vados, bosques, granja), órdenes del jugador a divisiones, cámara (zoom, arrastre, seguimiento) y repetición | Hecho (`battleviz.js`, `terreno.js`) |
+| Armamento tardío: trincheras (nivel 10 con alambradas, reducidas por blindados), bloques de carros de combate y ataque con gas (tecnología Armas Químicas) | Hecho |
+| Resúmenes de batalla (en el panel) y de guerra (informe al terminar), botón de batalla siempre visible, asesor contextual 🧭 y arreglos de texto superpuesto | Hecho (`resumenes.js`, `asesor.js`) |
 | Épocas alternativas 1861 y 1900 (instantáneas de la simulación incrustadas y selector en el inicio) | Hecho (`escenarios.js`; regenerar con `tools/generar_escenario.js`, copiar la elegida a `escenarios/<año>.b64` y recompilar) |
 | Equilibrio: acerías construibles, tope de inversión escalado, recorte de edificios militares ociosos, más capacidad aérea | Hecho |
 

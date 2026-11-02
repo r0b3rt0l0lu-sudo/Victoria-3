@@ -98,6 +98,7 @@ function buildHud() {
     <div class="speeds">${[1, 2, 3, 4, 5].map(i => `<button class="spd s" data-act="speed" data-n="${i}" data-tip="Velocidad ${i} <small>(, y . cambian la velocidad)</small>"><i></i></button>`).join('')}</div>
   </div>
   <div id="topright">
+    <button class="rbtn" data-act="advisor" id="btn-advisor" data-tip="<b>Asesor</b><br>Qué conviene hacer ahora: avisos y accesos directos.">🧭<i class="badge"></i></button>
     <button class="rbtn" data-act="search" data-tip="<b>Buscar</b><br>País, estado o ciudad. <small>Ctrl+K o /</small>">🔍</button>
     <button class="rbtn" data-act="win" data-w="achievements" data-tip="<b>Logros</b><br>Metas que desbloquean prestigio.">🏅</button>
     <button class="rbtn" data-act="save" data-tip="<b>Guardar partida</b>">💾</button>
@@ -164,6 +165,7 @@ function updateHud(force) {
   set('ch-mail', G.proposals.length, '<b>Propuestas diplomáticas</b><br>' + (G.proposals.length ? 'Tienes propuestas pendientes' : 'Sin propuestas'));
   $('#ch-mail').classList.toggle('alert', G.proposals.length > 0);
   { const mc = $('#modecap'); if (mc) { const m = MAP_MODES.find(x => x.id === R.mode); mc.textContent = m ? 'Mapa: ' + m.name : ''; } }
+  if (typeof advisorBadge === 'function') advisorBadge();
   $('#datetxt').textContent = dateStr();
   $('#btn-pause').textContent = G.paused ? '▶' : '⏸';
   $$('#datebox .speeds .s').forEach((b, i) => b.classList.toggle('on', i < UI.speed));
@@ -173,6 +175,7 @@ function updateHud(force) {
 /* ---------- ventanas ---------- */
 const WINDOWS = {};
 function openWindow(id) {
+  UI.seen = UI.seen || {}; UI.seen[id] = true;
   if (UI.win === id) { closeWindow(); return; }
   UI.win = id; renderWindow(true);
   $$('#menu .mbtn').forEach(b => b.classList.toggle('on', b.id === 'mb-' + id));
@@ -981,7 +984,7 @@ function selectStartCountry(tag) {
 function startGame() {
   const tag = UI.startTag;
   G.player = tag; G.tags.forEach(t => G.C[t].ai = t !== tag);
-  UI.started = true; G.paused = true; achSnapshot(G.C[tag]); document.body.classList.remove('starting');
+  UI.started = true; UI.startT = G.date.t; UI.seen = {}; G.paused = true; achSnapshot(G.C[tag]); document.body.classList.remove('starting');
   $('#start').classList.add('hide'); setTimeout(() => $('#start').style.display = 'none', 600);
   $('#hud').classList.add('show');
   buildHud(); updateHud(); computeLabels();

@@ -19,6 +19,16 @@ function scenLoading(txt) {
   if (!e) { e = document.createElement('div'); e.id = 'scenload'; document.body.appendChild(e); }
   e.innerHTML = `<div><b>${txt}</b><i></i></div>`;
 }
+// los mundos simulados dejan a algunos países sin ejército: se les reparte uno acorde a su límite (60% de las divisiones posibles, máx. 120)
+function scenArmies() {
+  G.tags.forEach(t => {
+    if (t === NONE) return; const c = G.C[t]; if (!c.states.length) return;
+    let n = Math.min(Math.floor(divLimit(c) * 0.6), 120) - countDivs(t); if (n < 4) return;
+    const barr = c.states.filter(id => G.S[id].b.barracks >= 1), homes = (barr.length ? barr : [c.capital >= 0 ? c.capital : c.states[0]]).map(stateCapitalProv); let hi = 0;
+    while (n > 0) { const k = Math.min(n, 6 + Math.floor(Math.random() * 3)), divs = []; for (let i = 0; i < k; i++) { const r = Math.random(); divs.push(mkDivision(r < 0.7 ? 'inf' : r < 0.85 ? 'cav' : 'art', 0.4 + Math.random() * 0.3)); } mkArmy(t, homes[hi++ % homes.length], divs); n -= k; }
+    if (c.eq) { const need = eqNeedOf(t); EQ_GOODS.forEach(g => { c.eq[g] = Math.max(c.eq[g] || 0, (need[g] || 0) * 1.15); }); }
+  });
+}
 async function scenarioSwitch(year) {
   if (UI.scenBusy || UI.started) return; if (G.date && G.date.y === year) return;
   UI.scenBusy = true; scenLoading(year === 1836 ? 'Preparando el mundo de 1836…' : `Cargando el mundo de ${year}…`);
@@ -28,7 +38,7 @@ async function scenarioSwitch(year) {
     else {
       if (typeof DecompressionStream === 'undefined') throw new Error('Tu navegador no admite descomprimir las épocas (usa Chrome, Edge o Firefox recientes).');
       loadData(await scenUnzip(SCEN_DATA[year]));
-      updateRanks();
+      updateRanks(); scenArmies();
       // el jugador empieza de cero: objetivos, logros y estadísticas de partida
       G.tags.forEach(t => { const c = G.C[t]; if (t === NONE) return; c.journalDone = {}; c.ach = {}; c.cnt = {}; c.start = {ind: c.stats.indLevels, lit: c.lit, soldiers: c.stats.soldiers, prestige: c.prestige, rank: c.rank}; });
       G.notifs = []; G.log = []; logMsg(`Comienza la partida en ${year}.`);

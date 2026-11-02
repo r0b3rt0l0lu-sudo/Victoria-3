@@ -509,7 +509,7 @@ function updateArmyTokens() {
     const key = G.player + a.tag + a.divs.length + (a.sea ? 'z' : '') + (a.battle ? 'b' : '') + (a.id === sel ? 's' : '') + (a.path.length ? 'm' : '') + (window.UI && UI.selSet && UI.selSet.has(a.id) ? 'g' : '') + Math.round(armyStr(a) * 10);
     if (el._k !== key) {
       el._k = key; el.className = 'atoken' + (UI.selSet && UI.selSet.has(a.id) ? ' sel2' : '') + (a.tag === G.player ? ' mine' : '') + (a.id === sel ? ' sel' : '') + (a.battle ? ' fight' : '') + (a.sea ? ' sea' : '') + (a.path.length ? ' moving' : '');
-      el.innerHTML = flag(a.tag, 'sm') + `<b>${a.divs.length}</b>` + `<i style="width:${Math.round(armyStr(a) * 100)}%"></i>` + (a.battle ? '<u>⚔</u>' : '');
+      el.innerHTML = flag(a.tag, 'sm') + `<b>${a.divs.length}</b>` + `<i style="width:${Math.round(armyStr(a) * 100)}%"></i>` + (a.battle ? `<u data-act="selbattle" data-id="${a.battle}" data-tip="Abrir el panel de batalla">⚔</u>` : '');
     }
   });
   if (typeof updateNavyTokens === 'function') updateNavyTokens();
@@ -521,7 +521,7 @@ function declutterTokens() {
   const items = [];
   [R.ak, R.nk].forEach(o => { if (o) for (const k in o) { const el = o[k]; if (el._x == null || el.style.display === 'none') continue; items.push(el); } });
   items.sort((a, b) => (b._pri || 0) - (a._pri || 0));
-  const placed = [];
+  const placed = []; if (R.mk) for (const k in R.mk) { const m = R.mk[k]; if (m._bx != null) placed.push({x: m._bx, y: m._by, w: 40, h: 38}); }
   items.forEach(el => {
     if (el._k !== el._kw || !el._w) { el._kw = el._k; el._w = el.offsetWidth || 54; el._h = el.offsetHeight || 22; }
     const w = el._w + 3, h = el._h + 2;
@@ -550,7 +550,7 @@ function drawOrders() {
 function updateMarkers() {
   if (!R.markerRoot) return;
   const want = [];
-  G.battles.forEach(b => { if (G.S[b.state] && provVisible(b.prov)) want.push({id: 'bt' + b.id, state: b.state, prov: b.prov, ch: '⚔️', cls: 'war'}); });
+  G.battles.forEach(b => { if (G.S[b.state] && provVisible(b.prov)) want.push({id: 'bt' + b.id, state: b.state, prov: b.prov, ch: '⚔️', cls: 'war battle'}); });
   const me = G.C[G.player];
   if (me && me.capital >= 0) want.push({id: 'cap', state: me.capital, ch: '★', cls: 'cap'});
   if (me && me.colonizing) want.push({id: 'col', state: me.colonizing.state, ch: '⚓', cls: 'col'});
@@ -559,9 +559,9 @@ function updateMarkers() {
   updateArmyTokens(); if (!R.anim) updateArmyMeshes(performance.now());
   for (const k in R.mk) if (!ids.has(k)) { R.mk[k].remove(); delete R.mk[k]; }
   want.forEach(w => {
-    let el = R.mk[w.id]; if (!el) { el = document.createElement('div'); el.className = 'marker ' + w.cls; el.textContent = w.ch; if (w.id.startsWith('bt')) { el.dataset.act = 'selbattle'; el.dataset.id = w.id.slice(2); } R.markerRoot.appendChild(el); R.mk[w.id] = el; }
+    let el = R.mk[w.id]; if (!el) { el = document.createElement('div'); el.className = 'marker ' + w.cls; el.textContent = w.ch; if (w.id.startsWith('bt')) { el.dataset.act = 'selbattle'; el.dataset.id = w.id.slice(2); el.dataset.tip = '<b>Batalla en curso</b><br>Haz clic para abrir el panel de batalla.'; } R.markerRoot.appendChild(el); R.mk[w.id] = el; }
     const c = w.prov !== undefined ? [MAP.provs[w.prov].lon, MAP.provs[w.prov].lat] : stateCenter(G.S[w.state]); const p = worldToScreen(c[0], 0.6, -c[1]);
-    el.style.transform = `translate(-50%,-100%) translate(${p[0].toFixed(1)}px,${p[1].toFixed(1)}px)`;
+    el.style.transform = `translate(-50%,-100%) translate(${p[0].toFixed(1)}px,${p[1].toFixed(1)}px)`; el._bx = w.id.startsWith('bt') ? p[0] : null; el._by = p[1] - 17;
   });
 }
 

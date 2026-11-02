@@ -7,9 +7,10 @@ const BV_W = 960, BV_H = 420, BV_K = 1.33;
 const BV_FORM = {
   inf: {n: 24, cols: 6, rows: 4, sx: 7.8, sy: 6.6, spd: 22},
   cav: {n: 10, cols: 5, rows: 2, sx: 9.5, sy: 11, spd: 46},
-  art: {n: 3, cols: 3, rows: 1, sx: 20, sy: 10, spd: 11}
+  art: {n: 3, cols: 3, rows: 1, sx: 20, sy: 10, spd: 11},
+  tank: {n: 4, cols: 4, rows: 1, sx: 15, sy: 14, spd: 30}
 };
-const BV_KIND = {inf: 'Infantería', cav: 'Caballería', art: 'Artillería'};
+const BV_KIND = {inf: 'Infantería', cav: 'Caballería', art: 'Artillería', tank: 'Carros de combate'};
 const BV_STATUS = {deploy: 'Desplegándose', advance: 'Avanzando', hold: 'Manteniendo la línea', fire: 'Fuego de fusilería', melee: 'Cuerpo a cuerpo', charge: '¡A la carga!', flank: 'Flanqueando', fixing: 'Fijando al enemigo',
   skirmish: 'Hostigando', retreat: 'Replegándose', reserve: 'En reserva', artfire: 'Bombardeando', rout: '¡En desbandada!', victory: 'Victoria', gallop: 'Carga de caballería', recoil: 'Retrocede, presa del pánico'};
 const BV_PHASE = {melee: 'combate', fire: 'combate', charge: 'combate', gallop: 'combate', artfire: 'combate', flank: 'maniobra', advance: 'maniobra', skirmish: 'maniobra', fixing: 'maniobra', deploy: 'maniobra', hold: 'línea', reserve: 'reserva', retreat: 'retirada', recoil: 'retirada', rout: 'retirada', victory: 'línea'};
@@ -24,7 +25,7 @@ function bvNew(b) {
 }
 /* ---------- bloques y soldados ---------- */
 function bvMakeBlock(V, it, side) {
-  const type = dKind(it.d), F = BV_FORM[type] || BV_FORM.inf;
+  const type = (DIVS[it.d.t] && DIVS[it.d.t].armor >= 0.35) ? 'tank' : dKind(it.d), F = BV_FORM[type] || BV_FORM.inf;
   const blk = {id: V.nid++, d: it.d, a: it.a, side, type, F, tag: it.a.tag, color: (G.C[it.a.tag] && G.C[it.a.tag].color) || '#888', x: 0, y: BV_H / 2, hd: side === 'A' ? 0 : Math.PI, vx: 0, vy: 0, mode: 'deploy', ph: rnd(0, 6.28),
     fs: 0, figs: [], sc: 0.9, lane: 0, nLane: 1, role: 'line', fireAcc: rnd(0, 1), cd: rnd(0.5, 3), relief: null, comp: 1, foe: null, path: null, init: false, skey: '', dep: 24, wid: 40, engT: 0, hits: 0};
   const mk = (kind, k, i) => ({kind, k, i, x: 0, y: 0, vx: 0, vy: 0, alive: true, dying: 0, flee: 0, ph: rnd(0, 6.28), recoil: 0, flash: 0});
@@ -51,7 +52,7 @@ function bvKill(V, blk, f) {
 function bvFlee(V, blk, f, power) { if (!f.alive) return; f.flee = 3.6; const away = blk.side === 'A' ? -1 : 1; f.fvx = away * rnd(40, 100) * power + rnd(-25, 25); f.fvy = rnd(-60, 60) * power; }
 function bvPart(V, p) { if (V.parts.length < 900) V.parts.push(Object.assign({age: 0}, p)); if (!V.replay && p.k !== 'dust' && V.rec.parts.length < 9000) V.rec.parts.push(Object.assign({}, p, {t: V.t})); }
 function bvBanner(V, text, side, icon) { V.banner = {text, side, icon, age: 0}; }
-const EV_NAME = {charge: '¡Carga desesperada!', cav: 'Carga de caballería', barrage: 'Cañoneo', flank: 'Flanqueo', panic: 'Pánico', reinf: 'Refuerzos', rain: 'Lluvia'};
+const EV_NAME = {gas: 'Ataque con gas', charge: '¡Carga desesperada!', cav: 'Carga de caballería', barrage: 'Cañoneo', flank: 'Flanqueo', panic: 'Pánico', reinf: 'Refuerzos', rain: 'Lluvia'};
 function bvEvent(V, b, kind, side) {
   bvBanner(V, `${EV_NAME[kind] || kind} · ${G.C[(side === 'A' ? b.A0 : b.B0)].name}`, side, EV_ICON[kind]);
   if (kind === 'charge') V.boost[side] = 2.6;
@@ -60,6 +61,7 @@ function bvEvent(V, b, kind, side) {
   else if (kind === 'barrage') V.salvo[side] = 10;
   else if (kind === 'panic') V.panic[side] = 2.6;
   else if (kind === 'rain') V.rain = 6;
+  else if (kind === 'gas') V.gas = {side, t: 0, dur: 9};
   else if (kind === 'reinf') V.blocks.forEach(bk => { if (bk.side === side && bk.role !== 'reserve') for (let n = 0; n < 2; n++) bvPart(V, {k: 'spark', x: bk.x + rnd(-10, 10), y: bk.y - 6, life: 1.1}); });
   const mx = BV_W / 2 + V.adv * 100, dirS = side === 'A' ? 1 : -1; V.rings.push({x: mx + dirS * 40, y: BV_H / 2, r: 46, age: 0, life: 2.4});
 }
@@ -92,7 +94,7 @@ function bvSync(V, b) {
     const inFront = new Set(front), res = blks.filter(x => !inFront.has(x));
     let line = front.filter(x => x.type !== 'art'), art = front.filter(x => x.type === 'art');
     if (!line.length) { line = art; art = []; }
-    const cav = line.filter(x => x.type === 'cav'), inf = line.filter(x => x.type !== 'cav'), ord = inf.slice();
+    const cav = line.filter(x => x.type === 'cav' || x.type === 'tank'), inf = line.filter(x => x.type !== 'cav' && x.type !== 'tank'), ord = inf.slice();
     cav.forEach((c, i) => { if (i % 2) ord.push(c); else ord.unshift(c); });          // la caballería en las alas
     const laneH = (BV_H - 92) / Math.max(1, ord.length), scL = clamp(laneH / 52, 0.62, 1.3);
     ord.forEach((x, i) => { x.role = 'line'; x.lane = i; x.nLane = ord.length; x.sc = scL; });
@@ -150,14 +152,15 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
     mode = 'artfire'; if (st === 'barrage') tx += dir * 36; if (st === 'hold' && !att) tx -= dir * 6;
   } else {
     // ---- bloque de línea: su estrategia se traduce en una orden propia para cada uno ----
-    const flankers = (() => { if (st !== 'flank' && !(man && man.kind === 'flank') && !(od && od.k === 'flank')) return false; if (od && od.k === 'flank') return true; const hasCav = all.some(o => o.side === side && o.role === 'line' && o.type === 'cav'); return blk.type === 'cav' || (!hasCav && st === 'flank' && blk.nLane >= 3 && (blk.lane === 0 || blk.lane === blk.nLane - 1)); })();
+    const flankers = (() => { if (st !== 'flank' && !(man && man.kind === 'flank') && !(od && od.k === 'flank')) return false; if (od && od.k === 'flank') return true; const hasCav = all.some(o => o.side === side && o.role === 'line' && o.type === 'cav'); return blk.type === 'cav' || blk.type === 'tank' || (!hasCav && st === 'flank' && blk.nLane >= 3 && (blk.lane === 0 || blk.lane === blk.nLane - 1)); })();
     if (od && od.k === 'withdraw') { mode = 'retreat'; tx = home.x - dir * 140; spd = F.spd * 1.2; }
+    else if (V.gas && V.gas.side !== side && V.gas.t < 5 && Math.sin(blk.ph * 5 + blk.id) > 0.1) { mode = 'recoil'; tx = L - dir * 70; spd = F.spd * 1.5; if (Math.random() < dt * 3) { const fs = blk.figs.filter(f => f.alive && !f.flee); if (fs.length) bvFlee(V, blk, fs[Math.floor(Math.random() * fs.length)], 0.6); } }
     else if (V.panic[side] > 0 && Math.sin(blk.ph * 7 + blk.id) > 0.45) { mode = 'recoil'; tx = L - dir * 120; spd = F.spd * 3; }
     else if (orgF < 0.12) { mode = 'retreat'; tx = home.x - dir * 90; spd = F.spd * 0.9; }
     else if (flankers && foe) {
       const edgeTop = blk.lane < blk.nLane / 2 || blk.type === 'cav' && blk.lane === 0, ey = edgeTop ? 26 : BV_H - 24, xm = (L + LE) / 2;
       const ends = all.filter(o => o.side !== side && o.role === 'line' && o.mode !== 'rout'); let tf = null; ends.forEach(o => { if (!tf || (edgeTop ? o.y < tf.y : o.y > tf.y)) tf = o; });
-      const f2 = tf || foe; spd = F.spd * (blk.type === 'cav' ? 2.4 : 1.7);
+      const f2 = tf || foe; spd = F.spd * (blk.type === 'cav' ? 2.4 : blk.type === 'tank' ? 1.9 : 1.7);
       if (blk.fs === 0) { tx = xm; ty = ey; mode = 'flank'; if (Math.hypot(blk.x - xm, blk.y - ey) < 26) blk.fs = 1; path = [[blk.x, blk.y], [xm, ey], [f2.x + dir * (f2.dep / 2 + 6), f2.y + (edgeTop ? -1 : 1) * (f2.wid / 2 + 2)]]; }
       else if (blk.fs === 1) { tx = f2.x + dir * (f2.dep / 2 + 6); ty = f2.y + (edgeTop ? -1 : 1) * (f2.wid / 2 + 2); mode = 'flank'; if (Math.hypot(blk.x - tx, blk.y - ty) < 30) blk.fs = 2; path = [[blk.x, blk.y], [tx, ty]]; }
       else { mode = 'melee'; tx = blk.x; ty = blk.y; blk.foe = f2; }
@@ -239,15 +242,15 @@ function bvFire(V, b, blk, dt, foes) {
       for (let n = 0; n < 3; n++) bvPart(V, {k: 'smoke', x: gn.x + Math.cos(blk.hd) * 12, y: gn.y + Math.sin(blk.hd) * 12, life: 2.2, r: 5, vx: dir * 8 + V.wind * 0.5 + rnd(-4, 4)}); }
     return;
   }
-  if (blk.type !== 'inf' && blk.type !== 'cav') return;
+  if (blk.type !== 'inf' && blk.type !== 'cav' && blk.type !== 'tank') return;
   if (blk.mode === 'melee' || blk.mode === 'charge' || blk.mode === 'gallop' || blk.mode === 'recoil') return;
   if (fd > 190) return;
-  const rate = (st === 'skirmish' ? 7 : st === 'hold' ? 5 : 4) * alive.length * 0.22 * (blk.type === 'cav' ? 0.3 : 1) * (blk.mode === 'fire' ? 1.6 : 0.7);
+  const rate = (st === 'skirmish' ? 7 : st === 'hold' ? 5 : 4) * alive.length * 0.22 * (blk.type === 'cav' ? 0.3 : blk.type === 'tank' ? 0.5 : 1) * (blk.mode === 'fire' ? 1.6 : 0.7);
   blk.fireAcc += dt * rate;
   while (blk.fireAcc > 1) { blk.fireAcc--;
     const front = alive.filter(f => f.kind === 'sol' && Math.floor(f.k / blk.F.cols) <= 1), pool = front.length ? front : alive, u = pool[Math.floor(Math.random() * pool.length)], tg = pickFoeFig(foe); if (!tg) break;
     const ca = Math.cos(blk.hd), sa = Math.sin(blk.hd);
-    bvPart(V, {k: 'flash', x: u.x + ca * 5, y: u.y + sa * 5, life: 0.1}); bvPart(V, {k: 'smoke', x: u.x + ca * 7, y: u.y + sa * 7 - 1, life: 1.7, r: 3, vx: dir * 5 + V.wind * 0.6}); bvPart(V, {k: 'tracer', x: u.x, y: u.y, x2: tg.x, y2: tg.y + rnd(-3, 3), life: 0.08}); u.flash = 0.12; }
+    bvPart(V, {k: 'flash', x: u.x + ca * 5, y: u.y + sa * 5, life: 0.1, big: blk.type === 'tank' ? 1 : 0}); bvPart(V, {k: 'smoke', x: u.x + ca * 7, y: u.y + sa * 7 - 1, life: 1.7, r: 3, vx: dir * 5 + V.wind * 0.6}); bvPart(V, {k: 'tracer', x: u.x, y: u.y, x2: tg.x, y2: tg.y + rnd(-3, 3), life: 0.08}); u.flash = 0.12; }
 }
 function pickFoeFig(blk) { const l = blk.figs.filter(f => f.alive); return l.length ? l[Math.floor(Math.random() * l.length)] : null; }
 /* ---------- bucle ---------- */
@@ -265,6 +268,7 @@ function bvFrame(V, b, ctx, now) {
   if (V.over) V.over.t += dt;
   ['A', 'B'].forEach(s => { if (V.boost[s] > 0) V.boost[s] -= dt; if (V.panic[s] > 0) V.panic[s] -= dt; if (V.salvo[s] > 0) V.salvo[s] -= dt; if (V.man[s]) { V.man[s].t += dt; if (V.man[s].t > V.man[s].dur) V.man[s] = null; } });
   if (V.rain > 0) V.rain -= dt;
+  if (V.gas) { V.gas.t += dt; const gs = V.gas.side, gd = gs === 'A' ? 1 : -1, x0 = BV_W / 2 + V.adv * 100; if (Math.random() < dt * 22) bvPart(V, {k: 'gas', x: x0 - gd * 90 + rnd(-20, 20), y: rnd(50, BV_H - 36), life: 6, r: rnd(14, 24), vx: gd * rnd(16, 26)}); if (V.gas.t > V.gas.dur) V.gas = null; }
   V.tf = battleTerrain(b);
   const lines = {A: bvLine(V, b, 'A'), B: bvLine(V, b, 'B')}, all = [...V.blocks.values()];
   if (!V.over) bvRelief(V, b, dt);
@@ -277,6 +281,7 @@ function bvFrame(V, b, ctx, now) {
     if (!b.ended && org !== undefined && org < 0.3 && Math.random() < dt * 1.2) { const c = all.filter(x => x.side === s && x.role === 'line'); if (c.length) { const blk = c[Math.floor(Math.random() * c.length)], fs = blk.figs.filter(f => f.alive && !f.flee); if (fs.length) bvFlee(V, blk, fs[Math.floor(Math.random() * fs.length)], 1); } } });
   // partículas
   V.parts.forEach(p => { p.age += dt; if (p.k === 'smoke') { p.x += (p.vx || 0) * dt; p.y -= 6 * dt; } if (p.k === 'dust') { p.y -= 4 * dt; p.x += V.wind * 0.3 * dt; }
+    if (p.k === 'gas') { p.x += p.vx * dt; p.y += Math.sin(p.age * 1.4 + p.x * 0.02) * 4 * dt; }
     if (p.k === 'shell' && p.age >= p.life && !p.hit) { p.hit = true; bvPart(V, {k: 'boom', x: p.x2, y: p.y2, life: 0.6}); bvPart(V, {k: 'smoke', x: p.x2, y: p.y2, life: 2.8, r: 7, vx: rnd(-5, 5) + V.wind * 0.5});
       for (let n = 0; n < 5; n++) bvPart(V, {k: 'spark', x: p.x2 + rnd(-8, 8), y: p.y2 + rnd(-8, 8), life: 0.45, hot: 1});
       all.forEach(blk => { if (blk.side === p.s) return; blk.figs.forEach(f => { if (f.alive && !f.flee && Math.hypot(f.x - p.x2, f.y - p.y2) < 26) { f.x += (f.x - p.x2) * 0.45; f.y += (f.y - p.y2) * 0.45; } }); }); } });
@@ -300,6 +305,19 @@ function bvZoomAt(V, factor, sx, sy) { const c = V.cam, [wx, wy] = bvToWorld(V, 
 function bvHover(V, all) {
   V.hover = null; if (!V.mouse) return; const [wx, wy] = bvToWorld(V, V.mouse.x, V.mouse.y); let bd = 1e9;
   all.forEach(blk => { const d = Math.hypot(blk.x - wx, blk.y - wy), r = Math.max(blk.dep, blk.wid) / 2 + 6; if (d < r && d < bd) { bd = d; V.hover = blk; } });
+}
+/* ---------- trincheras ---------- */
+function bvTrenchLevel(V, b, side) {
+  let lv = 0; (side === 'A' ? b.A : b.B).forEach(id => { const a = armyById(id); if (a) lv = Math.max(lv, a.dig || 0); }); return lv;
+}
+function bvTrenches(g, V, b, lines) {
+  const side = b.att === 'A' ? 'B' : 'A', dir = side === 'A' ? 1 : -1; V.dig = V.dig || {A: 0, B: 0}; if (V.t - (V.digT || -9) > 0.5) { V.digT = V.t; V.dig[side] = bvTrenchLevel(V, b, side); }
+  const lv = V.dig[side]; if (lv < 2) return; const tech = G.C[side === 'A' ? b.A0 : b.B0] && hasTech(G.C[side === 'A' ? b.A0 : b.B0], 'trench_warfare');
+  const x = lines[side] - dir * 18, w = 5 + lv * (tech ? 0.7 : 0.4), top = 46, bot = BV_H - 28;
+  const path = () => { g.beginPath(); for (let y = top, i = 0; y <= bot; y += 14, i++) { const px = x + (tech ? (i % 2 ? 4 : -4) : 0); i ? g.lineTo(px, y) : g.moveTo(px, y); } };
+  g.lineCap = 'butt'; g.lineJoin = 'miter'; g.strokeStyle = 'rgba(40,28,16,.55)'; g.lineWidth = w + 5; path(); g.stroke(); g.strokeStyle = tech ? '#2a1d12' : '#4a3a28'; g.lineWidth = w; path(); g.stroke();
+  g.fillStyle = 'rgba(176,150,98,.85)'; for (let y = top; y <= bot; y += 9) { g.beginPath(); g.ellipse(x + dir * (w / 2 + 3), y, 3, 2, 0, 0, 6.3); g.fill(); }
+  if (tech && lv >= 4) { const wx = x + dir * 30; g.strokeStyle = 'rgba(190,190,200,.7)'; g.lineWidth = 0.9; g.beginPath(); g.moveTo(wx, top); g.lineTo(wx, bot); g.stroke(); for (let y = top; y <= bot; y += 10) { g.beginPath(); g.moveTo(wx - 3, y - 3); g.lineTo(wx + 3, y + 3); g.moveTo(wx - 3, y + 3); g.lineTo(wx + 3, y - 3); g.stroke(); } }
 }
 /* ---------- dibujo ---------- */
 // terreno prerrenderizado una sola vez por batalla (más resolución para poder acercar la cámara)
@@ -353,6 +371,14 @@ function bvFig(g, V, blk, f) {
     g.fillStyle = bvShade(col, -0.45); g.fillRect(x - 2.5 * s, y - 3.4 * s + bob, 5 * s, 5.6 * s); g.fillStyle = fl ? '#d9cfae' : col; g.fillRect(x - 2.1 * s, y - 3.1 * s + bob, 4.2 * s, 4.8 * s);
     g.fillStyle = 'rgba(255,255,255,.7)'; g.fillRect(x - 2.1 * s, y - 3.1 * s + bob, 4.2 * s, 0.9 * s); g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 0.6 * s; g.beginPath(); g.moveTo(x - 2 * s, y - 3 * s + bob); g.lineTo(x + 2 * s, y + 1.5 * s + bob); g.stroke();
     g.fillStyle = '#e7c9a6'; g.beginPath(); g.arc(x, y - 4.4 * s + bob, 1.55 * s, 0, 6.3); g.fill(); g.fillStyle = '#17181c'; g.fillRect(x - 1.5 * s, y - 6.4 * s + bob, 3 * s, 1.9 * s);
+  } else if (f.kind === 'sol' && blk.type === 'tank') {
+    const mv = moving ? Math.sin(V.t * 22 + f.ph) * 0.5 : 0;
+    g.save(); g.translate(x, y - 2 * s); g.rotate(hd);
+    g.fillStyle = '#2a2c27'; g.fillRect(-8 * s, -5.4 * s, 16 * s, 2.6 * s); g.fillRect(-8 * s, 2.8 * s, 16 * s, 2.6 * s);
+    g.fillStyle = '#3d3f37'; for (let i = -3; i <= 3; i++) { g.fillRect((i * 2.2 - 0.6 + mv) * s, -5.4 * s, 1.1 * s, 2.6 * s); g.fillRect((i * 2.2 - 0.6 - mv) * s, 2.8 * s, 1.1 * s, 2.6 * s); }
+    g.fillStyle = bvShade(col, -0.35); g.fillRect(-7 * s, -3.2 * s, 14 * s, 6.4 * s); g.fillStyle = col; g.fillRect(-6.4 * s, -2.7 * s, 12.8 * s, 5.4 * s);
+    g.fillStyle = bvShade(col, -0.2); g.beginPath(); g.arc(0.5 * s, 0, 3.1 * s, 0, 6.3); g.fill(); g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(-6.4 * s, -2.7 * s, 12.8 * s, 0.8 * s);
+    g.strokeStyle = '#33363a'; g.lineWidth = 1.6 * s; g.beginPath(); g.moveTo(2 * s, 0); g.lineTo(11.5 * s - f.recoil * 2, 0); g.stroke(); g.restore();
   } else if (f.kind === 'sol') {   // jinete
     const hc = ['#6b4a2b', '#2e2420', '#8b6a44', '#c9c0ae'][Math.floor(f.ph * 3) % 4], an = Math.atan2(blk.vy || sa, blk.vx || ca) * 0.35;
     g.fillStyle = hc; g.beginPath(); g.ellipse(x, y - 2 * s + bob, 7.4 * s, 3.4 * s, an, 0, 6.3); g.fill(); g.fillStyle = bvShade(hc, -0.3); g.beginPath(); g.ellipse(x + ca * 6.2 * s, y - 3.5 * s + bob + sa * 2, 2.4 * s, 1.8 * s, an, 0, 6.3); g.fill();
@@ -384,12 +410,14 @@ function bvDraw(V, b, g, lines, all) {
   // loma de la defensa «en los altos»
   ['A', 'B'].forEach(s => { if (bvStrat(b, s) === 'hold' && !V.tf.hill) { const dir = s === 'A' ? 1 : -1, cx = lines[s] - dir * 34, rg = g.createRadialGradient(cx, H / 2, 10, cx, H / 2, 150); rg.addColorStop(0, 'rgba(210,190,130,.34)'); rg.addColorStop(0.6, 'rgba(120,96,56,.26)'); rg.addColorStop(1, 'rgba(70,52,30,0)'); g.fillStyle = rg; g.beginPath(); g.ellipse(cx, H / 2 + 4, 90, H / 2 - 40, 0, 0, 6.3); g.fill();
     g.strokeStyle = 'rgba(245,225,170,.2)'; g.lineWidth = 1.2; for (let i = 1; i <= 3; i++) { g.beginPath(); g.ellipse(cx, H / 2 + 4, 90 - i * 22, H / 2 - 40 - i * 34, 0, 0, 6.3); g.stroke(); } } });
+  bvTrenches(g, V, b, lines);
   // línea de contacto
   g.strokeStyle = 'rgba(255,230,150,.16)'; g.setLineDash([5, 7]); g.beginPath(); const mx = (lines.A + lines.B) / 2; g.moveTo(mx, 30); g.lineTo(mx, H - 4); g.stroke(); g.setLineDash([]);
   // caídos
   V.corpses.forEach(c => { g.save(); g.translate(c.x, c.y); g.rotate(c.hd + 1.57); g.globalAlpha = Math.max(0.2, 0.8 - c.age * 0.008); g.fillStyle = '#1c1612'; g.fillRect(-1.2, -3, 2.8, 6); g.fillStyle = c.color; g.fillRect(-0.9, -2.3, 2, 3); g.restore(); }); g.globalAlpha = 1;
   // humo y polvo (capa baja)
-  V.parts.forEach(p => { if (p.k !== 'smoke' && p.k !== 'dust') return; const k = p.age / p.life; g.globalAlpha = (p.k === 'smoke' ? 0.34 : 0.26) * (1 - k); g.fillStyle = p.k === 'smoke' ? '#c9c6be' : '#b09a76'; g.beginPath(); g.arc(p.x, p.y, (p.r || 3) * (1 + k * 2.2), 0, 6.3); g.fill(); }); g.globalAlpha = 1;
+  V.parts.forEach(p => { if (p.k === 'gas') { const k = p.age / p.life; g.globalAlpha = 0.5 * Math.sin(Math.min(1, k) * 3.14); g.fillStyle = '#b6d13a'; g.beginPath(); g.arc(p.x, p.y, p.r * (1 + k * 1.6), 0, 6.3); g.fill(); g.globalAlpha = 1; return; }
+    if (p.k !== 'smoke' && p.k !== 'dust') return; const k = p.age / p.life; g.globalAlpha = (p.k === 'smoke' ? 0.34 : 0.26) * (1 - k); g.fillStyle = p.k === 'smoke' ? '#c9c6be' : '#b09a76'; g.beginPath(); g.arc(p.x, p.y, (p.r || 3) * (1 + k * 2.2), 0, 6.3); g.fill(); }); g.globalAlpha = 1;
   // casillas de los bloques y órdenes en curso
   const blocks = all.slice().sort((a, c) => a.y - c.y);
   blocks.forEach(blk => { bvPlate(g, blk, V.hover === blk); });
@@ -519,6 +547,7 @@ Object.assign(ACT, {
   bvrpause: () => { const V = R.bviz; if (V && V.replay) { if (!V.replay.playing && V.replay.t >= V.replay.dur - 0.01) bvReplayRestart(V); else V.replay.playing = !V.replay.playing; renderBattlePanel(); } },
   bvrspeed: d => { const V = R.bviz; if (V && V.replay) { V.replay.speed = +d.n; renderBattlePanel(); } },
   bvrexit: () => { const V = R.bviz; if (V) { bvReplayStop(V); renderBattlePanel(); } },
+  bvgas: () => { const b = G.battles.find(x => x.id === UI.battle); if (!b) return; const side = b.A0 === G.player ? 'A' : b.B0 === G.player ? 'B' : null; if (!side) { toast('⚠️', 'Solo el líder de cada bando puede ordenar un ataque con gas.'); return; } const r = launchGas(b, side); if (!r.ok) toast('⚠️', r.msg); renderBattlePanel(); },
   bvorder: d => {
     const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !V.sel || !b || b.ended) return; const dv = V.sel.d;
     if (d.k === 'cancel') { delete dv.ord; toast('🎯', 'Orden cancelada.'); }

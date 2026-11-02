@@ -40,7 +40,7 @@ function battlePrisoners(b, winner, win, lose) {
   lose.forEach(a => {
     let n = lossMen * 0.12 / lose.length;
     if (a._encircled) { n += armyMen(a) * 0.3; a.divs.forEach(d => { d.s *= 0.8; }); a._encircled = false; a.mor = clamp(armyMor(a) - 0.2, 0, 1); }
-    takePrisoners(win[0].tag, a.tag, n);
+    takePrisoners(win[0].tag, a.tag, n); b.pris = b.pris || {A: 0, B: 0}; b.pris[winner] += Math.round(n);
   });
 }
 // la paz devuelve a los prisioneros: vuelven a su población como reclutas (con un pequeño recargo de cansancio)

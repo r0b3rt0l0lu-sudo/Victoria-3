@@ -542,6 +542,30 @@ button.block small{margin-left:6px}button.block small.dim{display:block;margin:2
 #scenload{position:fixed;inset:0;z-index:600;background:rgba(6,9,12,.78);display:flex;align-items:center;justify-content:center;font-family:var(--head);color:var(--gold2);font-size:20px;letter-spacing:.06em}
 #scenload div{text-align:center}#scenload i{display:block;width:260px;height:4px;margin:14px auto 0;background:linear-gradient(90deg,transparent,var(--gold),transparent);background-size:200% 100%;animation:scenbar 1.1s linear infinite}
 @keyframes scenbar{from{background-position:200% 0}to{background-position:-200% 0}}
+/* acceso a la batalla: botón visible, por encima de las fichas y fácil de pulsar */
+.marker.battle{font-size:17px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:radial-gradient(circle at 35% 30%,#d4473a,#6e1d14 75%);border:2px solid #ffe28a;box-shadow:0 0 0 3px rgba(0,0,0,.35),0 0 14px rgba(255,90,60,.85);filter:none;z-index:40;pointer-events:auto;cursor:pointer;animation:pulse 1.2s infinite}
+.marker.battle:hover{transform-origin:center;filter:brightness(1.25)}
+.atoken u{cursor:pointer;padding:0 2px;border-radius:3px}.atoken u:hover{background:rgba(255,120,80,.35)}
+
+/* ===== resúmenes de batalla y de guerra ===== */
+.bsum{border-radius:10px;padding:10px 12px;margin:0 0 10px;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(0,0,0,.3));border:1px solid rgba(255,255,255,.1);border-left:5px solid #8a8f99}
+.bsum.win{border-left-color:#79c35a;background:linear-gradient(180deg,rgba(80,150,60,.16),rgba(0,0,0,.3))}.bsum.lose{border-left-color:#e8644f;background:linear-gradient(180deg,rgba(180,60,40,.18),rgba(0,0,0,.3))}
+.bsum-head{display:flex;align-items:center;gap:12px;margin-bottom:8px}.bsum-ic{font-size:30px}.bsum-head b{font-family:var(--head);font-size:19px;letter-spacing:.04em;color:#fff3d0;display:block}.bsum-head small{color:var(--dim);font-size:12px}
+.bsum-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 12px}.bsum-c{background:rgba(0,0,0,.28);border-radius:7px;padding:5px 9px}.bsum-c small{display:block;color:var(--dim);font-size:11px}.bsum-c b{font-size:13px;display:block;line-height:1.25}
+.bsum-gens{margin-top:8px;font-size:12.5px;color:#f0c872}.bsum-ev{margin-top:8px;font-size:12px}.bsum-ev>small{display:block;color:var(--dim);margin-bottom:2px;text-transform:uppercase;letter-spacing:.08em;font-size:10.5px}.bsum-ev div{padding:2px 0;border-bottom:1px dashed rgba(255,255,255,.07)}
+.bsum-war{margin-top:8px;font-size:12.5px;color:#9fd3ff}
+#battlepanel.sumonly #bmap,#battlepanel.sumonly .bcam,#battlepanel.sumonly .bhint,#battlepanel.sumonly #bt-orders,#battlepanel.sumonly #bt-strat,#battlepanel.sumonly #bt-terr,#battlepanel.sumonly .bright{display:none!important}
+#battlepanel.sumonly .bgrid{grid-template-columns:1fr}
+#warsum{position:fixed;inset:0;z-index:280;background:rgba(5,8,11,.72);display:none;align-items:center;justify-content:center;padding:16px}
+.ws-card{width:min(680px,96vw);max-height:92vh;overflow:auto;background:linear-gradient(180deg,#2a3239,#151a1f);border:1px solid var(--gold);border-radius:14px;box-shadow:0 16px 50px rgba(0,0,0,.85);padding:18px 22px;border-top:6px solid #8a8f99}
+.ws-card.win{border-top-color:#79c35a}.ws-card.lose{border-top-color:#e8644f}.ws-card.draw{border-top-color:#c9a657}
+.ws-top{display:flex;align-items:center;gap:14px}.ws-ic{font-size:44px}.ws-top small{color:var(--dim);letter-spacing:.1em;text-transform:uppercase;font-size:11px}.ws-top h2{margin:0;font-family:var(--head);font-size:30px;letter-spacing:.08em;color:var(--gold2)}
+.ws-card.win .ws-top h2{color:#a9e68f}.ws-card.lose .ws-top h2{color:#ff9d8a}
+.ws-title{margin:8px 0 10px;font-size:15px;color:#e8e2d0}.ws-sides{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;font-size:13px}.ws-sides small{display:block;color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+.ws-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ws-c{background:rgba(0,0,0,.3);border-radius:8px;padding:7px 11px}.ws-c small{display:block;color:var(--dim);font-size:11px}.ws-c b{font-size:15px}
+.ws-goal{margin-top:10px;font-size:12.5px}.ws-goal small{color:var(--dim)}.ws-note{color:#cfc8b2;font-size:13px;margin:12px 0}.ws-card button{display:block;margin:4px auto 0;padding:8px 30px}
+@media (max-width:700px){.bsum-grid,.ws-grid,.ws-sides{grid-template-columns:1fr}}
+.ordgas{margin-top:6px}.ordgas button{background:linear-gradient(#4a5a22,#2c3812);color:#e6f2b8;border:1px solid #9fb447;border-radius:14px;padding:4px 12px;font-size:12px;cursor:pointer}.ordgas button:hover{filter:brightness(1.2)}
 </style>
 </head>
 <body>
@@ -4000,6 +4024,18 @@ const ORDERS = {
   withdraw: {name: 'Retirar', icon: '↩️', f: 0.2, t: 0.5, o: 0.5, desc: 'Se repliega: casi no combate y se desgasta la mitad.'}
 };
 const ordFx = d => { const o = d.ord; return o && G.date.t <= o.until && ORDERS[o.k] ? ORDERS[o.k] : {f: 1, t: 1, o: 1}; };
+// ataque con gas: castiga la organización y las bajas del enemigo durante 3 días, a costa de infamia y prestigio
+function launchGas(b, side) {
+  const tag = side === 'A' ? b.A0 : b.B0, c = G.C[tag];
+  if (!c || !hasTech(c, 'chemical_weapons')) return {ok: false, msg: 'No dispones de armas químicas.'};
+  if (b.ended) return {ok: false, msg: 'La batalla ha terminado.'};
+  if (b.gas && b.day <= b.gas.until + 4) return {ok: false, msg: 'Aún no puedes repetir el ataque con gas.'};
+  b.gas = {side, from: b.day, until: b.day + 2}; c.infamy += 6; c.prestige = Math.max(0, c.prestige - 3);
+  b.log = b.log || []; b.log.push({d: b.day, k: 'gas', s: side, t: `${c.name} lanza un ataque con gas: una nube tóxica se arrastra sobre las trincheras enemigas.`}); if (b.log.length > 14) b.log.shift();
+  b.flash = {k: 'gas', s: side, d: b.day}; b.evSeq = (b.evSeq || 0) + 1; b.evK = 'gas'; b.evS = side;
+  if (tag === G.player) notify('war', '☣️ Ataque con gas lanzado: +6 de infamia, −3 de prestigio. Las demás potencias lo condenan.', b.state); else if (b.A0 === G.player || b.B0 === G.player) notify('war', `☣️ ¡${c.name} lanza un ataque con gas contra tus tropas!`, b.state);
+  return {ok: true};
+}
 function chooseStrategy(b, s) {
   const ids = s === 'A' ? b.A : b.B, oids = s === 'A' ? b.B : b.A, isDef = b.att !== s;
   const me = sideStats(b, ids, !isDef), op = sideStats(b, oids, isDef), terr = MAP.provs[b.prov].terr, hill = terr.def - 1 > 0.15;
@@ -4204,7 +4240,7 @@ function sideStats(b, ids, isAttacker) {
   let hasCav = false; ids.forEach(id => { const a0 = armyById(id); if (a0 && a0.divs.some(d => dKind(d) === 'cav')) hasCav = true; });
   const stAtt = ST.att + (ST === STRATS.flank && !hasCav ? -0.06 : 0);
   const stDef = ST.def + (ST.terr ? ST.terr * clamp((MAP.provs[b.prov].terr.def - 1) / 0.25, 0, 1) : 0);
-  let F = 0, T = 0, n = 0, wsum = 0, org = 0, orgN = 0, art = 0, cav = 0, gun = 0, brave = 0, tr = 0;
+  let armS = 0, armN = 0, F = 0, T = 0, n = 0, wsum = 0, org = 0, orgN = 0, art = 0, cav = 0, gun = 0, brave = 0, tr = 0;
   const pv = MAP.provs[b.prov]; const terr = pv.terr;
   ids.forEach(id => {
     const a = armyById(id); if (!a) return;
@@ -4215,7 +4251,8 @@ function sideStats(b, ids, isAttacker) {
     const plan = a.plan && a.plan.ready ? 0.15 * Math.min(1, a.plan.days * (1 + mb.plan) / 15) : 0;
     const sup = typeof supplyMod === 'function' ? supplyMod(a) : 1;
     const landPen = a.landed && G.date.t - a.landed < 6 ? 0.75 : 1;
-    const dig = isAttacker ? 0 : Math.min(6, a.dig || 0) * 0.04 * (a.mode === 'hold' || a.mode === 'dig' ? 1.25 : 1);
+    const trT = typeof hasTech === 'function' && hasTech(c, 'trench_warfare'), atkArm = sideKey ? (b['arm' + (sideKey === 'A' ? 'B' : 'A')] || 0) : 0;
+    const dig = isAttacker ? 0 : Math.min(trT ? 10 : 6, a.dig || 0) * (trT ? 0.05 : 0.04) * (a.mode === 'hold' || a.mode === 'dig' ? 1.25 : 1) * (1 - 0.55 * clamp(atkArm * 2, 0, 1));
     const stl = typeof intelStealBonus === 'function' && sideKey ? intelStealBonus(a.tag, sideKey === 'A' ? b.B0 : b.A0) : 0;
     const tm = typeof terrMods === 'function' && sideKey ? terrMods(b, sideKey) : {att: 0, def: 0};
     const am = (1 + mb.att + stl + stAtt + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup * landPen * mm * (1 + tm.att);
@@ -4230,9 +4267,10 @@ function sideStats(b, ids, isAttacker) {
         const of = ordFx(d); F += info.att * str * am * um * of.f; T += info.def * str * dm * (isAttacker ? 1 : terr.def) * of.t;
         n++; wsum += info.width || 1; tr += tm; if (kd === 'art') art++; if (kd === 'cav') cav++;
       }
-      org += d.o / info.org; orgN++;
+      org += d.o / info.org; orgN++; armS += (info.armor || 0); armN++;
     });
   });
+  if (sideKey) b['arm' + sideKey] = armN ? armS / armN : 0;
   return {F, T, n, org: orgN ? org / orgN : 0, art, cav, gun, brave, tr: n ? tr / n : 1, cas: ST.cas, strat: sideKey && b['str' + sideKey]};
 }
 // sucesos aleatorios de la batalla: cañoneo, cargas de caballería, cargas desesperadas, flanqueos…
@@ -4247,6 +4285,8 @@ function battleEvents(b, sa, sb) {
   if (b.day === 1) {          // cañoneo preparatorio del atacante
     const sd = b.att; if (S[sd].art > 0) { const x = Math.min(9, 2.2 * S[sd].art * (1 + S[sd].gun)); add(opp(sd), 'x', x); say(sd, 'barrage', `Cañoneo preparatorio de ${nm(sd)}: ${S[sd].art} baterías castigan las líneas enemigas.`); }
   }
+  if (b.gas && b.day >= b.gas.from && b.day <= b.gas.until) { const o = opp(b.gas.side); add(o, 'x', 2.4); add(o, 'c', 1.2); }
+  ['A', 'B'].forEach(s => { const c = G.C[s === 'A' ? b.A0 : b.B0]; if (c && c.ai && b.day >= 2 && hasTech(c, 'chemical_weapons') && (!b.gas || b.day > b.gas.until + 4) && Math.random() < ((s === 'A' ? b.strB : b.strA) === 'hold' ? 0.07 : 0.02)) launchGas(b, s); });
   if (Math.random() > 0.3) return ev;
   const opts = [];
   ['A', 'B'].forEach(s => {
@@ -4277,6 +4317,7 @@ function battleDay(b) {
   b.day++;
   const A = b.A.map(armyById).filter(Boolean), B = b.B.map(armyById).filter(Boolean);
   if (!A.length || !B.length) { endBattle(b, A.length ? 'A' : 'B'); return; }
+  if (typeof battleInit === 'function') battleInit(b, A, B);
   const sa = sideStats(b, b.A, b.att === 'A'), sb = sideStats(b, b.B, b.att === 'B');
   updateStrategies(b);
   const ev = battleEvents(b, sa, sb);
@@ -4334,8 +4375,9 @@ function endBattle(b, winner) {
   win.forEach(a => { if (typeof armyMor === 'function') a.mor = Math.min(1, armyMor(a) + 0.06); });
   lose.forEach(a => { a.battle = null; gainXp(a.tag, 0.5); retreatArmy(a, b); generalFate(a, b); if (typeof armyMor === 'function') a.mor = Math.max(0, armyMor(a) - 0.12); });
   if (typeof battlePrisoners === 'function') battlePrisoners(b, winner, win, lose);
+  if (typeof battleSummary === 'function') battleSummary(b, winner, win, lose);
   const wt = win[0] ? win[0].tag : null, lt = lose[0] ? lose[0].tag : null;
-  if (wt && lt) G.wars.forEach(w => { const wa = w.attAll.includes(wt) && w.defAll.includes(lt), wd = w.defAll.includes(wt) && w.attAll.includes(lt); if (wa || wd) { w.bw = w.bw || {att: 0, def: 0}; if (wa) w.bw.att++; else w.bw.def++; } });
+  if (wt && lt) G.wars.forEach(w => { const wa = w.attAll.includes(wt) && w.defAll.includes(lt), wd = w.defAll.includes(wt) && w.attAll.includes(lt); if (wa || wd) { w.bw = w.bw || {att: 0, def: 0}; if (wa) w.bw.att++; else w.bw.def++; if (typeof warBattleStat === 'function') warBattleStat(w, wa, b); } });
   if (win[0] && (win[0].tag === G.player || (lose[0] && lose[0].tag === G.player))) notify('war', `Batalla de ${provName(b.prov)}: victoria de ${G.C[wt].name}.`, b.state);
 }
 // experiencia militar nacional (para doctrinas)
@@ -4343,7 +4385,7 @@ function gainXp(tag, n) { const c = G.C[tag]; if (c) c.mxp = (c.mxp || 0) + n; }
 // el general derrotado puede morir o ser capturado
 function generalFate(a, b) {
   if (Math.random() > 0.035) return;
-  const old = a.gen.name; a.gen = newGeneral(1, a.tag);
+  const old = a.gen.name; a.gen = newGeneral(1, a.tag); (b.gens = b.gens || []).push({tag: a.tag, name: old});
   if (a.tag === G.player) notify('war', `El general ${old} ha muerto en combate. ${a.gen.name} toma el mando de ${a.name}.`, b.state);
 }
 function retreatArmy(a, b) {
@@ -4386,7 +4428,7 @@ function militaryDay() {
     G.armies.forEach(a => {
       if (a.battle) return;
       const owner = provOwner(a.loc), own = owner === a.tag || sameSide(a.tag, owner);
-      a.rest++; { const gm = genMods(a.gen); const eng = a.divs.reduce((n, d) => n + ((DIVS[d.t] && DIVS[d.t].fort) || 0), 0), per = a.mode === 'dig' || gm.dig || eng >= 0.04 ? 2 : 4; if (!a.path.length && a.rest % per === 0) a.dig = Math.min(6, (a.dig || 0) + 1); }
+      a.rest++; { const gm = genMods(a.gen); const eng = a.divs.reduce((n, d) => n + ((DIVS[d.t] && DIVS[d.t].fort) || 0), 0), per = a.mode === 'dig' || gm.dig || eng >= 0.04 ? 2 : 4; if (!a.path.length && a.rest % per === 0) a.dig = Math.min(typeof hasTech === 'function' && hasTech(G.C[a.tag], 'trench_warfare') ? 10 : 6, (a.dig || 0) + 1); }
       trainDay(a);
       if (a.fm && a.path.length) { const gm = genMods(a.gen); a.divs.forEach(d => { d.o = Math.max(0, d.o - DIVS[d.t].org * 0.012 * gm.march); }); if (armyOrg(a) < 0.35) { a.fm = false; if (a.tag === G.player) notify('war', `${a.name} cancela la marcha forzada por agotamiento.`, provState(a.loc)); } }
       const supK = Math.max(0.2, a.sup === undefined ? 1 : a.sup);
@@ -5656,7 +5698,7 @@ function updateArmyTokens() {
     const key = G.player + a.tag + a.divs.length + (a.sea ? 'z' : '') + (a.battle ? 'b' : '') + (a.id === sel ? 's' : '') + (a.path.length ? 'm' : '') + (window.UI && UI.selSet && UI.selSet.has(a.id) ? 'g' : '') + Math.round(armyStr(a) * 10);
     if (el._k !== key) {
       el._k = key; el.className = 'atoken' + (UI.selSet && UI.selSet.has(a.id) ? ' sel2' : '') + (a.tag === G.player ? ' mine' : '') + (a.id === sel ? ' sel' : '') + (a.battle ? ' fight' : '') + (a.sea ? ' sea' : '') + (a.path.length ? ' moving' : '');
-      el.innerHTML = flag(a.tag, 'sm') + `<b>${a.divs.length}</b>` + `<i style="width:${Math.round(armyStr(a) * 100)}%"></i>` + (a.battle ? '<u>⚔</u>' : '');
+      el.innerHTML = flag(a.tag, 'sm') + `<b>${a.divs.length}</b>` + `<i style="width:${Math.round(armyStr(a) * 100)}%"></i>` + (a.battle ? `<u data-act="selbattle" data-id="${a.battle}" data-tip="Abrir el panel de batalla">⚔</u>` : '');
     }
   });
   if (typeof updateNavyTokens === 'function') updateNavyTokens();
@@ -5668,7 +5710,7 @@ function declutterTokens() {
   const items = [];
   [R.ak, R.nk].forEach(o => { if (o) for (const k in o) { const el = o[k]; if (el._x == null || el.style.display === 'none') continue; items.push(el); } });
   items.sort((a, b) => (b._pri || 0) - (a._pri || 0));
-  const placed = [];
+  const placed = []; if (R.mk) for (const k in R.mk) { const m = R.mk[k]; if (m._bx != null) placed.push({x: m._bx, y: m._by, w: 40, h: 38}); }
   items.forEach(el => {
     if (el._k !== el._kw || !el._w) { el._kw = el._k; el._w = el.offsetWidth || 54; el._h = el.offsetHeight || 22; }
     const w = el._w + 3, h = el._h + 2;
@@ -5697,7 +5739,7 @@ function drawOrders() {
 function updateMarkers() {
   if (!R.markerRoot) return;
   const want = [];
-  G.battles.forEach(b => { if (G.S[b.state] && provVisible(b.prov)) want.push({id: 'bt' + b.id, state: b.state, prov: b.prov, ch: '⚔️', cls: 'war'}); });
+  G.battles.forEach(b => { if (G.S[b.state] && provVisible(b.prov)) want.push({id: 'bt' + b.id, state: b.state, prov: b.prov, ch: '⚔️', cls: 'war battle'}); });
   const me = G.C[G.player];
   if (me && me.capital >= 0) want.push({id: 'cap', state: me.capital, ch: '★', cls: 'cap'});
   if (me && me.colonizing) want.push({id: 'col', state: me.colonizing.state, ch: '⚓', cls: 'col'});
@@ -5706,9 +5748,9 @@ function updateMarkers() {
   updateArmyTokens(); if (!R.anim) updateArmyMeshes(performance.now());
   for (const k in R.mk) if (!ids.has(k)) { R.mk[k].remove(); delete R.mk[k]; }
   want.forEach(w => {
-    let el = R.mk[w.id]; if (!el) { el = document.createElement('div'); el.className = 'marker ' + w.cls; el.textContent = w.ch; if (w.id.startsWith('bt')) { el.dataset.act = 'selbattle'; el.dataset.id = w.id.slice(2); } R.markerRoot.appendChild(el); R.mk[w.id] = el; }
+    let el = R.mk[w.id]; if (!el) { el = document.createElement('div'); el.className = 'marker ' + w.cls; el.textContent = w.ch; if (w.id.startsWith('bt')) { el.dataset.act = 'selbattle'; el.dataset.id = w.id.slice(2); el.dataset.tip = '<b>Batalla en curso</b><br>Haz clic para abrir el panel de batalla.'; } R.markerRoot.appendChild(el); R.mk[w.id] = el; }
     const c = w.prov !== undefined ? [MAP.provs[w.prov].lon, MAP.provs[w.prov].lat] : stateCenter(G.S[w.state]); const p = worldToScreen(c[0], 0.6, -c[1]);
-    el.style.transform = `translate(-50%,-100%) translate(${p[0].toFixed(1)}px,${p[1].toFixed(1)}px)`;
+    el.style.transform = `translate(-50%,-100%) translate(${p[0].toFixed(1)}px,${p[1].toFixed(1)}px)`; el._bx = w.id.startsWith('bt') ? p[0] : null; el._by = p[1] - 17;
   });
 }
 
@@ -6477,7 +6519,7 @@ WINDOWS.military = {title: 'Ejército y guerra', icon: '⚔️', render() {
       <div class="btnrow"><button data-act="peace" data-id="${w.id}">🕊️ ${po.label}</button><button data-act="poopen" data-id="${w.id}">📜 Negociar paz…</button><button data-act="focus" data-id="${w.targets[0] ?? w.cTargets[0] ?? G.C[w.def].capital}">📍 Ver el frente</button></div></div>`;
     }).join('') : '<p class="hint">Tu país está en paz. Declara una guerra desde Diplomacia → Potencias. La puntuación de guerra depende ahora de los estados <b>ocupados</b> por tus ejércitos y de las batallas ganadas.</p>'}</div></div>
     <div class="col"><div class="card"><h3>Batallas en curso</h3>${G.battles.length ? G.battles.slice(0, 14).map(b => { const ta = (armyById(b.A[0]) || {}).tag, tb = (armyById(b.B[0]) || {}).tag; return ta && tb ? `<div class="kv sm clk" data-act="focus" data-id="${b.state}"><span>${flag(ta, 'sm')} vs ${flag(tb, 'sm')} ${G.S[b.state].name}</span><b>día ${b.day}</b></div>` : ''; }).join('') : '<p class="hint">No hay batallas.</p>'}</div>
-    <div class="card"><h3>Otras guerras</h3>${G.wars.filter(w => !myWars.includes(w)).map(w => `<div class="kv"><span>${CBS[w.cb].icon} ${flag(w.att, 'sm')} ${G.C[w.att].name} → ${flag(w.def, 'sm')} ${G.C[w.def].name}</span><span><b>${sgn(w.score, 0)}</b> <button data-act="focus" data-id="${w.targets[0] ?? G.C[w.def].capital}">📍</button></span></div>`).join('') || '<p class="hint">No hay otras guerras.</p>'}</div></div></div>`;
+    ${typeof recentBattlesHtml === 'function' ? recentBattlesHtml() : ''}<div class="card"><h3>Otras guerras</h3>${G.wars.filter(w => !myWars.includes(w)).map(w => `<div class="kv"><span>${CBS[w.cb].icon} ${flag(w.att, 'sm')} ${G.C[w.att].name} → ${flag(w.def, 'sm')} ${G.C[w.def].name}</span><span><b>${sgn(w.score, 0)}</b> <button data-act="focus" data-id="${w.targets[0] ?? G.C[w.def].capital}">📍</button></span></div>`).join('') || '<p class="hint">No hay otras guerras.</p>'}</div></div></div>`;
   } else {
     body = `<div class="cols"><div class="col"><div class="card"><h3>Fuerzas armadas</h3>
    <div class="kv"><span>Soldados movilizables</span><b>${fmtN(st.soldiers, 1)}</b></div>
@@ -6983,7 +7025,7 @@ window.onFrame = function (t) {
 
 /* ===== INTERFAZ MILITAR: órdenes, panel de ejército, frentes, generales y batalla con minimapa ===== */
 const MODE_NAMES = {hold: '🛡 Manteniendo posición', dig: '⛏ Atrincherándose', train: '🎓 Entrenando'};
-const EV_ICON = {barrage: '💥', charge: '🔥', cav: '🐎', flank: '↪️', panic: '😱', reinf: '➕', rain: '🌧️'};
+const EV_ICON = {gas: '☣️', barrage: '💥', charge: '🔥', cav: '🐎', flank: '↪️', panic: '😱', reinf: '➕', rain: '🌧️'};
 
 function armyOrderText(a) {
   if (a.battle) return '⚔ En combate';
@@ -7168,7 +7210,7 @@ function frontsSvg() {
 function renderBattlePanel() {
   const root = $('#battlepanel'); if (!root) return;
   let b = UI.battle ? G.battles.find(x => x.id === UI.battle) : null;
-  if (!b && UI.battle && G.lastEnded && G.lastEnded.id === UI.battle) b = G.lastEnded;
+  if (!b && UI.battle) b = (G.endedList || []).find(x => x.id === UI.battle) || (G.lastEnded && G.lastEnded.id === UI.battle ? G.lastEnded : null);
   if (!b) { root.classList.remove('open'); root.innerHTML = ''; root.dataset.bid = ''; UI.battle = null; if (R.skip3d) { R.skip3d = false; R.dirty = true; R.labelsDirty = true; G.paused = R.bvPrevPause !== false; } return; }
   const done = !!b.ended;
   const side = (ids, isAtt, tag0) => {
@@ -7199,14 +7241,14 @@ function renderBattlePanel() {
   if (root.dataset.bid !== String(b.id)) {
     root.dataset.bid = b.id; root._sb = '';
     root.innerHTML = `<div class="bhead"><div class="bh-side att">${flag(b.A0, 'md')}<b>${G.C[b.A0].name}</b></div><div class="bh-mid"><span class="bh-vs">⚔</span><h2 id="bt-title"></h2><small id="bt-sub"></small></div><div class="bh-side def"><b>${G.C[b.B0].name}</b>${flag(b.B0, 'md')}</div><button class="bvplay" data-act="bvpause"></button><button class="x" data-act="closebattle">✕</button></div>
-    <div class="bgrid"><div class="bleft"><div id="bt-terr" class="bterr"></div><canvas id="bmap" width="${BV_W * 2}" height="${BV_H * 2}"></canvas><div id="bt-cam" class="bcam"></div><div class="bhint">Cada cuadrado es una división. Pasa el ratón para ver su orden; rueda = zoom, arrastrar = mover. Barras: <span class="g">fuerza</span> · <span class="o">organización</span>.</div><div id="bt-orders" class="bord"></div><div id="bt-strat"></div><div id="bt-log" class="blog"></div></div>
+    <div class="bgrid"><div class="bleft"><div id="bt-sum"></div><div id="bt-terr" class="bterr"></div><canvas id="bmap" width="${BV_W * 2}" height="${BV_H * 2}"></canvas><div id="bt-cam" class="bcam"></div><div class="bhint">Cada cuadrado es una división. Pasa el ratón para ver su orden; rueda = zoom, arrastrar = mover. Barras: <span class="g">fuerza</span> · <span class="o">organización</span>.</div><div id="bt-orders" class="bord"></div><div id="bt-strat"></div><div id="bt-log" class="blog"></div></div>
     <div class="bright"><div id="bt-stats"></div><div id="bt-hist"></div></div></div>`;
     R.bviz = null;
     if (!R.skip3d) { R.skip3d = true; R.bvPrevPause = G.paused; G.paused = true; }
   }
   const pb = $('.bvplay'); if (pb) pb.textContent = G.paused ? '▶ Continuar la batalla' : '⏸ Pausar';
   $('#bt-title').textContent = 'Batalla de ' + provName(b.prov);
-  { const ti = typeof terrainInfo === 'function' ? terrainInfo(b) : [], ma = typeof terrMods === 'function' ? terrMods(b, 'A') : {att: 0, def: 0}, mb2 = typeof terrMods === 'function' ? terrMods(b, 'B') : {att: 0, def: 0}, pc = v => (v >= 0 ? '+' : '') + Math.round(v * 100) + '%';
+  { const ti = (typeof terrainInfo === 'function' ? terrainInfo(b) : []).concat(typeof trenchInfo === 'function' && trenchInfo(b) ? [trenchInfo(b)] : []), ma = typeof terrMods === 'function' ? terrMods(b, 'A') : {att: 0, def: 0}, mb2 = typeof terrMods === 'function' ? terrMods(b, 'B') : {att: 0, def: 0}, pc = v => (v >= 0 ? '+' : '') + Math.round(v * 100) + '%';
     $('#bt-terr').innerHTML = '<small class="dim">Terreno:</small>' + ti.map(([ic, t, d]) => `<span class="terrchip" data-tip="${d}">${ic} ${t}</span>`).join('') + `<span class="terreff" data-tip="Efecto neto del terreno sobre cada bando">${G.C[b.A0].name}: ataque ${pc(ma.att)} · defensa ${pc(ma.def)} &nbsp;|&nbsp; ${G.C[b.B0].name}: ataque ${pc(mb2.att)} · defensa ${pc(mb2.def)}</span>`; }
   $('#bt-sub').textContent = `${done ? 'Batalla finalizada' : 'Día ' + b.day} · ${BIOME_NAMES[pv.biome] || ''} · defensa ×${terr.def.toFixed(2)} · movilidad ×${terr.move.toFixed(2)}`;
   const mySide = [['A', A], ['B', B]].find(([k, S]) => S.tag === G.player), sn = k => STRATS[b['str' + k]] || STRATS.frontal;
@@ -7221,6 +7263,7 @@ function renderBattlePanel() {
   $('#bt-hist').innerHTML = `<svg class="bhist" viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none">${line(0, '#e8644f')}${line(1, '#6aa8e8')}</svg>
   <small class="dim">Organización: <span style="color:#e8644f">atacante</span> · <span style="color:#6aa8e8">defensor</span> · frente: ${b.adv > 0.15 ? 'avanza el atacante' : b.adv < -0.15 ? 'avanza el defensor' : 'equilibrado'}</small>`;
   $('#bt-log').innerHTML = log.length ? log.map(e => `<div class="ev ${e.k}">${EV_ICON[e.k] || '•'} <small>día ${e.d}</small> ${e.t}</div>`).join('') : '<small class="dim">Aún no ha ocurrido nada destacable…</small>';
+  { const live = R.bviz && R.bviz.id === b.id && R.bviz.rec && R.bviz.rec.snaps.length > 3; root.classList.toggle('sumonly', done && !live); const sh2 = b.sum ? 's' + b.id : ''; if (root._ss !== sh2) { root._ss = sh2; $('#bt-sum').innerHTML = b.sum ? battleSummaryHtml(b) : ''; } }
   { const V = R.bviz, rp = V && V.replay;
     let ch = `<button data-act="bvzoom" data-d="1" data-tip="Acercar (rueda del ratón)">🔍＋</button><button data-act="bvzoom" data-d="-1" data-tip="Alejar">🔍－</button><button data-act="bvreset" data-tip="Vista completa (doble clic en el campo)">⤢ Vista completa</button><button data-act="bvfollow" class="${V && V.follow ? 'on' : ''}" data-tip="La cámara sigue al bloque seleccionado o bajo el ratón">🎥 Seguir</button>`;
     if (done && !rp) ch += `<button data-act="bvreplay" class="rp" data-tip="Vuelve a ver la batalla desde que abriste este panel">↻ Repetir la batalla</button>`;
@@ -7228,6 +7271,7 @@ function renderBattlePanel() {
     if (root._sc !== ch) { root._sc = ch; $('#bt-cam').innerHTML = ch; }
     const sel = V && V.sel && V.blocks.has(V.sel.d) ? V.sel : null; let oh = '';
     if (mySide && !done && !rp) oh = sel ? `<div class="ordhead">🎯 <b>${DIVS[sel.d.t].icon} ${BV_KIND[sel.type]}</b> · ${sel.a.name} <small>fuerza ${Math.round(sel.d.s * 100)}% · organización ${Math.round(sel.d.o / DIVS[sel.d.t].org * 100)}%</small></div><div class="ordbtns">${Object.keys(ORDERS).map(k => `<button data-act="bvorder" data-k="${k}" class="${bvOrder(sel) && bvOrder(sel).k === k ? 'on' : ''}" data-tip="<b>${ORDERS[k].name}</b><br>${ORDERS[k].desc}">${ORDERS[k].icon} ${ORDERS[k].name}</button>`).join('')}<button data-act="bvorder" data-k="cancel">✖ Sin orden</button></div>${sel.role === 'reserve' ? '<small class="dim">Está en reserva: aún no combate; la orden surtirá efecto cuando entre en línea.</small>' : ''}` : '<div class="ordhint">👆 Haz clic en uno de tus bloques para darle órdenes directas (cargar, resistir, flanquear o retirar).</div>';
+    if (mySide && !done && !rp && hasTech(me(), 'chemical_weapons')) oh += `<div class="ordgas"><button data-act="bvgas" data-tip="<b>Ataque con gas</b><br>Castiga la organización y las bajas del enemigo durante 3 días. +6 infamia y −3 prestigio; las potencias lo condenan.">☣️ Ataque con gas</button></div>`;
     if (root._so !== oh) { root._so = oh; $('#bt-orders').innerHTML = oh; } }
   bvStart();
 }
@@ -7332,9 +7376,10 @@ const BV_W = 960, BV_H = 420, BV_K = 1.33;
 const BV_FORM = {
   inf: {n: 24, cols: 6, rows: 4, sx: 7.8, sy: 6.6, spd: 22},
   cav: {n: 10, cols: 5, rows: 2, sx: 9.5, sy: 11, spd: 46},
-  art: {n: 3, cols: 3, rows: 1, sx: 20, sy: 10, spd: 11}
+  art: {n: 3, cols: 3, rows: 1, sx: 20, sy: 10, spd: 11},
+  tank: {n: 4, cols: 4, rows: 1, sx: 15, sy: 14, spd: 30}
 };
-const BV_KIND = {inf: 'Infantería', cav: 'Caballería', art: 'Artillería'};
+const BV_KIND = {inf: 'Infantería', cav: 'Caballería', art: 'Artillería', tank: 'Carros de combate'};
 const BV_STATUS = {deploy: 'Desplegándose', advance: 'Avanzando', hold: 'Manteniendo la línea', fire: 'Fuego de fusilería', melee: 'Cuerpo a cuerpo', charge: '¡A la carga!', flank: 'Flanqueando', fixing: 'Fijando al enemigo',
   skirmish: 'Hostigando', retreat: 'Replegándose', reserve: 'En reserva', artfire: 'Bombardeando', rout: '¡En desbandada!', victory: 'Victoria', gallop: 'Carga de caballería', recoil: 'Retrocede, presa del pánico'};
 const BV_PHASE = {melee: 'combate', fire: 'combate', charge: 'combate', gallop: 'combate', artfire: 'combate', flank: 'maniobra', advance: 'maniobra', skirmish: 'maniobra', fixing: 'maniobra', deploy: 'maniobra', hold: 'línea', reserve: 'reserva', retreat: 'retirada', recoil: 'retirada', rout: 'retirada', victory: 'línea'};
@@ -7349,7 +7394,7 @@ function bvNew(b) {
 }
 /* ---------- bloques y soldados ---------- */
 function bvMakeBlock(V, it, side) {
-  const type = dKind(it.d), F = BV_FORM[type] || BV_FORM.inf;
+  const type = (DIVS[it.d.t] && DIVS[it.d.t].armor >= 0.35) ? 'tank' : dKind(it.d), F = BV_FORM[type] || BV_FORM.inf;
   const blk = {id: V.nid++, d: it.d, a: it.a, side, type, F, tag: it.a.tag, color: (G.C[it.a.tag] && G.C[it.a.tag].color) || '#888', x: 0, y: BV_H / 2, hd: side === 'A' ? 0 : Math.PI, vx: 0, vy: 0, mode: 'deploy', ph: rnd(0, 6.28),
     fs: 0, figs: [], sc: 0.9, lane: 0, nLane: 1, role: 'line', fireAcc: rnd(0, 1), cd: rnd(0.5, 3), relief: null, comp: 1, foe: null, path: null, init: false, skey: '', dep: 24, wid: 40, engT: 0, hits: 0};
   const mk = (kind, k, i) => ({kind, k, i, x: 0, y: 0, vx: 0, vy: 0, alive: true, dying: 0, flee: 0, ph: rnd(0, 6.28), recoil: 0, flash: 0});
@@ -7376,7 +7421,7 @@ function bvKill(V, blk, f) {
 function bvFlee(V, blk, f, power) { if (!f.alive) return; f.flee = 3.6; const away = blk.side === 'A' ? -1 : 1; f.fvx = away * rnd(40, 100) * power + rnd(-25, 25); f.fvy = rnd(-60, 60) * power; }
 function bvPart(V, p) { if (V.parts.length < 900) V.parts.push(Object.assign({age: 0}, p)); if (!V.replay && p.k !== 'dust' && V.rec.parts.length < 9000) V.rec.parts.push(Object.assign({}, p, {t: V.t})); }
 function bvBanner(V, text, side, icon) { V.banner = {text, side, icon, age: 0}; }
-const EV_NAME = {charge: '¡Carga desesperada!', cav: 'Carga de caballería', barrage: 'Cañoneo', flank: 'Flanqueo', panic: 'Pánico', reinf: 'Refuerzos', rain: 'Lluvia'};
+const EV_NAME = {gas: 'Ataque con gas', charge: '¡Carga desesperada!', cav: 'Carga de caballería', barrage: 'Cañoneo', flank: 'Flanqueo', panic: 'Pánico', reinf: 'Refuerzos', rain: 'Lluvia'};
 function bvEvent(V, b, kind, side) {
   bvBanner(V, `${EV_NAME[kind] || kind} · ${G.C[(side === 'A' ? b.A0 : b.B0)].name}`, side, EV_ICON[kind]);
   if (kind === 'charge') V.boost[side] = 2.6;
@@ -7385,6 +7430,7 @@ function bvEvent(V, b, kind, side) {
   else if (kind === 'barrage') V.salvo[side] = 10;
   else if (kind === 'panic') V.panic[side] = 2.6;
   else if (kind === 'rain') V.rain = 6;
+  else if (kind === 'gas') V.gas = {side, t: 0, dur: 9};
   else if (kind === 'reinf') V.blocks.forEach(bk => { if (bk.side === side && bk.role !== 'reserve') for (let n = 0; n < 2; n++) bvPart(V, {k: 'spark', x: bk.x + rnd(-10, 10), y: bk.y - 6, life: 1.1}); });
   const mx = BV_W / 2 + V.adv * 100, dirS = side === 'A' ? 1 : -1; V.rings.push({x: mx + dirS * 40, y: BV_H / 2, r: 46, age: 0, life: 2.4});
 }
@@ -7417,7 +7463,7 @@ function bvSync(V, b) {
     const inFront = new Set(front), res = blks.filter(x => !inFront.has(x));
     let line = front.filter(x => x.type !== 'art'), art = front.filter(x => x.type === 'art');
     if (!line.length) { line = art; art = []; }
-    const cav = line.filter(x => x.type === 'cav'), inf = line.filter(x => x.type !== 'cav'), ord = inf.slice();
+    const cav = line.filter(x => x.type === 'cav' || x.type === 'tank'), inf = line.filter(x => x.type !== 'cav' && x.type !== 'tank'), ord = inf.slice();
     cav.forEach((c, i) => { if (i % 2) ord.push(c); else ord.unshift(c); });          // la caballería en las alas
     const laneH = (BV_H - 92) / Math.max(1, ord.length), scL = clamp(laneH / 52, 0.62, 1.3);
     ord.forEach((x, i) => { x.role = 'line'; x.lane = i; x.nLane = ord.length; x.sc = scL; });
@@ -7475,14 +7521,15 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
     mode = 'artfire'; if (st === 'barrage') tx += dir * 36; if (st === 'hold' && !att) tx -= dir * 6;
   } else {
     // ---- bloque de línea: su estrategia se traduce en una orden propia para cada uno ----
-    const flankers = (() => { if (st !== 'flank' && !(man && man.kind === 'flank') && !(od && od.k === 'flank')) return false; if (od && od.k === 'flank') return true; const hasCav = all.some(o => o.side === side && o.role === 'line' && o.type === 'cav'); return blk.type === 'cav' || (!hasCav && st === 'flank' && blk.nLane >= 3 && (blk.lane === 0 || blk.lane === blk.nLane - 1)); })();
+    const flankers = (() => { if (st !== 'flank' && !(man && man.kind === 'flank') && !(od && od.k === 'flank')) return false; if (od && od.k === 'flank') return true; const hasCav = all.some(o => o.side === side && o.role === 'line' && o.type === 'cav'); return blk.type === 'cav' || blk.type === 'tank' || (!hasCav && st === 'flank' && blk.nLane >= 3 && (blk.lane === 0 || blk.lane === blk.nLane - 1)); })();
     if (od && od.k === 'withdraw') { mode = 'retreat'; tx = home.x - dir * 140; spd = F.spd * 1.2; }
+    else if (V.gas && V.gas.side !== side && V.gas.t < 5 && Math.sin(blk.ph * 5 + blk.id) > 0.1) { mode = 'recoil'; tx = L - dir * 70; spd = F.spd * 1.5; if (Math.random() < dt * 3) { const fs = blk.figs.filter(f => f.alive && !f.flee); if (fs.length) bvFlee(V, blk, fs[Math.floor(Math.random() * fs.length)], 0.6); } }
     else if (V.panic[side] > 0 && Math.sin(blk.ph * 7 + blk.id) > 0.45) { mode = 'recoil'; tx = L - dir * 120; spd = F.spd * 3; }
     else if (orgF < 0.12) { mode = 'retreat'; tx = home.x - dir * 90; spd = F.spd * 0.9; }
     else if (flankers && foe) {
       const edgeTop = blk.lane < blk.nLane / 2 || blk.type === 'cav' && blk.lane === 0, ey = edgeTop ? 26 : BV_H - 24, xm = (L + LE) / 2;
       const ends = all.filter(o => o.side !== side && o.role === 'line' && o.mode !== 'rout'); let tf = null; ends.forEach(o => { if (!tf || (edgeTop ? o.y < tf.y : o.y > tf.y)) tf = o; });
-      const f2 = tf || foe; spd = F.spd * (blk.type === 'cav' ? 2.4 : 1.7);
+      const f2 = tf || foe; spd = F.spd * (blk.type === 'cav' ? 2.4 : blk.type === 'tank' ? 1.9 : 1.7);
       if (blk.fs === 0) { tx = xm; ty = ey; mode = 'flank'; if (Math.hypot(blk.x - xm, blk.y - ey) < 26) blk.fs = 1; path = [[blk.x, blk.y], [xm, ey], [f2.x + dir * (f2.dep / 2 + 6), f2.y + (edgeTop ? -1 : 1) * (f2.wid / 2 + 2)]]; }
       else if (blk.fs === 1) { tx = f2.x + dir * (f2.dep / 2 + 6); ty = f2.y + (edgeTop ? -1 : 1) * (f2.wid / 2 + 2); mode = 'flank'; if (Math.hypot(blk.x - tx, blk.y - ty) < 30) blk.fs = 2; path = [[blk.x, blk.y], [tx, ty]]; }
       else { mode = 'melee'; tx = blk.x; ty = blk.y; blk.foe = f2; }
@@ -7564,15 +7611,15 @@ function bvFire(V, b, blk, dt, foes) {
       for (let n = 0; n < 3; n++) bvPart(V, {k: 'smoke', x: gn.x + Math.cos(blk.hd) * 12, y: gn.y + Math.sin(blk.hd) * 12, life: 2.2, r: 5, vx: dir * 8 + V.wind * 0.5 + rnd(-4, 4)}); }
     return;
   }
-  if (blk.type !== 'inf' && blk.type !== 'cav') return;
+  if (blk.type !== 'inf' && blk.type !== 'cav' && blk.type !== 'tank') return;
   if (blk.mode === 'melee' || blk.mode === 'charge' || blk.mode === 'gallop' || blk.mode === 'recoil') return;
   if (fd > 190) return;
-  const rate = (st === 'skirmish' ? 7 : st === 'hold' ? 5 : 4) * alive.length * 0.22 * (blk.type === 'cav' ? 0.3 : 1) * (blk.mode === 'fire' ? 1.6 : 0.7);
+  const rate = (st === 'skirmish' ? 7 : st === 'hold' ? 5 : 4) * alive.length * 0.22 * (blk.type === 'cav' ? 0.3 : blk.type === 'tank' ? 0.5 : 1) * (blk.mode === 'fire' ? 1.6 : 0.7);
   blk.fireAcc += dt * rate;
   while (blk.fireAcc > 1) { blk.fireAcc--;
     const front = alive.filter(f => f.kind === 'sol' && Math.floor(f.k / blk.F.cols) <= 1), pool = front.length ? front : alive, u = pool[Math.floor(Math.random() * pool.length)], tg = pickFoeFig(foe); if (!tg) break;
     const ca = Math.cos(blk.hd), sa = Math.sin(blk.hd);
-    bvPart(V, {k: 'flash', x: u.x + ca * 5, y: u.y + sa * 5, life: 0.1}); bvPart(V, {k: 'smoke', x: u.x + ca * 7, y: u.y + sa * 7 - 1, life: 1.7, r: 3, vx: dir * 5 + V.wind * 0.6}); bvPart(V, {k: 'tracer', x: u.x, y: u.y, x2: tg.x, y2: tg.y + rnd(-3, 3), life: 0.08}); u.flash = 0.12; }
+    bvPart(V, {k: 'flash', x: u.x + ca * 5, y: u.y + sa * 5, life: 0.1, big: blk.type === 'tank' ? 1 : 0}); bvPart(V, {k: 'smoke', x: u.x + ca * 7, y: u.y + sa * 7 - 1, life: 1.7, r: 3, vx: dir * 5 + V.wind * 0.6}); bvPart(V, {k: 'tracer', x: u.x, y: u.y, x2: tg.x, y2: tg.y + rnd(-3, 3), life: 0.08}); u.flash = 0.12; }
 }
 function pickFoeFig(blk) { const l = blk.figs.filter(f => f.alive); return l.length ? l[Math.floor(Math.random() * l.length)] : null; }
 /* ---------- bucle ---------- */
@@ -7590,6 +7637,7 @@ function bvFrame(V, b, ctx, now) {
   if (V.over) V.over.t += dt;
   ['A', 'B'].forEach(s => { if (V.boost[s] > 0) V.boost[s] -= dt; if (V.panic[s] > 0) V.panic[s] -= dt; if (V.salvo[s] > 0) V.salvo[s] -= dt; if (V.man[s]) { V.man[s].t += dt; if (V.man[s].t > V.man[s].dur) V.man[s] = null; } });
   if (V.rain > 0) V.rain -= dt;
+  if (V.gas) { V.gas.t += dt; const gs = V.gas.side, gd = gs === 'A' ? 1 : -1, x0 = BV_W / 2 + V.adv * 100; if (Math.random() < dt * 22) bvPart(V, {k: 'gas', x: x0 - gd * 90 + rnd(-20, 20), y: rnd(50, BV_H - 36), life: 6, r: rnd(14, 24), vx: gd * rnd(16, 26)}); if (V.gas.t > V.gas.dur) V.gas = null; }
   V.tf = battleTerrain(b);
   const lines = {A: bvLine(V, b, 'A'), B: bvLine(V, b, 'B')}, all = [...V.blocks.values()];
   if (!V.over) bvRelief(V, b, dt);
@@ -7602,6 +7650,7 @@ function bvFrame(V, b, ctx, now) {
     if (!b.ended && org !== undefined && org < 0.3 && Math.random() < dt * 1.2) { const c = all.filter(x => x.side === s && x.role === 'line'); if (c.length) { const blk = c[Math.floor(Math.random() * c.length)], fs = blk.figs.filter(f => f.alive && !f.flee); if (fs.length) bvFlee(V, blk, fs[Math.floor(Math.random() * fs.length)], 1); } } });
   // partículas
   V.parts.forEach(p => { p.age += dt; if (p.k === 'smoke') { p.x += (p.vx || 0) * dt; p.y -= 6 * dt; } if (p.k === 'dust') { p.y -= 4 * dt; p.x += V.wind * 0.3 * dt; }
+    if (p.k === 'gas') { p.x += p.vx * dt; p.y += Math.sin(p.age * 1.4 + p.x * 0.02) * 4 * dt; }
     if (p.k === 'shell' && p.age >= p.life && !p.hit) { p.hit = true; bvPart(V, {k: 'boom', x: p.x2, y: p.y2, life: 0.6}); bvPart(V, {k: 'smoke', x: p.x2, y: p.y2, life: 2.8, r: 7, vx: rnd(-5, 5) + V.wind * 0.5});
       for (let n = 0; n < 5; n++) bvPart(V, {k: 'spark', x: p.x2 + rnd(-8, 8), y: p.y2 + rnd(-8, 8), life: 0.45, hot: 1});
       all.forEach(blk => { if (blk.side === p.s) return; blk.figs.forEach(f => { if (f.alive && !f.flee && Math.hypot(f.x - p.x2, f.y - p.y2) < 26) { f.x += (f.x - p.x2) * 0.45; f.y += (f.y - p.y2) * 0.45; } }); }); } });
@@ -7625,6 +7674,19 @@ function bvZoomAt(V, factor, sx, sy) { const c = V.cam, [wx, wy] = bvToWorld(V, 
 function bvHover(V, all) {
   V.hover = null; if (!V.mouse) return; const [wx, wy] = bvToWorld(V, V.mouse.x, V.mouse.y); let bd = 1e9;
   all.forEach(blk => { const d = Math.hypot(blk.x - wx, blk.y - wy), r = Math.max(blk.dep, blk.wid) / 2 + 6; if (d < r && d < bd) { bd = d; V.hover = blk; } });
+}
+/* ---------- trincheras ---------- */
+function bvTrenchLevel(V, b, side) {
+  let lv = 0; (side === 'A' ? b.A : b.B).forEach(id => { const a = armyById(id); if (a) lv = Math.max(lv, a.dig || 0); }); return lv;
+}
+function bvTrenches(g, V, b, lines) {
+  const side = b.att === 'A' ? 'B' : 'A', dir = side === 'A' ? 1 : -1; V.dig = V.dig || {A: 0, B: 0}; if (V.t - (V.digT || -9) > 0.5) { V.digT = V.t; V.dig[side] = bvTrenchLevel(V, b, side); }
+  const lv = V.dig[side]; if (lv < 2) return; const tech = G.C[side === 'A' ? b.A0 : b.B0] && hasTech(G.C[side === 'A' ? b.A0 : b.B0], 'trench_warfare');
+  const x = lines[side] - dir * 18, w = 5 + lv * (tech ? 0.7 : 0.4), top = 46, bot = BV_H - 28;
+  const path = () => { g.beginPath(); for (let y = top, i = 0; y <= bot; y += 14, i++) { const px = x + (tech ? (i % 2 ? 4 : -4) : 0); i ? g.lineTo(px, y) : g.moveTo(px, y); } };
+  g.lineCap = 'butt'; g.lineJoin = 'miter'; g.strokeStyle = 'rgba(40,28,16,.55)'; g.lineWidth = w + 5; path(); g.stroke(); g.strokeStyle = tech ? '#2a1d12' : '#4a3a28'; g.lineWidth = w; path(); g.stroke();
+  g.fillStyle = 'rgba(176,150,98,.85)'; for (let y = top; y <= bot; y += 9) { g.beginPath(); g.ellipse(x + dir * (w / 2 + 3), y, 3, 2, 0, 0, 6.3); g.fill(); }
+  if (tech && lv >= 4) { const wx = x + dir * 30; g.strokeStyle = 'rgba(190,190,200,.7)'; g.lineWidth = 0.9; g.beginPath(); g.moveTo(wx, top); g.lineTo(wx, bot); g.stroke(); for (let y = top; y <= bot; y += 10) { g.beginPath(); g.moveTo(wx - 3, y - 3); g.lineTo(wx + 3, y + 3); g.moveTo(wx - 3, y + 3); g.lineTo(wx + 3, y - 3); g.stroke(); } }
 }
 /* ---------- dibujo ---------- */
 // terreno prerrenderizado una sola vez por batalla (más resolución para poder acercar la cámara)
@@ -7678,6 +7740,14 @@ function bvFig(g, V, blk, f) {
     g.fillStyle = bvShade(col, -0.45); g.fillRect(x - 2.5 * s, y - 3.4 * s + bob, 5 * s, 5.6 * s); g.fillStyle = fl ? '#d9cfae' : col; g.fillRect(x - 2.1 * s, y - 3.1 * s + bob, 4.2 * s, 4.8 * s);
     g.fillStyle = 'rgba(255,255,255,.7)'; g.fillRect(x - 2.1 * s, y - 3.1 * s + bob, 4.2 * s, 0.9 * s); g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 0.6 * s; g.beginPath(); g.moveTo(x - 2 * s, y - 3 * s + bob); g.lineTo(x + 2 * s, y + 1.5 * s + bob); g.stroke();
     g.fillStyle = '#e7c9a6'; g.beginPath(); g.arc(x, y - 4.4 * s + bob, 1.55 * s, 0, 6.3); g.fill(); g.fillStyle = '#17181c'; g.fillRect(x - 1.5 * s, y - 6.4 * s + bob, 3 * s, 1.9 * s);
+  } else if (f.kind === 'sol' && blk.type === 'tank') {
+    const mv = moving ? Math.sin(V.t * 22 + f.ph) * 0.5 : 0;
+    g.save(); g.translate(x, y - 2 * s); g.rotate(hd);
+    g.fillStyle = '#2a2c27'; g.fillRect(-8 * s, -5.4 * s, 16 * s, 2.6 * s); g.fillRect(-8 * s, 2.8 * s, 16 * s, 2.6 * s);
+    g.fillStyle = '#3d3f37'; for (let i = -3; i <= 3; i++) { g.fillRect((i * 2.2 - 0.6 + mv) * s, -5.4 * s, 1.1 * s, 2.6 * s); g.fillRect((i * 2.2 - 0.6 - mv) * s, 2.8 * s, 1.1 * s, 2.6 * s); }
+    g.fillStyle = bvShade(col, -0.35); g.fillRect(-7 * s, -3.2 * s, 14 * s, 6.4 * s); g.fillStyle = col; g.fillRect(-6.4 * s, -2.7 * s, 12.8 * s, 5.4 * s);
+    g.fillStyle = bvShade(col, -0.2); g.beginPath(); g.arc(0.5 * s, 0, 3.1 * s, 0, 6.3); g.fill(); g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(-6.4 * s, -2.7 * s, 12.8 * s, 0.8 * s);
+    g.strokeStyle = '#33363a'; g.lineWidth = 1.6 * s; g.beginPath(); g.moveTo(2 * s, 0); g.lineTo(11.5 * s - f.recoil * 2, 0); g.stroke(); g.restore();
   } else if (f.kind === 'sol') {   // jinete
     const hc = ['#6b4a2b', '#2e2420', '#8b6a44', '#c9c0ae'][Math.floor(f.ph * 3) % 4], an = Math.atan2(blk.vy || sa, blk.vx || ca) * 0.35;
     g.fillStyle = hc; g.beginPath(); g.ellipse(x, y - 2 * s + bob, 7.4 * s, 3.4 * s, an, 0, 6.3); g.fill(); g.fillStyle = bvShade(hc, -0.3); g.beginPath(); g.ellipse(x + ca * 6.2 * s, y - 3.5 * s + bob + sa * 2, 2.4 * s, 1.8 * s, an, 0, 6.3); g.fill();
@@ -7709,12 +7779,14 @@ function bvDraw(V, b, g, lines, all) {
   // loma de la defensa «en los altos»
   ['A', 'B'].forEach(s => { if (bvStrat(b, s) === 'hold' && !V.tf.hill) { const dir = s === 'A' ? 1 : -1, cx = lines[s] - dir * 34, rg = g.createRadialGradient(cx, H / 2, 10, cx, H / 2, 150); rg.addColorStop(0, 'rgba(210,190,130,.34)'); rg.addColorStop(0.6, 'rgba(120,96,56,.26)'); rg.addColorStop(1, 'rgba(70,52,30,0)'); g.fillStyle = rg; g.beginPath(); g.ellipse(cx, H / 2 + 4, 90, H / 2 - 40, 0, 0, 6.3); g.fill();
     g.strokeStyle = 'rgba(245,225,170,.2)'; g.lineWidth = 1.2; for (let i = 1; i <= 3; i++) { g.beginPath(); g.ellipse(cx, H / 2 + 4, 90 - i * 22, H / 2 - 40 - i * 34, 0, 0, 6.3); g.stroke(); } } });
+  bvTrenches(g, V, b, lines);
   // línea de contacto
   g.strokeStyle = 'rgba(255,230,150,.16)'; g.setLineDash([5, 7]); g.beginPath(); const mx = (lines.A + lines.B) / 2; g.moveTo(mx, 30); g.lineTo(mx, H - 4); g.stroke(); g.setLineDash([]);
   // caídos
   V.corpses.forEach(c => { g.save(); g.translate(c.x, c.y); g.rotate(c.hd + 1.57); g.globalAlpha = Math.max(0.2, 0.8 - c.age * 0.008); g.fillStyle = '#1c1612'; g.fillRect(-1.2, -3, 2.8, 6); g.fillStyle = c.color; g.fillRect(-0.9, -2.3, 2, 3); g.restore(); }); g.globalAlpha = 1;
   // humo y polvo (capa baja)
-  V.parts.forEach(p => { if (p.k !== 'smoke' && p.k !== 'dust') return; const k = p.age / p.life; g.globalAlpha = (p.k === 'smoke' ? 0.34 : 0.26) * (1 - k); g.fillStyle = p.k === 'smoke' ? '#c9c6be' : '#b09a76'; g.beginPath(); g.arc(p.x, p.y, (p.r || 3) * (1 + k * 2.2), 0, 6.3); g.fill(); }); g.globalAlpha = 1;
+  V.parts.forEach(p => { if (p.k === 'gas') { const k = p.age / p.life; g.globalAlpha = 0.5 * Math.sin(Math.min(1, k) * 3.14); g.fillStyle = '#b6d13a'; g.beginPath(); g.arc(p.x, p.y, p.r * (1 + k * 1.6), 0, 6.3); g.fill(); g.globalAlpha = 1; return; }
+    if (p.k !== 'smoke' && p.k !== 'dust') return; const k = p.age / p.life; g.globalAlpha = (p.k === 'smoke' ? 0.34 : 0.26) * (1 - k); g.fillStyle = p.k === 'smoke' ? '#c9c6be' : '#b09a76'; g.beginPath(); g.arc(p.x, p.y, (p.r || 3) * (1 + k * 2.2), 0, 6.3); g.fill(); }); g.globalAlpha = 1;
   // casillas de los bloques y órdenes en curso
   const blocks = all.slice().sort((a, c) => a.y - c.y);
   blocks.forEach(blk => { bvPlate(g, blk, V.hover === blk); });
@@ -7844,6 +7916,7 @@ Object.assign(ACT, {
   bvrpause: () => { const V = R.bviz; if (V && V.replay) { if (!V.replay.playing && V.replay.t >= V.replay.dur - 0.01) bvReplayRestart(V); else V.replay.playing = !V.replay.playing; renderBattlePanel(); } },
   bvrspeed: d => { const V = R.bviz; if (V && V.replay) { V.replay.speed = +d.n; renderBattlePanel(); } },
   bvrexit: () => { const V = R.bviz; if (V) { bvReplayStop(V); renderBattlePanel(); } },
+  bvgas: () => { const b = G.battles.find(x => x.id === UI.battle); if (!b) return; const side = b.A0 === G.player ? 'A' : b.B0 === G.player ? 'B' : null; if (!side) { toast('⚠️', 'Solo el líder de cada bando puede ordenar un ataque con gas.'); return; } const r = launchGas(b, side); if (!r.ok) toast('⚠️', r.msg); renderBattlePanel(); },
   bvorder: d => {
     const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !V.sel || !b || b.ended) return; const dv = V.sel.d;
     if (d.k === 'cancel') { delete dv.ord; toast('🎯', 'Orden cancelada.'); }
@@ -7900,6 +7973,13 @@ function bvTerrAt(tf, x, y, side) {
   if (tf.hill && ((x - tf.hill.x) / tf.hill.rx) ** 2 + ((y - tf.hill.y) / tf.hill.ry) ** 2 < 1) { o.hill = true; if (tf.hill.side !== side) o.slow = Math.min(o.slow, 0.82); }
   if (tf.farm && Math.abs(x - tf.farm.x) < tf.farm.w / 2 + 6 && Math.abs(y - tf.farm.y) < tf.farm.h / 2 + 6) o.cover = true;
   return o;
+}
+
+// atrincheramiento del defensor (con la tecnología de trincheras llega a nivel 10 y los blindados del atacante lo reducen)
+function trenchInfo(b) {
+  const ds = b.att === 'A' ? 'B' : 'A', ids = ds === 'A' ? b.A : b.B; let lv = 0; ids.forEach(id => { const a = armyById(id); if (a) lv = Math.max(lv, a.dig || 0); }); if (lv < 2) return null;
+  const tag = ds === 'A' ? b.A0 : b.B0, tech = hasTech(G.C[tag], 'trench_warfare'), per = tech ? 0.05 : 0.04, arm = b['arm' + (ds === 'A' ? 'B' : 'A')] || 0, red = clamp(arm * 2, 0, 1) * 0.55, eff = lv * per * (1 - red);
+  return ['⛏️', `${tech ? 'Trincheras' : 'Atrincheramiento'} nv. ${lv}`, `+${Math.round(eff * 100)}% de defensa para ${G.C[tag].name}. ${tech ? 'Con alambradas y refugios (hasta nivel 10). ' : ''}${arm > 0 ? 'Los blindados del atacante la reducen un ' + Math.round(red * 100) + '%.' : 'Los carros de combate del atacante reducirían este bono.'}`];
 }
 
 /* ===== ELECCIONES Y MOVIMIENTOS POLÍTICOS ===== */
@@ -8302,6 +8382,11 @@ function applyConference(c) {
 }
 const loseAllHas = (c, tag) => c.loseAll.includes(tag);
 function endWar(w, winner, preset) {
+  const rep = typeof warReport === 'function' ? warReport(w, winner) : null;
+  endWarCore(w, winner, preset);
+  if (rep && rep.mine && typeof showWarSummary === 'function') showWarSummary(rep);
+}
+function endWarCore(w, winner, preset) {
   const idx = G.wars.indexOf(w); if (idx >= 0) G.wars.splice(idx, 1);
   if (typeof returnPrisoners === 'function') returnPrisoners(w);
   const conf = winner !== null && !w.auto ? buildConference(w, winner) : null;      // antes de borrar las ocupaciones
@@ -8919,7 +9004,7 @@ const MX_TABS = [];          // {id, label, html()}: pestañas añadidas a «Ej�
   b.outAmt = (iv + VA_PER_WORKER * b.workersPerLevel) / GOOD[b.out].base;
 });
 // tecnologías que la IA de las grandes potencias prioriza para tener aviación, marina y ejércitos modernos hacia 1914
-const MIL_PRIORITY = new Set(['steel_artillery', 'machine_guns', 'quick_firing', 'bessemer', 'machine_tools', 'electricity', 'internal_comb', 'military_aviation', 'fighters', 'bombers', 'motorization', 'steam_frigate', 'ironclad', 'cruisers', 'submarines', 'dreadnought', 'bolt_action', 'breech_loaders', 'general_staff', 'steamships', 'trench_warfare']);
+const MIL_PRIORITY = new Set(['armor', 'chemical_weapons', 'steel_artillery', 'machine_guns', 'quick_firing', 'bessemer', 'machine_tools', 'electricity', 'internal_comb', 'military_aviation', 'fighters', 'bombers', 'motorization', 'steam_frigate', 'ironclad', 'cruisers', 'submarines', 'dreadnought', 'bolt_action', 'breech_loaders', 'general_staff', 'steamships', 'trench_warfare']);
 const MIL_BUILDINGS = ['armory', 'foundry', 'powder', 'mgworks', 'aeroworks', 'shipyard', 'enginew'];
 
 /* ---------- tecnologías nuevas ---------- */
@@ -8933,7 +9018,8 @@ const MIL_BUILDINGS = ['armory', 'foundry', 'powder', 'mgworks', 'aeroworks', 's
   ['military_aviation', 'Aviación Militar', 3, 1.3, ['internal_comb'], {army: .01}, 'Los hermanos Wright abren la era de los aeroplanos. Desbloquea las fábricas aeronáuticas.', {after: 1903}],
   ['fighters', 'Cazas', 3, 1.3, ['military_aviation'], {army: .01}, 'Aeroplanos armados para disputar el cielo.', {after: 1910}],
   ['bombers', 'Bombarderos', 3, 1.3, ['military_aviation'], {army: .01}, 'Aeroplanos de carga para el bombardeo.', {after: 1911}],
-  ['armor', 'Carros de Combate', 3, 1.5, ['motorization', 'trench_warfare'], {army: .03}, 'Vehículos oruga blindados para romper las trincheras.', {after: 1914}]
+  ['armor', 'Carros de Combate', 3, 1.5, ['motorization', 'trench_warfare'], {army: .03}, 'Vehículos oruga blindados para romper las trincheras: reducen su bonificación defensiva.', {after: 1914}],
+  ['chemical_weapons', 'Armas Químicas', 3, 1.4, ['organic_chem', 'trench_warfare'], {army: .01}, 'Gas de cloro y fosgeno: castiga las trincheras a costa de una infamia enorme. Se lanza desde el panel de batalla.', {after: 1915}]
 ].forEach(r => {
   if (TECH[r[0]]) return;
   const t = {id: r[0], name: r[1], cat: 'Militar', era: r[2], cost: Math.round(ERAS[r[2]].base * r[3] / 10) * 10, req: r[4], fx: r[5], desc: r[6], ex: undefined, until: undefined, after: r[7].after};
@@ -9186,7 +9272,7 @@ function tplKey(tag, id) { return 'T' + tag + '_' + id; }
 // registra (o actualiza) el tipo de división asociado a una plantilla
 function tplRegister(c, t) {
   const st = tplStats(t.bns), key = tplKey(c.tag, t.id); t.key = key;
-  DIVS[key] = {name: t.name, icon: BATTALIONS[t.bns[0]] ? (st.kind === 'cav' ? '🐎' : st.kind === 'art' ? '💣' : '🪖') : '🪖', att: +st.att.toFixed(2), def: +st.def.toFixed(2), spd: st.spd, org: Math.round(st.org), cost: Math.round(st.cost), days: Math.round(12 + st.cost * 0.06), desc: t.bns.length + ' batallones', kind: st.kind, width: st.width, tpl: true, fort: st.fort, sup: st.sup};
+  DIVS[key] = {armor: +((st.cnt.arm || 0) / Math.max(1, t.bns.length)).toFixed(2), name: t.name, icon: BATTALIONS[t.bns[0]] ? (st.kind === 'cav' ? '🐎' : st.kind === 'art' ? '💣' : '🪖') : '🪖', att: +st.att.toFixed(2), def: +st.def.toFixed(2), spd: st.spd, org: Math.round(st.org), cost: Math.round(st.cost), days: Math.round(12 + st.cost * 0.06), desc: t.bns.length + ' batallones', kind: st.kind, width: st.width, tpl: true, fort: st.fort, sup: st.sup};
   DIV_NEEDS[key] = st.needs;
   return DIVS[key];
 }
@@ -10349,7 +10435,7 @@ function battlePrisoners(b, winner, win, lose) {
   lose.forEach(a => {
     let n = lossMen * 0.12 / lose.length;
     if (a._encircled) { n += armyMen(a) * 0.3; a.divs.forEach(d => { d.s *= 0.8; }); a._encircled = false; a.mor = clamp(armyMor(a) - 0.2, 0, 1); }
-    takePrisoners(win[0].tag, a.tag, n);
+    takePrisoners(win[0].tag, a.tag, n); b.pris = b.pris || {A: 0, B: 0}; b.pris[winner] += Math.round(n);
   });
 }
 // la paz devuelve a los prisioneros: vuelven a su población como reclutas (con un pequeño recargo de cansancio)
@@ -10369,6 +10455,80 @@ function aiAllyBonus(t, p) {
   for (const k in claims) { const c = claims[k]; if (!c || c.t === t || G.date.t - c.d > 10 || !sameSide(t, c.t) || +k === p) continue;
     const d = provDist(+k, p); if (d <= 7) best = Math.max(best, 1.35 - d * 0.03); }
   return best;
+}
+
+/* ===== RESÚMENES DE BATALLA Y DE GUERRA =====
+   · Al terminar cada batalla se guarda un informe (bajas, divisiones y prisioneros, generales caídos, momentos clave, terreno y estrategias)
+     que el panel de batalla muestra en cuanto acaba; las últimas batallas del jugador se pueden reabrir desde Ejército → Guerras.
+   · Al terminar una guerra en la que participas aparece un informe con resultado, duración, batallas, bajas, prisioneros y ocupaciones. */
+const fmtDays = d => d >= 60 ? `${Math.round(d / 30)} meses` : `${Math.round(d)} días`;
+
+/* ---------- batalla ---------- */
+function battleInit(b, A, B) { if (!b.d0) b.d0 = {A: A.reduce((n, a) => n + a.divs.length, 0), B: B.reduce((n, a) => n + a.divs.length, 0), mA: A.reduce((n, a) => n + armyMen(a), 0), mB: B.reduce((n, a) => n + armyMen(a), 0)}; }
+function battleSummary(b, winner, win, lose) {
+  const cnt = ids => ids.map(armyById).filter(Boolean).reduce((n, a) => n + a.divs.length, 0), men = ids => ids.map(armyById).filter(Boolean).reduce((n, a) => n + armyMen(a), 0);
+  const mine = b.A.some(id => (armyById(id) || {}).tag === G.player) ? 'A' : b.B.some(id => (armyById(id) || {}).tag === G.player) ? 'B' : null;
+  b.sum = {winner, tagW: winner === 'A' ? b.A0 : b.B0, tagL: winner === 'A' ? b.B0 : b.A0, days: b.day, lost: {A: Math.round(b.lostA || 0), B: Math.round(b.lostB || 0)}, d0: b.d0 || {A: 0, B: 0, mA: 0, mB: 0}, d1: {A: cnt(b.A), B: cnt(b.B)}, m1: {A: men(b.A), B: men(b.B)},
+    pris: b.pris || {A: 0, B: 0}, gens: (b.gens || []).slice(), ev: (b.log || []).slice(-6), strat: {A: b.strA || 'frontal', B: b.strB || 'frontal'}, terr: typeof terrainInfo === 'function' ? terrainInfo(b) : [], mine, date: dateStr()};
+  (G.endedList = G.endedList || []).unshift(b); if (G.endedList.length > 12) G.endedList.pop();
+}
+// acumula las bajas y batallas en la guerra a la que pertenece
+function warBattleStat(w, attWon, b) {
+  w.cas = w.cas || {att: 0, def: 0}; w.bat = (w.bat || 0) + 1;
+  const lostA = Math.round(b.lostA || 0), lostB = Math.round(b.lostB || 0);       // A = atacante de la batalla
+  const sideOfA = w.attAll.includes((armyById(b.A[0]) || {}).tag || b.A0) ? 'att' : 'def';
+  w.cas[sideOfA] += lostA; w.cas[sideOfA === 'att' ? 'def' : 'att'] += lostB; void attWon;
+}
+const BS_STRAT = k => STRATS[k] ? `${STRATS[k].icon} ${STRATS[k].name}` : k;
+function battleSummaryHtml(b) {
+  const s = b.sum; if (!s) return '';
+  const res = !s.mine ? 'neutral' : s.mine === s.winner ? 'win' : 'lose', nm = t => G.C[t].name, men = n => fmtN(n, 0);
+  const title = res === 'win' ? `¡Victoria de ${nm(s.tagW)}!` : res === 'lose' ? `Derrota: ${nm(s.tagW)} se impone` : `Victoria de ${nm(s.tagW)}`;
+  const icon = res === 'win' ? '🏆' : res === 'lose' ? '💀' : '📋';
+  const lostW = s.lost[s.winner], lostL = s.lost[s.winner === 'A' ? 'B' : 'A'], dW = s.d0[s.winner] - s.d1[s.winner], dL = s.d0[s.winner === 'A' ? 'B' : 'A'] - s.d1[s.winner === 'A' ? 'B' : 'A'];
+  const w = G.wars.find(x => (x.attAll.includes(s.tagW) && x.defAll.includes(s.tagL)) || (x.defAll.includes(s.tagW) && x.attAll.includes(s.tagL)));
+  const pr = s.pris[s.winner];
+  const cell = (lab, v, cls) => `<div class="bsum-c"><small>${lab}</small><b class="${cls || ''}">${v}</b></div>`;
+  return `<div class="bsum ${res}"><div class="bsum-head"><span class="bsum-ic">${icon}</span><div><b>${title}</b><small>Batalla de ${provName(b.prov)} · ${s.date} · duró ${fmtDays(s.days)}</small></div></div>
+    <div class="bsum-grid">
+      ${cell(`Bajas de ${nm(s.tagW)}`, men(lostW), lostW > lostL ? 'bad' : '')}${cell(`Bajas de ${nm(s.tagL)}`, men(lostL), 'bad')}
+      ${cell('Divisiones destruidas', `${nm(s.tagW)} ${Math.max(0, dW)} · ${nm(s.tagL)} ${Math.max(0, dL)}`)}${cell('Prisioneros capturados', pr ? `${men(pr)} por ${nm(s.tagW)}` : '—')}
+      ${cell('Estrategias', `${BS_STRAT(s.strat.A)} / ${BS_STRAT(s.strat.B)}`)}${cell('Terreno', s.terr.map(t => t[0] + ' ' + t[1]).join(' · ') || 'Abierto')}
+    </div>
+    ${s.gens.length ? `<div class="bsum-gens">${s.gens.map(g => `🎖️ ${nm(g.tag)}: el general <b>${g.name}</b> cae en combate.`).join('<br>')}</div>` : ''}
+    ${s.ev.length ? `<div class="bsum-ev"><small>Momentos clave</small>${s.ev.map(e => `<div>${EV_ICON[e.k] || '•'} <small>día ${e.d}</small> ${e.t}</div>`).join('')}</div>` : ''}
+    ${w ? `<div class="bsum-war">⚔ ${w.name}: batallas ganadas ${(w.bw || {att: 0}).att}–${(w.bw || {def: 0}).def} · puntuación ${w.score > 0 ? '+' : ''}${w.score}</div>` : ''}</div>`;
+}
+
+/* ---------- guerra ---------- */
+function warReport(w, winner) {
+  const mine = w.attAll.includes(G.player) ? 'att' : w.defAll.includes(G.player) ? 'def' : null;
+  const occ = (owners, by) => { let n = 0; owners.forEach(t => G.C[t].states.forEach(id => { const s = G.S[id]; if (s.occ >= 1 && s.occBy && by.includes(s.occBy)) n++; })); return n; };
+  const held = (hs, os) => typeof prisHeldFrom === 'function' ? Math.round(prisHeldFrom(hs, os)) : 0;
+  const side = winner === null ? null : (winner === w.att ? 'att' : 'def');
+  return {id: w.id, name: w.name, cb: w.cb, att: w.att, def: w.def, attAll: w.attAll.slice(), defAll: w.defAll.slice(), mine, result: winner === null ? 'draw' : !mine ? 'neutral' : side === mine ? 'win' : 'lose', side,
+    days: Math.round((w.weeks || 0) * 7), score: w.score, bat: w.bat || 0, bw: Object.assign({att: 0, def: 0}, w.bw), cas: Object.assign({att: 0, def: 0}, w.cas), pris: {att: held(w.attAll, w.defAll), def: held(w.defAll, w.attAll)},
+    occ: {att: occ(w.defAll, w.attAll), def: occ(w.attAll, w.defAll)}, targets: (w.targets || []).map(id => G.S[id] ? G.S[id].name : '').filter(Boolean), date: dateStr()};
+}
+function showWarSummary(r) {
+  let e = document.getElementById('warsum'); if (!e) { e = document.createElement('div'); e.id = 'warsum'; document.body.appendChild(e); }
+  const me = r.mine, you = me || 'att', foe = you === 'att' ? 'def' : 'att', names = l => l.map(t => `${flag(t, 'sm')} ${G.C[t].name}`).join(', ');
+  const head = r.result === 'win' ? ['🏆', 'VICTORIA', 'win'] : r.result === 'lose' ? ['💀', 'DERROTA', 'lose'] : r.result === 'draw' ? ['🕊️', 'PAZ BLANCA', 'draw'] : ['📜', 'FIN DE LA GUERRA', 'draw'];
+  const c = (lab, v, cls) => `<div class="ws-c"><small>${lab}</small><b class="${cls || ''}">${v}</b></div>`, sc = me === 'def' ? -r.score : r.score;
+  e.innerHTML = `<div class="ws-card ${head[2]}"><div class="ws-top"><span class="ws-ic">${head[0]}</span><div><small>Resumen de la guerra</small><h2>${head[1]}</h2></div></div>
+    <div class="ws-title">${CBS[r.cb] ? CBS[r.cb].icon : '⚔'} ${r.name}</div>
+    <div class="ws-sides"><div><small>Tu bando</small>${names(me === 'def' ? r.defAll : r.attAll)}</div><div><small>Enemigos</small>${names(me === 'def' ? r.attAll : r.defAll)}</div></div>
+    <div class="ws-grid">${c('Duración', fmtDays(r.days))}${c('Batallas (ganadas–perdidas)', `${r.bw[you]}–${r.bw[foe]} de ${r.bat}`)}${c('Bajas propias', fmtN(r.cas[you], 0), 'bad')}${c('Bajas enemigas', fmtN(r.cas[foe], 0), 'good')}${c('Prisioneros (que tienes · que tiene el enemigo)', `${fmtN(r.pris[you], 0)} · ${fmtN(r.pris[foe], 0)}`)}${c('Territorio ocupado (tuyo · enemigo)', `${r.occ[foe]} · ${r.occ[you]} estados`)}${c('Puntuación final', (sc > 0 ? '+' : '') + sc, sc >= 0 ? 'good' : 'bad')}${c('Fecha', r.date)}</div>
+    ${r.targets.length ? `<div class="ws-goal"><small>Objetivos de guerra</small> ${r.targets.join(', ')}</div>` : ''}
+    <p class="ws-note">${r.result === 'win' && r.mine === 'att' && r.targets.length ? 'Como vencedor, decides los términos de la paz en la conferencia.' : r.result === 'win' ? 'Has salido victorioso.' : r.result === 'lose' ? 'Los vencedores impondrán los términos de la paz.' : r.result === 'draw' ? 'Nadie obtiene nada: las fronteras no cambian.' : ''}</p>
+    <button class="primary" data-act="closewarsum">Continuar</button></div>`;
+  e.style.display = 'flex';
+}
+Object.assign(ACT, {closewarsum: () => { const e = document.getElementById('warsum'); if (e) { e.style.display = 'none'; e.innerHTML = ''; } }});
+
+function recentBattlesHtml() {
+  const l = (G.endedList || []).filter(b => b.sum && b.sum.mine).slice(0, 8);
+  return `<div class="card"><h3>Batallas recientes</h3>${l.length ? l.map(b => { const s = b.sum, win = s.mine === s.winner; return `<div class="kv sm clk" data-act="selbattle" data-id="${b.id}"><span>${win ? '🏆' : '💀'} ${provName(b.prov)} <small class="dim">${s.date}</small></span><b>${fmtN(s.lost[s.mine], 0)} bajas · 📋 resumen</b></div>`; }).join('') : '<small class="dim">Aún no has librado ninguna batalla en esta sesión.</small>'}</div>`;
 }
 
 /* ===== OFERTAS DE PAZ INTERMEDIAS =====
@@ -11518,6 +11678,16 @@ function scenLoading(txt) {
   if (!e) { e = document.createElement('div'); e.id = 'scenload'; document.body.appendChild(e); }
   e.innerHTML = `<div><b>${txt}</b><i></i></div>`;
 }
+// los mundos simulados dejan a algunos países sin ejército: se les reparte uno acorde a su límite (60% de las divisiones posibles, máx. 120)
+function scenArmies() {
+  G.tags.forEach(t => {
+    if (t === NONE) return; const c = G.C[t]; if (!c.states.length) return;
+    let n = Math.min(Math.floor(divLimit(c) * 0.6), 120) - countDivs(t); if (n < 4) return;
+    const barr = c.states.filter(id => G.S[id].b.barracks >= 1), homes = (barr.length ? barr : [c.capital >= 0 ? c.capital : c.states[0]]).map(stateCapitalProv); let hi = 0;
+    while (n > 0) { const k = Math.min(n, 6 + Math.floor(Math.random() * 3)), divs = []; for (let i = 0; i < k; i++) { const r = Math.random(); divs.push(mkDivision(r < 0.7 ? 'inf' : r < 0.85 ? 'cav' : 'art', 0.4 + Math.random() * 0.3)); } mkArmy(t, homes[hi++ % homes.length], divs); n -= k; }
+    if (c.eq) { const need = eqNeedOf(t); EQ_GOODS.forEach(g => { c.eq[g] = Math.max(c.eq[g] || 0, (need[g] || 0) * 1.15); }); }
+  });
+}
 async function scenarioSwitch(year) {
   if (UI.scenBusy || UI.started) return; if (G.date && G.date.y === year) return;
   UI.scenBusy = true; scenLoading(year === 1836 ? 'Preparando el mundo de 1836…' : `Cargando el mundo de ${year}…`);
@@ -11527,7 +11697,7 @@ async function scenarioSwitch(year) {
     else {
       if (typeof DecompressionStream === 'undefined') throw new Error('Tu navegador no admite descomprimir las épocas (usa Chrome, Edge o Firefox recientes).');
       loadData(await scenUnzip(SCEN_DATA[year]));
-      updateRanks();
+      updateRanks(); scenArmies();
       // el jugador empieza de cero: objetivos, logros y estadísticas de partida
       G.tags.forEach(t => { const c = G.C[t]; if (t === NONE) return; c.journalDone = {}; c.ach = {}; c.cnt = {}; c.start = {ind: c.stats.indLevels, lit: c.lit, soldiers: c.stats.soldiers, prestige: c.prestige, rank: c.rank}; });
       G.notifs = []; G.log = []; logMsg(`Comienza la partida en ${year}.`);

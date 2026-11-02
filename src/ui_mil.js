@@ -1,6 +1,6 @@
 /* ===== INTERFAZ MILITAR: órdenes, panel de ejército, frentes, generales y batalla con minimapa ===== */
 const MODE_NAMES = {hold: '🛡 Manteniendo posición', dig: '⛏ Atrincherándose', train: '🎓 Entrenando'};
-const EV_ICON = {barrage: '💥', charge: '🔥', cav: '🐎', flank: '↪️', panic: '😱', reinf: '➕', rain: '🌧️'};
+const EV_ICON = {gas: '☣️', barrage: '💥', charge: '🔥', cav: '🐎', flank: '↪️', panic: '😱', reinf: '➕', rain: '🌧️'};
 
 function armyOrderText(a) {
   if (a.battle) return '⚔ En combate';
@@ -185,7 +185,7 @@ function frontsSvg() {
 function renderBattlePanel() {
   const root = $('#battlepanel'); if (!root) return;
   let b = UI.battle ? G.battles.find(x => x.id === UI.battle) : null;
-  if (!b && UI.battle && G.lastEnded && G.lastEnded.id === UI.battle) b = G.lastEnded;
+  if (!b && UI.battle) b = (G.endedList || []).find(x => x.id === UI.battle) || (G.lastEnded && G.lastEnded.id === UI.battle ? G.lastEnded : null);
   if (!b) { root.classList.remove('open'); root.innerHTML = ''; root.dataset.bid = ''; UI.battle = null; if (R.skip3d) { R.skip3d = false; R.dirty = true; R.labelsDirty = true; G.paused = R.bvPrevPause !== false; } return; }
   const done = !!b.ended;
   const side = (ids, isAtt, tag0) => {
@@ -216,14 +216,14 @@ function renderBattlePanel() {
   if (root.dataset.bid !== String(b.id)) {
     root.dataset.bid = b.id; root._sb = '';
     root.innerHTML = `<div class="bhead"><div class="bh-side att">${flag(b.A0, 'md')}<b>${G.C[b.A0].name}</b></div><div class="bh-mid"><span class="bh-vs">⚔</span><h2 id="bt-title"></h2><small id="bt-sub"></small></div><div class="bh-side def"><b>${G.C[b.B0].name}</b>${flag(b.B0, 'md')}</div><button class="bvplay" data-act="bvpause"></button><button class="x" data-act="closebattle">✕</button></div>
-    <div class="bgrid"><div class="bleft"><div id="bt-terr" class="bterr"></div><canvas id="bmap" width="${BV_W * 2}" height="${BV_H * 2}"></canvas><div id="bt-cam" class="bcam"></div><div class="bhint">Cada cuadrado es una división. Pasa el ratón para ver su orden; rueda = zoom, arrastrar = mover. Barras: <span class="g">fuerza</span> · <span class="o">organización</span>.</div><div id="bt-orders" class="bord"></div><div id="bt-strat"></div><div id="bt-log" class="blog"></div></div>
+    <div class="bgrid"><div class="bleft"><div id="bt-sum"></div><div id="bt-terr" class="bterr"></div><canvas id="bmap" width="${BV_W * 2}" height="${BV_H * 2}"></canvas><div id="bt-cam" class="bcam"></div><div class="bhint">Cada cuadrado es una división. Pasa el ratón para ver su orden; rueda = zoom, arrastrar = mover. Barras: <span class="g">fuerza</span> · <span class="o">organización</span>.</div><div id="bt-orders" class="bord"></div><div id="bt-strat"></div><div id="bt-log" class="blog"></div></div>
     <div class="bright"><div id="bt-stats"></div><div id="bt-hist"></div></div></div>`;
     R.bviz = null;
     if (!R.skip3d) { R.skip3d = true; R.bvPrevPause = G.paused; G.paused = true; }
   }
   const pb = $('.bvplay'); if (pb) pb.textContent = G.paused ? '▶ Continuar la batalla' : '⏸ Pausar';
   $('#bt-title').textContent = 'Batalla de ' + provName(b.prov);
-  { const ti = typeof terrainInfo === 'function' ? terrainInfo(b) : [], ma = typeof terrMods === 'function' ? terrMods(b, 'A') : {att: 0, def: 0}, mb2 = typeof terrMods === 'function' ? terrMods(b, 'B') : {att: 0, def: 0}, pc = v => (v >= 0 ? '+' : '') + Math.round(v * 100) + '%';
+  { const ti = (typeof terrainInfo === 'function' ? terrainInfo(b) : []).concat(typeof trenchInfo === 'function' && trenchInfo(b) ? [trenchInfo(b)] : []), ma = typeof terrMods === 'function' ? terrMods(b, 'A') : {att: 0, def: 0}, mb2 = typeof terrMods === 'function' ? terrMods(b, 'B') : {att: 0, def: 0}, pc = v => (v >= 0 ? '+' : '') + Math.round(v * 100) + '%';
     $('#bt-terr').innerHTML = '<small class="dim">Terreno:</small>' + ti.map(([ic, t, d]) => `<span class="terrchip" data-tip="${d}">${ic} ${t}</span>`).join('') + `<span class="terreff" data-tip="Efecto neto del terreno sobre cada bando">${G.C[b.A0].name}: ataque ${pc(ma.att)} · defensa ${pc(ma.def)} &nbsp;|&nbsp; ${G.C[b.B0].name}: ataque ${pc(mb2.att)} · defensa ${pc(mb2.def)}</span>`; }
   $('#bt-sub').textContent = `${done ? 'Batalla finalizada' : 'Día ' + b.day} · ${BIOME_NAMES[pv.biome] || ''} · defensa ×${terr.def.toFixed(2)} · movilidad ×${terr.move.toFixed(2)}`;
   const mySide = [['A', A], ['B', B]].find(([k, S]) => S.tag === G.player), sn = k => STRATS[b['str' + k]] || STRATS.frontal;
@@ -238,6 +238,7 @@ function renderBattlePanel() {
   $('#bt-hist').innerHTML = `<svg class="bhist" viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none">${line(0, '#e8644f')}${line(1, '#6aa8e8')}</svg>
   <small class="dim">Organización: <span style="color:#e8644f">atacante</span> · <span style="color:#6aa8e8">defensor</span> · frente: ${b.adv > 0.15 ? 'avanza el atacante' : b.adv < -0.15 ? 'avanza el defensor' : 'equilibrado'}</small>`;
   $('#bt-log').innerHTML = log.length ? log.map(e => `<div class="ev ${e.k}">${EV_ICON[e.k] || '•'} <small>día ${e.d}</small> ${e.t}</div>`).join('') : '<small class="dim">Aún no ha ocurrido nada destacable…</small>';
+  { const live = R.bviz && R.bviz.id === b.id && R.bviz.rec && R.bviz.rec.snaps.length > 3; root.classList.toggle('sumonly', done && !live); const sh2 = b.sum ? 's' + b.id : ''; if (root._ss !== sh2) { root._ss = sh2; $('#bt-sum').innerHTML = b.sum ? battleSummaryHtml(b) : ''; } }
   { const V = R.bviz, rp = V && V.replay;
     let ch = `<button data-act="bvzoom" data-d="1" data-tip="Acercar (rueda del ratón)">🔍＋</button><button data-act="bvzoom" data-d="-1" data-tip="Alejar">🔍－</button><button data-act="bvreset" data-tip="Vista completa (doble clic en el campo)">⤢ Vista completa</button><button data-act="bvfollow" class="${V && V.follow ? 'on' : ''}" data-tip="La cámara sigue al bloque seleccionado o bajo el ratón">🎥 Seguir</button>`;
     if (done && !rp) ch += `<button data-act="bvreplay" class="rp" data-tip="Vuelve a ver la batalla desde que abriste este panel">↻ Repetir la batalla</button>`;
@@ -245,6 +246,7 @@ function renderBattlePanel() {
     if (root._sc !== ch) { root._sc = ch; $('#bt-cam').innerHTML = ch; }
     const sel = V && V.sel && V.blocks.has(V.sel.d) ? V.sel : null; let oh = '';
     if (mySide && !done && !rp) oh = sel ? `<div class="ordhead">🎯 <b>${DIVS[sel.d.t].icon} ${BV_KIND[sel.type]}</b> · ${sel.a.name} <small>fuerza ${Math.round(sel.d.s * 100)}% · organización ${Math.round(sel.d.o / DIVS[sel.d.t].org * 100)}%</small></div><div class="ordbtns">${Object.keys(ORDERS).map(k => `<button data-act="bvorder" data-k="${k}" class="${bvOrder(sel) && bvOrder(sel).k === k ? 'on' : ''}" data-tip="<b>${ORDERS[k].name}</b><br>${ORDERS[k].desc}">${ORDERS[k].icon} ${ORDERS[k].name}</button>`).join('')}<button data-act="bvorder" data-k="cancel">✖ Sin orden</button></div>${sel.role === 'reserve' ? '<small class="dim">Está en reserva: aún no combate; la orden surtirá efecto cuando entre en línea.</small>' : ''}` : '<div class="ordhint">👆 Haz clic en uno de tus bloques para darle órdenes directas (cargar, resistir, flanquear o retirar).</div>';
+    if (mySide && !done && !rp && hasTech(me(), 'chemical_weapons')) oh += `<div class="ordgas"><button data-act="bvgas" data-tip="<b>Ataque con gas</b><br>Castiga la organización y las bajas del enemigo durante 3 días. +6 infamia y −3 prestigio; las potencias lo condenan.">☣️ Ataque con gas</button></div>`;
     if (root._so !== oh) { root._so = oh; $('#bt-orders').innerHTML = oh; } }
   bvStart();
 }

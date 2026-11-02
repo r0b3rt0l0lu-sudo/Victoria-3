@@ -75,6 +75,11 @@ function applyConference(c) {
 }
 const loseAllHas = (c, tag) => c.loseAll.includes(tag);
 function endWar(w, winner, preset) {
+  const rep = typeof warReport === 'function' ? warReport(w, winner) : null;
+  endWarCore(w, winner, preset);
+  if (rep && rep.mine && typeof showWarSummary === 'function') showWarSummary(rep);
+}
+function endWarCore(w, winner, preset) {
   const idx = G.wars.indexOf(w); if (idx >= 0) G.wars.splice(idx, 1);
   if (typeof returnPrisoners === 'function') returnPrisoners(w);
   const conf = winner !== null && !w.auto ? buildConference(w, winner) : null;      // antes de borrar las ocupaciones

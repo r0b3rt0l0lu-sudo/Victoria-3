@@ -40,6 +40,18 @@ const ORDERS = {
   withdraw: {name: 'Retirar', icon: '↩️', f: 0.2, t: 0.5, o: 0.5, desc: 'Se repliega: casi no combate y se desgasta la mitad.'}
 };
 const ordFx = d => { const o = d.ord; return o && G.date.t <= o.until && ORDERS[o.k] ? ORDERS[o.k] : {f: 1, t: 1, o: 1}; };
+// ataque con gas: castiga la organización y las bajas del enemigo durante 3 días, a costa de infamia y prestigio
+function launchGas(b, side) {
+  const tag = side === 'A' ? b.A0 : b.B0, c = G.C[tag];
+  if (!c || !hasTech(c, 'chemical_weapons')) return {ok: false, msg: 'No dispones de armas químicas.'};
+  if (b.ended) return {ok: false, msg: 'La batalla ha terminado.'};
+  if (b.gas && b.day <= b.gas.until + 4) return {ok: false, msg: 'Aún no puedes repetir el ataque con gas.'};
+  b.gas = {side, from: b.day, until: b.day + 2}; c.infamy += 6; c.prestige = Math.max(0, c.prestige - 3);
+  b.log = b.log || []; b.log.push({d: b.day, k: 'gas', s: side, t: `${c.name} lanza un ataque con gas: una nube tóxica se arrastra sobre las trincheras enemigas.`}); if (b.log.length > 14) b.log.shift();
+  b.flash = {k: 'gas', s: side, d: b.day}; b.evSeq = (b.evSeq || 0) + 1; b.evK = 'gas'; b.evS = side;
+  if (tag === G.player) notify('war', '☣️ Ataque con gas lanzado: +6 de infamia, −3 de prestigio. Las demás potencias lo condenan.', b.state); else if (b.A0 === G.player || b.B0 === G.player) notify('war', `☣️ ¡${c.name} lanza un ataque con gas contra tus tropas!`, b.state);
+  return {ok: true};
+}
 function chooseStrategy(b, s) {
   const ids = s === 'A' ? b.A : b.B, oids = s === 'A' ? b.B : b.A, isDef = b.att !== s;
   const me = sideStats(b, ids, !isDef), op = sideStats(b, oids, isDef), terr = MAP.provs[b.prov].terr, hill = terr.def - 1 > 0.15;
@@ -244,7 +256,7 @@ function sideStats(b, ids, isAttacker) {
   let hasCav = false; ids.forEach(id => { const a0 = armyById(id); if (a0 && a0.divs.some(d => dKind(d) === 'cav')) hasCav = true; });
   const stAtt = ST.att + (ST === STRATS.flank && !hasCav ? -0.06 : 0);
   const stDef = ST.def + (ST.terr ? ST.terr * clamp((MAP.provs[b.prov].terr.def - 1) / 0.25, 0, 1) : 0);
-  let F = 0, T = 0, n = 0, wsum = 0, org = 0, orgN = 0, art = 0, cav = 0, gun = 0, brave = 0, tr = 0;
+  let armS = 0, armN = 0, F = 0, T = 0, n = 0, wsum = 0, org = 0, orgN = 0, art = 0, cav = 0, gun = 0, brave = 0, tr = 0;
   const pv = MAP.provs[b.prov]; const terr = pv.terr;
   ids.forEach(id => {
     const a = armyById(id); if (!a) return;
@@ -255,7 +267,8 @@ function sideStats(b, ids, isAttacker) {
     const plan = a.plan && a.plan.ready ? 0.15 * Math.min(1, a.plan.days * (1 + mb.plan) / 15) : 0;
     const sup = typeof supplyMod === 'function' ? supplyMod(a) : 1;
     const landPen = a.landed && G.date.t - a.landed < 6 ? 0.75 : 1;
-    const dig = isAttacker ? 0 : Math.min(6, a.dig || 0) * 0.04 * (a.mode === 'hold' || a.mode === 'dig' ? 1.25 : 1);
+    const trT = typeof hasTech === 'function' && hasTech(c, 'trench_warfare'), atkArm = sideKey ? (b['arm' + (sideKey === 'A' ? 'B' : 'A')] || 0) : 0;
+    const dig = isAttacker ? 0 : Math.min(trT ? 10 : 6, a.dig || 0) * (trT ? 0.05 : 0.04) * (a.mode === 'hold' || a.mode === 'dig' ? 1.25 : 1) * (1 - 0.55 * clamp(atkArm * 2, 0, 1));
     const stl = typeof intelStealBonus === 'function' && sideKey ? intelStealBonus(a.tag, sideKey === 'A' ? b.B0 : b.A0) : 0;
     const tm = typeof terrMods === 'function' && sideKey ? terrMods(b, sideKey) : {att: 0, def: 0};
     const am = (1 + mb.att + stl + stAtt + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup * landPen * mm * (1 + tm.att);
@@ -270,9 +283,10 @@ function sideStats(b, ids, isAttacker) {
         const of = ordFx(d); F += info.att * str * am * um * of.f; T += info.def * str * dm * (isAttacker ? 1 : terr.def) * of.t;
         n++; wsum += info.width || 1; tr += tm; if (kd === 'art') art++; if (kd === 'cav') cav++;
       }
-      org += d.o / info.org; orgN++;
+      org += d.o / info.org; orgN++; armS += (info.armor || 0); armN++;
     });
   });
+  if (sideKey) b['arm' + sideKey] = armN ? armS / armN : 0;
   return {F, T, n, org: orgN ? org / orgN : 0, art, cav, gun, brave, tr: n ? tr / n : 1, cas: ST.cas, strat: sideKey && b['str' + sideKey]};
 }
 // sucesos aleatorios de la batalla: cañoneo, cargas de caballería, cargas desesperadas, flanqueos…
@@ -287,6 +301,8 @@ function battleEvents(b, sa, sb) {
   if (b.day === 1) {          // cañoneo preparatorio del atacante
     const sd = b.att; if (S[sd].art > 0) { const x = Math.min(9, 2.2 * S[sd].art * (1 + S[sd].gun)); add(opp(sd), 'x', x); say(sd, 'barrage', `Cañoneo preparatorio de ${nm(sd)}: ${S[sd].art} baterías castigan las líneas enemigas.`); }
   }
+  if (b.gas && b.day >= b.gas.from && b.day <= b.gas.until) { const o = opp(b.gas.side); add(o, 'x', 2.4); add(o, 'c', 1.2); }
+  ['A', 'B'].forEach(s => { const c = G.C[s === 'A' ? b.A0 : b.B0]; if (c && c.ai && b.day >= 2 && hasTech(c, 'chemical_weapons') && (!b.gas || b.day > b.gas.until + 4) && Math.random() < ((s === 'A' ? b.strB : b.strA) === 'hold' ? 0.07 : 0.02)) launchGas(b, s); });
   if (Math.random() > 0.3) return ev;
   const opts = [];
   ['A', 'B'].forEach(s => {
@@ -317,6 +333,7 @@ function battleDay(b) {
   b.day++;
   const A = b.A.map(armyById).filter(Boolean), B = b.B.map(armyById).filter(Boolean);
   if (!A.length || !B.length) { endBattle(b, A.length ? 'A' : 'B'); return; }
+  if (typeof battleInit === 'function') battleInit(b, A, B);
   const sa = sideStats(b, b.A, b.att === 'A'), sb = sideStats(b, b.B, b.att === 'B');
   updateStrategies(b);
   const ev = battleEvents(b, sa, sb);
@@ -374,8 +391,9 @@ function endBattle(b, winner) {
   win.forEach(a => { if (typeof armyMor === 'function') a.mor = Math.min(1, armyMor(a) + 0.06); });
   lose.forEach(a => { a.battle = null; gainXp(a.tag, 0.5); retreatArmy(a, b); generalFate(a, b); if (typeof armyMor === 'function') a.mor = Math.max(0, armyMor(a) - 0.12); });
   if (typeof battlePrisoners === 'function') battlePrisoners(b, winner, win, lose);
+  if (typeof battleSummary === 'function') battleSummary(b, winner, win, lose);
   const wt = win[0] ? win[0].tag : null, lt = lose[0] ? lose[0].tag : null;
-  if (wt && lt) G.wars.forEach(w => { const wa = w.attAll.includes(wt) && w.defAll.includes(lt), wd = w.defAll.includes(wt) && w.attAll.includes(lt); if (wa || wd) { w.bw = w.bw || {att: 0, def: 0}; if (wa) w.bw.att++; else w.bw.def++; } });
+  if (wt && lt) G.wars.forEach(w => { const wa = w.attAll.includes(wt) && w.defAll.includes(lt), wd = w.defAll.includes(wt) && w.attAll.includes(lt); if (wa || wd) { w.bw = w.bw || {att: 0, def: 0}; if (wa) w.bw.att++; else w.bw.def++; if (typeof warBattleStat === 'function') warBattleStat(w, wa, b); } });
   if (win[0] && (win[0].tag === G.player || (lose[0] && lose[0].tag === G.player))) notify('war', `Batalla de ${provName(b.prov)}: victoria de ${G.C[wt].name}.`, b.state);
 }
 // experiencia militar nacional (para doctrinas)
@@ -383,7 +401,7 @@ function gainXp(tag, n) { const c = G.C[tag]; if (c) c.mxp = (c.mxp || 0) + n; }
 // el general derrotado puede morir o ser capturado
 function generalFate(a, b) {
   if (Math.random() > 0.035) return;
-  const old = a.gen.name; a.gen = newGeneral(1, a.tag);
+  const old = a.gen.name; a.gen = newGeneral(1, a.tag); (b.gens = b.gens || []).push({tag: a.tag, name: old});
   if (a.tag === G.player) notify('war', `El general ${old} ha muerto en combate. ${a.gen.name} toma el mando de ${a.name}.`, b.state);
 }
 function retreatArmy(a, b) {
@@ -426,7 +444,7 @@ function militaryDay() {
     G.armies.forEach(a => {
       if (a.battle) return;
       const owner = provOwner(a.loc), own = owner === a.tag || sameSide(a.tag, owner);
-      a.rest++; { const gm = genMods(a.gen); const eng = a.divs.reduce((n, d) => n + ((DIVS[d.t] && DIVS[d.t].fort) || 0), 0), per = a.mode === 'dig' || gm.dig || eng >= 0.04 ? 2 : 4; if (!a.path.length && a.rest % per === 0) a.dig = Math.min(6, (a.dig || 0) + 1); }
+      a.rest++; { const gm = genMods(a.gen); const eng = a.divs.reduce((n, d) => n + ((DIVS[d.t] && DIVS[d.t].fort) || 0), 0), per = a.mode === 'dig' || gm.dig || eng >= 0.04 ? 2 : 4; if (!a.path.length && a.rest % per === 0) a.dig = Math.min(typeof hasTech === 'function' && hasTech(G.C[a.tag], 'trench_warfare') ? 10 : 6, (a.dig || 0) + 1); }
       trainDay(a);
       if (a.fm && a.path.length) { const gm = genMods(a.gen); a.divs.forEach(d => { d.o = Math.max(0, d.o - DIVS[d.t].org * 0.012 * gm.march); }); if (armyOrg(a) < 0.35) { a.fm = false; if (a.tag === G.player) notify('war', `${a.name} cancela la marcha forzada por agotamiento.`, provState(a.loc)); } }
       const supK = Math.max(0.2, a.sup === undefined ? 1 : a.sup);

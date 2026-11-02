@@ -26,7 +26,7 @@ const MX_TABS = [];          // {id, label, html()}: pestañas añadidas a «Ej�
   b.outAmt = (iv + VA_PER_WORKER * b.workersPerLevel) / GOOD[b.out].base;
 });
 // tecnologías que la IA de las grandes potencias prioriza para tener aviación, marina y ejércitos modernos hacia 1914
-const MIL_PRIORITY = new Set(['steel_artillery', 'machine_guns', 'quick_firing', 'bessemer', 'machine_tools', 'electricity', 'internal_comb', 'military_aviation', 'fighters', 'bombers', 'motorization', 'steam_frigate', 'ironclad', 'cruisers', 'submarines', 'dreadnought', 'bolt_action', 'breech_loaders', 'general_staff', 'steamships', 'trench_warfare']);
+const MIL_PRIORITY = new Set(['armor', 'chemical_weapons', 'steel_artillery', 'machine_guns', 'quick_firing', 'bessemer', 'machine_tools', 'electricity', 'internal_comb', 'military_aviation', 'fighters', 'bombers', 'motorization', 'steam_frigate', 'ironclad', 'cruisers', 'submarines', 'dreadnought', 'bolt_action', 'breech_loaders', 'general_staff', 'steamships', 'trench_warfare']);
 const MIL_BUILDINGS = ['armory', 'foundry', 'powder', 'mgworks', 'aeroworks', 'shipyard', 'enginew'];
 
 /* ---------- tecnologías nuevas ---------- */
@@ -40,7 +40,8 @@ const MIL_BUILDINGS = ['armory', 'foundry', 'powder', 'mgworks', 'aeroworks', 's
   ['military_aviation', 'Aviación Militar', 3, 1.3, ['internal_comb'], {army: .01}, 'Los hermanos Wright abren la era de los aeroplanos. Desbloquea las fábricas aeronáuticas.', {after: 1903}],
   ['fighters', 'Cazas', 3, 1.3, ['military_aviation'], {army: .01}, 'Aeroplanos armados para disputar el cielo.', {after: 1910}],
   ['bombers', 'Bombarderos', 3, 1.3, ['military_aviation'], {army: .01}, 'Aeroplanos de carga para el bombardeo.', {after: 1911}],
-  ['armor', 'Carros de Combate', 3, 1.5, ['motorization', 'trench_warfare'], {army: .03}, 'Vehículos oruga blindados para romper las trincheras.', {after: 1914}]
+  ['armor', 'Carros de Combate', 3, 1.5, ['motorization', 'trench_warfare'], {army: .03}, 'Vehículos oruga blindados para romper las trincheras: reducen su bonificación defensiva.', {after: 1914}],
+  ['chemical_weapons', 'Armas Químicas', 3, 1.4, ['organic_chem', 'trench_warfare'], {army: .01}, 'Gas de cloro y fosgeno: castiga las trincheras a costa de una infamia enorme. Se lanza desde el panel de batalla.', {after: 1915}]
 ].forEach(r => {
   if (TECH[r[0]]) return;
   const t = {id: r[0], name: r[1], cat: 'Militar', era: r[2], cost: Math.round(ERAS[r[2]].base * r[3] / 10) * 10, req: r[4], fx: r[5], desc: r[6], ex: undefined, until: undefined, after: r[7].after};

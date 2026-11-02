@@ -44,3 +44,10 @@ function bvTerrAt(tf, x, y, side) {
   if (tf.farm && Math.abs(x - tf.farm.x) < tf.farm.w / 2 + 6 && Math.abs(y - tf.farm.y) < tf.farm.h / 2 + 6) o.cover = true;
   return o;
 }
+
+// atrincheramiento del defensor (con la tecnología de trincheras llega a nivel 10 y los blindados del atacante lo reducen)
+function trenchInfo(b) {
+  const ds = b.att === 'A' ? 'B' : 'A', ids = ds === 'A' ? b.A : b.B; let lv = 0; ids.forEach(id => { const a = armyById(id); if (a) lv = Math.max(lv, a.dig || 0); }); if (lv < 2) return null;
+  const tag = ds === 'A' ? b.A0 : b.B0, tech = hasTech(G.C[tag], 'trench_warfare'), per = tech ? 0.05 : 0.04, arm = b['arm' + (ds === 'A' ? 'B' : 'A')] || 0, red = clamp(arm * 2, 0, 1) * 0.55, eff = lv * per * (1 - red);
+  return ['⛏️', `${tech ? 'Trincheras' : 'Atrincheramiento'} nv. ${lv}`, `+${Math.round(eff * 100)}% de defensa para ${G.C[tag].name}. ${tech ? 'Con alambradas y refugios (hasta nivel 10). ' : ''}${arm > 0 ? 'Los blindados del atacante la reducen un ' + Math.round(red * 100) + '%.' : 'Los carros de combate del atacante reducirían este bono.'}`];
+}

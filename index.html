@@ -10777,6 +10777,7 @@ function bvPost(g, V, b) {            // tras restaurar la cámara: viñeta + ti
 function stFxStart() {
   const root = document.getElementById('start'); if (!root) return;
   let cv = document.getElementById('stfx'); if (!cv) { cv = document.createElement('canvas'); cv.id = 'stfx'; root.insertBefore(cv, root.firstChild); }
+  const sb = root.querySelector('.st-left .st-snd'); if (sb) root.appendChild(sb);
   if (cv._run) return; cv._run = true;
   const P = [], fog = [], rays = [];
   for (let i = 0; i < 90; i++) P.push({x: Math.random(), y: Math.random(), r: 0.6 + Math.random() * 2.2, v: 0.012 + Math.random() * 0.03, d: Math.random() * 6.28, a: 0.25 + Math.random() * 0.6, h: Math.random() < 0.8 ? 42 : 205});

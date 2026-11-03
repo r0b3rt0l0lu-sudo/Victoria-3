@@ -628,6 +628,36 @@ svg.orders text.sdepot{font-size:16px;text-anchor:middle;dominant-baseline:centr
 .bcam button.go{background:linear-gradient(#c9a64a,#8a6f2f);color:#1a1408;border-color:var(--gold2);font-weight:700}
 
 .marker.depotmk,.marker.convmk{font-size:20px;filter:drop-shadow(0 1px 2px #000);cursor:help;pointer-events:auto}.marker.convmk{font-size:22px}
+
+/* ===== panel de inicio cinematográfico ===== */
+#start{overflow:hidden}
+#start::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;background:radial-gradient(ellipse at 72% 38%,rgba(255,198,120,.14),transparent 55%),radial-gradient(ellipse at 15% 105%,rgba(110,150,210,.14),transparent 60%);animation:stlight 14s ease-in-out infinite alternate}
+#start::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:3;background:radial-gradient(ellipse at 55% 50%,transparent 52%,rgba(0,0,0,.62) 100%),repeating-linear-gradient(0deg,rgba(255,255,255,.018) 0 1px,transparent 1px 3px)}
+@keyframes stlight{from{opacity:.55;transform:translateX(-2%)}to{opacity:1;transform:translateX(2%)}}
+#stfx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
+.st-inner{position:relative;z-index:2}
+.st-left{background:linear-gradient(180deg,rgba(10,14,20,.78),rgba(8,11,15,.86));backdrop-filter:blur(7px);border-right:1px solid transparent;border-image:linear-gradient(180deg,transparent,#c9a657 25%,#6a5524 75%,transparent) 1;box-shadow:12px 0 40px rgba(0,0,0,.55)}
+.st-logo{animation:stfade 1.4s ease-out both}
+.st-logo h1{background:linear-gradient(100deg,#7a5c1e 0%,#f4dc94 32%,#fff8dc 50%,#e2bf62 68%,#7a5c1e 100%);background-size:260% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:stshine 7s linear infinite;filter:drop-shadow(0 3px 12px rgba(0,0,0,.9)) drop-shadow(0 0 18px rgba(255,200,100,.25))}
+@keyframes stshine{from{background-position:130% 0}to{background-position:-130% 0}}
+@keyframes stfade{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:none}}
+@keyframes stfadeR{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
+.st-list .st-card{transition:transform .18s,border-color .18s,box-shadow .18s,background .18s;animation:stfade .6s ease-out both}
+.st-card:hover{transform:translateX(5px);box-shadow:0 0 18px rgba(201,166,87,.25)}
+.st-card.on{box-shadow:0 0 22px rgba(236,200,110,.35),inset 3px 0 0 var(--gold2)}
+.st-right>*{animation:stfadeR .7s ease-out both}.st-right>*:nth-child(2){animation-delay:.08s}.st-right>*:nth-child(3){animation-delay:.14s}.st-right>*:nth-child(4){animation-delay:.2s}.st-right>*:nth-child(5){animation-delay:.26s}
+.st-crest{filter:drop-shadow(0 0 24px rgba(255,210,120,.35));animation:stfloat 5s ease-in-out infinite}
+@keyframes stfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+.st-right h2{background:linear-gradient(90deg,#f7e6aa,#d9b45a 60%,#a88638);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 8px #000)}
+.st-stats div{backdrop-filter:blur(4px);background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(0,0,0,.5))}
+#start .primary.big{position:relative;overflow:hidden;box-shadow:0 0 0 1px rgba(255,226,150,.5),0 6px 26px rgba(201,166,87,.35);animation:stpulse 2.6s ease-in-out infinite}
+#start .primary.big::after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.55),transparent);transform:skewX(-20deg);animation:stsweep 3.4s ease-in-out infinite}
+@keyframes stsweep{0%{left:-60%}55%,100%{left:130%}}
+@keyframes stpulse{0%,100%{box-shadow:0 0 0 1px rgba(255,226,150,.5),0 6px 22px rgba(201,166,87,.3)}50%{box-shadow:0 0 0 1px rgba(255,236,170,.9),0 6px 36px rgba(236,200,110,.6)}}
+.st-snd{position:absolute;top:14px;right:16px;z-index:5;width:40px;height:40px;border-radius:50%;border:1px solid var(--gold);background:radial-gradient(#3d4a55,#161c22);color:var(--gold2);font-size:18px;cursor:pointer}
+.st-snd.muted,.rbtn.muted{opacity:.6}
+.st-logo h1{font-size:48px;letter-spacing:.2em;padding-left:.2em;white-space:nowrap}
+.st-snd{position:fixed;top:14px;right:16px}
 </style>
 </head>
 <body>
@@ -6159,6 +6189,7 @@ function buildHud() {
     <button class="rbtn" data-act="load" data-tip="<b>Cargar partida</b>">📂</button>
     <button class="rbtn" data-act="win" data-w="journal" data-tip="<b>Diario</b><br>Objetivos y registro de sucesos.">📜</button>
     <button class="rbtn" data-act="win" data-w="manual" data-tip="<b>Manual</b><br>Guía de todos los sistemas. <small>F1</small>">📖</button>
+    <button class="rbtn sndbtn" data-act="music" id="btn-music" data-tip="<b>Música y sonido</b>">🎵</button>
     <button class="rbtn home" data-act="gomenu" data-tip="<b>Menú principal</b><br>Salir a la pantalla de inicio.">🚪</button>
   </div>
   <div id="menu">
@@ -7015,7 +7046,7 @@ function buildStart() {
   $('#start').innerHTML = `
   <div class="st-inner">
     <div class="st-left">
-      <div class="st-logo"><small>UNA RÉPLICA DE FANS</small><h1>VICTORIA</h1><div class="orn"></div><h3>Una era de revolución</h3></div>
+      <button class="sndbtn st-snd" data-act="music" data-tip="<b>Música y sonido</b>">🎵</button><div class="st-logo"><small>UNA RÉPLICA DE FANS</small><h1>VICTORIA</h1><div class="orn"></div><h3>Una era de revolución</h3></div>
       ${typeof scenBarHtml === 'function' ? scenBarHtml() : ''}
       <input id="stq" class="search" placeholder="🔍 Buscar país…" autocomplete="off">
       <div class="st-list" id="st-list">${picks.map(t => { const c = G.C[t]; const d = difficulty(t); return `<div class="st-card" data-act="pickc" data-tag="${t}">${flag(t, 'md')}<div><b>${c.name}</b><small>${c.gov}</small></div><span class="diff ${d[1]}">${d[0]}</span></div>`; }).join('')}</div>
@@ -7506,6 +7537,7 @@ function bvPart(V, p) { if (V.parts.length < 900) V.parts.push(Object.assign({ag
 function bvBanner(V, text, side, icon) { V.banner = {text, side, icon, age: 0}; }
 const EV_NAME = {gas: 'Ataque con gas', charge: '¡Carga desesperada!', cav: 'Carga de caballería', barrage: 'Cañoneo', flank: 'Flanqueo', panic: 'Pánico', reinf: 'Refuerzos', rain: 'Lluvia'};
 function bvEvent(V, b, kind, side) {
+  if (typeof SFX !== 'undefined' && (kind === 'cav' || kind === 'charge' || kind === 'flank')) SFX.bugle();
   bvBanner(V, `${EV_NAME[kind] || kind} · ${G.C[(side === 'A' ? b.A0 : b.B0)].name}`, side, EV_ICON[kind]);
   if (kind === 'charge') V.boost[side] = 2.6;
   else if (kind === 'cav') V.man[side] = {kind: 'gallop', t: 0, dur: 3.4};
@@ -7711,7 +7743,7 @@ function bvFire(V, b, blk, dt, foes) {
   while (blk.fireAcc > 1) { blk.fireAcc--;
     const front = alive.filter(f => f.kind === 'sol' && Math.floor(f.k / blk.F.cols) <= 1), pool = front.length ? front : alive, u = pool[Math.floor(Math.random() * pool.length)], tg = pickFoeFig(foe); if (!tg) break;
     const ca = Math.cos(blk.hd), sa = Math.sin(blk.hd);
-    bvPart(V, {k: 'flash', x: u.x + ca * 5, y: u.y + sa * 5, life: 0.1, big: blk.type === 'tank' ? 1 : 0}); bvPart(V, {k: 'smoke', x: u.x + ca * 7, y: u.y + sa * 7 - 1, life: 1.7, r: 3, vx: dir * 5 + V.wind * 0.6}); bvPart(V, {k: 'tracer', x: u.x, y: u.y, x2: tg.x, y2: tg.y + rnd(-3, 3), life: 0.08}); u.flash = 0.12; }
+    bvPart(V, {k: 'flash', x: u.x + ca * 5, y: u.y + sa * 5, life: 0.1, big: blk.type === 'tank' ? 1 : 0}); bvPart(V, {k: 'smoke', x: u.x + ca * 7, y: u.y + sa * 7 - 1, life: 1.7, r: 3, vx: dir * 5 + V.wind * 0.6}); bvPart(V, {k: 'tracer', x: u.x, y: u.y, x2: tg.x, y2: tg.y + rnd(-3, 3), life: 0.08}); u.flash = 0.12; if (typeof SFX !== 'undefined') SFX.volley(); }
 }
 function pickFoeFig(blk) { const l = blk.figs.filter(f => f.alive); return l.length ? l[Math.floor(Math.random() * l.length)] : null; }
 /* ---------- bucle ---------- */
@@ -7728,7 +7760,7 @@ function bvFrame(V, b, ctx, now) {
   }
   if (V.over) V.over.t += dt;
   ['A', 'B'].forEach(s => { if (V.boost[s] > 0) V.boost[s] -= dt; if (V.panic[s] > 0) V.panic[s] -= dt; if (V.salvo[s] > 0) V.salvo[s] -= dt; if (V.man[s]) { V.man[s].t += dt; if (V.man[s].t > V.man[s].dur) V.man[s] = null; } });
-  if (V.rain > 0) V.rain -= dt;
+  if (V.rain > 0) V.rain -= dt; if (V.shake > 0) V.shake = Math.max(0, V.shake - dt * 6);
   if (V.gas) { V.gas.t += dt; const gs = V.gas.side, gd = gs === 'A' ? 1 : -1, x0 = BV_W / 2 + V.adv * 100; if (Math.random() < dt * 22) bvPart(V, {k: 'gas', x: x0 - gd * 90 + rnd(-20, 20), y: rnd(50, BV_H - 36), life: 6, r: rnd(14, 24), vx: gd * rnd(16, 26)}); if (V.gas.t > V.gas.dur) V.gas = null; }
   V.tf = battleTerrain(b);
   const lines = {A: bvLine(V, b, 'A'), B: bvLine(V, b, 'B')}, all = [...V.blocks.values()];
@@ -7744,7 +7776,7 @@ function bvFrame(V, b, ctx, now) {
   // partículas
   V.parts.forEach(p => { p.age += dt; if (p.k === 'smoke') { p.x += (p.vx || 0) * dt; p.y -= 6 * dt; } if (p.k === 'dust') { p.y -= 4 * dt; p.x += V.wind * 0.3 * dt; }
     if (p.k === 'gas') { p.x += p.vx * dt; p.y += Math.sin(p.age * 1.4 + p.x * 0.02) * 4 * dt; }
-    if (p.k === 'shell' && p.age >= p.life && !p.hit) { p.hit = true; if (p.vt && typeof tacShellHit === 'function') tacShellHit(V, b, p, all); bvPart(V, {k: 'boom', x: p.x2, y: p.y2, life: 0.6}); bvPart(V, {k: 'smoke', x: p.x2, y: p.y2, life: 2.8, r: 7, vx: rnd(-5, 5) + V.wind * 0.5});
+    if (p.k === 'shell' && p.age >= p.life && !p.hit) { p.hit = true; (V.craters = V.craters || []).push({x: p.x2, y: p.y2, r: 2.5 + Math.random() * 3}); if (V.craters.length > 90) V.craters.shift(); if (p.vt && typeof tacShellHit === 'function') tacShellHit(V, b, p, all); bvPart(V, {k: 'boom', x: p.x2, y: p.y2, life: 0.6}); bvPart(V, {k: 'smoke', x: p.x2, y: p.y2, life: 2.8, r: 7, vx: rnd(-5, 5) + V.wind * 0.5});
       for (let n = 0; n < 5; n++) bvPart(V, {k: 'spark', x: p.x2 + rnd(-8, 8), y: p.y2 + rnd(-8, 8), life: 0.45, hot: 1});
       all.forEach(blk => { if (blk.side === p.s) return; blk.figs.forEach(f => { if (f.alive && !f.flee && Math.hypot(f.x - p.x2, f.y - p.y2) < 26) { f.x += (f.x - p.x2) * 0.45; f.y += (f.y - p.y2) * 0.45; } }); }); } });
   V.parts = V.parts.filter(p => p.age < p.life + (p.k === 'shell' ? 0.05 : 0));
@@ -7824,6 +7856,7 @@ function bvPlate(g, blk, hover) {
   return P;
 }
 function bvFig(g, V, blk, f) {
+  if (typeof bvFigNew === 'function' && bvFigNew(g, V, blk, f)) return;
   const s = blk.sc, x = f.x, y = f.y, fall = f.dying > 0 ? 1 - f.dying / 0.8 : 0, hd = blk.hd, ca = Math.cos(hd), sa = Math.sin(hd), moving = (blk.sp || 0) > 8 || f.flee > 0, bob = moving ? Math.sin(V.t * 13 + f.ph) * 0.7 : 0, col = blk.color;
   if (fall) g.globalAlpha = 1 - fall * 0.6;
   g.fillStyle = 'rgba(0,0,0,.32)'; g.beginPath(); g.ellipse(x + 0.8, y + 3 * s, 3.6 * s, 1.4 * s, 0, 0, 6.3); g.fill();
@@ -7868,12 +7901,14 @@ function bvFlag(g, V, blk, over, win) {
 function bvDraw(V, b, g, lines, all) {
   { const k = g.canvas.width / BV_W; g.setTransform(k, 0, 0, k, 0, 0); }
   const W = BV_W, H = BV_H, cam = V.cam;
-  g.save(); g.translate(W / 2, H / 2); g.scale(cam.z, cam.z); g.translate(-cam.x, -cam.y);
+  const shx = V.shake > 0.05 ? (Math.random() - 0.5) * V.shake * 2.2 : 0, shy = V.shake > 0.05 ? (Math.random() - 0.5) * V.shake * 2.2 : 0;
+  g.save(); g.translate(W / 2 + shx, H / 2 + shy); g.scale(cam.z, cam.z); g.translate(-cam.x, -cam.y);
   if (!V.bg) V.bg = bvBuildBg(V, b); g.drawImage(V.bg, 0, 0, W, H);
   // loma de la defensa «en los altos»
   ['A', 'B'].forEach(s => { if (bvStrat(b, s) === 'hold' && !V.tf.hill) { const dir = s === 'A' ? 1 : -1, cx = lines[s] - dir * 34, rg = g.createRadialGradient(cx, H / 2, 10, cx, H / 2, 150); rg.addColorStop(0, 'rgba(210,190,130,.34)'); rg.addColorStop(0.6, 'rgba(120,96,56,.26)'); rg.addColorStop(1, 'rgba(70,52,30,0)'); g.fillStyle = rg; g.beginPath(); g.ellipse(cx, H / 2 + 4, 90, H / 2 - 40, 0, 0, 6.3); g.fill();
     g.strokeStyle = 'rgba(245,225,170,.2)'; g.lineWidth = 1.2; for (let i = 1; i <= 3; i++) { g.beginPath(); g.ellipse(cx, H / 2 + 4, 90 - i * 22, H / 2 - 40 - i * 34, 0, 0, 6.3); g.stroke(); } } });
   bvTrenches(g, V, b, lines);
+  if (typeof bvFxUnder === 'function') bvFxUnder(g, V, b);
   if (typeof tacDrawPrepZone === 'function') { tacDrawPrepZone(g, V, b); tacDrawForts(g, V, b); }
   // línea de contacto
   g.strokeStyle = 'rgba(255,230,150,.16)'; g.setLineDash([5, 7]); g.beginPath(); const mx = (lines.A + lines.B) / 2; g.moveTo(mx, 30); g.lineTo(mx, H - 4); g.stroke(); g.setLineDash([]);
@@ -7908,7 +7943,9 @@ function bvDraw(V, b, g, lines, all) {
     else if (p.k === 'spark') { g.fillStyle = p.hot ? `rgba(255,${200 - k * 90 | 0},90,${1 - k})` : `rgba(180,255,180,${1 - k})`; g.beginPath(); g.arc(p.x, p.y - k * (p.hot ? 4 : 14), p.hot ? 1.3 : 2.5, 0, 6.3); g.fill(); } });
   V.rings.forEach(r => { const k = r.age / r.life; g.globalAlpha = (k < 0.2 ? k / 0.2 : 1 - (k - 0.2) / 0.8) * 0.7; g.strokeStyle = '#fff3c0'; g.lineWidth = 3; g.beginPath(); g.arc(r.x, r.y, r.r * (0.8 + 0.3 * k), 0, 6.3); g.stroke(); g.globalAlpha = 1; });
   if (V.rain > 0) { g.strokeStyle = 'rgba(180,205,255,.45)'; g.lineWidth = 1; for (let i = 0; i < 90; i++) { const x = ((hash2(i, 3, 9) * W * 1.2 + V.t * 140) % (W + 40)), y = ((hash2(i, 5, 9) * H * 1.2 + V.t * 420) % (H + 20)); g.beginPath(); g.moveTo(x, y); g.lineTo(x - 5, y + 11); g.stroke(); } g.fillStyle = 'rgba(40,60,90,.16)'; g.fillRect(0, 0, W, H); }
+  if (typeof bvFxOver === 'function') bvFxOver(g, V, b, W, H);
   g.restore();
+  if (typeof bvPost === 'function') bvPost(g, V, b);
   bvOverlay(V, b, g, lines, all);
 }
 function bvOverlay(V, b, g, lines, all) {
@@ -10582,11 +10619,12 @@ function tacArtFire(V, b, blk, dt, all) {
   if (!tgt) { const hot = inR.filter(o => (o.mode === 'gallop' || o.mode === 'charge' || o.mode === 'melee') && dist(o) < 190); const lines = inR.filter(o => o.role !== 'reserve'); tgt = hot.length ? nearest(hot) : lines.length ? nearest(lines) : nearest(inR); }
   blk.cd = (heavy ? rnd(0.9, 1.5) : rnd(3, 5)) * (ctr ? 0.65 : 1); blk.tgt = tgt;
   const gn = guns[Math.floor(Math.random() * guns.length)], fg = pickFoeFig(tgt), tx = (fg ? fg.x : tgt.x) + rnd(-14, 14), ty = (fg ? fg.y : tgt.y) + rnd(-14, 14);
-  bvPart(V, {k: 'shell', x: gn.x, y: gn.y, x2: tx, y2: ty, life: 0.55 + dist(tgt) / 520, s: blk.side, vt: tgt.id, ctr, stag: blk.tag}); gn.recoil = 1; bvPart(V, {k: 'flash', x: gn.x + Math.cos(blk.hd) * 12, y: gn.y + Math.sin(blk.hd) * 12, life: 0.14, big: 1});
+  bvPart(V, {k: 'shell', x: gn.x, y: gn.y, x2: tx, y2: ty, life: 0.55 + dist(tgt) / 520, s: blk.side, vt: tgt.id, ctr, stag: blk.tag}); gn.recoil = 1; bvPart(V, {k: 'flash', x: gn.x + Math.cos(blk.hd) * 12, y: gn.y + Math.sin(blk.hd) * 12, life: 0.14, big: 1}); if (typeof SFX !== 'undefined') SFX.cannon(0.8);
   for (let n = 0; n < 3; n++) bvPart(V, {k: 'smoke', x: gn.x + Math.cos(blk.hd) * 12, y: gn.y + Math.sin(blk.hd) * 12, life: 2.2, r: 5, vx: dir * 8 + V.wind * 0.5 + rnd(-4, 4)});
 }
 // impacto de un proyectil sobre un bloque: daño real y, contra artillería, bajas de piezas y servidores
 function tacShellHit(V, b, p, all) {
+  if (typeof SFX !== 'undefined') SFX.boom(0.8); V.shake = Math.min(5, (V.shake || 0) + 1.3);
   const v = all.find(x => x.id === p.vt); if (!v || v.mode === 'rout') return; const org = DIVS[v.d.t].org;
   if (v.type === 'art') {
     const cands = v.figs.filter(q => q.alive && !q.flee); if (cands.length && Math.random() < (p.ctr ? 0.5 : 0.3)) { const guns = cands.filter(q => q.kind === 'gun'), pool = guns.length && Math.random() < 0.45 ? guns : cands; bvKill(V, v, pool[Math.floor(Math.random() * pool.length)]); }
@@ -10600,6 +10638,279 @@ function tacDrawArt(g, V, b, all) {
     if (blk.sil) { g.font = '13px sans-serif'; g.textAlign = 'center'; g.fillStyle = 'rgba(10,12,16,.85)'; g.beginPath(); g.arc(blk.x, blk.y - blk.wid / 2 - 17, 8, 0, 6.3); g.fill(); g.fillStyle = '#fff'; g.fillText('🔇', blk.x, blk.y - blk.wid / 2 - 13); }
     if (V.sel === blk) { const r = tacArtRange(V, b, blk); g.strokeStyle = 'rgba(255,230,140,.5)'; g.setLineDash([6, 6]); g.lineWidth = 1.2; g.beginPath(); g.arc(blk.x, blk.y, r, 0, 6.3); g.stroke(); g.setLineDash([]); if (blk.tgt && V.blocks.has(blk.tgt.d)) { g.strokeStyle = 'rgba(255,90,60,.55)'; g.beginPath(); g.moveTo(blk.x, blk.y); g.lineTo(blk.tgt.x, blk.tgt.y); g.stroke(); } } });
 }
+
+/* ===== ASPECTO: soldados, caballos, cañones, fuertes y efectos del campo de batalla =====
+   Sustituye los dibujos sencillos por figuras con más detalle: infantes con chaqueta, correajes, mochila, chacó con penacho, oficiales con
+   charreteras y espada, jinetes con caballo animado, piezas con ruedas de radios y servidores con baqueta. Los fuertes tienen texturas
+   (sacos de tierra, empalizada de troncos, gaviones, sillería con almenas y torres), banderas ondeantes y arden y humean al ser dañados.
+   También añade cráteres, resplandor aditivo de fogonazos y explosiones, viñeta, tinte según la hora del día y temblor de pantalla. */
+const hexRgb = h => { const n = parseInt(String(h).replace('#', '').padEnd(6, '8').slice(0, 6), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+const mixc = (c, k) => { const m = k < 0 ? 0 : 255, a = Math.abs(k); return `rgb(${Math.round(c[0] + (m - c[0]) * a)},${Math.round(c[1] + (m - c[1]) * a)},${Math.round(c[2] + (m - c[2]) * a)})`; };
+function bvFigNew(g, V, blk, f) {
+  if (blk.type === 'tank') return false;
+  const s = blk.sc, x = f.x, y = f.y, fall = f.dying > 0 ? 1 - f.dying / 0.8 : 0, hd = blk.hd, ca = Math.cos(hd), sa = Math.sin(hd), moving = (blk.sp || 0) > 8 || f.flee > 0, t = V.t, fl = f.flee > 0;
+  const rgb = blk._rgb || (blk._rgb = hexRgb(blk.color)), eng = blk.mode === 'melee' || blk.mode === 'charge' || blk.mode === 'gallop', bob = moving ? Math.sin(t * 13 + f.ph) * 0.7 : 0;
+  const pants = blk._pants || (blk._pants = hash2(blk.tag.charCodeAt(0), blk.tag.charCodeAt(1 % blk.tag.length), 3) < 0.5 ? '#d6d0bd' : mixc(rgb, -0.62));
+  if (fall) g.globalAlpha = 1 - fall * 0.6;
+  g.fillStyle = 'rgba(0,0,0,.32)'; g.beginPath(); g.ellipse(x + 0.8, y + 4.2 * s, (f.kind === 'gun' ? 6 : blk.type === 'cav' ? 7 : 3.6) * s, 1.5 * s, 0, 0, 6.3); g.fill();
+  const person = (px, py, o) => {                       // soldado de a pie
+    const sw = moving ? Math.sin(t * 13 + f.ph) * 1.5 * s : 0, coat = fl ? '#d9cfae' : mixc(rgb, 0.02), dark = mixc(rgb, -0.45);
+    g.strokeStyle = pants; g.lineWidth = 1.5 * s; g.lineCap = 'round'; g.beginPath(); g.moveTo(px - 0.9 * s, py + 1.6 * s + bob); g.lineTo(px - 1.1 * s + sw, py + 4.8 * s); g.moveTo(px + 0.9 * s, py + 1.6 * s + bob); g.lineTo(px + 1.1 * s - sw, py + 4.8 * s); g.stroke();
+    g.strokeStyle = '#1b1a1c'; g.lineWidth = 1.7 * s; g.beginPath(); g.moveTo(px - 1.1 * s + sw, py + 4.7 * s); g.lineTo(px - 1.1 * s + sw, py + 5.2 * s); g.moveTo(px + 1.1 * s - sw, py + 4.7 * s); g.lineTo(px + 1.1 * s - sw, py + 5.2 * s); g.stroke(); g.lineCap = 'butt';
+    if (!o.crew && !fl) { g.fillStyle = '#4a3a2a'; g.fillRect(px - ca * 2.9 * s - 1.2 * s, py - 2.8 * s + bob, 2.4 * s, 3.4 * s); }       // mochila
+    g.fillStyle = dark; g.fillRect(px - 2.5 * s, py - 3.6 * s + bob, 5 * s, 5.6 * s); g.fillStyle = coat; g.fillRect(px - 2.1 * s, py - 3.3 * s + bob, 4.2 * s, 4.7 * s);
+    g.fillStyle = dark; g.beginPath(); g.moveTo(px - 2.3 * s, py + 1.3 * s + bob); g.lineTo(px + 2.3 * s, py + 1.3 * s + bob); g.lineTo(px + 2.9 * s, py + 2.6 * s + bob); g.lineTo(px - 2.9 * s, py + 2.6 * s + bob); g.closePath(); g.fill();   // faldones
+    if (!o.crew) { g.strokeStyle = 'rgba(245,245,240,.85)'; g.lineWidth = 0.7 * s; g.beginPath(); g.moveTo(px - 2 * s, py - 3.2 * s + bob); g.lineTo(px + 2 * s, py + 1 * s + bob); g.moveTo(px + 2 * s, py - 3.2 * s + bob); g.lineTo(px - 2 * s, py + 1 * s + bob); g.stroke(); }
+    g.fillStyle = '#3a2f22'; g.fillRect(px - 2.2 * s, py + 0.8 * s + bob, 4.4 * s, 0.8 * s);
+    if (o.off) { g.fillStyle = '#e6c04a'; g.fillRect(px - 3 * s, py - 3.7 * s + bob, 1.6 * s, 1.1 * s); g.fillRect(px + 1.4 * s, py - 3.7 * s + bob, 1.6 * s, 1.1 * s); }   // charreteras
+    g.fillStyle = '#e7c9a6'; g.beginPath(); g.arc(px, py - 4.7 * s + bob, 1.55 * s, 0, 6.3); g.fill();
+    if (o.off) { g.fillStyle = '#16161a'; g.beginPath(); g.moveTo(px - 3 * s, py - 5.4 * s + bob); g.lineTo(px, py - 8.2 * s + bob); g.lineTo(px + 3 * s, py - 5.4 * s + bob); g.closePath(); g.fill(); g.fillStyle = '#e6c04a'; g.fillRect(px - 0.6 * s, py - 6.4 * s + bob, 1.2 * s, 0.9 * s); }      // bicornio
+    else { g.fillStyle = '#17181c'; g.fillRect(px - 1.7 * s, py - 8.1 * s + bob, 3.4 * s, 3.5 * s); g.fillStyle = '#2a2b31'; g.fillRect(px - 2 * s, py - 5.1 * s + bob, 4 * s, 0.7 * s); g.fillStyle = '#d4b24c'; g.fillRect(px - 0.6 * s, py - 7 * s + bob, 1.2 * s, 1.2 * s); g.fillStyle = o.crew ? '#8a8a90' : (blk.side === 'A' ? '#e8e3d6' : '#d8eaff'); g.beginPath(); g.ellipse(px, py - 8.6 * s + bob, 0.9 * s, 1.5 * s, 0, 0, 6.3); g.fill(); }
+    if (o.rammer) { g.strokeStyle = '#6a5036'; g.lineWidth = 1 * s; g.beginPath(); g.moveTo(px - ca * 4 * s, py - 1 * s + bob - sa * 4 * s); g.lineTo(px + ca * 6 * s, py - 1 * s + bob + sa * 6 * s); g.stroke(); }
+    else if (!fl) {
+      const rx0 = px + ca * 0.5, ry0 = py - 2.4 * s + bob, ln = (eng ? 7.5 : 8.5) * s; g.strokeStyle = '#4a3322'; g.lineWidth = 1.3 * s; g.beginPath(); g.moveTo(rx0 - ca * 1.6, ry0 - sa * 1.6); g.lineTo(rx0 + ca * ln * 0.55, ry0 + sa * ln * 0.55); g.stroke();
+      g.strokeStyle = '#2b2a2e'; g.lineWidth = 0.9 * s; g.beginPath(); g.moveTo(rx0 + ca * ln * 0.5, ry0 + sa * ln * 0.5); g.lineTo(rx0 + ca * ln, ry0 + sa * ln); g.stroke();
+      if (eng) { g.strokeStyle = '#dfe3ea'; g.lineWidth = 0.6 * s; g.beginPath(); g.moveTo(rx0 + ca * ln, ry0 + sa * ln); g.lineTo(rx0 + ca * (ln + 4 * s), ry0 + sa * (ln + 4 * s)); g.stroke(); }          // bayoneta
+      if (o.off) { g.strokeStyle = '#dcdfe6'; g.lineWidth = 0.8 * s; g.beginPath(); g.moveTo(px + 2 * s, py - 1.5 * s + bob); g.lineTo(px + 2 * s + ca * 5 * s, py - 1.5 * s + bob + sa * 5 * s - 3 * s); g.stroke(); }
+      if (f.flash > 0) { g.globalCompositeOperation = 'lighter'; const gx = rx0 + ca * (ln + 2 * s), gy = ry0 + sa * (ln + 2 * s), rg = g.createRadialGradient(gx, gy, 0, gx, gy, 7 * s); rg.addColorStop(0, 'rgba(255,230,150,.9)'); rg.addColorStop(1, 'rgba(255,150,40,0)'); g.fillStyle = rg; g.beginPath(); g.arc(gx, gy, 7 * s, 0, 6.3); g.fill(); g.globalCompositeOperation = 'source-over'; }
+    }
+  };
+  if (f.kind === 'sol' && blk.type === 'inf') person(x, y, {off: f.k === 0});
+  else if (f.kind === 'crew') person(x, y, {crew: true, rammer: f.k % 3 === 0});
+  else if (f.kind === 'sol') {                                                   // jinete
+    const hc = ['#6b4a2b', '#2e2420', '#8b6a44', '#c9c0ae', '#4a3322'][Math.floor(f.ph * 3) % 5], an = Math.atan2(blk.vy || sa, blk.vx || ca) * 0.3, gal = moving ? Math.sin(t * 17 + f.ph) : 0;
+    const fx = Math.cos(an) >= 0 ? 1 : -1;
+    g.strokeStyle = mixc(hexRgb(hc), -0.35); g.lineWidth = 1.2 * s; g.lineCap = 'round';
+    [[-3.6, 1], [-2.4, -1], [2.4, 1], [3.6, -1]].forEach(([lx, ph]) => { const sw = gal * 2.2 * ph; g.beginPath(); g.moveTo(x + lx * s, y - 0.4 * s + bob); g.lineTo(x + lx * s + sw, y + 3.4 * s); g.stroke(); });
+    g.lineCap = 'butt'; const lg = g.createLinearGradient(x, y - 5 * s, x, y + 1 * s); lg.addColorStop(0, mixc(hexRgb(hc), 0.25)); lg.addColorStop(1, hc); g.fillStyle = lg; g.beginPath(); g.ellipse(x, y - 1.6 * s + bob, 7.4 * s, 3.3 * s, an, 0, 6.3); g.fill();
+    g.fillStyle = mixc(hexRgb(hc), -0.2); g.beginPath(); g.ellipse(x + ca * 6.6 * s, y - 3.3 * s + bob + sa * 2, 2.6 * s, 1.9 * s, an + 0.4, 0, 6.3); g.fill(); g.beginPath(); g.ellipse(x + ca * 8.4 * s, y - 2.5 * s + bob + sa * 2.4, 1.5 * s, 1.1 * s, an, 0, 6.3); g.fill();
+    g.strokeStyle = '#1c1612'; g.lineWidth = 1.3 * s; g.beginPath(); g.moveTo(x - ca * 7 * s, y - 2.4 * s + bob); g.quadraticCurveTo(x - ca * 10 * s, y - 0.5 * s + gal * 2, x - ca * 9 * s, y + 2.2 * s); g.stroke();       // cola
+    g.fillStyle = blk.color; g.fillRect(x - 3 * s, y - 3.2 * s + bob, 6 * s, 1.6 * s);                                       // gualdrapa
+    g.fillStyle = mixc(rgb, -0.4); g.fillRect(x - 1.9 * s, y - 7 * s + bob, 3.8 * s, 4.9 * s); g.fillStyle = blk.color; g.fillRect(x - 1.6 * s, y - 6.7 * s + bob, 3.2 * s, 4.2 * s);
+    g.strokeStyle = 'rgba(245,245,240,.8)'; g.lineWidth = 0.6 * s; g.beginPath(); g.moveTo(x - 1.5 * s, y - 6.5 * s + bob); g.lineTo(x + 1.5 * s, y - 2.8 * s + bob); g.stroke();
+    g.fillStyle = '#e7c9a6'; g.beginPath(); g.arc(x, y - 8 * s + bob, 1.45 * s, 0, 6.3); g.fill(); g.fillStyle = '#c9a23c'; g.fillRect(x - 1.6 * s, y - 10.2 * s + bob, 3.2 * s, 2.3 * s); g.fillStyle = '#9a1c1c'; g.fillRect(x - 0.4 * s, y - 12.2 * s + bob, 0.8 * s, 2.2 * s);
+    g.strokeStyle = '#dfe3ea'; g.lineWidth = 1 * s; g.beginPath(); const sw2 = eng ? Math.sin(t * 14 + f.ph) * 0.9 : 0; g.moveTo(x + 1.4 * s, y - 5 * s + bob); g.lineTo(x + 1.4 * s + ca * 10 * s + sa * sw2 * 4, y - 9 * s + bob + sa * 6 * s - sw2 * 3); g.stroke();
+    void fx;
+  } else if (f.kind === 'gun') {
+    const rc = f.recoil * 3.4, sp = (1 - f.recoil) * 0.4;
+    g.strokeStyle = '#3a2a1a'; g.lineWidth = 2.2 * s; g.beginPath(); g.moveTo(x - ca * (4 + rc) * s, y + 1.5 * s - sa * rc); g.lineTo(x - ca * 11 * s, y + 3.5 * s); g.stroke();                              // afuste
+    g.fillStyle = '#5a4430'; g.fillRect(x - 4.5 * s - ca * rc, y - 2.2 * s - sa * rc, 9 * s, 4 * s);
+    [[-1, 1.5], [1, -1.5]].forEach(([k, off]) => { const wx = x + k * 0.5 * s - ca * rc, wy = y + off * s; g.fillStyle = '#2a2018'; g.beginPath(); g.arc(wx, wy, 3.3 * s, 0, 6.3); g.fill(); g.fillStyle = '#7a5a38'; g.beginPath(); g.arc(wx, wy, 2.7 * s, 0, 6.3); g.fill(); g.strokeStyle = '#2a2018'; g.lineWidth = 0.7 * s; for (let i = 0; i < 6; i++) { const a = i * 1.047 + sp; g.beginPath(); g.moveTo(wx, wy); g.lineTo(wx + Math.cos(a) * 2.7 * s, wy + Math.sin(a) * 2.7 * s); g.stroke(); } g.fillStyle = '#2a2018'; g.beginPath(); g.arc(wx, wy, 0.8 * s, 0, 6.3); g.fill(); });
+    const bx0 = x - ca * (3 + rc) * s, by0 = y - 1.2 * s - sa * rc, bx1 = x + ca * 11 * s - ca * rc, by1 = y - 1.2 * s + sa * 11 * s - sa * rc;
+    g.lineCap = 'round'; g.strokeStyle = '#2f343a'; g.lineWidth = 3.9 * s; g.beginPath(); g.moveTo(bx0, by0); g.lineTo(bx1, by1); g.stroke(); g.strokeStyle = '#6a7078'; g.lineWidth = 2.5 * s; g.beginPath(); g.moveTo(bx0, by0); g.lineTo(bx1, by1); g.stroke(); g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 0.8 * s; g.beginPath(); g.moveTo(bx0, by0 - 0.8 * s); g.lineTo(bx1, by1 - 0.8 * s); g.stroke();
+    g.strokeStyle = '#8a8f96'; g.lineWidth = 3.2 * s; g.beginPath(); g.moveTo(bx1 - ca * 1.4 * s, by1 - sa * 1.4 * s); g.lineTo(bx1, by1); g.stroke(); g.lineCap = 'butt';
+    g.fillStyle = blk.color; g.fillRect(x - 3 * s, y - 3.6 * s, 6 * s, 1.6 * s); g.fillStyle = '#3d2f20'; g.fillRect(x + ca * 4 * s - 2 * s, y + 2 * s, 4 * s, 2.4 * s);
+  } else return false;
+  g.globalAlpha = 1; return true;
+}
+/* ---------- fuertes ---------- */
+function fortFlame(g, V, x, y, k, seed) {
+  const t = V.t * 7 + seed * 3.1, h = (6 + 7 * k) * (0.75 + 0.25 * Math.sin(t)), w = 3.5 + 3 * k;
+  g.globalCompositeOperation = 'lighter'; const rg = g.createRadialGradient(x, y - h * 0.4, 1, x, y - h * 0.4, h * 1.5); rg.addColorStop(0, 'rgba(255,200,90,.55)'); rg.addColorStop(1, 'rgba(255,90,20,0)'); g.fillStyle = rg; g.beginPath(); g.arc(x, y - h * 0.4, h * 1.5, 0, 6.3); g.fill(); g.globalCompositeOperation = 'source-over';
+  [['#d8441a', 1], ['#f59a2a', 0.72], ['#ffe27a', 0.4]].forEach(([c, m]) => { g.fillStyle = c; g.beginPath(); g.moveTo(x - w * m, y); g.quadraticCurveTo(x - w * m * 0.9 + Math.sin(t * 1.3) * 1.5, y - h * m * 0.6, x + Math.sin(t * 1.7) * 2 * m, y - h * m); g.quadraticCurveTo(x + w * m * 0.9, y - h * m * 0.5, x + w * m, y); g.closePath(); g.fill(); });
+}
+function fortSmoke(g, V, x, y, n, seed) { for (let i = 0; i < n; i++) { const k = ((V.t * 0.35 + i / n + seed) % 1), r = 4 + k * 12; g.globalAlpha = 0.3 * (1 - k); g.fillStyle = '#4c4a47'; g.beginPath(); g.arc(x + Math.sin(i * 2 + seed + V.t) * 5 + k * 8, y - k * 34, r, 0, 6.3); g.fill(); } g.globalAlpha = 1; }
+function sandbags(g, x0, y0, n, dx, dy, w) { for (let i = 0; i < n; i++) { const x = x0 + i * dx, y = y0 + i * dy; g.fillStyle = (i % 2) ? '#b3a074' : '#a29066'; g.beginPath(); g.ellipse(x, y, w, w * 0.62, 0, 0, 6.3); g.fill(); g.strokeStyle = 'rgba(60,48,28,.7)'; g.lineWidth = 0.7; g.stroke(); g.fillStyle = 'rgba(255,255,255,.14)'; g.beginPath(); g.ellipse(x - w * 0.2, y - w * 0.2, w * 0.45, w * 0.2, 0, 0, 6.3); g.fill(); } }
+function fortGun(g, x, y, dir, hpf) { g.fillStyle = '#2a2018'; g.beginPath(); g.arc(x - dir * 3, y + 1, 3, 0, 6.3); g.fill(); g.fillStyle = '#7a5a38'; g.beginPath(); g.arc(x - dir * 3, y + 1, 2.3, 0, 6.3); g.fill(); g.strokeStyle = '#30353b'; g.lineWidth = 4; g.lineCap = 'round'; g.beginPath(); g.moveTo(x - dir * 3, y); g.lineTo(x + dir * 11, y); g.stroke(); g.strokeStyle = '#6c727a'; g.lineWidth = 2.6; g.beginPath(); g.moveTo(x - dir * 3, y); g.lineTo(x + dir * 11, y); g.stroke(); g.lineCap = 'butt'; void hpf; }
+function tacDrawForts(g, V, b) {
+  (b.forts || []).forEach(f => {
+    const K = FORT_KINDS[f.kind], x = f.x, y = f.y, w = f.w, h = f.h, dead = f.hp <= 0, hpf = clamp(f.hp / f.hpMax, 0, 1), dir = f.side === 'A' ? 1 : -1, sel = V.selFort === f.id, tcol = G.C[f.side === 'A' ? b.A0 : b.B0].color;
+    g.save(); g.translate(x, y);
+    if (dead) {
+      g.fillStyle = 'rgba(30,24,18,.55)'; g.beginPath(); g.ellipse(0, 0, w / 2 + 4, h / 2 + 4, 0, 0, 6.3); g.fill();
+      for (let i = 0; i < 22; i++) { const rx = (hash2(f.id, i, 1) - 0.5) * w, ry = (hash2(f.id, i, 2) - 0.5) * h; g.fillStyle = ['#6a5a46', '#4a3d2e', '#7b7364', '#3a2f22'][i % 4]; g.save(); g.translate(rx, ry); g.rotate(hash2(f.id, i, 4) * 3); g.fillRect(-4, -1.5, 5 + hash2(f.id, i, 3) * 6, 3); g.restore(); }
+      fortFlame(g, V, (hash2(f.id, 1, 9) - 0.5) * w * 0.5, 2, 0.4, f.id); fortSmoke(g, V, 0, -2, 3, f.id); g.restore(); return;
+    }
+    g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(4, h / 2 + 3, w / 2 + 4, 5, 0, 0, 6.3); g.fill();
+    if (f.kind === 'trench') {
+      g.fillStyle = '#1f160c'; g.fillRect(-w / 2, -h / 2, w, h); g.fillStyle = '#6e5636'; for (let i = -w / 2 + 2; i < w / 2; i += 6) g.fillRect(i, -h / 2 + 1.5, 3.4, h - 3);                              // tablones del fondo
+      g.fillStyle = '#5a4126'; g.fillRect(-w / 2, -h / 2, w, 2); g.fillRect(-w / 2, h / 2 - 2, w, 2);
+      g.fillStyle = 'rgba(52,40,24,.9)'; g.fillRect(-w / 2 - 3, -h / 2 - 3 - (dir > 0 ? 0 : 0), w + 6, 3.4); g.fillRect(-w / 2 - 3, h / 2 - 0.4, w + 6, 3.4);
+      sandbags(g, -w / 2 + 3, dir > 0 ? h / 2 + 2.4 : -h / 2 - 2.4, Math.floor(w / 6.4), 6.4, 0, 3.4);
+      for (let i = 0; i < 4; i++) { const px = -w / 2 + 12 + i * (w - 24) / 3; g.strokeStyle = '#3a2d1b'; g.lineWidth = 1; g.beginPath(); g.moveTo(px, -h / 2); g.lineTo(px, h / 2); g.stroke(); }
+    } else if (f.kind === 'redoubt') {
+      g.fillStyle = '#4a3a24'; g.beginPath(); g.moveTo(-w / 2 - 6, -h / 2 + 8); g.lineTo(-w / 2 + 6, -h / 2 - 6); g.lineTo(w / 2 - 6, -h / 2 - 6); g.lineTo(w / 2 + 6, -h / 2 + 8); g.lineTo(w / 2 + 6, h / 2 - 8); g.lineTo(w / 2 - 6, h / 2 + 6); g.lineTo(-w / 2 + 6, h / 2 + 6); g.lineTo(-w / 2 - 6, h / 2 - 8); g.closePath(); g.fill();      // foso
+      g.fillStyle = '#7a6040'; g.beginPath(); g.moveTo(-w / 2, -h / 2 + 6); g.lineTo(-w / 2 + 5, -h / 2); g.lineTo(w / 2 - 5, -h / 2); g.lineTo(w / 2, -h / 2 + 6); g.lineTo(w / 2, h / 2 - 6); g.lineTo(w / 2 - 5, h / 2); g.lineTo(-w / 2 + 5, h / 2); g.lineTo(-w / 2, h / 2 - 6); g.closePath(); g.fill();
+      g.fillStyle = '#3a2d1c'; g.fillRect(-w / 2 + 8, -h / 2 + 8, w - 16, h - 16); g.fillStyle = 'rgba(255,255,255,.08)'; g.fillRect(-w / 2 + 5, -h / 2 + 1, w - 10, 2.5);
+      g.strokeStyle = '#8c6c42'; g.lineWidth = 1.6; for (let i = -w / 2 + 6; i < w / 2 - 4; i += 4) { g.beginPath(); g.moveTo(i, -h / 2 - 1); g.lineTo(i + 1.2, -h / 2 - 5); g.stroke(); g.beginPath(); g.moveTo(i, h / 2 + 1); g.lineTo(i + 1.2, h / 2 + 5); g.stroke(); }
+      g.strokeStyle = '#5a4226'; g.lineWidth = 1; g.strokeRect(-w / 2 + 8, -h / 2 + 8, w - 16, h - 16);
+    } else if (f.kind === 'battery') {
+      g.fillStyle = '#6d5834'; g.beginPath(); g.ellipse(-dir * 3, 0, w / 2, h / 2, 0, 0, 6.3); g.fill(); g.fillStyle = '#41331f'; g.beginPath(); g.ellipse(-dir * 3, 0, w / 2 - 7, h / 2 - 6, 0, 0, 6.3); g.fill();
+      for (let i = 0; i < 9; i++) { const a = -1.35 + i * 0.34, gx = dir * Math.cos(a) * (w / 2 - 2) - dir * 3, gy = Math.sin(a) * (h / 2 - 1); g.fillStyle = '#8a6b3c'; g.beginPath(); g.arc(gx, gy, 3.1, 0, 6.3); g.fill(); g.strokeStyle = '#4a3820'; g.lineWidth = 0.8; g.stroke(); g.fillStyle = 'rgba(255,255,255,.2)'; g.beginPath(); g.arc(gx - 0.8, gy - 0.8, 1.2, 0, 6.3); g.fill(); }     // gaviones
+      g.fillStyle = '#a88a55'; for (let i = 0; i < 3; i++) g.fillRect(-dir * 12 - 2, -6 + i * 5, 4, 3);                                                                                                 // cajas de munición
+    } else {   // fuerte de piedra
+      g.fillStyle = '#4a4338'; g.fillRect(-w / 2 - 5, -h / 2 - 5, w + 10, h + 10);
+      const wall = g.createLinearGradient(0, -h / 2, 0, h / 2); wall.addColorStop(0, '#9b9282'); wall.addColorStop(1, '#756d5f'); g.fillStyle = wall; g.fillRect(-w / 2, -h / 2, w, h);
+      g.strokeStyle = 'rgba(40,34,26,.45)'; g.lineWidth = 0.8; for (let yy = -h / 2 + 7; yy < h / 2; yy += 7) { g.beginPath(); g.moveTo(-w / 2, yy); g.lineTo(w / 2, yy); g.stroke(); for (let xx = -w / 2 + ((yy / 7) % 2 ? 5 : 0); xx < w / 2; xx += 10) { g.beginPath(); g.moveTo(xx, yy); g.lineTo(xx, yy + 7); g.stroke(); } }
+      g.fillStyle = '#5a5246'; g.fillRect(-w / 2 + 7, -h / 2 + 7, w - 14, h - 14); g.fillStyle = '#9a3a2a'; g.fillRect(-12, -9, 24, 18); g.fillStyle = '#6a2a1e'; g.beginPath(); g.moveTo(-14, -9); g.lineTo(0, -18); g.lineTo(14, -9); g.closePath(); g.fill();   // torre del homenaje
+      [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([sx, sy]) => { const tx = sx * (w / 2), ty = sy * (h / 2); g.fillStyle = '#8a8172'; g.beginPath(); g.arc(tx, ty, 9, 0, 6.3); g.fill(); g.fillStyle = '#6a6256'; g.beginPath(); g.arc(tx, ty, 6.4, 0, 6.3); g.fill(); g.fillStyle = '#a09686'; for (let i = 0; i < 6; i++) { const a = i * 1.047; g.fillRect(tx + Math.cos(a) * 8.5 - 1.2, ty + Math.sin(a) * 8.5 - 1.2, 2.4, 2.4); } });
+      g.fillStyle = '#1c1812'; g.beginPath(); g.moveTo(dir * (w / 2) - dir * 2, -6); g.lineTo(dir * (w / 2) + dir * 2, -6); g.lineTo(dir * (w / 2) + dir * 2, 6); g.lineTo(dir * (w / 2) - dir * 2, 6); g.closePath(); g.fill();
+    }
+    if (f.kind !== 'trench') { const wv = Math.sin(V.t * 4 + f.id) * 2; g.strokeStyle = '#2a2a2e'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(0, -h / 2 - (f.kind === 'fort' ? 20 : 3)); g.lineTo(0, -h / 2 - (f.kind === 'fort' ? 34 : 17)); g.stroke(); g.fillStyle = tcol; g.beginPath(); const fy = -h / 2 - (f.kind === 'fort' ? 34 : 17); g.moveTo(0, fy); g.quadraticCurveTo(7, fy + wv, 14, fy + 1.5); g.lineTo(14, fy + 8); g.quadraticCurveTo(7, fy + 8 + wv, 0, fy + 7); g.fill(); g.fillStyle = 'rgba(255,255,255,.7)'; g.fillRect(1, fy + 3, 12, 1.3); }
+    for (let i = 0; i < f.guns; i++) fortGun(g, dir * (w / 2 - 8), (i - (f.guns - 1) / 2) * Math.min(12, (h - 12) / Math.max(1, f.guns)), dir, hpf);
+    if (hpf < 0.65) { g.strokeStyle = 'rgba(20,14,8,.7)'; g.lineWidth = 1; for (let i = 0; i < Math.ceil((0.65 - hpf) * 10); i++) { const cx = (hash2(f.id, i, 21) - 0.5) * w, cy = (hash2(f.id, i, 22) - 0.5) * h; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + 5, cy + 3); g.lineTo(cx + 3, cy + 8); g.stroke(); } }
+    if (hpf < 0.4) { fortFlame(g, V, -w * 0.2, 2, (0.4 - hpf) * 2.2, f.id); if (hpf < 0.25) fortFlame(g, V, w * 0.22, 0, (0.4 - hpf) * 2, f.id + 5); fortSmoke(g, V, 0, -h / 2, 3, f.id); }
+    { const gn = tacGarrisonOf(b, f).length; if (gn) { g.fillStyle = 'rgba(10,12,16,.85)'; g.fillRect(-14, -h / 2 - 16, 28, 13); g.fillStyle = '#ffe9a8'; g.font = 'bold 10px sans-serif'; g.textAlign = 'center'; g.fillText('👥 ' + gn, 0, -h / 2 - 6); } }
+    g.fillStyle = 'rgba(0,0,0,.6)'; g.fillRect(-w / 2, h / 2 + 7, w, 4); g.fillStyle = hpf > 0.5 ? '#79c35a' : hpf > 0.25 ? '#e0b04a' : '#e8644f'; g.fillRect(-w / 2, h / 2 + 7, w * hpf, 4);
+    if (sel) { g.strokeStyle = '#fff3a0'; g.setLineDash([5, 3]); g.lineWidth = 1.6; g.strokeRect(-w / 2 - 7, -h / 2 - 7, w + 14, h + 14); g.setLineDash([]); }
+    g.restore(); void K;
+  });
+}
+/* ---------- efectos de ambiente del campo ---------- */
+function bvFxUnder(g, V, b) {         // cráteres bajo las unidades
+  (V.craters || []).forEach(c => { g.fillStyle = 'rgba(30,22,14,.35)'; g.beginPath(); g.ellipse(c.x, c.y, c.r * 1.5, c.r, 0, 0, 6.3); g.fill(); g.strokeStyle = 'rgba(190,170,130,.3)'; g.lineWidth = 0.8; g.stroke(); g.fillStyle = 'rgba(20,14,8,.5)'; g.beginPath(); g.ellipse(c.x, c.y, c.r * 0.9, c.r * 0.6, 0, 0, 6.3); g.fill(); });
+}
+function bvFxOver(g, V, b, W, H) {    // resplandor aditivo, viñeta y tinte
+  g.globalCompositeOperation = 'lighter';
+  V.parts.forEach(p => { const k = p.age / p.life; if (p.k === 'boom') { const r = 30 + k * 40, rg = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, r); rg.addColorStop(0, `rgba(255,190,90,${0.5 * (1 - k)})`); rg.addColorStop(1, 'rgba(255,90,20,0)'); g.fillStyle = rg; g.beginPath(); g.arc(p.x, p.y, r, 0, 6.3); g.fill(); } else if (p.k === 'flash' && p.big) { const rg = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, 20); rg.addColorStop(0, `rgba(255,230,160,${0.7 * (1 - k)})`); rg.addColorStop(1, 'rgba(255,150,40,0)'); g.fillStyle = rg; g.beginPath(); g.arc(p.x, p.y, 20, 0, 6.3); g.fill(); } });
+  g.globalCompositeOperation = 'source-over';
+}
+function bvPost(g, V, b) {            // tras restaurar la cámara: viñeta + tinte de la hora del día
+  const W = BV_W, H = BV_H, tint = [[255, 170, 90, 0.085], [0, 0, 0, 0], [255, 120, 70, 0.1], [120, 150, 200, 0.07]][b.id % 4];
+  if (tint[3]) { g.fillStyle = `rgba(${tint[0]},${tint[1]},${tint[2]},${tint[3]})`; g.fillRect(0, 34, W, H - 34); }
+  const vg = g.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, W * 0.62); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.34)'); g.fillStyle = vg; g.fillRect(0, 0, W, H);
+}
+
+/* ===== PANEL DE INICIO: ambiente cinematográfico =====
+   Capa de partículas (ascuas doradas, polvo y bandas de niebla), rayos de luz, viñeta, y un lento giro de la cámara sobre el mapa mientras eliges
+   país. Solo se anima mientras el panel de inicio está visible. */
+function stFxStart() {
+  const root = document.getElementById('start'); if (!root) return;
+  let cv = document.getElementById('stfx'); if (!cv) { cv = document.createElement('canvas'); cv.id = 'stfx'; root.insertBefore(cv, root.firstChild); }
+  if (cv._run) return; cv._run = true;
+  const P = [], fog = [], rays = [];
+  for (let i = 0; i < 90; i++) P.push({x: Math.random(), y: Math.random(), r: 0.6 + Math.random() * 2.2, v: 0.012 + Math.random() * 0.03, d: Math.random() * 6.28, a: 0.25 + Math.random() * 0.6, h: Math.random() < 0.8 ? 42 : 205});
+  for (let i = 0; i < 6; i++) fog.push({x: Math.random(), y: 0.55 + Math.random() * 0.45, w: 0.35 + Math.random() * 0.4, v: (Math.random() < 0.5 ? -1 : 1) * (0.004 + Math.random() * 0.006), a: 0.05 + Math.random() * 0.07});
+  for (let i = 0; i < 4; i++) rays.push({x: 0.45 + Math.random() * 0.5, w: 0.04 + Math.random() * 0.06, a: 0.025 + Math.random() * 0.03, p: Math.random() * 6.28});
+  let last = performance.now(), yawBase = null, tt = 0;
+  const loop = now => {
+    requestAnimationFrame(loop);
+    if (!document.body.classList.contains('starting') || document.hidden) { yawBase = null; last = now; return; }
+    const dt = Math.min(0.05, (now - last) / 1000); last = now; tt += dt;
+    const w = root.clientWidth, h = root.clientHeight; if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    const g = cv.getContext('2d'); g.clearRect(0, 0, w, h);
+    rays.forEach(r => { const a = r.a * (0.6 + 0.4 * Math.sin(tt * 0.4 + r.p)), x = r.x * w, gr = g.createLinearGradient(x, 0, x - h * 0.45, h); gr.addColorStop(0, `rgba(255,224,160,${a})`); gr.addColorStop(1, 'rgba(255,224,160,0)'); g.fillStyle = gr; g.beginPath(); g.moveTo(x - r.w * w * 0.5, 0); g.lineTo(x + r.w * w * 0.5, 0); g.lineTo(x - h * 0.45 + r.w * w * 1.4, h); g.lineTo(x - h * 0.45 - r.w * w * 0.4, h); g.closePath(); g.fill(); });
+    fog.forEach(f => { f.x += f.v * dt; if (f.x > 1.4) f.x = -0.4; if (f.x < -0.4) f.x = 1.4; const gr = g.createRadialGradient(f.x * w, f.y * h, 0, f.x * w, f.y * h, f.w * w * 0.5); gr.addColorStop(0, `rgba(190,205,225,${f.a})`); gr.addColorStop(1, 'rgba(190,205,225,0)'); g.fillStyle = gr; g.beginPath(); g.ellipse(f.x * w, f.y * h, f.w * w * 0.5, f.w * h * 0.16, 0, 0, 6.3); g.fill(); });
+    g.globalCompositeOperation = 'lighter';
+    P.forEach(p => { p.y -= p.v * dt; p.x += Math.sin(tt * 0.6 + p.d) * 0.004 * dt * 12 + 0.003 * dt; if (p.y < -0.02) { p.y = 1.02; p.x = Math.random(); } const tw = 0.5 + 0.5 * Math.sin(tt * 2.2 + p.d * 3), x = p.x * w, y = p.y * h;
+      const gr = g.createRadialGradient(x, y, 0, x, y, p.r * 4); gr.addColorStop(0, `hsla(${p.h},90%,70%,${p.a * tw})`); gr.addColorStop(1, `hsla(${p.h},90%,60%,0)`); g.fillStyle = gr; g.beginPath(); g.arc(x, y, p.r * 4, 0, 6.3); g.fill(); });
+    g.globalCompositeOperation = 'source-over';
+    // giro lento de la cámara sobre el mapa
+    if (typeof R !== 'undefined' && R.cam) { if (yawBase === null) yawBase = R.cam.yaw; const want = yawBase + Math.sin(tt * 0.08) * 0.22; if (Math.abs(want - R.cam.yaw) < 0.3) { R.cam.yaw += (want - R.cam.yaw) * Math.min(1, dt * 1.5); if (typeof camChanged === 'function') camChanged(); } }
+  };
+  requestAnimationFrame(loop);
+}
+const _buildStart0 = buildStart;
+buildStart = function () { _buildStart0(); stFxStart(); };
+
+/* ===== BANDA SONORA PROCEDURAL (WebAudio, sin archivos) =====
+   Cuatro ambientes que se componen en directo con sintetizadores: MENÚ (majestuoso, re menor), PAZ (pastoral, sol mayor), GUERRA (marcha
+   sombría, la menor) y BATALLA (tensa y rápida, mi menor). Cambian solos según lo que ocurre: pantalla de inicio, paz, guerra o batalla abierta.
+   Además hay efectos de sonido (cañón, descargas de fusilería, corneta). El botón 🎵 de la barra superior activa o silencia todo
+   y la rueda de volumen cambia el nivel. Se guarda la preferencia. */
+const MUS = {ctx: null, master: null, bus: null, rev: null, nb: null, mood: null, layer: null, timer: 0, on: true, vol: 0.55, sfxT: {}, gens: 0};
+try { const s = JSON.parse(localStorage.getItem('vic_mus') || 'null'); if (s) { MUS.on = s.on !== false; MUS.vol = typeof s.vol === 'number' ? s.vol : 0.55; } } catch (e) { }
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+function musInit() {
+  if (MUS.ctx) { if (MUS.ctx.state === 'suspended') MUS.ctx.resume(); return !!MUS.ctx; }
+  const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
+  const c = MUS.ctx = new AC(), comp = c.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 3.5;
+  MUS.master = c.createGain(); MUS.master.gain.value = MUS.on ? MUS.vol : 0; MUS.master.connect(comp); comp.connect(c.destination);
+  // reverberación sintética (ruido con caída exponencial)
+  const len = c.sampleRate * 2.8, ir = c.createBuffer(2, len, c.sampleRate); for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6); }
+  MUS.rev = c.createConvolver(); MUS.rev.buffer = ir; const rg = c.createGain(); rg.gain.value = 0.42; MUS.rev.connect(rg); rg.connect(MUS.master);
+  MUS.bus = c.createGain(); MUS.bus.gain.value = 1; MUS.bus.connect(MUS.master); MUS.bus.connect(MUS.rev);
+  const nb = c.createBuffer(1, c.sampleRate, c.sampleRate), d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; MUS.nb = nb;
+  if (!MUS.timer) MUS.timer = setInterval(musTick, 1000); musTick(); return true;
+}
+/* ---------- instrumentos ---------- */
+function mOsc(L, f, t, dur, o) {
+  const c = MUS.ctx, g = c.createGain(), fl = c.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = o.lp || 2000; if (o.lpEnd) { fl.frequency.setValueAtTime(o.lp || 2000, t); fl.frequency.linearRampToValueAtTime(o.lpEnd, t + dur); }
+  const a = o.att || 0.02, r = o.rel || 0.3, pk = o.gain || 0.1; g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(pk, t + a); g.gain.setValueAtTime(pk, Math.max(t + a, t + dur - r)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur + r * 0.5);
+  (o.det || [0]).forEach(dt => { const s = c.createOscillator(); s.type = o.type || 'sawtooth'; s.frequency.value = f; s.detune.value = dt; if (o.vib) { const l = c.createOscillator(), lg = c.createGain(); l.frequency.value = 5.2; lg.gain.value = o.vib; l.connect(lg); lg.connect(s.detune); l.start(t); l.stop(t + dur + 1); } s.connect(fl); s.start(t); s.stop(t + dur + (o.rel || 0.3) + 0.2); });
+  fl.connect(g); g.connect(L);
+}
+function mNoise(L, t, dur, o) {
+  const c = MUS.ctx, s = c.createBufferSource(), fl = c.createBiquadFilter(), g = c.createGain(); s.buffer = MUS.nb; s.loop = true; fl.type = o.type || 'bandpass'; fl.frequency.value = o.f || 1000; fl.Q.value = o.q || 0.8;
+  g.gain.setValueAtTime(o.att ? 0.0001 : (o.gain || 0.1), t); if (o.att) g.gain.linearRampToValueAtTime(o.gain || 0.1, t + o.att); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); s.connect(fl); fl.connect(g); g.connect(L); s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.05);
+}
+function mTimp(L, t, g) { const c = MUS.ctx, o = c.createOscillator(), gg = c.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(52, t + 0.25); gg.gain.setValueAtTime(g, t); gg.gain.exponentialRampToValueAtTime(0.0001, t + 0.9); o.connect(gg); gg.connect(L); o.start(t); o.stop(t + 1); mNoise(L, t, 0.12, {type: 'lowpass', f: 380, gain: g * 0.9}); }
+function mSnare(L, t, g) { mNoise(L, t, 0.13, {type: 'highpass', f: 1800, gain: g}); const c = MUS.ctx, o = c.createOscillator(), gg = c.createGain(); o.type = 'triangle'; o.frequency.value = 190; gg.gain.setValueAtTime(g * 0.6, t); gg.gain.exponentialRampToValueAtTime(0.0001, t + 0.1); o.connect(gg); gg.connect(L); o.start(t); o.stop(t + 0.15); }
+const pad = (L, notes, t, dur, g, lp) => notes.forEach(n => mOsc(L, mtof(n), t, dur, {type: 'sawtooth', det: [-7, 6], lp: lp || 900, att: Math.min(1.4, dur * 0.4), rel: 0.9, gain: g}));
+const pluck = (L, n, t, g) => mOsc(L, mtof(n), t, 0.35, {type: 'triangle', lp: 3200, att: 0.005, rel: 0.5, gain: g});
+const horn = (L, n, t, dur, g) => mOsc(L, mtof(n), t, dur, {type: 'sawtooth', det: [-4, 4], lp: 500, lpEnd: 1700, att: 0.12, rel: 0.25, gain: g, vib: 5});
+const flute = (L, n, t, dur, g) => mOsc(L, mtof(n), t, dur, {type: 'sine', det: [0], lp: 4000, att: 0.06, rel: 0.2, gain: g, vib: 7});
+const bassN = (L, n, t, dur, g) => mOsc(L, mtof(n), t, dur, {type: 'sawtooth', det: [0], lp: 260, att: 0.03, rel: 0.2, gain: g});
+const strg = (L, n, t, dur, g) => mOsc(L, mtof(n), t, dur, {type: 'sawtooth', det: [-9, 9], lp: 1500, att: 0.015, rel: 0.1, gain: g});
+/* ---------- partituras: 4 compases por vuelta; [corchea, nota MIDI, duración en corcheas] ---------- */
+const MOODS = {
+  menu: {bpm: 76, bars: [
+    {bass: 38, pad: [50, 53, 57, 62], mel: [[0, 69, 4], [4, 74, 2], [6, 72, 2]]}, {bass: 34, pad: [46, 50, 53, 58], mel: [[0, 70, 4], [4, 74, 3], [7, 72, 1]]},
+    {bass: 41, pad: [53, 57, 60, 65], mel: [[0, 72, 3], [3, 69, 1], [4, 77, 4]]}, {bass: 36, pad: [48, 52, 55, 60], mel: [[0, 76, 2], [2, 74, 2], [4, 72, 4]]}]},
+  paz: {bpm: 84, bars: [
+    {bass: 43, pad: [55, 59, 62, 67], mel: [[0, 71, 2], [2, 74, 2], [4, 79, 3], [7, 78, 1]]}, {bass: 38, pad: [50, 54, 57, 62], mel: [[0, 74, 2], [2, 78, 2], [4, 76, 4]]},
+    {bass: 40, pad: [52, 55, 59, 64], mel: [[0, 71, 2], [2, 76, 2], [4, 79, 3], [7, 76, 1]]}, {bass: 36, pad: [48, 52, 55, 60], mel: [[0, 72, 2], [2, 76, 2], [4, 74, 4]]}]},
+  guerra: {bpm: 96, bars: [
+    {bass: 33, pad: [45, 48, 52, 57], mel: [[0, 69, 3], [3, 72, 1], [4, 76, 4]]}, {bass: 41, pad: [53, 57, 60, 65], mel: [[0, 77, 3], [3, 76, 1], [4, 72, 4]]},
+    {bass: 38, pad: [50, 53, 57, 62], mel: [[0, 74, 3], [3, 77, 1], [4, 76, 4]]}, {bass: 40, pad: [52, 56, 59, 64], mel: [[0, 71, 2], [2, 76, 2], [4, 80, 4]]}]},
+  batalla: {bpm: 132, bars: [
+    {bass: 40, pad: [52, 55, 59, 64], mel: [[0, 76, 2], [2, 79, 2], [4, 83, 3], [7, 81, 1]]}, {bass: 36, pad: [48, 52, 55, 60], mel: [[0, 79, 2], [2, 76, 2], [4, 84, 4]]},
+    {bass: 38, pad: [50, 54, 57, 62], mel: [[0, 78, 2], [2, 81, 2], [4, 85, 3], [7, 83, 1]]}, {bass: 40, pad: [52, 55, 59, 64], mel: [[0, 83, 2], [2, 79, 2], [4, 76, 4]]}]}
+};
+function musBar(L, mood, bar, t, e) {       // e = duración de una corchea
+  const M = MOODS[mood], B = M.bars[bar % 4], n8 = (k) => t + k * e, dur = e * 8;
+  if (mood === 'menu') {
+    pad(L, B.pad, t, dur, 0.05, 800); bassN(L, B.bass, t, dur, 0.1); B.mel.forEach(([k, n, l]) => horn(L, n, n8(k), l * e, 0.07));
+    for (let k = 0; k < 8; k++) pluck(L, B.pad[k % 4] + 12, n8(k), 0.035);
+    if (bar % 2 === 0) mTimp(L, t, 0.35); if (bar % 4 === 0) mNoise(L, t, 2.2, {type: 'bandpass', f: 3500, q: 0.5, gain: 0.025, att: 1.6});
+  } else if (mood === 'paz') {
+    pad(L, B.pad, t, dur, 0.035, 1100); bassN(L, B.bass, t, dur, 0.07); B.mel.forEach(([k, n, l]) => flute(L, n, n8(k), l * e, 0.07));
+    [0, 3, 5, 7].forEach((k, i) => pluck(L, B.pad[i % 4] + 12, n8(k), 0.04));
+  } else if (mood === 'guerra') {
+    pad(L, B.pad, t, dur, 0.04, 700); for (let k = 0; k < 8; k++) bassN(L, B.bass + (k % 4 === 3 ? 7 : 0), n8(k), e * 0.9, 0.09);
+    B.mel.forEach(([k, n, l]) => horn(L, n - 12, n8(k), l * e, 0.08)); mTimp(L, t, 0.5); mTimp(L, n8(4), 0.42); [2, 6, 7].forEach(k => mSnare(L, n8(k), 0.06 + (k === 7 ? 0.03 : 0)));
+  } else {
+    pad(L, B.pad, t, dur, 0.04, 900); for (let k = 0; k < 16; k++) strg(L, B.bass + 12 + (k % 8 === 7 ? 7 : 0), t + k * e / 2, e * 0.45, 0.05);
+    B.mel.forEach(([k, n, l]) => strg(L, n, n8(k), l * e, 0.045)); [0, 4].forEach(k => horn(L, B.bass + 24, n8(k), e * 1.5, 0.07)); for (let k = 0; k < 4; k++) mTimp(L, n8(k * 2), 0.5);
+    [1, 3, 5, 7].forEach(k => mSnare(L, n8(k), 0.07)); if (bar % 4 === 3) for (let k = 0; k < 8; k++) mSnare(L, n8(6) + k * e / 4, 0.03 + k * 0.006);
+  }
+}
+/* ---------- ambiente actual y cambios ---------- */
+function musMoodNow() {
+  if (document.body.classList.contains('starting')) return 'menu';
+  if (UI.battle && typeof G !== 'undefined' && G.battles && G.battles.some(b => b.id === UI.battle)) return 'batalla';
+  const c = G.C && G.C[G.player]; return c && c.wars && c.wars.length ? 'guerra' : 'paz';
+}
+function musSet(mood) {
+  if (!MUS.ctx || MUS.mood === mood) return; const c = MUS.ctx, now = c.currentTime;
+  if (MUS.layer) { const old = MUS.layer; old.gain.cancelScheduledValues(now); old.gain.setValueAtTime(old.gain.value, now); old.gain.linearRampToValueAtTime(0.0001, now + 2.2); setTimeout(() => { try { old.disconnect(); } catch (e) { } }, 3200); }
+  const L = c.createGain(); L.gain.setValueAtTime(0.0001, now); L.gain.linearRampToValueAtTime(1, now + 2.4); L.connect(MUS.bus); MUS.layer = L; MUS.mood = mood; MUS.next = now + 0.2; MUS.bar = 0; MUS.gen = ++MUS.gens;
+}
+function musSched() {
+  if (!MUS.ctx || !MUS.layer || !MUS.on) return; const c = MUS.ctx, M = MOODS[MUS.mood], e = 60 / M.bpm / 2;
+  while (MUS.next < c.currentTime + 1.5) { try { musBar(MUS.layer, MUS.mood, MUS.bar, MUS.next, e); } catch (er) { } MUS.next += e * 8; MUS.bar++; }
+}
+function musTick() { if (!MUS.ctx) return; musSet(musMoodNow()); musSched(); }
+setInterval(() => { if (MUS.ctx && MUS.on) musSched(); }, 250);
+/* ---------- efectos de sonido (con límite de frecuencia) ---------- */
+function sfxOk(k, ms) { const n = performance.now(); if (n - (MUS.sfxT[k] || 0) < ms) return false; MUS.sfxT[k] = n; return true; }
+const SFX = {
+  cannon: (v = 1) => { if (!MUS.ctx || !MUS.on || !sfxOk('cannon', 140)) return; const t = MUS.ctx.currentTime; mTimp(MUS.bus, t, 0.5 * v); mNoise(MUS.bus, t, 0.5, {type: 'lowpass', f: 700, gain: 0.35 * v}); },
+  boom: (v = 1) => { if (!MUS.ctx || !MUS.on || !sfxOk('boom', 120)) return; const t = MUS.ctx.currentTime; mNoise(MUS.bus, t, 0.7, {type: 'lowpass', f: 420, gain: 0.3 * v}); mTimp(MUS.bus, t, 0.28 * v); },
+  volley: (v = 1) => { if (!MUS.ctx || !MUS.on || !sfxOk('volley', 220)) return; const t = MUS.ctx.currentTime; for (let i = 0; i < 4; i++) mNoise(MUS.bus, t + i * 0.025 + Math.random() * 0.04, 0.1, {type: 'bandpass', f: 1500 + Math.random() * 1200, q: 0.7, gain: 0.09 * v}); },
+  bugle: () => { if (!MUS.ctx || !MUS.on || !sfxOk('bugle', 2500)) return; const t = MUS.ctx.currentTime; [[67, 0, 0.18], [72, 0.2, 0.18], [76, 0.4, 0.5]].forEach(([n, d, l]) => mOsc(MUS.bus, mtof(n), t + d, l, {type: 'sawtooth', det: [-3, 3], lp: 1800, att: 0.02, rel: 0.12, gain: 0.07})); },
+  click: () => { if (!MUS.ctx || !MUS.on || !sfxOk('click', 60)) return; mOsc(MUS.bus, 1400, MUS.ctx.currentTime, 0.04, {type: 'triangle', lp: 4000, att: 0.002, rel: 0.05, gain: 0.04}); }
+};
+/* ---------- control: botón 🎵 y primer gesto del usuario ---------- */
+function musSave() { try { localStorage.setItem('vic_mus', JSON.stringify({on: MUS.on, vol: MUS.vol})); } catch (e) { } }
+function musApply() { if (MUS.master) MUS.master.gain.setTargetAtTime(MUS.on ? MUS.vol : 0, MUS.ctx.currentTime, 0.2); document.querySelectorAll('.sndbtn').forEach(b => { b.classList.toggle('muted', !MUS.on); b.dataset.tip = `<b>Música y sonido</b><br>${MUS.on ? 'Activados' : 'Silenciados'} · volumen ${Math.round(MUS.vol * 100)}%<br><small>Clic: ${MUS.on ? 'silenciar' : 'activar'} · clic derecho: cambiar volumen</small>`; b.textContent = MUS.on ? '🎵' : '🔇'; }); }
+Object.assign(ACT, {
+  music: () => { musInit(); MUS.on = !MUS.on; musSave(); musApply(); if (MUS.on) { MUS.mood = null; musTick(); } },
+  musvol: () => { musInit(); MUS.vol = MUS.vol >= 0.9 ? 0.2 : Math.round((MUS.vol + 0.2) * 10) / 10; MUS.on = true; musSave(); musApply(); toast('🎵', `Volumen ${Math.round(MUS.vol * 100)}%`); }
+});
+['pointerdown', 'keydown'].forEach(ev => window.addEventListener(ev, () => { if (!MUS.ctx && MUS.on) { musInit(); musApply(); } else if (MUS.ctx && MUS.ctx.state === 'suspended') MUS.ctx.resume(); }, {capture: true}));
+document.addEventListener('contextmenu', e => { const b = e.target.closest && e.target.closest('.sndbtn'); if (b) { e.preventDefault(); ACT.musvol(); } });
+setInterval(() => { document.querySelectorAll('.sndbtn').forEach(b => { if (!b._m) { b._m = 1; musApply(); } }); }, 800);
 
 /* ===== MARISCALES Y PLANES DE BATALLA =====
    Un mariscal manda un grupo de ejércitos (o un frente completo) y aporta bonificaciones de planificación: cuanto mejor es, antes está
@@ -12828,7 +13139,7 @@ const MANUAL = [
 <h4>✈️ Aviación (Era 3, hacia 1905-1915)</h4><p>Con <b>Aviación Militar</b> (≈1903) se desbloquean las <b>Fábricas Aeronáuticas</b> (acero, motores y tela; los motores salen de las Fábricas de Motores, tecnología Motor de Combustión). <b>Cazas</b> (≈1910) y <b>Bombarderos</b> (≈1911) permiten formar <b>escuadrones</b> de hasta 100 aviones con el inventario nacional (línea de producción de aviones). Se despliegan en <b>regiones aéreas</b> (grupos de estados vecinos) con una misión: <b>superioridad aérea</b> (hasta +25% de ataque terrestre para quien domina el cielo de la región), <b>apoyo cercano</b> (daño directo al enemigo en las batallas de la región), <b>bombardeo estratégico</b> (reduce la producción de los edificios del estado enemigo) o <b>intercepción</b>. Los escuadrones pierden aviones en el combate aéreo y se refuerzan desde el inventario. Con un escuadrón en una región también ves los ejércitos enemigos de esa región (reconocimiento aéreo).</p>
 <h4>⚙️ Preparación de la batalla y órdenes tácticas</h4><p>Al empezar una batalla en la que participas, el combate se <b>detiene</b> y se abre el panel: es la <b>fase de preparación</b>. Arrastra tus bloques por tu mitad del campo (zona punteada), levanta <b>trincheras, reductos y baterías</b> con las reservas de tu ejército (madera, materiales y pólvora) y añade <b>cañones</b>. Si la provincia tiene un <b>fuerte</b>, el defensor lo usa: sitúa tus unidades junto a él. Colocar bien (artillería detrás, caballería en las alas, tropas en colinas, bosques o dentro de las obras) da bonos reales de ataque y defensa; las obras se pueden destruir a cañonazos. Pulsa <b>¡Comenzar la batalla!</b> cuando estés listo.</p><p>En pleno combate selecciona un bloque y dibuja su <b>plan</b>: ➡️ atacar un punto, 🎯 un bloque enemigo concreto, ↪️ flanqueo por puntos de paso, 🛡️ línea defensiva o ↩️ retirada. Clic derecho cancela el dibujo y puedes cambiar los planes cuando quieras. La <b>velocidad</b> (⏸ pausa táctica, ×0,25, ×0,5, ×1) permite gestionar el combate en cámara lenta. El <b>cansancio y la moral</b> importan: tropas agotadas o desmoralizadas rompen filas ante una carga de caballería (se resisten mejor en cuadro, tras obras o en terreno cubierto).</p>
 <h4>📦 Suministros y rutas de abastecimiento</h4><p>Cada ejército lleva <b>comida, agua, pólvora, madera y materiales de fortificación</b>. Se gastan cada día (más al marchar, en el desierto o combatiendo) y <b>solo se reponen si hay una ruta de suministro segura</b> hasta un centro propio: sin tropas enemigas ni territorio ocupado por el camino. Activa <b>📦 Rutas</b> en el panel del ejército para verlas en el mapa (verde = segura, roja = cortada). Sin comida ni agua el ejército pierde fuerza y organización; sin pólvora dispara a medias; sin madera y materiales no puede fortificar.</p><p><b>Convoyes y depósitos:</b> lejos de su centro de suministro, cada ejército recibe un 🚚 <b>convoy</b> cada pocos días que recorre la ruta provincia a provincia. Si en su camino hay tropas enemigas y ninguna fuerza amiga lo escolta en esa provincia, el convoy es <b>capturado</b> (el enemigo se queda parte del botín). Protégelo situando un ejército en la ruta. Con <b>📦 Depósito</b> (panel del ejército) construyes un centro de suministro avanzado en una provincia propia (máx. 4, cuesta unos meses de ingresos); si el enemigo lo ocupa sin oposición lo <b>saquea</b>, y puedes <b>incendiarlo</b> antes para no dejarle nada.</p><p><b>Artillería:</b> cada batería tiene un <b>alcance real</b> (mayor con el tiempo y en colinas), elige objetivos (primero cargas inminentes, y con frecuencia la <b>artillería enemiga</b>: contrabatería) y puede ser <b>silenciada</b> si pierde sus cañones o servidores. Selecciona una batería y pulsa <b>🔇 Contrabatería</b> para apuntar a la más cercana, o dale un plan de <b>🎯 Objetivo</b>.</p>
-<h4>⚓ Marina de guerra</h4><p>Los buques se construyen en <b>Astilleros</b> (estados con puerto) con el tonelaje de la línea de <b>Buques</b>: fragata de vela (1836), fragata de vapor (≈1850), acorazado (≈1860), crucero (≈1895), submarino (≈1900) y acorazado <i>dreadnought</i> (≈1906). Las <b>flotas</b> navegan por <b>zonas marítimas</b> con un almirante y una misión: <b>patrulla</b>, <b>bloqueo</b> (corta ingresos y suministro por mar del rival y suma hasta ±22 puntos de guerra), <b>escolta de convoyes</b> (protege tu comercio) e <b>incursión</b> (daña el comercio enemigo). Las batallas navales son automáticas. Para <b>desembarcar</b> sin pérdidas tus transportes necesitan que el enemigo no domine las zonas de origen y destino: si lo hace, el ejército pierde fuerza cada día en el mar.</p>
+<h4>🎵 Música y sonido</h4><p>La <b>banda sonora</b> se compone en directo y cambia sola: tema majestuoso en el menú, pastoral en paz, marcha sombría en guerra y percusión tensa durante las batallas. En el campo de batalla suenan cañonazos, descargas de fusilería y cornetas. El botón <b>🎵</b> (barra superior y pantalla de inicio) silencia o activa todo; con <b>clic derecho</b> cambias el volumen. Se recuerda tu preferencia.</p><h4>⚓ Marina de guerra</h4><p>Los buques se construyen en <b>Astilleros</b> (estados con puerto) con el tonelaje de la línea de <b>Buques</b>: fragata de vela (1836), fragata de vapor (≈1850), acorazado (≈1860), crucero (≈1895), submarino (≈1900) y acorazado <i>dreadnought</i> (≈1906). Las <b>flotas</b> navegan por <b>zonas marítimas</b> con un almirante y una misión: <b>patrulla</b>, <b>bloqueo</b> (corta ingresos y suministro por mar del rival y suma hasta ±22 puntos de guerra), <b>escolta de convoyes</b> (protege tu comercio) e <b>incursión</b> (daña el comercio enemigo). Las batallas navales son automáticas. Para <b>desembarcar</b> sin pérdidas tus transportes necesitan que el enemigo no domine las zonas de origen y destino: si lo hace, el ejército pierde fuerza cada día en el mar.</p>
 <h4>👁️ Marina visible</h4><p>Las flotas aparecen en el mapa como fichas con bandera (⚓ nº de buques y su misión) y, con el zoom cerca, como buques en 3D. Las fichas de otros países solo se ven si compartes zona con ellos o tienen una batalla. Si hay combate la ficha parpadea con ⚔: púlsala para abrir el <b>visor de batalla naval</b>, donde ves las dos líneas cañoneándose, los incendios y los hundimientos; el tiempo corre despacio mientras lo miras (botón para pausar o continuar).</p>
 <h4>🎖️ Doctrinas y experiencia</h4><p>Ganas <b>experiencia terrestre</b> combatiendo y entrenando (modo Entrenar), y experiencia <b>naval</b> y <b>aérea</b> con sus misiones y batallas. Con ella compras escalones de un árbol de doctrinas de <b>ramas excluyentes</b>: terrestres (<i>defensa en profundidad</i>, <i>ofensiva móvil</i>, <i>fuego superior</i>, <i>movilización de masas</i>), aéreas (<i>superioridad aérea</i> o <i>bombardeo estratégico</i>) y navales (<i>flota de batalla</i> o <i>guerra de corso</i>). Cada escalón está disponible desde un año concreto.</p>
 <h4>📐 Plantillas de división</h4><p>Diseña divisiones combinando hasta 9 batallones: infantería de línea, caballería, artillería, ingenieros (fortifican más rápido) y, con tecnología, <b>ametralladoras</b>, <b>infantería motorizada</b> y <b>blindados</b>. Cada plantilla calcula ataque, defensa, organización, velocidad, <b>anchura de combate</b> (las divisiones estrechas dejan combatir a más a la vez), coste y equipo. Se reclutan desde Reclutamiento. La IA tiene plantillas predefinidas que actualiza según su tecnología.</p>

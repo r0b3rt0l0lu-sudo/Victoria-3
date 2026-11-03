@@ -370,11 +370,12 @@ function tacArtFire(V, b, blk, dt, all) {
   if (!tgt) { const hot = inR.filter(o => (o.mode === 'gallop' || o.mode === 'charge' || o.mode === 'melee') && dist(o) < 190); const lines = inR.filter(o => o.role !== 'reserve'); tgt = hot.length ? nearest(hot) : lines.length ? nearest(lines) : nearest(inR); }
   blk.cd = (heavy ? rnd(0.9, 1.5) : rnd(3, 5)) * (ctr ? 0.65 : 1); blk.tgt = tgt;
   const gn = guns[Math.floor(Math.random() * guns.length)], fg = pickFoeFig(tgt), tx = (fg ? fg.x : tgt.x) + rnd(-14, 14), ty = (fg ? fg.y : tgt.y) + rnd(-14, 14);
-  bvPart(V, {k: 'shell', x: gn.x, y: gn.y, x2: tx, y2: ty, life: 0.55 + dist(tgt) / 520, s: blk.side, vt: tgt.id, ctr, stag: blk.tag}); gn.recoil = 1; bvPart(V, {k: 'flash', x: gn.x + Math.cos(blk.hd) * 12, y: gn.y + Math.sin(blk.hd) * 12, life: 0.14, big: 1});
+  bvPart(V, {k: 'shell', x: gn.x, y: gn.y, x2: tx, y2: ty, life: 0.55 + dist(tgt) / 520, s: blk.side, vt: tgt.id, ctr, stag: blk.tag}); gn.recoil = 1; bvPart(V, {k: 'flash', x: gn.x + Math.cos(blk.hd) * 12, y: gn.y + Math.sin(blk.hd) * 12, life: 0.14, big: 1}); if (typeof SFX !== 'undefined') SFX.cannon(0.8);
   for (let n = 0; n < 3; n++) bvPart(V, {k: 'smoke', x: gn.x + Math.cos(blk.hd) * 12, y: gn.y + Math.sin(blk.hd) * 12, life: 2.2, r: 5, vx: dir * 8 + V.wind * 0.5 + rnd(-4, 4)});
 }
 // impacto de un proyectil sobre un bloque: daño real y, contra artillería, bajas de piezas y servidores
 function tacShellHit(V, b, p, all) {
+  if (typeof SFX !== 'undefined') SFX.boom(0.8); V.shake = Math.min(5, (V.shake || 0) + 1.3);
   const v = all.find(x => x.id === p.vt); if (!v || v.mode === 'rout') return; const org = DIVS[v.d.t].org;
   if (v.type === 'art') {
     const cands = v.figs.filter(q => q.alive && !q.flee); if (cands.length && Math.random() < (p.ctr ? 0.5 : 0.3)) { const guns = cands.filter(q => q.kind === 'gun'), pool = guns.length && Math.random() < 0.45 ? guns : cands; bvKill(V, v, pool[Math.floor(Math.random() * pool.length)]); }

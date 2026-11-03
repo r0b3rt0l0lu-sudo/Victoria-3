@@ -105,6 +105,7 @@ function buildHud() {
     <button class="rbtn" data-act="load" data-tip="<b>Cargar partida</b>">📂</button>
     <button class="rbtn" data-act="win" data-w="journal" data-tip="<b>Diario</b><br>Objetivos y registro de sucesos.">📜</button>
     <button class="rbtn" data-act="win" data-w="manual" data-tip="<b>Manual</b><br>Guía de todos los sistemas. <small>F1</small>">📖</button>
+    <button class="rbtn sndbtn" data-act="music" id="btn-music" data-tip="<b>Música y sonido</b>">🎵</button>
     <button class="rbtn home" data-act="gomenu" data-tip="<b>Menú principal</b><br>Salir a la pantalla de inicio.">🚪</button>
   </div>
   <div id="menu">
@@ -961,7 +962,7 @@ function buildStart() {
   $('#start').innerHTML = `
   <div class="st-inner">
     <div class="st-left">
-      <div class="st-logo"><small>UNA RÉPLICA DE FANS</small><h1>VICTORIA</h1><div class="orn"></div><h3>Una era de revolución</h3></div>
+      <button class="sndbtn st-snd" data-act="music" data-tip="<b>Música y sonido</b>">🎵</button><div class="st-logo"><small>UNA RÉPLICA DE FANS</small><h1>VICTORIA</h1><div class="orn"></div><h3>Una era de revolución</h3></div>
       ${typeof scenBarHtml === 'function' ? scenBarHtml() : ''}
       <input id="stq" class="search" placeholder="🔍 Buscar país…" autocomplete="off">
       <div class="st-list" id="st-list">${picks.map(t => { const c = G.C[t]; const d = difficulty(t); return `<div class="st-card" data-act="pickc" data-tag="${t}">${flag(t, 'md')}<div><b>${c.name}</b><small>${c.gov}</small></div><span class="diff ${d[1]}">${d[0]}</span></div>`; }).join('')}</div>

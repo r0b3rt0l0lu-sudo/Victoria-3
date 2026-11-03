@@ -54,6 +54,7 @@ function bvPart(V, p) { if (V.parts.length < 900) V.parts.push(Object.assign({ag
 function bvBanner(V, text, side, icon) { V.banner = {text, side, icon, age: 0}; }
 const EV_NAME = {gas: 'Ataque con gas', charge: '¡Carga desesperada!', cav: 'Carga de caballería', barrage: 'Cañoneo', flank: 'Flanqueo', panic: 'Pánico', reinf: 'Refuerzos', rain: 'Lluvia'};
 function bvEvent(V, b, kind, side) {
+  if (typeof SFX !== 'undefined' && (kind === 'cav' || kind === 'charge' || kind === 'flank')) SFX.bugle();
   bvBanner(V, `${EV_NAME[kind] || kind} · ${G.C[(side === 'A' ? b.A0 : b.B0)].name}`, side, EV_ICON[kind]);
   if (kind === 'charge') V.boost[side] = 2.6;
   else if (kind === 'cav') V.man[side] = {kind: 'gallop', t: 0, dur: 3.4};
@@ -259,7 +260,7 @@ function bvFire(V, b, blk, dt, foes) {
   while (blk.fireAcc > 1) { blk.fireAcc--;
     const front = alive.filter(f => f.kind === 'sol' && Math.floor(f.k / blk.F.cols) <= 1), pool = front.length ? front : alive, u = pool[Math.floor(Math.random() * pool.length)], tg = pickFoeFig(foe); if (!tg) break;
     const ca = Math.cos(blk.hd), sa = Math.sin(blk.hd);
-    bvPart(V, {k: 'flash', x: u.x + ca * 5, y: u.y + sa * 5, life: 0.1, big: blk.type === 'tank' ? 1 : 0}); bvPart(V, {k: 'smoke', x: u.x + ca * 7, y: u.y + sa * 7 - 1, life: 1.7, r: 3, vx: dir * 5 + V.wind * 0.6}); bvPart(V, {k: 'tracer', x: u.x, y: u.y, x2: tg.x, y2: tg.y + rnd(-3, 3), life: 0.08}); u.flash = 0.12; }
+    bvPart(V, {k: 'flash', x: u.x + ca * 5, y: u.y + sa * 5, life: 0.1, big: blk.type === 'tank' ? 1 : 0}); bvPart(V, {k: 'smoke', x: u.x + ca * 7, y: u.y + sa * 7 - 1, life: 1.7, r: 3, vx: dir * 5 + V.wind * 0.6}); bvPart(V, {k: 'tracer', x: u.x, y: u.y, x2: tg.x, y2: tg.y + rnd(-3, 3), life: 0.08}); u.flash = 0.12; if (typeof SFX !== 'undefined') SFX.volley(); }
 }
 function pickFoeFig(blk) { const l = blk.figs.filter(f => f.alive); return l.length ? l[Math.floor(Math.random() * l.length)] : null; }
 /* ---------- bucle ---------- */
@@ -276,7 +277,7 @@ function bvFrame(V, b, ctx, now) {
   }
   if (V.over) V.over.t += dt;
   ['A', 'B'].forEach(s => { if (V.boost[s] > 0) V.boost[s] -= dt; if (V.panic[s] > 0) V.panic[s] -= dt; if (V.salvo[s] > 0) V.salvo[s] -= dt; if (V.man[s]) { V.man[s].t += dt; if (V.man[s].t > V.man[s].dur) V.man[s] = null; } });
-  if (V.rain > 0) V.rain -= dt;
+  if (V.rain > 0) V.rain -= dt; if (V.shake > 0) V.shake = Math.max(0, V.shake - dt * 6);
   if (V.gas) { V.gas.t += dt; const gs = V.gas.side, gd = gs === 'A' ? 1 : -1, x0 = BV_W / 2 + V.adv * 100; if (Math.random() < dt * 22) bvPart(V, {k: 'gas', x: x0 - gd * 90 + rnd(-20, 20), y: rnd(50, BV_H - 36), life: 6, r: rnd(14, 24), vx: gd * rnd(16, 26)}); if (V.gas.t > V.gas.dur) V.gas = null; }
   V.tf = battleTerrain(b);
   const lines = {A: bvLine(V, b, 'A'), B: bvLine(V, b, 'B')}, all = [...V.blocks.values()];
@@ -292,7 +293,7 @@ function bvFrame(V, b, ctx, now) {
   // partículas
   V.parts.forEach(p => { p.age += dt; if (p.k === 'smoke') { p.x += (p.vx || 0) * dt; p.y -= 6 * dt; } if (p.k === 'dust') { p.y -= 4 * dt; p.x += V.wind * 0.3 * dt; }
     if (p.k === 'gas') { p.x += p.vx * dt; p.y += Math.sin(p.age * 1.4 + p.x * 0.02) * 4 * dt; }
-    if (p.k === 'shell' && p.age >= p.life && !p.hit) { p.hit = true; if (p.vt && typeof tacShellHit === 'function') tacShellHit(V, b, p, all); bvPart(V, {k: 'boom', x: p.x2, y: p.y2, life: 0.6}); bvPart(V, {k: 'smoke', x: p.x2, y: p.y2, life: 2.8, r: 7, vx: rnd(-5, 5) + V.wind * 0.5});
+    if (p.k === 'shell' && p.age >= p.life && !p.hit) { p.hit = true; (V.craters = V.craters || []).push({x: p.x2, y: p.y2, r: 2.5 + Math.random() * 3}); if (V.craters.length > 90) V.craters.shift(); if (p.vt && typeof tacShellHit === 'function') tacShellHit(V, b, p, all); bvPart(V, {k: 'boom', x: p.x2, y: p.y2, life: 0.6}); bvPart(V, {k: 'smoke', x: p.x2, y: p.y2, life: 2.8, r: 7, vx: rnd(-5, 5) + V.wind * 0.5});
       for (let n = 0; n < 5; n++) bvPart(V, {k: 'spark', x: p.x2 + rnd(-8, 8), y: p.y2 + rnd(-8, 8), life: 0.45, hot: 1});
       all.forEach(blk => { if (blk.side === p.s) return; blk.figs.forEach(f => { if (f.alive && !f.flee && Math.hypot(f.x - p.x2, f.y - p.y2) < 26) { f.x += (f.x - p.x2) * 0.45; f.y += (f.y - p.y2) * 0.45; } }); }); } });
   V.parts = V.parts.filter(p => p.age < p.life + (p.k === 'shell' ? 0.05 : 0));
@@ -372,6 +373,7 @@ function bvPlate(g, blk, hover) {
   return P;
 }
 function bvFig(g, V, blk, f) {
+  if (typeof bvFigNew === 'function' && bvFigNew(g, V, blk, f)) return;
   const s = blk.sc, x = f.x, y = f.y, fall = f.dying > 0 ? 1 - f.dying / 0.8 : 0, hd = blk.hd, ca = Math.cos(hd), sa = Math.sin(hd), moving = (blk.sp || 0) > 8 || f.flee > 0, bob = moving ? Math.sin(V.t * 13 + f.ph) * 0.7 : 0, col = blk.color;
   if (fall) g.globalAlpha = 1 - fall * 0.6;
   g.fillStyle = 'rgba(0,0,0,.32)'; g.beginPath(); g.ellipse(x + 0.8, y + 3 * s, 3.6 * s, 1.4 * s, 0, 0, 6.3); g.fill();
@@ -416,12 +418,14 @@ function bvFlag(g, V, blk, over, win) {
 function bvDraw(V, b, g, lines, all) {
   { const k = g.canvas.width / BV_W; g.setTransform(k, 0, 0, k, 0, 0); }
   const W = BV_W, H = BV_H, cam = V.cam;
-  g.save(); g.translate(W / 2, H / 2); g.scale(cam.z, cam.z); g.translate(-cam.x, -cam.y);
+  const shx = V.shake > 0.05 ? (Math.random() - 0.5) * V.shake * 2.2 : 0, shy = V.shake > 0.05 ? (Math.random() - 0.5) * V.shake * 2.2 : 0;
+  g.save(); g.translate(W / 2 + shx, H / 2 + shy); g.scale(cam.z, cam.z); g.translate(-cam.x, -cam.y);
   if (!V.bg) V.bg = bvBuildBg(V, b); g.drawImage(V.bg, 0, 0, W, H);
   // loma de la defensa «en los altos»
   ['A', 'B'].forEach(s => { if (bvStrat(b, s) === 'hold' && !V.tf.hill) { const dir = s === 'A' ? 1 : -1, cx = lines[s] - dir * 34, rg = g.createRadialGradient(cx, H / 2, 10, cx, H / 2, 150); rg.addColorStop(0, 'rgba(210,190,130,.34)'); rg.addColorStop(0.6, 'rgba(120,96,56,.26)'); rg.addColorStop(1, 'rgba(70,52,30,0)'); g.fillStyle = rg; g.beginPath(); g.ellipse(cx, H / 2 + 4, 90, H / 2 - 40, 0, 0, 6.3); g.fill();
     g.strokeStyle = 'rgba(245,225,170,.2)'; g.lineWidth = 1.2; for (let i = 1; i <= 3; i++) { g.beginPath(); g.ellipse(cx, H / 2 + 4, 90 - i * 22, H / 2 - 40 - i * 34, 0, 0, 6.3); g.stroke(); } } });
   bvTrenches(g, V, b, lines);
+  if (typeof bvFxUnder === 'function') bvFxUnder(g, V, b);
   if (typeof tacDrawPrepZone === 'function') { tacDrawPrepZone(g, V, b); tacDrawForts(g, V, b); }
   // línea de contacto
   g.strokeStyle = 'rgba(255,230,150,.16)'; g.setLineDash([5, 7]); g.beginPath(); const mx = (lines.A + lines.B) / 2; g.moveTo(mx, 30); g.lineTo(mx, H - 4); g.stroke(); g.setLineDash([]);
@@ -456,7 +460,9 @@ function bvDraw(V, b, g, lines, all) {
     else if (p.k === 'spark') { g.fillStyle = p.hot ? `rgba(255,${200 - k * 90 | 0},90,${1 - k})` : `rgba(180,255,180,${1 - k})`; g.beginPath(); g.arc(p.x, p.y - k * (p.hot ? 4 : 14), p.hot ? 1.3 : 2.5, 0, 6.3); g.fill(); } });
   V.rings.forEach(r => { const k = r.age / r.life; g.globalAlpha = (k < 0.2 ? k / 0.2 : 1 - (k - 0.2) / 0.8) * 0.7; g.strokeStyle = '#fff3c0'; g.lineWidth = 3; g.beginPath(); g.arc(r.x, r.y, r.r * (0.8 + 0.3 * k), 0, 6.3); g.stroke(); g.globalAlpha = 1; });
   if (V.rain > 0) { g.strokeStyle = 'rgba(180,205,255,.45)'; g.lineWidth = 1; for (let i = 0; i < 90; i++) { const x = ((hash2(i, 3, 9) * W * 1.2 + V.t * 140) % (W + 40)), y = ((hash2(i, 5, 9) * H * 1.2 + V.t * 420) % (H + 20)); g.beginPath(); g.moveTo(x, y); g.lineTo(x - 5, y + 11); g.stroke(); } g.fillStyle = 'rgba(40,60,90,.16)'; g.fillRect(0, 0, W, H); }
+  if (typeof bvFxOver === 'function') bvFxOver(g, V, b, W, H);
   g.restore();
+  if (typeof bvPost === 'function') bvPost(g, V, b);
   bvOverlay(V, b, g, lines, all);
 }
 function bvOverlay(V, b, g, lines, all) {

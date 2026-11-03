@@ -76,3 +76,8 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - Artillería (en `tactica.js`): alcance real, elección de objetivo, contrabatería, baterías silenciadas, botón 🔇.
 - IA v3.1: `aiSidePower` cuenta aliados, bloque y garantes; los aliados inalcanzables entran menos en guerras (reduce cascadas mundiales).
 - `tools/evaluar_ia.js` admite 1836/1910 y mide hambre, rutas cortadas y máximos de guerras y beligerantes simultáneos.
+
+## Sesión: gráficos, efectos y música
+- `src/aspecto.js`: soldados, jinetes, cañones y servidores con más detalle; fuertes con texturas, banderas, daños, fuego y humo; cráteres, resplandor aditivo, viñeta, tinte por hora y temblor al impactar.
+- `src/inicio.js` + CSS: panel de inicio con partículas, niebla, rayos de luz, giro lento de cámara y logo/botones animados.
+- `src/musica.js`: banda sonora procedural WebAudio (menú, paz, guerra, batalla), efectos (cañón, fusilería, corneta) y botón 🎵.

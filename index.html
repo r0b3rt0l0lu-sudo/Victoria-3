@@ -626,6 +626,8 @@ svg.orders text.sdepot{font-size:16px;text-anchor:middle;dominant-baseline:centr
 .prep-b button:hover,.plans-b button:hover{border-color:var(--gold);color:#fff}.prep-b button.on,.plans-b button.on{background:linear-gradient(#8a6f2f,#5b4818);border-color:var(--gold2);color:#fff6d6}
 .plans-b button:disabled{opacity:.4;cursor:default}.plans-b button.fix{background:linear-gradient(#3f7a3f,#2a5a2a);color:#fff}
 .bcam button.go{background:linear-gradient(#c9a64a,#8a6f2f);color:#1a1408;border-color:var(--gold2);font-weight:700}
+
+.marker.depotmk,.marker.convmk{font-size:20px;filter:drop-shadow(0 1px 2px #000);cursor:help;pointer-events:auto}.marker.convmk{font-size:22px}
 </style>
 </head>
 <body>
@@ -3675,6 +3677,7 @@ function recruitSides(w) {
     if (side === 'att' && w.defAll.some(x => anyPactBetween(tag, x, ['alliance', 'nonagg']))) return;
     if (side === 'def' && w.attAll.some(x => anyPactBetween(tag, x, ['alliance']))) return;
     const C = G.C[tag];
+    if (C.ai && tag !== G.player && typeof canReach === 'function' && !canReach(tag, side === 'att' ? w.def : w.att) && !canReach(side === 'att' ? w.def : w.att, tag)) p *= 0.35;       // los aliados lejanos e inalcanzables rara vez entran
     if (Math.random() < p || (!C.ai)) {
       (side === 'att' ? w.attAll : w.defAll).push(tag); C.wars.push(w.id);
       if (tag === G.player) notify('war', `Tu país entra en la guerra del lado de ${side === 'att' ? A.name : D.name}.`);
@@ -4769,10 +4772,10 @@ function cleanupArmies() {
 }
 
 /* ---------- guardado de datos militares ---------- */
-function provSave() { const o = []; G.P.forEach((p, i) => { if (p.by || p.prog || p.fort) o.push([i, p.by, p.prog, p.pby || null, p.fort || 0]); }); return o; }
-function provLoad(list) { initProvinceState(); (list || []).forEach(([i, by, prog, pby, fort]) => { const p = G.P[i]; if (p) { p.by = by; p.prog = prog; p.pby = pby; p.fort = fort; } }); G.occList = (list || []).map(x => x[0]); G.S.forEach(s => refreshStateOcc(s.id)); }
-function saveExtra() { return {battleLog: G.battleLog || [], landings: G.landings || [], nextLand: G.nextLand || 1, shipQ: G.shipQ || [], shipReturns: G.shipReturns || [], beach: G.beach || {}, fronts: G.fronts || [], nextFront: G.nextFront || 1, coals: G.coals || [], nextCoal: G.nextCoal || 1, dcrises: G.dcrises || [], nextDC: G.nextDC || 1, mov: G.movStore || null, mx: typeof mxSave === 'function' ? mxSave() : null, fog: G.fog ? {p: G.fog.p, rad: G.fog.rad, seen: Array.from(G.fog.seen).reduce((o, v, i) => { if (v) o.push(i); return o; }, [])} : null, pendAtt: G.pendAtt || []}; }
-function loadExtra(x) { G.battleLog = (x && x.battleLog) || []; G.landings = (x && x.landings) || []; G.nextLand = (x && x.nextLand) || 1; G.shipQ = (x && x.shipQ) || []; G.shipReturns = (x && x.shipReturns) || []; G.beach = (x && x.beach) || {}; G.fronts = (x && x.fronts) || []; G.nextFront = (x && x.nextFront) || 1; G.coals = (x && x.coals) || []; G.nextCoal = (x && x.nextCoal) || 1; G.dcrises = (x && x.dcrises) || []; G.nextDC = (x && x.nextDC) || 1; G.pendAtt = (x && x.pendAtt) || []; if (typeof mxLoad === 'function') mxLoad(x && x.mx); G.fog = null; G.vis = null; if (x && x.fog && MAP.provs) { const s = new Uint8Array(MAP.provs.length); x.fog.seen.forEach(i => { s[i] = 1; }); G.fog = {p: x.fog.p, rad: x.fog.rad, seen: s}; } }
+function provSave() { const o = []; G.P.forEach((p, i) => { if (p.by || p.prog || p.fort || p.depot) o.push([i, p.by, p.prog, p.pby || null, p.fort || 0, p.depot || null]); }); return o; }
+function provLoad(list) { initProvinceState(); (list || []).forEach(([i, by, prog, pby, fort, depot]) => { const p = G.P[i]; if (p) { p.by = by; p.prog = prog; p.pby = pby; p.fort = fort; p.depot = depot || null; } }); if (typeof depotRebuild === 'function') depotRebuild(); G.occList = (list || []).map(x => x[0]); G.S.forEach(s => refreshStateOcc(s.id)); }
+function saveExtra() { return {conv: G.convoys || [], nextConv: G.nextConv || 1, battleLog: G.battleLog || [], landings: G.landings || [], nextLand: G.nextLand || 1, shipQ: G.shipQ || [], shipReturns: G.shipReturns || [], beach: G.beach || {}, fronts: G.fronts || [], nextFront: G.nextFront || 1, coals: G.coals || [], nextCoal: G.nextCoal || 1, dcrises: G.dcrises || [], nextDC: G.nextDC || 1, mov: G.movStore || null, mx: typeof mxSave === 'function' ? mxSave() : null, fog: G.fog ? {p: G.fog.p, rad: G.fog.rad, seen: Array.from(G.fog.seen).reduce((o, v, i) => { if (v) o.push(i); return o; }, [])} : null, pendAtt: G.pendAtt || []}; }
+function loadExtra(x) { G.convoys = (x && x.conv) || []; G.nextConv = (x && x.nextConv) || 1; G.battleLog = (x && x.battleLog) || []; G.landings = (x && x.landings) || []; G.nextLand = (x && x.nextLand) || 1; G.shipQ = (x && x.shipQ) || []; G.shipReturns = (x && x.shipReturns) || []; G.beach = (x && x.beach) || {}; G.fronts = (x && x.fronts) || []; G.nextFront = (x && x.nextFront) || 1; G.coals = (x && x.coals) || []; G.nextCoal = (x && x.nextCoal) || 1; G.dcrises = (x && x.dcrises) || []; G.nextDC = (x && x.nextDC) || 1; G.pendAtt = (x && x.pendAtt) || []; if (typeof mxLoad === 'function') mxLoad(x && x.mx); G.fog = null; G.vis = null; if (x && x.fog && MAP.provs) { const s = new Uint8Array(MAP.provs.length); x.fog.seen.forEach(i => { s[i] = 1; }); G.fog = {p: x.fog.p, rad: x.fog.rad, seen: s}; } }
 
 /* ---------- órdenes de movilidad al estilo HoI4 ---------- */
 // juntar: el ejército va hacia otro propio y se fusiona al llegar
@@ -4964,6 +4967,7 @@ function computeSupply(tag) {
     let best = null, bp = -1; c.states.forEach(sid => { const s = G.S[sid]; MAP.stats[sid].provs.forEach(pid => { if (controlled(tag, pid) && s.popBase > bp) { bp = s.popBase; best = pid; } }); });
     if (best !== null) seed(best, 0.7);
   }
+  (G.depotList || []).forEach(pid => { if (G.P[pid].depot === tag && controlled(tag, pid)) seed(pid, 0.9); });
   beachSupply(tag).forEach(p => seed(p, 0.55));
   const done = new Set();
   while (heap.length) {
@@ -5806,6 +5810,7 @@ function updateMarkers() {
   const me = G.C[G.player];
   if (me && me.capital >= 0) want.push({id: 'cap', state: me.capital, ch: '★', cls: 'cap'});
   if (me && me.colonizing) want.push({id: 'col', state: me.colonizing.state, ch: '⚓', cls: 'col'});
+  if (typeof convoyMarkers === 'function') convoyMarkers().forEach(w => want.push(w));
   R.mk = R.mk || {};
   const ids = new Set(want.map(w => w.id));
   updateArmyTokens(); if (!R.anim) updateArmyMeshes(performance.now());
@@ -5813,6 +5818,7 @@ function updateMarkers() {
   want.forEach(w => {
     let el = R.mk[w.id]; if (!el) { el = document.createElement('div'); el.className = 'marker ' + w.cls; el.textContent = w.ch; if (w.id.startsWith('bt')) { el.dataset.act = 'selbattle'; el.dataset.id = w.id.slice(2); el.dataset.tip = '<b>Batalla en curso</b><br>Haz clic para abrir el panel de batalla.'; } R.markerRoot.appendChild(el); R.mk[w.id] = el; }
     const c = w.prov !== undefined ? [MAP.provs[w.prov].lon, MAP.provs[w.prov].lat] : stateCenter(G.S[w.state]); const p = worldToScreen(c[0], 0.6, -c[1]);
+    if (w.tip) el.dataset.tip = w.tip;
     el.style.transform = `translate(-50%,-100%) translate(${p[0].toFixed(1)}px,${p[1].toFixed(1)}px)`; el._bx = w.id.startsWith('bt') ? p[0] : null; el._by = p[1] - 17;
   });
 }
@@ -7163,7 +7169,7 @@ function renderArmyPanel() {
   <div class="kv"><span>Moral</span><b class="${armyMor(a) < 0.35 ? 'bad' : armyMor(a) > 0.7 ? 'good' : ''}">${morName(armyMor(a))} (${Math.round(armyMor(a) * 100)}%) · rinde ×${morMod(a).toFixed(2)}</b></div>${bar(armyMor(a), 1, '')}
   <div class="kv"><span>Entrenamiento</span><b>${trainName(armyTrain(a))} (${Math.round(armyTrain(a) * 100)}%) · rinde ×${(0.75 + 0.5 * armyTrain(a)).toFixed(2)}</b></div>${bar(armyTrain(a), 1, 'blue')}
   <div class="kv"><span>Suministro</span><b class="${(a.sup === undefined ? 1 : a.sup) < 0.5 ? 'bad' : ''}">${Math.round((a.sup === undefined ? 1 : a.sup) * 100)}%${a.cut > 0 ? ` · ⚠ cercado ${a.cut}/60 d` : ''}</b></div>${bar(a.sup === undefined ? 1 : a.sup, 1, (a.sup === undefined ? 1 : a.sup) < 0.5 ? 'bad' : 'good')}
-  ${typeof resBarsHtml === 'function' ? resBarsHtml(a) : ''}
+  ${typeof resBarsHtml === 'function' ? resBarsHtml(a) : ''}${typeof convoyInfoHtml === 'function' ? convoyInfoHtml(a) : ''}
   <div class="kv"><span>Hombres</span><b>${fmtN(armyMen(a), 0)}</b></div>
   <div class="kv"><span>Composición</span><b>${Object.keys(cnt).map(k => DIVS[k].icon + ' ' + cnt[k]).join(' · ')}</b></div>
   <div class="kv"><span>Atrincheramiento</span><b>${'■'.repeat(Math.round(a.dig || 0))}${'□'.repeat(6 - Math.round(a.dig || 0))}</b></div>
@@ -7172,7 +7178,7 @@ function renderArmyPanel() {
   ${own ? `<p class="hint"><b>Clic derecho</b>: mover (sobre un enemigo: perseguir). <b>Mayús + clic derecho</b>: añadir punto de ruta. <b>Ctrl/Mayús + clic en ficha</b>: grupo${group ? ` (<b>${sel.length} seleccionados</b>)` : ''}.</p>
   <div class="strpick"><small>Estrategia en combate:</small> <button class="${a.strat ? '' : 'on'}" data-act="armystrat" data-s="">🤖 Auto</button>${Object.keys(STRATS).map(k => `<button class="${a.strat === k ? 'on' : ''}" data-act="armystrat" data-s="${k}" data-tip="${STRATS[k].desc}">${STRATS[k].icon}</button>`).join('')}</div>
   <div class="ordgrid">
-    ${tg(UI.moveMode, 'movemode', '🎯 Mover')}${tg(UI.optFm || a.fm, 'optfm', '🥾 Marcha forzada')}${tg(UI.optRail || a.rail, 'optrail', '🚆 Ferrocarril')}${tg(UI.patrolNext, 'patrolmode', '🔁 Patrulla')}${tg(UI.showRoutes, 'showroutes', '📦 Rutas')}${tg(UI.landNext, 'landmode', '⚓ Desembarco')}
+    ${tg(UI.moveMode, 'movemode', '🎯 Mover')}${tg(UI.optFm || a.fm, 'optfm', '🥾 Marcha forzada')}${tg(UI.optRail || a.rail, 'optrail', '🚆 Ferrocarril')}${tg(UI.patrolNext, 'patrolmode', '🔁 Patrulla')}${tg(UI.showRoutes, 'showroutes', '🛰️ Rutas')}${own ? (G.P[a.loc].depot === a.tag ? tg(false, 'burndepot', '🔥 Incendiar depósito', 'data-tip="Destruye tu depósito para que el enemigo no lo saquee."') : tg(false, 'builddepot', '📦 Depósito', `data-tip="<b>Construir depósito</b><br>Centro de suministro avanzado en esta provincia (coste ${money(depotCost(c))}, máx. ${DEPOT_MAX}). Acorta las rutas; el enemigo puede saquearlo."`)) : ''}${tg(UI.landNext, 'landmode', '⚓ Desembarco')}
     ${tg(a.mode === 'hold', 'armymode', '🛡 Mantener', 'data-m="hold"')}${tg(a.mode === 'dig', 'armymode', '⛏ Atrincherar', 'data-m="dig"')}${tg(a.mode === 'train', 'armymode', '🎓 Entrenar', 'data-m="train"')}
     <button data-act="armystop" ${a.path.length || a.joinTo || a.patrol ? '' : 'disabled'}>✋ Detener</button><button data-act="armyretreat" ${a.battle ? 'disabled' : ''}>↩ Retirada</button><button data-act="armycap" ${a.battle ? 'disabled' : ''}>★ Capital</button>
     <button data-act="armysplit" ${a.divs.length < 2 || a.battle ? 'disabled' : ''}>✂ Dividir</button><button data-act="armydisband" ${a.battle ? 'disabled' : ''}>✖ Disolver</button>${b ? `<button data-act="selbattle" data-id="${b.id}">⚔ Batalla</button>` : ''}
@@ -7685,6 +7691,7 @@ function bvStepFigs(V, b, blk, dt, ghost) {
 /* ---------- fuego de fusilería y artillería ---------- */
 function bvFire(V, b, blk, dt, foes) {
   if (blk.mode === 'rout' || blk.mode === 'retreat' || V.over && V.over.loser === blk.side) return;
+  if (blk.type === 'art' && typeof tacArtFire === 'function') { tacArtFire(V, b, blk, dt, foes); return; }
   const dir = blk.side === 'A' ? 1 : -1, st = bvStrat(b, blk.side), foe = blk.foe; if (!foe) return;
   const alive = blk.figs.filter(f => f.alive && !f.flee); if (!alive.length) return;
   const fd = Math.hypot(foe.x - blk.x, foe.y - blk.y);
@@ -7737,7 +7744,7 @@ function bvFrame(V, b, ctx, now) {
   // partículas
   V.parts.forEach(p => { p.age += dt; if (p.k === 'smoke') { p.x += (p.vx || 0) * dt; p.y -= 6 * dt; } if (p.k === 'dust') { p.y -= 4 * dt; p.x += V.wind * 0.3 * dt; }
     if (p.k === 'gas') { p.x += p.vx * dt; p.y += Math.sin(p.age * 1.4 + p.x * 0.02) * 4 * dt; }
-    if (p.k === 'shell' && p.age >= p.life && !p.hit) { p.hit = true; bvPart(V, {k: 'boom', x: p.x2, y: p.y2, life: 0.6}); bvPart(V, {k: 'smoke', x: p.x2, y: p.y2, life: 2.8, r: 7, vx: rnd(-5, 5) + V.wind * 0.5});
+    if (p.k === 'shell' && p.age >= p.life && !p.hit) { p.hit = true; if (p.vt && typeof tacShellHit === 'function') tacShellHit(V, b, p, all); bvPart(V, {k: 'boom', x: p.x2, y: p.y2, life: 0.6}); bvPart(V, {k: 'smoke', x: p.x2, y: p.y2, life: 2.8, r: 7, vx: rnd(-5, 5) + V.wind * 0.5});
       for (let n = 0; n < 5; n++) bvPart(V, {k: 'spark', x: p.x2 + rnd(-8, 8), y: p.y2 + rnd(-8, 8), life: 0.45, hot: 1});
       all.forEach(blk => { if (blk.side === p.s) return; blk.figs.forEach(f => { if (f.alive && !f.flee && Math.hypot(f.x - p.x2, f.y - p.y2) < 26) { f.x += (f.x - p.x2) * 0.45; f.y += (f.y - p.y2) * 0.45; } }); }); } });
   V.parts = V.parts.filter(p => p.age < p.life + (p.k === 'shell' ? 0.05 : 0));
@@ -7882,7 +7889,7 @@ function bvDraw(V, b, g, lines, all) {
     g.strokeStyle = `rgba(255,240,150,${pulse})`; g.lineWidth = 2; g.setLineDash([7, 4]); g.beginPath(); [pr(-hw, -hh2), pr(hw, -hh2), pr(hw, hh2), pr(-hw, hh2)].forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.closePath(); g.stroke(); g.setLineDash([]); }
   blocks.forEach(blk => { if (!blk.path || blk.path.length < 2) return; g.strokeStyle = blk.side === 'A' ? 'rgba(255,170,140,.5)' : 'rgba(150,200,255,.5)'; g.fillStyle = g.strokeStyle; g.lineWidth = 1.6; g.setLineDash([6, 5]); g.beginPath(); blk.path.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.stroke(); g.setLineDash([]);
     const a = blk.path[blk.path.length - 2], e = blk.path[blk.path.length - 1], an = Math.atan2(e[1] - a[1], e[0] - a[0]); g.beginPath(); g.moveTo(e[0] + Math.cos(an) * 8, e[1] + Math.sin(an) * 8); g.lineTo(e[0] + Math.cos(an + 2.5) * 7, e[1] + Math.sin(an + 2.5) * 7); g.lineTo(e[0] + Math.cos(an - 2.5) * 7, e[1] + Math.sin(an - 2.5) * 7); g.fill(); });
-  if (typeof tacDrawPlans === 'function') tacDrawPlans(g, V, b, all);
+  if (typeof tacDrawPlans === 'function') { tacDrawArt(g, V, b, all); tacDrawPlans(g, V, b, all); }
   // soldados (ordenados por y)
   const figs = []; all.concat(V.ghosts).forEach(blk => blk.figs.forEach(f => { if (f.alive || f.dying > 0) figs.push([blk, f]); })); figs.sort((p, q) => p[1].y - q[1].y);
   figs.forEach(([blk, f]) => bvFig(g, V, blk, f));
@@ -10081,7 +10088,7 @@ function resCons(a) {
 function armyResDay(a, idx) {
   const r = armyRes(a), rt = a.rt = supplyRouteOf(a, idx), bio = MAP.provs[a.loc].biome, use = resCons(a), lvl = clamp(a.sup === undefined ? 1 : a.sup, 0, 1);
   RES_KEYS.forEach(k => { r[k] = Math.max(0, r[k] - use[k]); });
-  if (rt.safe) { const f = 0.4 + lvl * 0.8; r.food += 3 * f; r.water += 3 * f; r.powder += 1.6 * f; r.wood += 1.1 * f; r.mat += 0.8 * f; }
+  if (rt.safe) { const f = (0.4 + lvl * 0.8) * (typeof resTrickle === 'function' ? resTrickle(a) : 1); r.food += 3 * f; r.water += 3 * f; r.powder += 1.6 * f; r.wood += 1.1 * f; r.mat += 0.8 * f; }
   else { r.food += 0.25; if (bio !== 3) r.water += 0.8; if (bio === 2 || bio === 6) r.wood += 0.5; }          // forrajeo: casi nada
   RES_KEYS.forEach(k => { r[k] = clamp(r[k], 0, RES_INFO[k].cap); });
   let k = (r.food <= 0 ? 1 : 0) + (r.water <= 0 ? 1.6 : 0);
@@ -10122,6 +10129,86 @@ function supplyRoutesSvg() {
   return h;
 }
 Object.assign(ACT, {showroutes: () => { UI.showRoutes = !UI.showRoutes; R.dirty = true; if (typeof drawOrders === 'function') drawOrders(); }});
+
+/* ===== CONVOYES Y DEPÓSITOS DE SUMINISTRO =====
+   · Un ejército alejado de su centro de suministro se abastece mediante CONVOYES: cada pocos días sale uno desde el depósito/capital y recorre la
+     ruta provincia a provincia (1 al día) hasta el ejército, al que entrega comida, agua, pólvora, madera y materiales. Si en su camino hay tropas
+     enemigas sin que ninguna fuerza amiga lo escolte en esa provincia, el convoy es CAPTURADO: el ejército no recibe nada y el enemigo se queda el botín.
+     Para protegerlo, coloca un ejército propio en la ruta (escolta) o corta antes al enemigo.
+   · Los DEPÓSITOS son centros de suministro avanzados que se construyen en provincias propias: acortan las rutas y almacenan botín.
+     Si un ejército enemigo ocupa la provincia sin oposición, el depósito es SAQUEADO (el saqueador se queda con las reservas). Se puede INCENDIAR
+     antes de perderlo para no dejarle nada al enemigo. */
+const CONV_EVERY = 5, DEPOT_MAX = 4;
+const CONV_CARGO = {food: 15, water: 15, powder: 8, wood: 5.5, mat: 4};
+const depotCost = c => Math.max(2500, Math.round(Math.max(0, c.stats.income) * 2));
+const depotsOf = tag => (G.depotList || []).filter(pid => G.P[pid].depot === tag);
+function depotRebuild() { G.depotList = []; G.P.forEach((p, i) => { if (p.depot) G.depotList.push(i); }); }
+function buildDepot(tag, pid) {
+  const c = G.C[tag]; if (!c || G.P[pid].depot) return {ok: false, msg: 'Ya hay un depósito en esta provincia.'};
+  if (provOwner(pid) !== tag || !controlled(tag, pid)) return {ok: false, msg: 'Solo puedes construir depósitos en provincias propias y controladas.'};
+  if (depotsOf(tag).length >= DEPOT_MAX) return {ok: false, msg: `Máximo ${DEPOT_MAX} depósitos por país.`};
+  const cost = depotCost(c); if (c.treasury < cost) return {ok: false, msg: `Faltan fondos (${money(cost)}).`};
+  c.treasury -= cost; G.P[pid].depot = tag; G.depotList = G.depotList || []; G.depotList.push(pid); if (G.sup) delete G.sup[tag]; return {ok: true, cost};
+}
+function removeDepot(pid) { G.P[pid].depot = null; G.depotList = (G.depotList || []).filter(x => x !== pid); }
+function burnDepot(tag, pid) { if (G.P[pid].depot !== tag) return {ok: false, msg: 'No hay un depósito tuyo aquí.'}; removeDepot(pid); if (G.sup) delete G.sup[tag]; return {ok: true}; }
+const convEnsure = () => { if (!G.convoys) G.convoys = []; if (!G.nextConv) G.nextConv = 1; };
+const convOf = a => { convEnsure(); return G.convoys.find(cv => cv.army === a.id); };
+function convSpawn(a) {
+  const rt = a.rt; if (!rt || !rt.ok || rt.path.length < 3 || convOf(a)) return;
+  if (G.date.t - (a._lastConv === undefined ? -99 : a._lastConv) < CONV_EVERY) return; a._lastConv = G.date.t;
+  G.convoys.push({id: G.nextConv++, tag: a.tag, army: a.id, path: rt.path.slice(), i: rt.path.length - 1, born: G.date.t});
+}
+function convLoot(a, f) { const r = armyRes(a); RES_KEYS.forEach(k => { r[k] = Math.min(RES_INFO[k].cap, r[k] + CONV_CARGO[k] * f); }); }
+function convoyDay() {
+  convEnsure(); const idx = resHostIdx(), dead = new Set();
+  G.armies.forEach(a => { if (a.sea || !a.rt) return; convSpawn(a); });
+  G.convoys.forEach(cv => {
+    const a = armyById(cv.army); if (!a) { dead.add(cv.id); return; }
+    const pid = cv.path[cv.i];
+    // captura: enemigos en la provincia y ninguna fuerza amiga que escolte
+    const hostile = [...G.armies].filter(o => !o.sea && o.loc === pid && o.tag !== cv.tag && hostileTags(cv.tag, o.tag)), escort = G.armies.some(o => !o.sea && o.loc === pid && (o.tag === cv.tag || sameSide(cv.tag, o.tag)) && o.id !== cv.army);
+    if (hostile.length && !escort) {
+      dead.add(cv.id); const thief = hostile[0]; convLoot(thief, 0.5);
+      const msg = `¡Un convoy de suministros de ${G.C[cv.tag].name} ha sido capturado por ${thief.name} en ${provName(pid)}!`;
+      if (cv.tag === G.player || thief.tag === G.player) notify('war', msg, provState(pid)); else logMsg(msg); a._convLost = (a._convLost || 0) + 1; return;
+    }
+    if (a.loc !== cv.path[0] && cv.i > 0 && !a.path.length) { /* el ejército se movió: el convoy vuelve y se pierde el viaje */ dead.add(cv.id); return; }
+    cv.i--;
+    if (cv.i <= 0) { dead.add(cv.id); if (a.loc === cv.path[0] || MAP.provs[a.loc].nb.includes(cv.path[0])) { convLoot(a, 1); a._convOk = (a._convOk || 0) + 1; } }
+  });
+  if (dead.size) G.convoys = G.convoys.filter(cv => !dead.has(cv.id));
+  // depósitos: saqueo por enemigos sin oposición
+  (G.depotList || []).slice().forEach(pid => {
+    const tag = G.P[pid].depot, here = G.armies.filter(o => !o.sea && o.loc === pid); const foe = here.find(o => o.tag !== tag && hostileTags(tag, o.tag)); if (!foe) return;
+    if (here.some(o => o.tag === tag || sameSide(tag, o.tag))) return;
+    removeDepot(pid); if (G.sup) delete G.sup[tag]; const r = armyRes(foe); r.food = Math.min(RES_INFO.food.cap, r.food + 10); r.powder = Math.min(RES_INFO.powder.cap, r.powder + 6); r.wood = Math.min(RES_INFO.wood.cap, r.wood + 4); r.mat = Math.min(RES_INFO.mat.cap, r.mat + 3);
+    const msg = `${foe.name} saquea el depósito de suministros de ${G.C[tag].name} en ${provName(pid)}.`; if (tag === G.player || foe.tag === G.player) notify('war', msg, provState(pid)); else logMsg(msg);
+  });
+  // la IA construye depósitos de vez en cuando para sus frentes lejanos
+  if (G.date.t % 9 === 0) G.tags.forEach(t => { if (t === NONE || t === G.player || !alive(t)) return; const c = G.C[t]; if (!c.wars.length || depotsOf(t).length >= 2 || c.treasury < depotCost(c) * 3) return;
+    const a = G.armies.find(x => x.tag === t && !x.sea && x.rt && x.rt.safe && x.rt.path.length >= 4 && controlled(t, x.loc) && provOwner(x.loc) === t); if (a && Math.random() < 0.5) buildDepot(t, a.loc); });
+}
+const _supplyDay1 = supplyDay;
+supplyDay = function () { _supplyDay1(); convoyDay(); };
+// el reabastecimiento diario con ruta larga pasa a depender sobre todo de los convoyes
+const resTrickle = a => (a.rt && a.rt.safe && a.rt.path.length >= 3) ? 0.25 : 1;
+// marcadores en el mapa
+function convoyMarkers() {
+  convEnsure(); const out = [];
+  (G.depotList || []).forEach(pid => { const tag = G.P[pid].depot; if (tag !== G.player && !provVisible(pid)) return; out.push({id: 'dp' + pid, state: provState(pid), prov: pid, ch: '📦', cls: 'depotmk', tip: `<b>Depósito de suministros</b><br>${G.C[tag].name}. Centro de abastecimiento avanzado; si lo ocupa el enemigo sin oposición será saqueado.`}); });
+  G.convoys.forEach(cv => { const pid = cv.path[cv.i]; if (pid === undefined || (cv.tag !== G.player && !provVisible(pid))) return; out.push({id: 'cv' + cv.id, state: provState(pid), prov: pid, ch: '🚚', cls: 'convmk', tip: `<b>Convoy de suministros</b><br>${G.C[cv.tag].name} · llega en ${Math.max(1, cv.i)} día${cv.i === 1 ? '' : 's'}. ${cv.tag === G.player ? 'Escóltalo con un ejército si hay enemigos cerca.' : 'Captúralo entrando en su provincia.'}`}); });
+  return out;
+}
+function convoyInfoHtml(a) {
+  const cv = convOf(a), n = depotsOf(a.tag).length, here = G.P[a.loc].depot;
+  return `<div class="kv"><span>Convoy</span><b>${cv ? `🚚 en camino: llega en ${Math.max(1, cv.i)} d` : a.rt && a.rt.path.length >= 3 && a.rt.ok ? (a.rt.safe ? 'próximo convoy en breve' : '⚠ ruta amenazada: los convoyes arriesgan ser capturados') : a.rt && a.rt.path.length < 3 ? 'junto al centro de suministro' : '—'}${a._convLost ? ` <small class="bad">(${a._convLost} capturados)</small>` : ''}</b></div>
+  <div class="kv"><span>Depósitos</span><b>${n}/${DEPOT_MAX}${here ? ` · aquí: ${G.C[here].name}` : ''}</b></div>`;
+}
+Object.assign(ACT, {
+  builddepot: () => { const a = armyById(UI.selArmy); if (!a || a.tag !== G.player) return; const r = buildDepot(G.player, a.loc); if (!r.ok) toast('⚠️', r.msg); else toast('📦', `Depósito construido en ${provName(a.loc)} (${money(r.cost)}).`); R.dirty = true; if (typeof renderArmyPanel === 'function') renderArmyPanel(); updateMarkers(); },
+  burndepot: () => { const a = armyById(UI.selArmy); if (!a || a.tag !== G.player) return; const r = burnDepot(G.player, a.loc); if (!r.ok) toast('⚠️', r.msg); else toast('🔥', 'Has incendiado tu depósito: el enemigo no se quedará nada.'); if (typeof renderArmyPanel === 'function') renderArmyPanel(); updateMarkers(); }
+});
 
 /* ===== TÁCTICA: preparación, fuertes, planes dibujados, cámara lenta y moral de los bloques =====
    · FASE DE PREPARACIÓN: al comenzar una batalla en la que participas, el combate queda congelado. Arrastra tus bloques por tu mitad del campo,
@@ -10261,7 +10348,7 @@ battleDay = function (b) {
 /* ---------- planes dibujados ---------- */
 const PLANS = {
   attack: {n: 'Atacar', ic: '➡️', col: '#ff6a52', hint: 'Haz UN clic en el campo donde debe atacar (Mayús+clic añade puntos de paso intermedios).', multi: true, n1: 1},
-  target: {n: 'Objetivo', ic: '🎯', col: '#ff3a3a', hint: 'Haz clic sobre el bloque ENEMIGO que debe atacar.', multi: false},
+  target: {n: 'Objetivo', ic: '🎯', col: '#ff3a3a', hint: 'Haz clic sobre el bloque ENEMIGO que debe atacar (la artillería dispara contra él: contrabatería si es artillería).', multi: false},
   flank: {n: 'Flanquear', ic: '↪️', col: '#ffb43c', hint: 'Haz 2 clics: primero el punto de rodeo (por un extremo) y después el flanco enemigo donde golpea (Mayús+clic añade más puntos).', multi: true, n1: 2},
   defend: {n: 'Línea defensiva', ic: '🛡️', col: '#5aa8ff', hint: 'Marca los dos extremos de la línea que debe mantener.', multi: 2},
   retreat: {n: 'Retirada', ic: '↩️', col: '#b7bcc4', hint: 'Haz clic en el punto hasta donde debe retirarse.', multi: false}
@@ -10277,7 +10364,8 @@ function tacClickMap(V, b, wx, wy, dbl) {
 }
 // ejecución de un plan por un bloque: devuelve null si no hay plan activo
 function bvPlanStep(V, b, blk, dt, all, home) {
-  const pl = blk.d.plan; if (!pl || V.over || b.ended) return null; const dir = blk.side === 'A' ? 1 : -1, F = blk.F, foes = all.filter(o => o.side !== blk.side && o.mode !== 'rout' && o.role !== 'reserve');
+  const pl = blk.d.plan; if (!pl || V.over || b.ended) return null;
+  if (blk.type === 'art' && pl.k === 'target') { const f = V.blocks.get(pl.foe); if (!f || f.mode === 'rout') { delete blk.d.plan; return null; } blk.foe = f; return {mode: 'artfire', tx: blk.x, ty: blk.y, k: 0, path: null}; } const dir = blk.side === 'A' ? 1 : -1, F = blk.F, foes = all.filter(o => o.side !== blk.side && o.mode !== 'rout' && o.role !== 'reserve');
   const near = foes.reduce((m, o) => { const d = Math.hypot(o.x - blk.x, o.y - blk.y); return !m || d < m.d ? {o, d} : m; }, null);
   const contact = f => [f.x - dir * ((blk.dep + f.dep) / 2 + 7), f.y], engaged = !!near && Math.abs(near.o.x - blk.x) < (blk.dep + near.o.dep) / 2 + 10 && Math.abs(near.o.y - blk.y) < (blk.wid + near.o.wid) / 2 * 0.95;
   if (pl.k === 'target') {
@@ -10444,6 +10532,7 @@ Object.assign(ACT, {
     if (d.k === 'clear') { delete V.sel.d.plan; V.sel.skey = ''; V.draw = null; toast('🎯', 'Plan cancelado.'); } else if (d.k === 'fix') { const dr = V.draw; if (dr && dr.pts.length) { tacSetPlan(V, {k: dr.k, pts: dr.pts.slice()}); bvBanner(V, `${PLANS[dr.k].ic} ${PLANS[dr.k].n}: ${V.sel.a.name}`, V.sel.side, ''); } V.draw = null; }
     else if (PLANS[d.k]) { V.draw = V.draw && V.draw.k === d.k ? null : {k: d.k, pts: []}; if (V.draw) toast(PLANS[d.k].ic, PLANS[d.k].hint); }
     renderBattlePanel(); },
+  tacctr: () => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !V.sel || V.sel.type !== 'art' || !b || b.ended) return; const k = V.sel, R_ = tacArtRange(V, b, k), es = [...V.blocks.values()].filter(o => o.side !== k.side && o.type === 'art' && o.mode !== 'rout' && Math.hypot(o.x - k.x, o.y - k.y) <= R_).sort((p, q) => Math.hypot(p.x - k.x, p.y - k.y) - Math.hypot(q.x - k.x, q.y - k.y)); if (!es.length) { toast('🔇', 'No hay baterías enemigas al alcance de este bloque.'); return; } tacSetPlan(V, {k: 'target', foe: es[0].d, pts: []}); bvBanner(V, `🔇 Contrabatería: ${k.a.name}`, k.side, ''); renderBattlePanel(); },
   bvts: d => { const V = R.bviz; if (!V) return; const n = +d.n; V.ts = n; if (n === 0) { if (!G.paused) { G.paused = true; UI.tactPaused = true; } } else if (UI.tactPaused || G.paused) { const b = G.battles.find(x => x.id === UI.battle); if (!b || !b.prep) { G.paused = false; UI.tactPaused = false; R.bvPrevPause = false; } } V.last = performance.now(); renderBattlePanel(); }
 });
 // HTML del panel: preparación, planes y velocidad
@@ -10460,9 +10549,10 @@ function tacPanelHtml(b, V, sel) {
   }
   if (!b.ended && !V.replay) {
     const sel2 = sel && sel.side === ps ? sel : null, cur = sel2 && sel2.d.plan;
+    const art = sel2 && sel2.type === 'art';
     h += `<div class="plans"><div class="plans-h">🖊️ <b>Planes por unidad</b> <small>${sel2 ? `${DIVS[sel2.d.t].icon} ${sel2.a.name}${cur ? ` · plan: ${PLANS[cur.k].ic} ${PLANS[cur.k].n}` : ' · sin plan'}` : 'Selecciona uno de tus bloques y dibuja su flecha en el campo.'}</small></div>
     <div class="plans-b">${Object.keys(PLANS).map(k => `<button data-act="tacplan" data-k="${k}" class="${V.draw && V.draw.k === k ? 'on' : ''}" ${sel2 ? '' : 'disabled'} data-tip="<b>${PLANS[k].n}</b><br>${PLANS[k].hint}">${PLANS[k].ic} ${PLANS[k].n}</button>`).join('')}
-    ${V.draw && V.draw.pts.length ? `<button data-act="tacplan" data-k="fix" class="fix">✔ Fijar</button>` : ''}<button data-act="tacplan" data-k="clear" ${cur ? '' : 'disabled'}>✖ Borrar</button></div>${V.draw ? `<div class="plans-s">${PLANS[V.draw.k].hint}</div>` : ''}</div>`;
+    ${V.draw && V.draw.pts.length ? `<button data-act="tacplan" data-k="fix" class="fix">✔ Fijar</button>` : ''}${art ? `<button data-act="tacctr" data-tip="<b>Contrabatería</b><br>Apunta a la batería enemiga más cercana dentro de alcance para silenciarla.">🔇 Contrabatería</button>` : ''}<button data-act="tacplan" data-k="clear" ${cur ? '' : 'disabled'}>✖ Borrar</button></div>${V.draw ? `<div class="plans-s">${PLANS[V.draw.k].hint}</div>` : ''}</div>`;
   }
   return h;
 }
@@ -10475,6 +10565,41 @@ window.addEventListener('keydown', e => { if (e.key === 'Shift') window._tacShif
   if (e.key === 'Escape' && (V.draw || V.tool || V.garr)) { V.draw = null; V.tool = null; V.garr = false; renderBattlePanel(); e.stopPropagation(); }
   else if (e.key === 'Enter' && V.draw && V.draw.pts.length) { ACT.tacplan({k: 'fix'}); e.stopPropagation(); } }, true);
 window.addEventListener('keyup', e => { if (e.key === 'Shift') window._tacShift = false; });
+
+/* ---------- artillería: alcance real, elección de objetivo y contrabatería ---------- */
+function tacArtRange(V, b, blk) { return 300 + (G.date.y >= 1860 ? 60 : 0) + (G.date.y >= 1900 ? 100 : 0) + (blk.terr && blk.terr.hill ? 40 : 0); }
+function tacArtFire(V, b, blk, dt, all) {
+  const alive = blk.figs.filter(f => f.alive && !f.flee), guns = alive.filter(f => f.kind === 'gun'), crew = alive.filter(f => f.kind === 'crew');
+  const was = blk.sil; blk.sil = !guns.length || crew.length < 2; if (blk.sil) { if (!was && blk.figs.length) { /* silenciada */ } return; }
+  const dir = blk.side === 'A' ? 1 : -1, st = bvStrat(b, blk.side), heavy = st === 'barrage' || V.salvo[blk.side] > 0, range = tacArtRange(V, b, blk);
+  blk.cd -= dt; if (blk.cd > 0) return;
+  const inR = all.filter(o => o.side !== blk.side && o.mode !== 'rout' && Math.hypot(o.x - blk.x, o.y - blk.y) <= range);
+  if (!inR.length) { blk.cd = 0.8; return; }
+  const dist = o => Math.hypot(o.x - blk.x, o.y - blk.y), nearest = l => l.slice().sort((p, q) => dist(p) - dist(q))[0];
+  let tgt = null, ctr = false; const pl = blk.d.plan;
+  if (pl && pl.k === 'target') { const f = V.blocks.get(pl.foe); if (f && inR.includes(f)) { tgt = f; ctr = f.type === 'art'; } }
+  if (!tgt) { const arts = inR.filter(o => o.type === 'art' && !o.sil && o.role !== 'reserve'); if (arts.length && Math.random() < 0.55) { tgt = nearest(arts); ctr = true; } }
+  if (!tgt) { const hot = inR.filter(o => (o.mode === 'gallop' || o.mode === 'charge' || o.mode === 'melee') && dist(o) < 190); const lines = inR.filter(o => o.role !== 'reserve'); tgt = hot.length ? nearest(hot) : lines.length ? nearest(lines) : nearest(inR); }
+  blk.cd = (heavy ? rnd(0.9, 1.5) : rnd(3, 5)) * (ctr ? 0.65 : 1); blk.tgt = tgt;
+  const gn = guns[Math.floor(Math.random() * guns.length)], fg = pickFoeFig(tgt), tx = (fg ? fg.x : tgt.x) + rnd(-14, 14), ty = (fg ? fg.y : tgt.y) + rnd(-14, 14);
+  bvPart(V, {k: 'shell', x: gn.x, y: gn.y, x2: tx, y2: ty, life: 0.55 + dist(tgt) / 520, s: blk.side, vt: tgt.id, ctr, stag: blk.tag}); gn.recoil = 1; bvPart(V, {k: 'flash', x: gn.x + Math.cos(blk.hd) * 12, y: gn.y + Math.sin(blk.hd) * 12, life: 0.14, big: 1});
+  for (let n = 0; n < 3; n++) bvPart(V, {k: 'smoke', x: gn.x + Math.cos(blk.hd) * 12, y: gn.y + Math.sin(blk.hd) * 12, life: 2.2, r: 5, vx: dir * 8 + V.wind * 0.5 + rnd(-4, 4)});
+}
+// impacto de un proyectil sobre un bloque: daño real y, contra artillería, bajas de piezas y servidores
+function tacShellHit(V, b, p, all) {
+  const v = all.find(x => x.id === p.vt); if (!v || v.mode === 'rout') return; const org = DIVS[v.d.t].org;
+  if (v.type === 'art') {
+    const cands = v.figs.filter(q => q.alive && !q.flee); if (cands.length && Math.random() < (p.ctr ? 0.5 : 0.3)) { const guns = cands.filter(q => q.kind === 'gun'), pool = guns.length && Math.random() < 0.45 ? guns : cands; bvKill(V, v, pool[Math.floor(Math.random() * pool.length)]); }
+    v.d.s = Math.max(0, v.d.s - 0.006); v.d.o = Math.max(0, v.d.o - org * 0.012);
+    const al = v.figs.filter(q => q.alive && !q.flee), sil = !al.some(q => q.kind === 'gun') || al.filter(q => q.kind === 'crew').length < 2;
+    if (sil && !v.sil) { v.sil = true; const sn = G.C[p.stag] ? G.C[p.stag].name : '', vn = G.C[v.tag].name; bvBanner(V, `🔇 ${sn} silencia una batería de ${vn}`, v.side === 'A' ? 'B' : 'A', ''); (b.log = b.log || []).push({k: 'barrage', d: b.day, t: `Contrabatería: ${sn} silencia una batería de ${vn}.`}); if (b.log.length > 30) b.log.shift(); }
+  } else { v.d.s = Math.max(0, v.d.s - 0.003); v.d.o = Math.max(0, v.d.o - org * 0.01); }
+}
+function tacDrawArt(g, V, b, all) {
+  all.forEach(blk => { if (blk.type !== 'art') return;
+    if (blk.sil) { g.font = '13px sans-serif'; g.textAlign = 'center'; g.fillStyle = 'rgba(10,12,16,.85)'; g.beginPath(); g.arc(blk.x, blk.y - blk.wid / 2 - 17, 8, 0, 6.3); g.fill(); g.fillStyle = '#fff'; g.fillText('🔇', blk.x, blk.y - blk.wid / 2 - 13); }
+    if (V.sel === blk) { const r = tacArtRange(V, b, blk); g.strokeStyle = 'rgba(255,230,140,.5)'; g.setLineDash([6, 6]); g.lineWidth = 1.2; g.beginPath(); g.arc(blk.x, blk.y, r, 0, 6.3); g.stroke(); g.setLineDash([]); if (blk.tgt && V.blocks.has(blk.tgt.d)) { g.strokeStyle = 'rgba(255,90,60,.55)'; g.beginPath(); g.moveTo(blk.x, blk.y); g.lineTo(blk.tgt.x, blk.tgt.y); g.stroke(); } } });
+}
 
 /* ===== MARISCALES Y PLANES DE BATALLA =====
    Un mariscal manda un grupo de ejércitos (o un frente completo) y aporta bonificaciones de planificación: cuanto mejor es, antes está
@@ -10952,9 +11077,12 @@ function aiMayTake(tag, sid) {
   return AI_COLONIAL.has(tag) && !llEurope(p) && dmin <= 60;
 }
 const aiReadiness = c => clamp(0.35 + 0.65 * Math.min(1, countDivs(c.tag) / Math.max(4, divLimit(c) * 0.6)), 0.35, 1);
-function aiSidePower(tag) {
-  const c = G.C[tag]; let p = armyPower(c) * aiReadiness(c);
-  allies(tag).forEach(a => { if (alive(a)) p += armyPower(G.C[a]) * 0.6 * aiReadiness(G.C[a]); });
+// fuerza de un bando contando a quienes probablemente se unirían: aliados, miembros de su bloque militar y, si defiende, garantes
+function aiSidePower(tag, asDef) {
+  const c = G.C[tag]; let p = armyPower(c) * aiReadiness(c); const seen = new Set([tag]);
+  const add = (t, k) => { if (seen.has(t) || !alive(t) || G.C[t].wars.length >= 2) return; seen.add(t); p += armyPower(G.C[t]) * k * aiReadiness(G.C[t]) * (canReach(t, tag) || canReach(tag, t) ? 1 : 0.35); };
+  allies(tag).forEach(a => add(a, 0.65)); const bl = blocOf(tag); if (bl && bl.type === 'military') bl.members.forEach(t => add(t, 0.5));
+  if (asDef) guaranteedBy(tag).forEach(t => add(t, 0.55));
   return p;
 }
 // mejor plan de ataque de un país (o null si no conviene atacar)
@@ -10971,7 +11099,7 @@ function aiWarPlan(a) {
     if (d === NONE || d === a || !alive(d) || G.C[d].overlord || G.C[d].wars.length >= 2 || relOf(a, d) > 40) return;
     if (warBlockers(a, d) || !canReach(a, d)) return;
     const rs = reachableStates(a, d); if (!rs.length) return;
-    const ratio = myP / Math.max(1, aiSidePower(d)); if (ratio < 1.45) return;
+    const ratio = myP / Math.max(1, aiSidePower(d, true)); if (ratio < 1.5) return;
     const cl = claimedStates(A, d), pool = cl.length ? cl : rs, val = pool.slice(0, 2).reduce((n, x) => n + popTotal(G.S[x.id]) / 1e5 + 1, 0);
     const sc = val * Math.min(2.5, ratio) * (cl.length ? 1.6 : 1) * (relOf(a, d) < -10 ? 1.2 : 1) * (1 - Math.min(0.5, A.infamy / 100));
     if (!best || sc > best.sc) best = {a, d, sc, cl, rs, ratio};
@@ -12693,7 +12821,7 @@ const MANUAL = [
 <p>La ventana <b>Ejército y guerra</b> tiene pestañas nuevas: <b>Plantillas</b>, <b>Producción</b>, <b>Aviación</b>, <b>Marina</b>, <b>Doctrinas</b>, <b>Ocupación</b> y <b>Mariscales</b>.</p>
 <h4>✈️ Aviación (Era 3, hacia 1905-1915)</h4><p>Con <b>Aviación Militar</b> (≈1903) se desbloquean las <b>Fábricas Aeronáuticas</b> (acero, motores y tela; los motores salen de las Fábricas de Motores, tecnología Motor de Combustión). <b>Cazas</b> (≈1910) y <b>Bombarderos</b> (≈1911) permiten formar <b>escuadrones</b> de hasta 100 aviones con el inventario nacional (línea de producción de aviones). Se despliegan en <b>regiones aéreas</b> (grupos de estados vecinos) con una misión: <b>superioridad aérea</b> (hasta +25% de ataque terrestre para quien domina el cielo de la región), <b>apoyo cercano</b> (daño directo al enemigo en las batallas de la región), <b>bombardeo estratégico</b> (reduce la producción de los edificios del estado enemigo) o <b>intercepción</b>. Los escuadrones pierden aviones en el combate aéreo y se refuerzan desde el inventario. Con un escuadrón en una región también ves los ejércitos enemigos de esa región (reconocimiento aéreo).</p>
 <h4>⚙️ Preparación de la batalla y órdenes tácticas</h4><p>Al empezar una batalla en la que participas, el combate se <b>detiene</b> y se abre el panel: es la <b>fase de preparación</b>. Arrastra tus bloques por tu mitad del campo (zona punteada), levanta <b>trincheras, reductos y baterías</b> con las reservas de tu ejército (madera, materiales y pólvora) y añade <b>cañones</b>. Si la provincia tiene un <b>fuerte</b>, el defensor lo usa: sitúa tus unidades junto a él. Colocar bien (artillería detrás, caballería en las alas, tropas en colinas, bosques o dentro de las obras) da bonos reales de ataque y defensa; las obras se pueden destruir a cañonazos. Pulsa <b>¡Comenzar la batalla!</b> cuando estés listo.</p><p>En pleno combate selecciona un bloque y dibuja su <b>plan</b>: ➡️ atacar un punto, 🎯 un bloque enemigo concreto, ↪️ flanqueo por puntos de paso, 🛡️ línea defensiva o ↩️ retirada. Clic derecho cancela el dibujo y puedes cambiar los planes cuando quieras. La <b>velocidad</b> (⏸ pausa táctica, ×0,25, ×0,5, ×1) permite gestionar el combate en cámara lenta. El <b>cansancio y la moral</b> importan: tropas agotadas o desmoralizadas rompen filas ante una carga de caballería (se resisten mejor en cuadro, tras obras o en terreno cubierto).</p>
-<h4>📦 Suministros y rutas de abastecimiento</h4><p>Cada ejército lleva <b>comida, agua, pólvora, madera y materiales de fortificación</b>. Se gastan cada día (más al marchar, en el desierto o combatiendo) y <b>solo se reponen si hay una ruta de suministro segura</b> hasta un centro propio: sin tropas enemigas ni territorio ocupado por el camino. Activa <b>📦 Rutas</b> en el panel del ejército para verlas en el mapa (verde = segura, roja = cortada). Sin comida ni agua el ejército pierde fuerza y organización; sin pólvora dispara a medias; sin madera y materiales no puede fortificar.</p>
+<h4>📦 Suministros y rutas de abastecimiento</h4><p>Cada ejército lleva <b>comida, agua, pólvora, madera y materiales de fortificación</b>. Se gastan cada día (más al marchar, en el desierto o combatiendo) y <b>solo se reponen si hay una ruta de suministro segura</b> hasta un centro propio: sin tropas enemigas ni territorio ocupado por el camino. Activa <b>📦 Rutas</b> en el panel del ejército para verlas en el mapa (verde = segura, roja = cortada). Sin comida ni agua el ejército pierde fuerza y organización; sin pólvora dispara a medias; sin madera y materiales no puede fortificar.</p><p><b>Convoyes y depósitos:</b> lejos de su centro de suministro, cada ejército recibe un 🚚 <b>convoy</b> cada pocos días que recorre la ruta provincia a provincia. Si en su camino hay tropas enemigas y ninguna fuerza amiga lo escolta en esa provincia, el convoy es <b>capturado</b> (el enemigo se queda parte del botín). Protégelo situando un ejército en la ruta. Con <b>📦 Depósito</b> (panel del ejército) construyes un centro de suministro avanzado en una provincia propia (máx. 4, cuesta unos meses de ingresos); si el enemigo lo ocupa sin oposición lo <b>saquea</b>, y puedes <b>incendiarlo</b> antes para no dejarle nada.</p><p><b>Artillería:</b> cada batería tiene un <b>alcance real</b> (mayor con el tiempo y en colinas), elige objetivos (primero cargas inminentes, y con frecuencia la <b>artillería enemiga</b>: contrabatería) y puede ser <b>silenciada</b> si pierde sus cañones o servidores. Selecciona una batería y pulsa <b>🔇 Contrabatería</b> para apuntar a la más cercana, o dale un plan de <b>🎯 Objetivo</b>.</p>
 <h4>⚓ Marina de guerra</h4><p>Los buques se construyen en <b>Astilleros</b> (estados con puerto) con el tonelaje de la línea de <b>Buques</b>: fragata de vela (1836), fragata de vapor (≈1850), acorazado (≈1860), crucero (≈1895), submarino (≈1900) y acorazado <i>dreadnought</i> (≈1906). Las <b>flotas</b> navegan por <b>zonas marítimas</b> con un almirante y una misión: <b>patrulla</b>, <b>bloqueo</b> (corta ingresos y suministro por mar del rival y suma hasta ±22 puntos de guerra), <b>escolta de convoyes</b> (protege tu comercio) e <b>incursión</b> (daña el comercio enemigo). Las batallas navales son automáticas. Para <b>desembarcar</b> sin pérdidas tus transportes necesitan que el enemigo no domine las zonas de origen y destino: si lo hace, el ejército pierde fuerza cada día en el mar.</p>
 <h4>👁️ Marina visible</h4><p>Las flotas aparecen en el mapa como fichas con bandera (⚓ nº de buques y su misión) y, con el zoom cerca, como buques en 3D. Las fichas de otros países solo se ven si compartes zona con ellos o tienen una batalla. Si hay combate la ficha parpadea con ⚔: púlsala para abrir el <b>visor de batalla naval</b>, donde ves las dos líneas cañoneándose, los incendios y los hundimientos; el tiempo corre despacio mientras lo miras (botón para pausar o continuar).</p>
 <h4>🎖️ Doctrinas y experiencia</h4><p>Ganas <b>experiencia terrestre</b> combatiendo y entrenando (modo Entrenar), y experiencia <b>naval</b> y <b>aérea</b> con sus misiones y batallas. Con ella compras escalones de un árbol de doctrinas de <b>ramas excluyentes</b>: terrestres (<i>defensa en profundidad</i>, <i>ofensiva móvil</i>, <i>fuego superior</i>, <i>movilización de masas</i>), aéreas (<i>superioridad aérea</i> o <i>bombardeo estratégico</i>) y navales (<i>flota de batalla</i> o <i>guerra de corso</i>). Cada escalón está disponible desde un año concreto.</p>

@@ -19,6 +19,7 @@ function computeSupply(tag) {
     let best = null, bp = -1; c.states.forEach(sid => { const s = G.S[sid]; MAP.stats[sid].provs.forEach(pid => { if (controlled(tag, pid) && s.popBase > bp) { bp = s.popBase; best = pid; } }); });
     if (best !== null) seed(best, 0.7);
   }
+  (G.depotList || []).forEach(pid => { if (G.P[pid].depot === tag && controlled(tag, pid)) seed(pid, 0.9); });
   beachSupply(tag).forEach(p => seed(p, 0.55));
   const done = new Set();
   while (heap.length) {

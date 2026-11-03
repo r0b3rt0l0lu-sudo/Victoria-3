@@ -136,7 +136,7 @@ battleDay = function (b) {
 /* ---------- planes dibujados ---------- */
 const PLANS = {
   attack: {n: 'Atacar', ic: '➡️', col: '#ff6a52', hint: 'Haz UN clic en el campo donde debe atacar (Mayús+clic añade puntos de paso intermedios).', multi: true, n1: 1},
-  target: {n: 'Objetivo', ic: '🎯', col: '#ff3a3a', hint: 'Haz clic sobre el bloque ENEMIGO que debe atacar.', multi: false},
+  target: {n: 'Objetivo', ic: '🎯', col: '#ff3a3a', hint: 'Haz clic sobre el bloque ENEMIGO que debe atacar (la artillería dispara contra él: contrabatería si es artillería).', multi: false},
   flank: {n: 'Flanquear', ic: '↪️', col: '#ffb43c', hint: 'Haz 2 clics: primero el punto de rodeo (por un extremo) y después el flanco enemigo donde golpea (Mayús+clic añade más puntos).', multi: true, n1: 2},
   defend: {n: 'Línea defensiva', ic: '🛡️', col: '#5aa8ff', hint: 'Marca los dos extremos de la línea que debe mantener.', multi: 2},
   retreat: {n: 'Retirada', ic: '↩️', col: '#b7bcc4', hint: 'Haz clic en el punto hasta donde debe retirarse.', multi: false}
@@ -152,7 +152,8 @@ function tacClickMap(V, b, wx, wy, dbl) {
 }
 // ejecución de un plan por un bloque: devuelve null si no hay plan activo
 function bvPlanStep(V, b, blk, dt, all, home) {
-  const pl = blk.d.plan; if (!pl || V.over || b.ended) return null; const dir = blk.side === 'A' ? 1 : -1, F = blk.F, foes = all.filter(o => o.side !== blk.side && o.mode !== 'rout' && o.role !== 'reserve');
+  const pl = blk.d.plan; if (!pl || V.over || b.ended) return null;
+  if (blk.type === 'art' && pl.k === 'target') { const f = V.blocks.get(pl.foe); if (!f || f.mode === 'rout') { delete blk.d.plan; return null; } blk.foe = f; return {mode: 'artfire', tx: blk.x, ty: blk.y, k: 0, path: null}; } const dir = blk.side === 'A' ? 1 : -1, F = blk.F, foes = all.filter(o => o.side !== blk.side && o.mode !== 'rout' && o.role !== 'reserve');
   const near = foes.reduce((m, o) => { const d = Math.hypot(o.x - blk.x, o.y - blk.y); return !m || d < m.d ? {o, d} : m; }, null);
   const contact = f => [f.x - dir * ((blk.dep + f.dep) / 2 + 7), f.y], engaged = !!near && Math.abs(near.o.x - blk.x) < (blk.dep + near.o.dep) / 2 + 10 && Math.abs(near.o.y - blk.y) < (blk.wid + near.o.wid) / 2 * 0.95;
   if (pl.k === 'target') {
@@ -319,6 +320,7 @@ Object.assign(ACT, {
     if (d.k === 'clear') { delete V.sel.d.plan; V.sel.skey = ''; V.draw = null; toast('🎯', 'Plan cancelado.'); } else if (d.k === 'fix') { const dr = V.draw; if (dr && dr.pts.length) { tacSetPlan(V, {k: dr.k, pts: dr.pts.slice()}); bvBanner(V, `${PLANS[dr.k].ic} ${PLANS[dr.k].n}: ${V.sel.a.name}`, V.sel.side, ''); } V.draw = null; }
     else if (PLANS[d.k]) { V.draw = V.draw && V.draw.k === d.k ? null : {k: d.k, pts: []}; if (V.draw) toast(PLANS[d.k].ic, PLANS[d.k].hint); }
     renderBattlePanel(); },
+  tacctr: () => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !V.sel || V.sel.type !== 'art' || !b || b.ended) return; const k = V.sel, R_ = tacArtRange(V, b, k), es = [...V.blocks.values()].filter(o => o.side !== k.side && o.type === 'art' && o.mode !== 'rout' && Math.hypot(o.x - k.x, o.y - k.y) <= R_).sort((p, q) => Math.hypot(p.x - k.x, p.y - k.y) - Math.hypot(q.x - k.x, q.y - k.y)); if (!es.length) { toast('🔇', 'No hay baterías enemigas al alcance de este bloque.'); return; } tacSetPlan(V, {k: 'target', foe: es[0].d, pts: []}); bvBanner(V, `🔇 Contrabatería: ${k.a.name}`, k.side, ''); renderBattlePanel(); },
   bvts: d => { const V = R.bviz; if (!V) return; const n = +d.n; V.ts = n; if (n === 0) { if (!G.paused) { G.paused = true; UI.tactPaused = true; } } else if (UI.tactPaused || G.paused) { const b = G.battles.find(x => x.id === UI.battle); if (!b || !b.prep) { G.paused = false; UI.tactPaused = false; R.bvPrevPause = false; } } V.last = performance.now(); renderBattlePanel(); }
 });
 // HTML del panel: preparación, planes y velocidad
@@ -335,9 +337,10 @@ function tacPanelHtml(b, V, sel) {
   }
   if (!b.ended && !V.replay) {
     const sel2 = sel && sel.side === ps ? sel : null, cur = sel2 && sel2.d.plan;
+    const art = sel2 && sel2.type === 'art';
     h += `<div class="plans"><div class="plans-h">🖊️ <b>Planes por unidad</b> <small>${sel2 ? `${DIVS[sel2.d.t].icon} ${sel2.a.name}${cur ? ` · plan: ${PLANS[cur.k].ic} ${PLANS[cur.k].n}` : ' · sin plan'}` : 'Selecciona uno de tus bloques y dibuja su flecha en el campo.'}</small></div>
     <div class="plans-b">${Object.keys(PLANS).map(k => `<button data-act="tacplan" data-k="${k}" class="${V.draw && V.draw.k === k ? 'on' : ''}" ${sel2 ? '' : 'disabled'} data-tip="<b>${PLANS[k].n}</b><br>${PLANS[k].hint}">${PLANS[k].ic} ${PLANS[k].n}</button>`).join('')}
-    ${V.draw && V.draw.pts.length ? `<button data-act="tacplan" data-k="fix" class="fix">✔ Fijar</button>` : ''}<button data-act="tacplan" data-k="clear" ${cur ? '' : 'disabled'}>✖ Borrar</button></div>${V.draw ? `<div class="plans-s">${PLANS[V.draw.k].hint}</div>` : ''}</div>`;
+    ${V.draw && V.draw.pts.length ? `<button data-act="tacplan" data-k="fix" class="fix">✔ Fijar</button>` : ''}${art ? `<button data-act="tacctr" data-tip="<b>Contrabatería</b><br>Apunta a la batería enemiga más cercana dentro de alcance para silenciarla.">🔇 Contrabatería</button>` : ''}<button data-act="tacplan" data-k="clear" ${cur ? '' : 'disabled'}>✖ Borrar</button></div>${V.draw ? `<div class="plans-s">${PLANS[V.draw.k].hint}</div>` : ''}</div>`;
   }
   return h;
 }
@@ -350,3 +353,38 @@ window.addEventListener('keydown', e => { if (e.key === 'Shift') window._tacShif
   if (e.key === 'Escape' && (V.draw || V.tool || V.garr)) { V.draw = null; V.tool = null; V.garr = false; renderBattlePanel(); e.stopPropagation(); }
   else if (e.key === 'Enter' && V.draw && V.draw.pts.length) { ACT.tacplan({k: 'fix'}); e.stopPropagation(); } }, true);
 window.addEventListener('keyup', e => { if (e.key === 'Shift') window._tacShift = false; });
+
+/* ---------- artillería: alcance real, elección de objetivo y contrabatería ---------- */
+function tacArtRange(V, b, blk) { return 300 + (G.date.y >= 1860 ? 60 : 0) + (G.date.y >= 1900 ? 100 : 0) + (blk.terr && blk.terr.hill ? 40 : 0); }
+function tacArtFire(V, b, blk, dt, all) {
+  const alive = blk.figs.filter(f => f.alive && !f.flee), guns = alive.filter(f => f.kind === 'gun'), crew = alive.filter(f => f.kind === 'crew');
+  const was = blk.sil; blk.sil = !guns.length || crew.length < 2; if (blk.sil) { if (!was && blk.figs.length) { /* silenciada */ } return; }
+  const dir = blk.side === 'A' ? 1 : -1, st = bvStrat(b, blk.side), heavy = st === 'barrage' || V.salvo[blk.side] > 0, range = tacArtRange(V, b, blk);
+  blk.cd -= dt; if (blk.cd > 0) return;
+  const inR = all.filter(o => o.side !== blk.side && o.mode !== 'rout' && Math.hypot(o.x - blk.x, o.y - blk.y) <= range);
+  if (!inR.length) { blk.cd = 0.8; return; }
+  const dist = o => Math.hypot(o.x - blk.x, o.y - blk.y), nearest = l => l.slice().sort((p, q) => dist(p) - dist(q))[0];
+  let tgt = null, ctr = false; const pl = blk.d.plan;
+  if (pl && pl.k === 'target') { const f = V.blocks.get(pl.foe); if (f && inR.includes(f)) { tgt = f; ctr = f.type === 'art'; } }
+  if (!tgt) { const arts = inR.filter(o => o.type === 'art' && !o.sil && o.role !== 'reserve'); if (arts.length && Math.random() < 0.55) { tgt = nearest(arts); ctr = true; } }
+  if (!tgt) { const hot = inR.filter(o => (o.mode === 'gallop' || o.mode === 'charge' || o.mode === 'melee') && dist(o) < 190); const lines = inR.filter(o => o.role !== 'reserve'); tgt = hot.length ? nearest(hot) : lines.length ? nearest(lines) : nearest(inR); }
+  blk.cd = (heavy ? rnd(0.9, 1.5) : rnd(3, 5)) * (ctr ? 0.65 : 1); blk.tgt = tgt;
+  const gn = guns[Math.floor(Math.random() * guns.length)], fg = pickFoeFig(tgt), tx = (fg ? fg.x : tgt.x) + rnd(-14, 14), ty = (fg ? fg.y : tgt.y) + rnd(-14, 14);
+  bvPart(V, {k: 'shell', x: gn.x, y: gn.y, x2: tx, y2: ty, life: 0.55 + dist(tgt) / 520, s: blk.side, vt: tgt.id, ctr, stag: blk.tag}); gn.recoil = 1; bvPart(V, {k: 'flash', x: gn.x + Math.cos(blk.hd) * 12, y: gn.y + Math.sin(blk.hd) * 12, life: 0.14, big: 1});
+  for (let n = 0; n < 3; n++) bvPart(V, {k: 'smoke', x: gn.x + Math.cos(blk.hd) * 12, y: gn.y + Math.sin(blk.hd) * 12, life: 2.2, r: 5, vx: dir * 8 + V.wind * 0.5 + rnd(-4, 4)});
+}
+// impacto de un proyectil sobre un bloque: daño real y, contra artillería, bajas de piezas y servidores
+function tacShellHit(V, b, p, all) {
+  const v = all.find(x => x.id === p.vt); if (!v || v.mode === 'rout') return; const org = DIVS[v.d.t].org;
+  if (v.type === 'art') {
+    const cands = v.figs.filter(q => q.alive && !q.flee); if (cands.length && Math.random() < (p.ctr ? 0.5 : 0.3)) { const guns = cands.filter(q => q.kind === 'gun'), pool = guns.length && Math.random() < 0.45 ? guns : cands; bvKill(V, v, pool[Math.floor(Math.random() * pool.length)]); }
+    v.d.s = Math.max(0, v.d.s - 0.006); v.d.o = Math.max(0, v.d.o - org * 0.012);
+    const al = v.figs.filter(q => q.alive && !q.flee), sil = !al.some(q => q.kind === 'gun') || al.filter(q => q.kind === 'crew').length < 2;
+    if (sil && !v.sil) { v.sil = true; const sn = G.C[p.stag] ? G.C[p.stag].name : '', vn = G.C[v.tag].name; bvBanner(V, `🔇 ${sn} silencia una batería de ${vn}`, v.side === 'A' ? 'B' : 'A', ''); (b.log = b.log || []).push({k: 'barrage', d: b.day, t: `Contrabatería: ${sn} silencia una batería de ${vn}.`}); if (b.log.length > 30) b.log.shift(); }
+  } else { v.d.s = Math.max(0, v.d.s - 0.003); v.d.o = Math.max(0, v.d.o - org * 0.01); }
+}
+function tacDrawArt(g, V, b, all) {
+  all.forEach(blk => { if (blk.type !== 'art') return;
+    if (blk.sil) { g.font = '13px sans-serif'; g.textAlign = 'center'; g.fillStyle = 'rgba(10,12,16,.85)'; g.beginPath(); g.arc(blk.x, blk.y - blk.wid / 2 - 17, 8, 0, 6.3); g.fill(); g.fillStyle = '#fff'; g.fillText('🔇', blk.x, blk.y - blk.wid / 2 - 13); }
+    if (V.sel === blk) { const r = tacArtRange(V, b, blk); g.strokeStyle = 'rgba(255,230,140,.5)'; g.setLineDash([6, 6]); g.lineWidth = 1.2; g.beginPath(); g.arc(blk.x, blk.y, r, 0, 6.3); g.stroke(); g.setLineDash([]); if (blk.tgt && V.blocks.has(blk.tgt.d)) { g.strokeStyle = 'rgba(255,90,60,.55)'; g.beginPath(); g.moveTo(blk.x, blk.y); g.lineTo(blk.tgt.x, blk.tgt.y); g.stroke(); } } });
+}

@@ -17,9 +17,12 @@ function aiMayTake(tag, sid) {
   return AI_COLONIAL.has(tag) && !llEurope(p) && dmin <= 60;
 }
 const aiReadiness = c => clamp(0.35 + 0.65 * Math.min(1, countDivs(c.tag) / Math.max(4, divLimit(c) * 0.6)), 0.35, 1);
-function aiSidePower(tag) {
-  const c = G.C[tag]; let p = armyPower(c) * aiReadiness(c);
-  allies(tag).forEach(a => { if (alive(a)) p += armyPower(G.C[a]) * 0.6 * aiReadiness(G.C[a]); });
+// fuerza de un bando contando a quienes probablemente se unirían: aliados, miembros de su bloque militar y, si defiende, garantes
+function aiSidePower(tag, asDef) {
+  const c = G.C[tag]; let p = armyPower(c) * aiReadiness(c); const seen = new Set([tag]);
+  const add = (t, k) => { if (seen.has(t) || !alive(t) || G.C[t].wars.length >= 2) return; seen.add(t); p += armyPower(G.C[t]) * k * aiReadiness(G.C[t]) * (canReach(t, tag) || canReach(tag, t) ? 1 : 0.35); };
+  allies(tag).forEach(a => add(a, 0.65)); const bl = blocOf(tag); if (bl && bl.type === 'military') bl.members.forEach(t => add(t, 0.5));
+  if (asDef) guaranteedBy(tag).forEach(t => add(t, 0.55));
   return p;
 }
 // mejor plan de ataque de un país (o null si no conviene atacar)
@@ -36,7 +39,7 @@ function aiWarPlan(a) {
     if (d === NONE || d === a || !alive(d) || G.C[d].overlord || G.C[d].wars.length >= 2 || relOf(a, d) > 40) return;
     if (warBlockers(a, d) || !canReach(a, d)) return;
     const rs = reachableStates(a, d); if (!rs.length) return;
-    const ratio = myP / Math.max(1, aiSidePower(d)); if (ratio < 1.45) return;
+    const ratio = myP / Math.max(1, aiSidePower(d, true)); if (ratio < 1.5) return;
     const cl = claimedStates(A, d), pool = cl.length ? cl : rs, val = pool.slice(0, 2).reduce((n, x) => n + popTotal(G.S[x.id]) / 1e5 + 1, 0);
     const sc = val * Math.min(2.5, ratio) * (cl.length ? 1.6 : 1) * (relOf(a, d) < -10 ? 1.2 : 1) * (1 - Math.min(0.5, A.infamy / 100));
     if (!best || sc > best.sc) best = {a, d, sc, cl, rs, ratio};

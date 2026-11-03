@@ -38,7 +38,7 @@ function resCons(a) {
 function armyResDay(a, idx) {
   const r = armyRes(a), rt = a.rt = supplyRouteOf(a, idx), bio = MAP.provs[a.loc].biome, use = resCons(a), lvl = clamp(a.sup === undefined ? 1 : a.sup, 0, 1);
   RES_KEYS.forEach(k => { r[k] = Math.max(0, r[k] - use[k]); });
-  if (rt.safe) { const f = 0.4 + lvl * 0.8; r.food += 3 * f; r.water += 3 * f; r.powder += 1.6 * f; r.wood += 1.1 * f; r.mat += 0.8 * f; }
+  if (rt.safe) { const f = (0.4 + lvl * 0.8) * (typeof resTrickle === 'function' ? resTrickle(a) : 1); r.food += 3 * f; r.water += 3 * f; r.powder += 1.6 * f; r.wood += 1.1 * f; r.mat += 0.8 * f; }
   else { r.food += 0.25; if (bio !== 3) r.water += 0.8; if (bio === 2 || bio === 6) r.wood += 0.5; }          // forrajeo: casi nada
   RES_KEYS.forEach(k => { r[k] = clamp(r[k], 0, RES_INFO[k].cap); });
   let k = (r.food <= 0 ? 1 : 0) + (r.water <= 0 ? 1.6 : 0);

@@ -160,6 +160,7 @@ function recruitSides(w) {
     if (side === 'att' && w.defAll.some(x => anyPactBetween(tag, x, ['alliance', 'nonagg']))) return;
     if (side === 'def' && w.attAll.some(x => anyPactBetween(tag, x, ['alliance']))) return;
     const C = G.C[tag];
+    if (C.ai && tag !== G.player && typeof canReach === 'function' && !canReach(tag, side === 'att' ? w.def : w.att) && !canReach(side === 'att' ? w.def : w.att, tag)) p *= 0.35;       // los aliados lejanos e inalcanzables rara vez entran
     if (Math.random() < p || (!C.ai)) {
       (side === 'att' ? w.attAll : w.defAll).push(tag); C.wars.push(w.id);
       if (tag === G.player) notify('war', `Tu país entra en la guerra del lado de ${side === 'att' ? A.name : D.name}.`);

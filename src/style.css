@@ -620,3 +620,5 @@ svg.orders text.sdepot{font-size:16px;text-anchor:middle;dominant-baseline:centr
 .prep-b button:hover,.plans-b button:hover{border-color:var(--gold);color:#fff}.prep-b button.on,.plans-b button.on{background:linear-gradient(#8a6f2f,#5b4818);border-color:var(--gold2);color:#fff6d6}
 .plans-b button:disabled{opacity:.4;cursor:default}.plans-b button.fix{background:linear-gradient(#3f7a3f,#2a5a2a);color:#fff}
 .bcam button.go{background:linear-gradient(#c9a64a,#8a6f2f);color:#1a1408;border-color:var(--gold2);font-weight:700}
+
+.marker.depotmk,.marker.convmk{font-size:20px;filter:drop-shadow(0 1px 2px #000);cursor:help;pointer-events:auto}.marker.convmk{font-size:22px}

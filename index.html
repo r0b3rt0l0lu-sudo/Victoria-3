@@ -10973,6 +10973,7 @@ function siegeAttackers(sg) { return G.armies.filter(a => !a.sea && a.loc === sg
 function siegeDay() {
   if (!G.sieges || !G.sieges.length) return; const done = [];
   G.sieges.forEach(sg => {
+    if (sg.assaulting) return;                       // durante el asalto el asedio queda en suspenso
     const here = G.armies.filter(a => !a.sea && a.loc === sg.pid), att = siegeAttackers(sg), defenders = here.some(a => !a.garrison && (a.tag === sg.owner || sameSide(a.tag, sg.owner)) && !hostileTags(a.tag, sg.owner));
     const s = G.S[provState(sg.pid)]; if (s.owner !== sg.owner || (G.P[sg.pid].by && sg.fall)) { done.push(sg); return; }
     if (!att.length || defenders) { sg.calm++; if (sg.calm >= 3) { done.push(sg); siegeStat('lifted'); const msg = `Se levanta el asedio de ${provName(sg.pid)}.`; if (sg.att === G.player || sg.owner === G.player) notify('war', msg, provState(sg.pid)); } return; } sg.calm = 0;

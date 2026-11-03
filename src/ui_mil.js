@@ -64,7 +64,7 @@ function renderArmyPanel() {
   <div class="kv"><span>Moral</span><b class="${armyMor(a) < 0.35 ? 'bad' : armyMor(a) > 0.7 ? 'good' : ''}">${morName(armyMor(a))} (${Math.round(armyMor(a) * 100)}%) · rinde ×${morMod(a).toFixed(2)}</b></div>${bar(armyMor(a), 1, '')}
   <div class="kv"><span>Entrenamiento</span><b>${trainName(armyTrain(a))} (${Math.round(armyTrain(a) * 100)}%) · rinde ×${(0.75 + 0.5 * armyTrain(a)).toFixed(2)}</b></div>${bar(armyTrain(a), 1, 'blue')}
   <div class="kv"><span>Suministro</span><b class="${(a.sup === undefined ? 1 : a.sup) < 0.5 ? 'bad' : ''}">${Math.round((a.sup === undefined ? 1 : a.sup) * 100)}%${a.cut > 0 ? ` · ⚠ cercado ${a.cut}/60 d` : ''}</b></div>${bar(a.sup === undefined ? 1 : a.sup, 1, (a.sup === undefined ? 1 : a.sup) < 0.5 ? 'bad' : 'good')}
-  ${typeof resBarsHtml === 'function' ? resBarsHtml(a) : ''}${typeof convoyInfoHtml === 'function' ? convoyInfoHtml(a) : ''}
+  ${typeof resBarsHtml === 'function' ? resBarsHtml(a) : ''}${typeof convoyInfoHtml === 'function' ? convoyInfoHtml(a) : ''}${typeof siegeInfoHtml === 'function' ? siegeInfoHtml(a) : ''}
   <div class="kv"><span>Hombres</span><b>${fmtN(armyMen(a), 0)}</b></div>
   <div class="kv"><span>Composición</span><b>${Object.keys(cnt).map(k => DIVS[k].icon + ' ' + cnt[k]).join(' · ')}</b></div>
   <div class="kv"><span>Atrincheramiento</span><b>${'■'.repeat(Math.round(a.dig || 0))}${'□'.repeat(6 - Math.round(a.dig || 0))}</b></div>

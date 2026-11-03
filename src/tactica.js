@@ -118,7 +118,7 @@ const _battleDay0 = battleDay;
 battleDay = function (b) {
   if (!b.tacInit) {
     b.tacInit = true; b.forts = b.forts || []; b.tac = {A: {att: 0, def: 0}, B: {att: 0, def: 0}};
-    const pf = G.P[b.prov] && G.P[b.prov].fort || 0; if (pf > 0) { const defSide = b.att === 'A' ? 'B' : 'A', K = FORT_KINDS.fort, dir = defSide === 'A' ? 1 : -1, f = tacAddFort(b, defSide, 'fort', BV_W / 2 - dir * (112 + 12), BV_H / 2); f.hpMax = f.hp = K.hp * (0.6 + 0.4 * pf); f.guns = Math.min(4, pf); f.lvl = pf; }
+    const sgz = typeof siegeAt === 'function' ? siegeAt(b.prov) : null, siegeB = !!(sgz && sgz.assaulting), pf = Math.max(G.P[b.prov] && G.P[b.prov].fort || 0, siegeB ? 1 : 0); if (pf > 0) { const defSide = b.att === 'A' ? 'B' : 'A', K = FORT_KINDS.fort, dir = defSide === 'A' ? 1 : -1, f = tacAddFort(b, defSide, 'fort', BV_W / 2 - dir * (112 + 12), BV_H / 2); f.hpMax = f.hp = K.hp * (siegeB ? 0.3 + sgz.walls / 100 * 1.1 : 0.6 + 0.4 * pf); f.guns = Math.min(4, pf + (siegeB ? 1 : 0)); f.lvl = pf; if (siegeB) { b.siege = true; f.siege = true; } }
     const ps = playerSide(b);
     ['A', 'B'].forEach(s => { if (s !== ps) tacAiFortify(b, s); });
     if (ps) {
@@ -337,6 +337,7 @@ function tacPanelHtml(b, V, sel) {
     <button class="primary prep-go" data-act="tacstart">▶ ¡Comenzar la batalla!</button></div>`;
   }
   if (!b.ended && !V.replay) {
+    h += typeof tacAbilHtml === 'function' ? tacAbilHtml(b, V) : '';
     const sel2 = sel && sel.side === ps ? sel : null, cur = sel2 && sel2.d.plan;
     const art = sel2 && sel2.type === 'art';
     h += `<div class="plans"><div class="plans-h">🖊️ <b>Planes por unidad</b> <small>${sel2 ? `${DIVS[sel2.d.t].icon} ${sel2.a.name}${cur ? ` · plan: ${PLANS[cur.k].ic} ${PLANS[cur.k].n}` : ' · sin plan'}` : 'Selecciona uno de tus bloques y dibuja su flecha en el campo.'}</small></div>

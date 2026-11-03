@@ -662,3 +662,7 @@ svg.orders text.sdepot{font-size:16px;text-anchor:middle;dominant-baseline:centr
 .card.pris .prisrow{margin:8px 0;padding:6px 0;border-top:1px solid rgba(201,166,87,.2)}.prishead{margin-bottom:5px}
 .card.pris .ordbtns button{background:linear-gradient(#2d333b,#20252b);color:#e8e2d0;border:1px solid #4a4f58;border-radius:14px;padding:3px 10px;font-size:12px;cursor:pointer}.card.pris .ordbtns button:hover{border-color:var(--gold);color:#fff}
 #prisdlg{position:fixed;inset:0;z-index:125;background:rgba(5,8,10,.7);display:none;align-items:center;justify-content:center}.pd-box{width:min(640px,94vw);max-height:86vh;overflow:auto;background:linear-gradient(180deg,#27323b,#1b232a);border:1px solid var(--gold);border-radius:10px;padding:16px;box-shadow:0 10px 40px #000}.pd-box .primary{margin-top:10px;width:100%}
+
+.abil{border:1px solid var(--goldd);border-radius:8px;padding:8px 10px;margin:6px 0;background:rgba(18,24,30,.7)}.abil-h small{color:var(--dim);margin-left:6px}
+.abil .ordbtns button{background:linear-gradient(#2d333b,#20252b);color:#e8e2d0;border:1px solid #4a4f58;border-radius:14px;padding:3px 10px;font-size:12px;cursor:pointer}.abil .ordbtns button.on{background:linear-gradient(#8a6f2f,#5b4818);border-color:var(--gold2)}.abil .ordbtns button.nofunds{opacity:.5}
+.marker.siegemk{font-size:24px;filter:drop-shadow(0 1px 3px #000);cursor:help;pointer-events:auto}

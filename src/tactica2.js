@@ -129,8 +129,8 @@ function tacAi(V, b, all, s, step) {
 function tacThink(V, b, all, dt) {
   if (V.over || b.prep || b.ended || V.replay || dt <= 0) return;
   V._th = (V._th || 0) + dt; if (V._th < 1.0) return; const step = V._th; V._th = 0;
-  tacCaptureForts(V, b, all, step); tacFortGuns(V, b, all, step); tacFlankShock(V, b, all, step); tacEncircle(V, b, all, step);
-  const ps = playerSide(b); ['A', 'B'].forEach(s => { if (s !== ps) tacAi(V, b, all, s, step); });
+  tacCaptureForts(V, b, all, step); tacFortGuns(V, b, all, step); tacFlankShock(V, b, all, step); if (typeof tacMoraleX === 'function') tacMoraleX(V, b, all, step); tacEncircle(V, b, all, step);
+  const ps = playerSide(b); ['A', 'B'].forEach(s => { if (s !== ps) { if (typeof tacAiAbil === 'function') tacAiAbil(V, b, all, s); tacAi(V, b, all, s, step); } });
 }
 /* ---------- tropas comprometidas ---------- */
 function tacActive(b, side) { return sideIds(b, side).map(armyById).filter(Boolean).reduce((n, a) => n + a.divs.filter(d => !d.out).length, 0); }

@@ -66,6 +66,7 @@ function convoyMarkers() {
   convEnsure(); const out = [];
   (G.depotList || []).forEach(pid => { const tag = G.P[pid].depot; if (tag !== G.player && !provVisible(pid)) return; out.push({id: 'dp' + pid, state: provState(pid), prov: pid, ch: '📦', cls: 'depotmk', tip: `<b>Depósito de suministros</b><br>${G.C[tag].name}. Centro de abastecimiento avanzado; si lo ocupa el enemigo sin oposición será saqueado.`}); });
   G.convoys.forEach(cv => { const pid = cv.path[cv.i]; if (pid === undefined || (cv.tag !== G.player && !provVisible(pid))) return; out.push({id: 'cv' + cv.id, state: provState(pid), prov: pid, ch: '🚚', cls: 'convmk', tip: `<b>Convoy de suministros</b><br>${G.C[cv.tag].name} · llega en ${Math.max(1, cv.i)} día${cv.i === 1 ? '' : 's'}. ${cv.tag === G.player ? 'Escóltalo con un ejército si hay enemigos cerca.' : 'Captúralo entrando en su provincia.'}`}); });
+  if (typeof siegeMarkers === 'function') out.push(...siegeMarkers());
   return out;
 }
 function convoyInfoHtml(a) {

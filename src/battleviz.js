@@ -87,7 +87,7 @@ function bvSync(V, b) {
   const seen = new Set();
   ['A', 'B'].forEach(side => {
     const ids = side === 'A' ? b.A : b.B, list = [];
-    ids.map(armyById).filter(Boolean).forEach(a => a.divs.forEach(d => list.push({a, d})));
+    ids.map(armyById).filter(Boolean).forEach(a => a.divs.forEach(d => { if (!d.out) list.push({a, d}); }));
     const nFront = Math.min(list.length, BATTLE_WIDTH);
     const blks = list.map((it, i) => { seen.add(it.d); let blk = V.blocks.get(it.d); if (!blk) { blk = bvMakeBlock(V, it, side); V.blocks.set(it.d, blk); } blk.a = it.a; blk.front0 = i < nFront; return blk; });
     // relevos: el bloque agotado cede su sitio a uno de reserva
@@ -108,7 +108,7 @@ function bvSync(V, b) {
       kinds.forEach(([kd, tot]) => { const want = s > 0.02 ? Math.max(1, Math.ceil(tot * s - 1e-6)) : 0; const alive = blk.figs.filter(f => f.kind === kd && f.alive); for (let n = alive.length; n > want; n--) { const cand = blk.figs.filter(f => f.kind === kd && f.alive); bvKill(V, blk, cand[Math.floor(Math.random() * cand.length)]); } });
     });
   });
-  V.blocks.forEach((blk, d) => { if (!seen.has(d)) { blk.figs.forEach(f => { if (f.alive && !f.flee) bvFlee(V, blk, f, 1.2); }); blk.mode = 'rout'; V.ghosts.push(blk); V.blocks.delete(d); } });
+  V.blocks.forEach((blk, d) => { if (!seen.has(d) && d.out) { V.blocks.delete(d); return; } if (!seen.has(d)) { blk.figs.forEach(f => { if (f.alive && !f.flee) bvFlee(V, blk, f, 1.2); }); blk.mode = 'rout'; V.ghosts.push(blk); V.blocks.delete(d); } });
 }
 // relevos entre bloques agotados y de reserva
 function bvRelief(V, b, dt) {
@@ -152,7 +152,7 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
     if (V.over.loser === side) { mode = 'retreat'; tx = home.x - dir * 400; spd = F.spd * 1.4; } else { mode = 'victory'; tx = home.x + dir * 30; spd = F.spd * 0.6; }
   } else if (b.prep) { mode = 'deploy'; spd = F.spd * 5;
   } else if (blk.brk > 0) { mode = 'retreat'; tx = home.x - dir * 210; spd = F.spd * 1.5;
-  } else if (blk.role !== 'reserve' && blk.type !== 'art' && orgF < 0.1 + (1 - (blk.mor === undefined ? 0.8 : blk.mor)) * 0.1 + (blk.fat || 0) * 0.05) { mode = 'retreat'; tx = home.x - dir * 100; spd = F.spd * 1.0;
+  } else if (blk.d.cust && blk.d.cust.fort && !(blk.d.plan && blk.d.plan.k !== 'target') && tacFortAlive(b, blk.d.cust.fort)) { mode = (blk.foe && Math.hypot(blk.foe.x - blk.x, blk.foe.y - blk.y) < 190 && blk.foe.role !== 'reserve') ? 'fire' : 'hold'; spd = F.spd * 3; blk.garr = true;
   } else if ((pp = bvPlanStep(V, b, blk, dt, all, home)) !== null) { mode = pp.mode; tx = pp.tx; ty = pp.ty; spd = F.spd * pp.k; path = pp.path;
   } else if (blk.role === 'reserve') {
     mode = 'reserve'; tx = home.x + Math.sin(t * 0.5 + blk.ph) * 3; ty = home.y + Math.cos(t * 0.4 + blk.ph) * 2;
@@ -165,7 +165,7 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
     if (od && od.k === 'withdraw') { mode = 'retreat'; tx = home.x - dir * 140; spd = F.spd * 1.2; }
     else if (V.gas && V.gas.side !== side && V.gas.t < 5 && Math.sin(blk.ph * 5 + blk.id) > 0.1) { mode = 'recoil'; tx = L - dir * 70; spd = F.spd * 1.5; if (Math.random() < dt * 3) { const fs = blk.figs.filter(f => f.alive && !f.flee); if (fs.length) bvFlee(V, blk, fs[Math.floor(Math.random() * fs.length)], 0.6); } }
     else if (V.panic[side] > 0 && Math.sin(blk.ph * 7 + blk.id) > 0.45) { mode = 'recoil'; tx = L - dir * 120; spd = F.spd * 3; }
-    else if (orgF < 0.12) { mode = 'retreat'; tx = home.x - dir * 90; spd = F.spd * 0.9; }
+    else if (false) { }
     else if (flankers && foe) {
       const edgeTop = blk.lane < blk.nLane / 2 || blk.type === 'cav' && blk.lane === 0, ey = edgeTop ? 26 : BV_H - 24, xm = (L + LE) / 2;
       const ends = all.filter(o => o.side !== side && o.role === 'line' && o.mode !== 'rout'); let tf = null; ends.forEach(o => { if (!tf || (edgeTop ? o.y < tf.y : o.y > tf.y)) tf = o; });
@@ -192,10 +192,13 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
   // ---- movimiento (el terreno frena: vado, bosque, cuesta) ----
   blk.terr = bvTerrAt(V.tf, blk.x, blk.y, side); if (b.forts && typeof tacFortAt === 'function' && tacFortAt(b, blk.x, blk.y)) blk.terr.cover = true; spd *= blk.terr.slow;
   if (blk.terr.water && (blk.sp || 0) > 5 && Math.random() < dt * 14) bvPart(V, {k: 'splash', x: blk.x + rnd(-blk.dep / 2, blk.dep / 2), y: blk.y + rnd(-blk.wid / 2, blk.wid / 2), life: 0.6});
+  if (typeof tacWaypoint === 'function') { const wp = tacWaypoint(V.tf, blk, tx, ty); if (wp) { tx = wp[0]; ty = wp[1]; } }
+  const wasW = blk.terr && blk.terr.water;
   const dx = tx - blk.x, dy = ty - blk.y, d = Math.hypot(dx, dy) || 1, want = Math.min(spd, d * 2.4);
   blk.vx += (dx / d * want - blk.vx) * Math.min(1, dt * 2.6); blk.vy += (dy / d * want - blk.vy) * Math.min(1, dt * 2.6);
   if (!blk.init) { blk.init = true; const off = b.day > 1 ? 0 : 160; blk.x = home.x - dir * off + rnd(-8, 8); blk.y = home.y + rnd(-10, 10); blk.figs.forEach(f => { const s = bvSlot(blk, f); f.x = s[0] + rnd(-3, 3); f.y = s[1] + rnd(-3, 3); }); }
   blk.x += blk.vx * dt; blk.y += blk.vy * dt; blk.y = clamp(blk.y, 30, BV_H - 22);
+  if (!wasW && V.tf && bvTerrAt(V.tf, blk.x, blk.y, side).water) { blk.x -= blk.vx * dt; blk.y -= blk.vy * dt; blk.vx *= 0.15; blk.vy *= 0.15; }       // no se cruza el agua fuera de los vados
   const sp = Math.hypot(blk.vx, blk.vy); blk.sp = sp;
   // orientación: hacia el enemigo cuando está cerca; hacia donde marcha en las maniobras
   let wantH = dir > 0 ? 0 : Math.PI;
@@ -283,13 +286,14 @@ function bvFrame(V, b, ctx, now) {
   const lines = {A: bvLine(V, b, 'A'), B: bvLine(V, b, 'B')}, all = [...V.blocks.values()];
   if (!V.over) bvRelief(V, b, dt);
   all.forEach(blk => bvStepBlock(V, b, blk, dt, lines, all)); bvSeparate(all, dt);
+  if (typeof tacThink === 'function') tacThink(V, b, all, dt);
   if (typeof tacMorale === 'function') { tacMorale(V, b, all, dt); V._pfx = (V._pfx || 0) + dt; if (V._pfx > 1) { V._pfx = 0; tacPlanFx(V, b, all); } }
   all.forEach(blk => bvStepFigs(V, b, blk, dt)); V.ghosts.forEach(blk => bvStepFigs(V, b, blk, dt, true));
   V.ghosts = V.ghosts.filter(blk => blk.figs.some(f => f.alive || f.dying > 0));
   if (!b.ended) all.forEach(blk => bvFire(V, b, blk, dt, all));
   // moral baja: algunos soldados rompen filas
   ['A', 'B'].forEach(s => { const org = s === 'A' ? b.orgA : b.orgB;
-    if (!b.ended && org !== undefined && org < 0.3 && Math.random() < dt * 1.2) { const c = all.filter(x => x.side === s && x.role === 'line'); if (c.length) { const blk = c[Math.floor(Math.random() * c.length)], fs = blk.figs.filter(f => f.alive && !f.flee); if (fs.length) bvFlee(V, blk, fs[Math.floor(Math.random() * fs.length)], 1); } } });
+    if (!b.ended && org !== undefined && org < 0.15 && Math.random() < dt * 1.2) { const c = all.filter(x => x.side === s && x.role === 'line' && !(x.d.cust && x.d.cust.fort)); if (c.length) { const blk = c[Math.floor(Math.random() * c.length)], fs = blk.figs.filter(f => f.alive && !f.flee); if (fs.length) bvFlee(V, blk, fs[Math.floor(Math.random() * fs.length)], 1); } } });
   // partículas
   V.parts.forEach(p => { p.age += dt; if (p.k === 'smoke') { p.x += (p.vx || 0) * dt; p.y -= 6 * dt; } if (p.k === 'dust') { p.y -= 4 * dt; p.x += V.wind * 0.3 * dt; }
     if (p.k === 'gas') { p.x += p.vx * dt; p.y += Math.sin(p.age * 1.4 + p.x * 0.02) * 4 * dt; }
@@ -435,7 +439,7 @@ function bvDraw(V, b, g, lines, all) {
   V.parts.forEach(p => { if (p.k === 'gas') { const k = p.age / p.life; g.globalAlpha = 0.5 * Math.sin(Math.min(1, k) * 3.14); g.fillStyle = '#b6d13a'; g.beginPath(); g.arc(p.x, p.y, p.r * (1 + k * 1.6), 0, 6.3); g.fill(); g.globalAlpha = 1; return; }
     if (p.k !== 'smoke' && p.k !== 'dust') return; const k = p.age / p.life; g.globalAlpha = (p.k === 'smoke' ? 0.34 : 0.26) * (1 - k); g.fillStyle = p.k === 'smoke' ? '#c9c6be' : '#b09a76'; g.beginPath(); g.arc(p.x, p.y, (p.r || 3) * (1 + k * 2.2), 0, 6.3); g.fill(); }); g.globalAlpha = 1;
   // casillas de los bloques y órdenes en curso
-  const blocks = all.slice().sort((a, c) => a.y - c.y);
+  const blocks = all.filter(k => !(typeof tacHidden === 'function' && tacHidden(b, k))).sort((a, c) => a.y - c.y);
   blocks.forEach(blk => { bvPlate(g, blk, V.hover === blk); });
   if (V.sel && V.blocks.has(V.sel.d)) { const s = V.sel, pulse = 0.6 + 0.4 * Math.sin(V.t * 5), c = Math.cos(s.hd), sn = Math.sin(s.hd), hw = s.dep / 2 + 7, hh2 = s.wid / 2 + 7, pr = (x, y) => [s.x + c * x - sn * y, s.y + sn * x + c * y];
     g.strokeStyle = `rgba(255,240,150,${pulse})`; g.lineWidth = 2; g.setLineDash([7, 4]); g.beginPath(); [pr(-hw, -hh2), pr(hw, -hh2), pr(hw, hh2), pr(-hw, hh2)].forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.closePath(); g.stroke(); g.setLineDash([]); }
@@ -443,7 +447,7 @@ function bvDraw(V, b, g, lines, all) {
     const a = blk.path[blk.path.length - 2], e = blk.path[blk.path.length - 1], an = Math.atan2(e[1] - a[1], e[0] - a[0]); g.beginPath(); g.moveTo(e[0] + Math.cos(an) * 8, e[1] + Math.sin(an) * 8); g.lineTo(e[0] + Math.cos(an + 2.5) * 7, e[1] + Math.sin(an + 2.5) * 7); g.lineTo(e[0] + Math.cos(an - 2.5) * 7, e[1] + Math.sin(an - 2.5) * 7); g.fill(); });
   if (typeof tacDrawPlans === 'function') { tacDrawArt(g, V, b, all); tacDrawPlans(g, V, b, all); }
   // soldados (ordenados por y)
-  const figs = []; all.concat(V.ghosts).forEach(blk => blk.figs.forEach(f => { if (f.alive || f.dying > 0) figs.push([blk, f]); })); figs.sort((p, q) => p[1].y - q[1].y);
+  const figs = []; all.concat(V.ghosts).forEach(blk => { if (typeof tacHidden === 'function' && tacHidden(b, blk)) return; blk.figs.forEach(f => { if (f.alive || f.dying > 0) figs.push([blk, f]); }); }); figs.sort((p, q) => p[1].y - q[1].y);
   figs.forEach(([blk, f]) => bvFig(g, V, blk, f));
   // barras de fuerza/organización y banderines
   blocks.forEach(blk => { const c = Math.cos(blk.hd), s = Math.sin(blk.hd), by = blk.y + Math.abs(s) * blk.dep / 2 + Math.abs(c) * blk.wid / 2 + 5; if (blk.role !== 'reserve' || V.hover === blk) { const w = Math.max(24, blk.wid * 0.8), x0 = blk.x - w / 2, org = clamp(blk.d.o / DIVS[blk.d.t].org, 0, 1);
@@ -546,6 +550,7 @@ function bvReplayFrame(V, b, g, now) {
 function bvClick(V) {
   if (V.replay) return; const h = V.hover;
   { const bb = G.battles.find(x => x.id === UI.battle); if (bb && V.draw && !bb.ended && V.mouse && typeof tacClickMap === 'function') { const [wx, wy] = bvToWorld(V, V.mouse.x, V.mouse.y); if (tacClickMap(V, bb, wx, wy)) { renderBattlePanel(); return; } } }
+  { const bb2 = G.battles.find(x => x.id === UI.battle); if (bb2 && V.mouse && typeof tacFortClick === 'function' && tacFortClick(V, bb2, h)) { renderBattlePanel(); return; } }
   if (h && h.tag === G.player && !V.over) V.sel = V.sel === h ? null : h; else if (!h) V.sel = null;
   if (typeof renderBattlePanel === 'function') renderBattlePanel();
 }

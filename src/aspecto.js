@@ -70,6 +70,15 @@ function fortFlame(g, V, x, y, k, seed) {
 }
 function fortSmoke(g, V, x, y, n, seed) { for (let i = 0; i < n; i++) { const k = ((V.t * 0.35 + i / n + seed) % 1), r = 4 + k * 12; g.globalAlpha = 0.3 * (1 - k); g.fillStyle = '#4c4a47'; g.beginPath(); g.arc(x + Math.sin(i * 2 + seed + V.t) * 5 + k * 8, y - k * 34, r, 0, 6.3); g.fill(); } g.globalAlpha = 1; }
 function sandbags(g, x0, y0, n, dx, dy, w) { for (let i = 0; i < n; i++) { const x = x0 + i * dx, y = y0 + i * dy; g.fillStyle = (i % 2) ? '#b3a074' : '#a29066'; g.beginPath(); g.ellipse(x, y, w, w * 0.62, 0, 0, 6.3); g.fill(); g.strokeStyle = 'rgba(60,48,28,.7)'; g.lineWidth = 0.7; g.stroke(); g.fillStyle = 'rgba(255,255,255,.14)'; g.beginPath(); g.ellipse(x - w * 0.2, y - w * 0.2, w * 0.45, w * 0.2, 0, 0, 6.3); g.fill(); } }
+function fortSoldier(g, x, y, col, dir, t, k, flash) {
+  const c = hexRgb(col), bob = Math.sin(t * 2 + k) * 0.25;
+  g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(x + 0.6, y + 3.4, 2.6, 1, 0, 0, 6.3); g.fill();
+  g.fillStyle = mixc(c, -0.45); g.fillRect(x - 2, y - 2.6 + bob, 4, 4.8); g.fillStyle = col; g.fillRect(x - 1.6, y - 2.3 + bob, 3.2, 4);
+  g.strokeStyle = 'rgba(245,245,240,.8)'; g.lineWidth = 0.5; g.beginPath(); g.moveTo(x - 1.5, y - 2.2 + bob); g.lineTo(x + 1.5, y + 1.4 + bob); g.moveTo(x + 1.5, y - 2.2 + bob); g.lineTo(x - 1.5, y + 1.4 + bob); g.stroke();
+  g.fillStyle = '#e7c9a6'; g.beginPath(); g.arc(x, y - 3.6 + bob, 1.2, 0, 6.3); g.fill(); g.fillStyle = '#17181c'; g.fillRect(x - 1.3, y - 6.2 + bob, 2.6, 2.4); g.fillStyle = '#d4b24c'; g.fillRect(x - 0.4, y - 5.3 + bob, 0.8, 0.8);
+  g.strokeStyle = '#3a2a1a'; g.lineWidth = 1; g.beginPath(); g.moveTo(x, y - 1.4 + bob); g.lineTo(x + dir * 6.5, y - 1.6 + bob); g.stroke();
+  if (flash) { g.globalCompositeOperation = 'lighter'; const rg = g.createRadialGradient(x + dir * 8, y - 1.6, 0, x + dir * 8, y - 1.6, 6); rg.addColorStop(0, 'rgba(255,230,150,.95)'); rg.addColorStop(1, 'rgba(255,140,40,0)'); g.fillStyle = rg; g.beginPath(); g.arc(x + dir * 8, y - 1.6, 6, 0, 6.3); g.fill(); g.globalCompositeOperation = 'source-over'; }
+}
 function fortGun(g, x, y, dir, hpf) { g.fillStyle = '#2a2018'; g.beginPath(); g.arc(x - dir * 3, y + 1, 3, 0, 6.3); g.fill(); g.fillStyle = '#7a5a38'; g.beginPath(); g.arc(x - dir * 3, y + 1, 2.3, 0, 6.3); g.fill(); g.strokeStyle = '#30353b'; g.lineWidth = 4; g.lineCap = 'round'; g.beginPath(); g.moveTo(x - dir * 3, y); g.lineTo(x + dir * 11, y); g.stroke(); g.strokeStyle = '#6c727a'; g.lineWidth = 2.6; g.beginPath(); g.moveTo(x - dir * 3, y); g.lineTo(x + dir * 11, y); g.stroke(); g.lineCap = 'butt'; void hpf; }
 function tacDrawForts(g, V, b) {
   (b.forts || []).forEach(f => {
@@ -82,11 +91,15 @@ function tacDrawForts(g, V, b) {
     }
     g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(4, h / 2 + 3, w / 2 + 4, 5, 0, 0, 6.3); g.fill();
     if (f.kind === 'trench') {
+      ((w, h, dir) => {
+        if (f.rot) { g.save(); g.rotate(Math.PI / 2); }
       g.fillStyle = '#1f160c'; g.fillRect(-w / 2, -h / 2, w, h); g.fillStyle = '#6e5636'; for (let i = -w / 2 + 2; i < w / 2; i += 6) g.fillRect(i, -h / 2 + 1.5, 3.4, h - 3);                              // tablones del fondo
       g.fillStyle = '#5a4126'; g.fillRect(-w / 2, -h / 2, w, 2); g.fillRect(-w / 2, h / 2 - 2, w, 2);
       g.fillStyle = 'rgba(52,40,24,.9)'; g.fillRect(-w / 2 - 3, -h / 2 - 3 - (dir > 0 ? 0 : 0), w + 6, 3.4); g.fillRect(-w / 2 - 3, h / 2 - 0.4, w + 6, 3.4);
       sandbags(g, -w / 2 + 3, dir > 0 ? h / 2 + 2.4 : -h / 2 - 2.4, Math.floor(w / 6.4), 6.4, 0, 3.4);
       for (let i = 0; i < 4; i++) { const px = -w / 2 + 12 + i * (w - 24) / 3; g.strokeStyle = '#3a2d1b'; g.lineWidth = 1; g.beginPath(); g.moveTo(px, -h / 2); g.lineTo(px, h / 2); g.stroke(); }
+        if (f.rot) g.restore();
+      })(f.rot ? f.h : f.w, f.rot ? f.w : f.h, f.rot ? -dir : dir);
     } else if (f.kind === 'redoubt') {
       g.fillStyle = '#4a3a24'; g.beginPath(); g.moveTo(-w / 2 - 6, -h / 2 + 8); g.lineTo(-w / 2 + 6, -h / 2 - 6); g.lineTo(w / 2 - 6, -h / 2 - 6); g.lineTo(w / 2 + 6, -h / 2 + 8); g.lineTo(w / 2 + 6, h / 2 - 8); g.lineTo(w / 2 - 6, h / 2 + 6); g.lineTo(-w / 2 + 6, h / 2 + 6); g.lineTo(-w / 2 - 6, h / 2 - 8); g.closePath(); g.fill();      // foso
       g.fillStyle = '#7a6040'; g.beginPath(); g.moveTo(-w / 2, -h / 2 + 6); g.lineTo(-w / 2 + 5, -h / 2); g.lineTo(w / 2 - 5, -h / 2); g.lineTo(w / 2, -h / 2 + 6); g.lineTo(w / 2, h / 2 - 6); g.lineTo(w / 2 - 5, h / 2); g.lineTo(-w / 2 + 5, h / 2); g.lineTo(-w / 2, h / 2 - 6); g.closePath(); g.fill();
@@ -105,6 +118,9 @@ function tacDrawForts(g, V, b) {
       [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([sx, sy]) => { const tx = sx * (w / 2), ty = sy * (h / 2); g.fillStyle = '#8a8172'; g.beginPath(); g.arc(tx, ty, 9, 0, 6.3); g.fill(); g.fillStyle = '#6a6256'; g.beginPath(); g.arc(tx, ty, 6.4, 0, 6.3); g.fill(); g.fillStyle = '#a09686'; for (let i = 0; i < 6; i++) { const a = i * 1.047; g.fillRect(tx + Math.cos(a) * 8.5 - 1.2, ty + Math.sin(a) * 8.5 - 1.2, 2.4, 2.4); } });
       g.fillStyle = '#1c1812'; g.beginPath(); g.moveTo(dir * (w / 2) - dir * 2, -6); g.lineTo(dir * (w / 2) + dir * 2, -6); g.lineTo(dir * (w / 2) + dir * 2, 6); g.lineTo(dir * (w / 2) - dir * 2, 6); g.closePath(); g.fill();
     }
+    { const gar = tacGarrisonOf(b, f); if (gar.length) { let n = 0; gar.forEach(d => { n += clamp(Math.round(d.s * 8), 1, 8); }); n = Math.min(n, 16); const fire = [...V.blocks.values()].some(o => o.side !== f.side && Math.hypot(o.x - f.x, o.y - f.y) < 200), col2 = tcol, horiz = f.w >= f.h;
+      for (let i = 0; i < n; i++) { const row = i % 2, k = Math.floor(i / 2), per = Math.ceil(n / 2), sp = Math.min(8, ((horiz ? f.w : f.h) - 14) / Math.max(1, per)), o = (k - (per - 1) / 2) * sp;
+        const px = horiz ? o : dir * (f.w / 2 - 6 - row * 7), py = horiz ? (dir > 0 ? 1 : -1) * 0 + (row ? 5 : -3) : o + (row ? 2 : 0); fortSoldier(g, px, py, col2, dir, V.t, i, fire && Math.sin(V.t * 5 + i * 2.3 + f.id) > 0.82); } } }
     if (f.kind !== 'trench') { const wv = Math.sin(V.t * 4 + f.id) * 2; g.strokeStyle = '#2a2a2e'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(0, -h / 2 - (f.kind === 'fort' ? 20 : 3)); g.lineTo(0, -h / 2 - (f.kind === 'fort' ? 34 : 17)); g.stroke(); g.fillStyle = tcol; g.beginPath(); const fy = -h / 2 - (f.kind === 'fort' ? 34 : 17); g.moveTo(0, fy); g.quadraticCurveTo(7, fy + wv, 14, fy + 1.5); g.lineTo(14, fy + 8); g.quadraticCurveTo(7, fy + 8 + wv, 0, fy + 7); g.fill(); g.fillStyle = 'rgba(255,255,255,.7)'; g.fillRect(1, fy + 3, 12, 1.3); }
     for (let i = 0; i < f.guns; i++) fortGun(g, dir * (w / 2 - 8), (i - (f.guns - 1) / 2) * Math.min(12, (h - 12) / Math.max(1, f.guns)), dir, hpf);
     if (hpf < 0.65) { g.strokeStyle = 'rgba(20,14,8,.7)'; g.lineWidth = 1; for (let i = 0; i < Math.ceil((0.65 - hpf) * 10); i++) { const cx = (hash2(f.id, i, 21) - 0.5) * w, cy = (hash2(f.id, i, 22) - 0.5) * h; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + 5, cy + 3); g.lineTo(cx + 3, cy + 8); g.stroke(); } }

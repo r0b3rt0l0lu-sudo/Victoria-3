@@ -69,5 +69,5 @@ Object.assign(ACT, {closewarsum: () => { const e = document.getElementById('wars
 
 function recentBattlesHtml() {
   const l = (G.endedList || []).filter(b => b.sum && b.sum.mine).slice(0, 8);
-  return `<div class="card"><h3>Batallas recientes</h3>${l.length ? l.map(b => { const s = b.sum, win = s.mine === s.winner; return `<div class="kv sm clk" data-act="selbattle" data-id="${b.id}"><span>${win ? '🏆' : '💀'} ${provName(b.prov)} <small class="dim">${s.date}</small></span><b>${fmtN(s.lost[s.mine], 0)} bajas · 📋 resumen</b></div>`; }).join('') : '<small class="dim">Aún no has librado ninguna batalla en esta sesión.</small>'}</div>`;
+  return (typeof prisCardHtml === 'function' ? prisCardHtml() : '') + `<div class="card"><h3>Batallas recientes</h3>${l.length ? l.map(b => { const s = b.sum, win = s.mine === s.winner; return `<div class="kv sm clk" data-act="selbattle" data-id="${b.id}"><span>${win ? '🏆' : '💀'} ${provName(b.prov)} <small class="dim">${s.date}</small></span><b>${fmtN(s.lost[s.mine], 0)} bajas · 📋 resumen</b></div>`; }).join('') : '<small class="dim">Aún no has librado ninguna batalla en esta sesión.</small>'}</div>`;
 }

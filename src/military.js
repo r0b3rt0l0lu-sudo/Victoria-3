@@ -275,6 +275,7 @@ function sideStats(b, ids, isAttacker) {
     const dm = (1 + mb.def + stl + stDef + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + gm.def + dm0(a.tag, 'def') + air + dig) * sup * mm * (1 + tm.def);
     brave += gm.brave; gun += gm.art;
     a.divs.forEach(d => {
+      if (d.out) return;
       const info = DIVS[d.t];
       if (wsum < BATTLE_WIDTH + (terr.mnt > 0.4 ? -2 : 0)) {
         const tm = trainMod(d);
@@ -340,15 +341,15 @@ function battleDay(b) {
   const rnd1 = () => 0.85 + Math.random() * 0.3;
   const casA = typeof airCas === 'function' ? airCas(b.A0, b.state) : 0, casB = typeof airCas === 'function' ? airCas(b.B0, b.state) : 0;
   const rAB = sa.F * ev.fA * rnd1() * (1 + casA) / Math.max(1, sb.T), rBA = sb.F * ev.fB * rnd1() * (1 + casB) / Math.max(1, sa.T);
-  const dmg = (r) => clamp(3.3 * r, 0.4, 8);       // % de organización perdida por día
+  const dmg = (r) => clamp(4.4 * r, 0.6, 10.5);       // % de organización perdida por día (batallas más sangrientas: hacen falta menos para ganar la guerra)
   const apply = (armies, orgLoss, extra, cas) => {
     let lost = 0;
-    armies.forEach(a => {
+    armies.forEach(a => { let act = 0;
       a.divs.forEach((d, i) => {
-        if (i >= BATTLE_WIDTH) return;
+        if (d.out || act++ >= BATTLE_WIDTH) return;
         const info = DIVS[d.t];
         d.o = Math.max(0, d.o - info.org * (orgLoss + extra) / 100 * (0.8 + Math.random() * 0.4) * (1 - (typeof docMod === 'function' ? docMod(a.tag, 'org') : 0)) * ordFx(d).o);
-        const sl = (orgLoss / 100) * 0.38 * (0.6 + 0.8 * (1 - d.o / info.org)) * cas;
+        const sl = (orgLoss / 100) * 0.8 * (0.6 + 0.8 * (1 - d.o / info.org)) * cas;
         d.s = Math.max(0, d.s - sl); lost += sl * MEN_PER_DIV;
         d.tr = Math.min(1, (d.tr === undefined ? 0.5 : d.tr) + 0.004);      // la experiencia de combate entrena
       });
@@ -370,7 +371,8 @@ function battleDay(b) {
   const oA = A2.length ? sideStats(b, b.A, true).org : 0, oB = B2.length ? sideStats(b, b.B, true).org : 0;
   if (!A2.length || !B2.length) { endBattle(b, A2.length ? 'A' : 'B'); return; }
   const th = list => list.some(a => a.mode === 'hold') ? 0.08 : (typeof morRetreatTh === 'function' ? morRetreatTh(list) : 0.18);       // «mantener posición» resiste hasta el final
-  if (b.day >= 5 && (oA < th(A2) || oB < th(B2))) endBattle(b, oA < oB ? 'B' : 'A');
+  { const actN = list => list.reduce((n, a) => n + a.divs.filter(d => !d.out).length, 0); if (!actN(A2)) { endBattle(b, 'B'); return; } if (!actN(B2)) { endBattle(b, 'A'); return; } }
+  if (b.day >= 4 && (oA < th(A2) || oB < th(B2))) endBattle(b, oA < oB ? 'B' : 'A');
 }
 // Bajas: se restan de la población de reclutamiento del país y suben el cansancio de guerra
 function bleed(tag, men) {
@@ -521,7 +523,7 @@ function computeWarScore(w) {
   const cap = (leader, by) => { const c = G.C[leader]; const s = G.S[c.capital]; return s && s.owner === leader && s.occ >= 1 && by.includes(s.occBy); };
   if (cap(w.def, w.attAll)) sc += 25; if (cap(w.att, w.defAll)) sc -= 25;
   w.targets.forEach(sid => { const s = G.S[sid]; if (s.owner === w.def && s.occ >= 1) sc += 10; });
-  const bw = w.bw || {att: 0, def: 0}; sc += clamp((bw.att - bw.def) * 1.5, -15, 15);
+  const bw = w.bw || {att: 0, def: 0}; sc += clamp((bw.att - bw.def) * 4, -40, 40); if (w.cas) sc += clamp((w.cas.def - w.cas.att) / 28000, -22, 22);
   if (typeof blockadeScore === 'function') sc += blockadeScore(w);
   if (typeof prisScore === 'function') sc += prisScore(w);
   return clamp(Math.round(sc), -100, 100);

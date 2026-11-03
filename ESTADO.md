@@ -81,3 +81,8 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - `src/aspecto.js`: soldados, jinetes, cañones y servidores con más detalle; fuertes con texturas, banderas, daños, fuego y humo; cráteres, resplandor aditivo, viñeta, tinte por hora y temblor al impactar.
 - `src/inicio.js` + CSS: panel de inicio con partículas, niebla, rayos de luz, giro lento de cámara y logo/botones animados.
 - `src/musica.js`: banda sonora procedural WebAudio (menú, paz, guerra, batalla), efectos (cañón, fusilería, corneta) y botón 🎵.
+
+## Sesión: combate avanzado (11 puntos)
+- `src/tactica2.js`: IA táctica (guarnece fuertes, flanquea, fija débiles, se repliega/cambia de posición ante flanqueos), ríos solo por vados y lagunas rodeadas, cañones de fuerte (auto/objetivo) y daño diario, captura de fuertes vacíos, cercos con rendición y prisioneros (liberar, trabajos, canje, rescate, reclutar, ejecutar), tropas comprometidas (`d.out`), flanqueo hasta +40 %.
+- `military.js`: más bajas (org ×1,33, fuerza ×2,1), batallas desde el día 4, puntuación de guerra con más peso de victorias y bajas, `d.out` excluye divisiones.
+- Trincheras girables (`f.rot`), guarnición oculta con soldados dibujados en el fuerte (`aspecto.js`), las tropas no se retiran solas (solo si quedan sin hombres u orden de retirada; la caballería solo rompe a tropas cansadas o desmoralizadas).

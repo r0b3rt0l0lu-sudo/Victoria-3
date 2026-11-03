@@ -19,7 +19,7 @@ function battleTerrain(b) {
 // modificadores reales de ataque y defensa de un bando por el terreno
 function terrMods(b, side) {
   const tf = battleTerrain(b), isAtt = b.att === side, st = (side === 'A' ? b.strA : b.strB) || 'frontal'; let att = 0, def = 0;
-  if (tf.hill) { if (tf.hill.side === side) def += 0.08 + (st === 'hold' ? 0.04 : 0); else att -= 0.05; }
+  if (tf.hill) { if (tf.hill.side === side) def += 0.1 + (st === 'hold' ? 0.05 : 0); else att -= 0.12; }
   if (tf.river && isAtt && b.day <= 3) att -= 0.07 * (st === 'flank' ? 0.4 : 1);
   if (tf.forests.length >= 2) { if (!isAtt) def += 0.04; if (st === 'charge') att -= 0.05; }
   if (tf.farm && tf.farm.side === side) def += 0.03;
@@ -49,7 +49,7 @@ function bvTerrAt(tf, x, y, side) {
   const o = {slow: 1, cover: false, water: false, hill: false};
   if (tf.river) { const rx = tf.river.x + Math.sin(y / 70 + tf.river.ph) * tf.river.amp; if (Math.abs(x - rx) < tf.river.w / 2 + 3 && !tf.river.fords.some(f => Math.abs(y - f.y) < f.w / 2)) { o.water = true; o.slow = 0.38; } }
   tf.forests.forEach(f => { if (Math.hypot(x - f.x, y - f.y) < f.r * 0.95) { o.cover = true; o.slow = Math.min(o.slow, 0.68); } });
-  if (tf.hill && ((x - tf.hill.x) / tf.hill.rx) ** 2 + ((y - tf.hill.y) / tf.hill.ry) ** 2 < 1) { o.hill = true; if (tf.hill.side !== side) o.slow = Math.min(o.slow, 0.82); }
+  if (tf.hill && ((x - tf.hill.x) / tf.hill.rx) ** 2 + ((y - tf.hill.y) / tf.hill.ry) ** 2 < 1) { o.hill = true; if (tf.hill.side !== side) o.slow = Math.min(o.slow, 0.55); }
   if (tf.farm && Math.abs(x - tf.farm.x) < tf.farm.w / 2 + 6 && Math.abs(y - tf.farm.y) < tf.farm.h / 2 + 6) o.cover = true;
   if (typeof tacTerrAtExtra === 'function') tacTerrAtExtra(tf, x, y, side, o);
   return o;

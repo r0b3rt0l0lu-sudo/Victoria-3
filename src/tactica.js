@@ -18,9 +18,9 @@ const sideIds = (b, s) => s === 'A' ? b.A : b.B;
 const playerSide = b => b.A0 === G.player ? 'A' : b.B0 === G.player ? 'B' : null;
 const tacLineBase = (b, side) => BV_W / 2 - (side === 'A' ? 1 : -1) * 36 * BV_K;
 /* ---------- fuertes ---------- */
-function tacAddFort(b, side, kind, x, y) {
-  const K = FORT_KINDS[kind]; b.forts = b.forts || [];
-  const f = {id: (b.fortSeq = (b.fortSeq || 0) + 1), side, kind, x, y, w: K.w, h: K.h, hp: K.hp, hpMax: K.hp, guns: K.guns || 0}; b.forts.push(f); return f;
+function tacAddFort(b, side, kind, x, y, rot) {
+  const K = FORT_KINDS[kind]; b.forts = b.forts || []; rot = kind === 'trench' && rot ? 1 : 0;
+  const f = {id: (b.fortSeq = (b.fortSeq || 0) + 1), side, kind, x, y, rot, w: rot ? K.h : K.w, h: rot ? K.w : K.h, hp: K.hp, hpMax: K.hp, guns: K.guns || 0}; b.forts.push(f); return f;
 }
 const tacForts = (b, side) => (b.forts || []).filter(f => f.side === side && f.hp > 0);
 function tacFortAt(b, x, y) { return (b.forts || []).find(f => f.hp > 0 && Math.abs(x - f.x) < f.w / 2 + 6 && Math.abs(y - f.y) < f.h / 2 + 6); }
@@ -29,13 +29,13 @@ function tacZoneOk(b, side, x, y) {
   return x >= lo && x <= hi && y >= 48 && y <= BV_H - 28;
 }
 function tacBuildFort(b, side, kind, x, y) {
-  const K = FORT_KINDS[kind], ids = sideIds(b, side);
+  const K = FORT_KINDS[kind], ids = sideIds(b, side), rot = kind === 'trench' && R.bviz && R.bviz.rot ? 1 : 0, fw = rot ? K.h : K.w, fh = rot ? K.w : K.h;
   if ((b.forts || []).filter(f => f.side === side && f.kind !== 'fort').length >= FORT_MAX) return {ok: false, msg: `Solo puedes construir ${FORT_MAX} fuertes como máximo (sin contar el fuerte de la provincia).`};
   if (!tacZoneOk(b, side, x, y)) return {ok: false, msg: 'Solo puedes construir en tu mitad del campo.'};
   const tf = battleTerrain(b), t = bvTerrAt(tf, x, y, side); if (t.water) return {ok: false, msg: 'No se puede construir en el agua.'};
-  if ((b.forts || []).some(f => f.hp > 0 && Math.abs(f.x - x) < (f.w + K.w) / 2 && Math.abs(f.y - y) < (f.h + K.h) / 2)) return {ok: false, msg: 'Ya hay una obra en ese lugar.'};
+  if ((b.forts || []).some(f => f.hp > 0 && Math.abs(f.x - x) < (f.w + fw) / 2 && Math.abs(f.y - y) < (f.h + fh) / 2)) return {ok: false, msg: 'Ya hay una obra en ese lugar.'};
   if (!tacCan(ids, K.cost)) return {ok: false, msg: `Faltan reservas: ${fmtCost(K.cost)} por división.`};
-  spendSideRes(ids, K.cost); const f = tacAddFort(b, side, kind, x, y); return {ok: true, f};
+  spendSideRes(ids, K.cost); const f = tacAddFort(b, side, kind, x, y, rot); return {ok: true, f};
 }
 function tacAddGun(b, f) {
   const side = f.side, ids = sideIds(b, side); if (!(f.kind === 'battery' || f.kind === 'redoubt' || f.kind === 'fort')) return {ok: false, msg: 'Solo baterías, reductos y fuertes admiten cañones.'};
@@ -141,7 +141,7 @@ const PLANS = {
   defend: {n: 'Línea defensiva', ic: '🛡️', col: '#5aa8ff', hint: 'Marca los dos extremos de la línea que debe mantener.', multi: 2},
   retreat: {n: 'Retirada', ic: '↩️', col: '#b7bcc4', hint: 'Haz clic en el punto hasta donde debe retirarse.', multi: false}
 };
-function tacSetPlan(V, plan) { if (!V.sel) return; V.sel.d.plan = plan; V.sel.skey = ''; plan.i = 0; }
+function tacSetPlan(V, plan) { if (!V.sel) return; const dv = V.sel.d; if (dv.cust && dv.cust.fort && !(V.sel.type === 'art' && plan.k === 'target')) delete dv.cust; dv.plan = plan; V.sel.skey = ''; plan.i = 0; }
 function tacClickMap(V, b, wx, wy, dbl) {
   const dr = V.draw; if (!dr || !V.sel) return false; const P = PLANS[dr.k];
   if (dr.k === 'target') { const h = V.hover; if (h && h.side !== V.sel.side && h.mode !== 'rout') { tacSetPlan(V, {k: 'target', foe: h.d, pts: []}); V.draw = null; bvBanner(V, `🎯 ${V.sel.a.name} → ${DIVS[h.d.t].name} enemiga`, V.sel.side, ''); } else toast('🎯', 'Haz clic sobre un bloque enemigo.'); return true; }
@@ -206,7 +206,7 @@ function tacMorale(V, b, all, dt) {
   all.forEach(cav => {
     if ((cav.type !== 'cav' && cav.type !== 'tank') || !(cav.mode === 'gallop' || cav.mode === 'charge') || (cav.sp || 0) < 16 || cav.brk > 0) return;
     all.forEach(v => {
-      if (v.side === cav.side || (v.type !== 'inf' && v.type !== 'art') || v.mode === 'rout' || v.brk > 0 || v.warn) return;
+      if (v.side === cav.side || (v.type !== 'inf' && v.type !== 'art') || v.mode === 'rout' || v.brk > 0 || v.warn || (v.d.cust && v.d.cust.fort)) return;
       const d = Math.hypot(v.x - cav.x, v.y - cav.y); if (d > (cav.dep + v.dep) / 2 + 46) return;
       const toC = Math.atan2(cav.y - v.y, cav.x - v.x), side = Math.abs(bvAng(v.hd, toC)), orgF = clamp(v.d.o / DIVS[v.d.t].org, 0, 1), mor = v.mor === undefined ? 0.8 : v.mor, tr = v.terr || {};
       let p = 0.08 + (1 - orgF) * 0.7 + (1 - mor) * 0.6 + (v.fat || 0) * 0.5;
@@ -214,6 +214,7 @@ function tacMorale(V, b, all, dt) {
       if (v.mode === 'hold' || v.defLine || v.comp < 0.9) p -= 0.22;                                 // en cuadro / línea cerrada
       if (tr.cover || tr.hill || tacFortAt(b, v.x, v.y)) p -= 0.2; if (tr.water) p += 0.1;
       if (v.type === 'art') p += 0.12; if (cav.type === 'tank') p += 0.3;
+      const tired = (v.fat || 0) > 0.5 || mor < 0.4; if (!tired) p = Math.min(p, 0.06);          // las tropas descansadas y con moral aguantan la carga
       p = clamp(p, 0.03, 0.97); v.warn = true; v.warnT = V.t;
       const cn = G.C[cav.tag].name, vn = G.C[v.tag].name;
       if (Math.random() < p) {                                                                         // rompen filas
@@ -250,7 +251,7 @@ function tacDrawForts(g, V, b) {
 function tacDrawPrepZone(g, V, b) {
   if (!b.prep) return; const ps = playerSide(b); if (!ps) return; const lo = ps === 'A' ? 50 : BV_W / 2 + 30, hi = ps === 'A' ? BV_W / 2 - 30 : BV_W - 50;
   g.fillStyle = 'rgba(255,230,140,.07)'; g.fillRect(lo, 48, hi - lo, BV_H - 76); g.strokeStyle = 'rgba(255,230,140,.5)'; g.setLineDash([8, 6]); g.lineWidth = 1.4; g.strokeRect(lo, 48, hi - lo, BV_H - 76); g.setLineDash([]);
-  if (V.tool && V.mouse) { const [wx, wy] = bvToWorld(V, V.mouse.x, V.mouse.y), K = FORT_KINDS[V.tool.k], ok = tacZoneOk(b, ps, wx, wy); g.globalAlpha = 0.6; g.fillStyle = ok ? '#8fd16a' : '#e8644f'; g.fillRect(wx - K.w / 2, wy - K.h / 2, K.w, K.h); g.globalAlpha = 1; g.strokeStyle = '#fff'; g.strokeRect(wx - K.w / 2, wy - K.h / 2, K.w, K.h); }
+  if (V.tool && V.mouse) { const [wx, wy] = bvToWorld(V, V.mouse.x, V.mouse.y), K = FORT_KINDS[V.tool.k], ok = tacZoneOk(b, ps, wx, wy), pw = V.tool.k === 'trench' && V.rot ? K.h : K.w, ph = V.tool.k === 'trench' && V.rot ? K.w : K.h; g.globalAlpha = 0.6; g.fillStyle = ok ? '#8fd16a' : '#e8644f'; g.fillRect(wx - pw / 2, wy - ph / 2, pw, ph); g.globalAlpha = 1; g.strokeStyle = '#fff'; g.strokeRect(wx - pw / 2, wy - ph / 2, pw, ph); }
 }
 function tacArrow(g, pts, col, dash, w) {
   if (pts.length < 2) return; g.strokeStyle = col; g.fillStyle = col; g.lineWidth = w || 2.4; g.setLineDash(dash || []); g.lineJoin = 'round'; g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.stroke(); g.setLineDash([]);
@@ -326,12 +327,12 @@ Object.assign(ACT, {
 // HTML del panel: preparación, planes y velocidad
 function tacPanelHtml(b, V, sel) {
   const ps = playerSide(b); if (!ps || !V) return '';
-  let h = ''; const ids = sideIds(b, ps);
+  let h = tacCommitHtml(b, V) + tacFortHtml(b, V); const ids = sideIds(b, ps);
   if (b.prep) {
     const t = sideRes(ids).t, chips = RES_KEYS.map(k => `<span class="rchip" data-tip="${RES_INFO[k].n} (por división)">${RES_INFO[k].ic} ${t[k].toFixed(1)}</span>`).join(''), selF = (b.forts || []).find(x => x.id === V.selFort);
     h += `<div class="prep"><div class="prep-h"><b>⚙️ Fase de preparación</b><small>El combate está detenido. Arrastra tus bloques por tu mitad del campo (zona marcada) y levanta fuertes con las reservas de tu ejército.</small></div>
     <div class="prep-r">${chips}</div><div class="prep-b">${['trench', 'redoubt', 'battery'].map(k => { const K = FORT_KINDS[k], ok = tacCan(ids, K.cost); return `<button data-act="tacfort" data-k="${k}" class="${V.tool && V.tool.k === k ? 'on' : ''} ${ok ? '' : 'nofunds'}" data-tip="<b>${K.n}</b><br>${K.desc}<br>Coste por división: ${fmtCost(K.cost)}">${K.ic} ${K.n}<small>${fmtCost(K.cost)}</small></button>`; }).join('')}
-    <button data-act="tacgar" class="${V.garr ? 'on' : ''}" data-tip="<b>Guarnecer</b><br>Selecciona uno de tus bloques, pulsa este botón y haz clic en un fuerte: el bloque se instala dentro. También puedes arrastrar el bloque encima del fuerte. Capacidad: trinchera 2, reducto 2, batería 1, fuerte 3.">🏰 Guarnecer</button><button data-act="tacgun" data-tip="<b>Añadir un cañón</b> a la obra seleccionada. Cuesta ${fmtCost(FORT_GUN_COST)} por división.">➕ Cañón<small>${fmtCost(FORT_GUN_COST)}</small></button><button data-act="tacdel" data-tip="Desmonta la obra seleccionada (recuperas la mitad de los recursos).">🗑 Quitar</button></div>
+    <button data-act="tacgar" class="${V.garr ? 'on' : ''}" data-tip="<b>Guarnecer</b><br>Selecciona uno de tus bloques, pulsa este botón y haz clic en un fuerte: el bloque se instala dentro. También puedes arrastrar el bloque encima del fuerte. Capacidad: trinchera 2, reducto 2, batería 1, fuerte 3.">🏰 Guarnecer</button><button data-act="tacgun" data-tip="<b>Añadir un cañón</b> a la obra seleccionada. Cuesta ${fmtCost(FORT_GUN_COST)} por división.">➕ Cañón<small>${fmtCost(FORT_GUN_COST)}</small></button><button data-act="tacrot" data-tip="Gira la trinchera: horizontal o vertical (tecla R)">↻ Girar</button><button data-act="tacdel" data-tip="Desmonta la obra seleccionada (recuperas la mitad de los recursos).">🗑 Quitar</button></div>
     <div class="prep-s">${selF ? `Seleccionado: <b>${FORT_KINDS[selF.kind].ic} ${FORT_KINDS[selF.kind].n}</b> · cañones ${selF.guns}` : V.tool ? `Haz clic en tu zona para colocar: <b>${FORT_KINDS[V.tool.k].n}</b>` : (V.garr ? 'Modo guarnición: elige un bloque tuyo y haz clic en un fuerte para instalarlo dentro.' : (b.forts || []).some(f => f.kind === 'fort') ? 'Hay un fuerte de la provincia: arrastra un bloque encima o usa «Guarnecer».' : 'Elige una obra o arrastra un bloque.')}</div>
     <button class="primary prep-go" data-act="tacstart">▶ ¡Comenzar la batalla!</button></div>`;
   }

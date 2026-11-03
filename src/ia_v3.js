@@ -38,7 +38,7 @@ function aiWarPlan(a) {
   G.tags.forEach(d => {
     if (d === NONE || d === a || !alive(d) || G.C[d].overlord || G.C[d].wars.length >= 2 || relOf(a, d) > 40) return;
     if (warBlockers(a, d) || !canReach(a, d)) return;
-    const rs = reachableStates(a, d); if (!rs.length) return;
+    const rs = reachableStates(a, d).filter(x => aiMayTake(a, x.id)); if (!rs.length) return;       // solo vale la pena atacar si hay territorio razonable que tomar
     const ratio = myP / Math.max(1, aiSidePower(d, true)); if (ratio < 1.5) return;
     const cl = claimedStates(A, d), pool = cl.length ? cl : rs, val = pool.slice(0, 2).reduce((n, x) => n + popTotal(G.S[x.id]) / 1e5 + 1, 0);
     const sc = val * Math.min(2.5, ratio) * (cl.length ? 1.6 : 1) * (relOf(a, d) < -10 ? 1.2 : 1) * (1 - Math.min(0.5, A.infamy / 100));
@@ -70,7 +70,13 @@ function aiStandingTarget(c) {
   let th = 0; G.tags.forEach(o => { if (o === NONE || o === c.tag || !alive(o) || sameSide(c.tag, o) || relOf(c.tag, o) >= 10 || !canReach(c.tag, o)) return; th = Math.max(th, armyPower(G.C[o]) / Math.max(1, armyPower(c))); });
   return clamp(0.3 + 0.35 * Math.min(1.5, th) + (c.rank <= 8 ? 0.1 : 0), 0.3, 0.85);
 }
+// austeridad: un país en números rojos con los impuestos al máximo licencia tropas en lugar de endeudarse sin fin
+function aiAusterity(t, c) {
+  if (c.treasury >= 0 || c.taxLevel < 4 || c.wars.length || (G.date.t + t.charCodeAt(0)) % 30 !== 0) return false;
+  const as = armiesOf(t).filter(a => !a.sea && !a.battle && a.divs.length).sort((p, q) => q.divs.length - p.divs.length); if (!as.length) return false; as[0].divs.pop(); if (!as[0].divs.length) as[0]._dead = true; G.armies = G.armies.filter(a => !a._dead); return true;
+}
 function aiRecruitV3(t, c) {
+  if (aiAusterity(t, c)) return;
   const lim = divLimit(c), have = countDivs(t), target = c.wars.length ? 0.95 : aiStandingTarget(c);
   const sts = c.states.filter(id => G.S[id].b.barracks >= 1);
   if (!sts.length) { if (c.queue.length < 3 && c.treasury > 30000) { const s = G.S[c.capital >= 0 ? c.capital : c.states[0]]; if (s && buildRoom(s, 'barracks') >= 1 && canBuild(s, BLD.barracks, c)) queueBuild(c, s.id, 'barracks'); } return; }

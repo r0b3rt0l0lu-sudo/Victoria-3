@@ -29,6 +29,7 @@ function siegeDay() {
     const here = G.armies.filter(a => !a.sea && a.loc === sg.pid), att = siegeAttackers(sg), defenders = here.some(a => !a.garrison && (a.tag === sg.owner || sameSide(a.tag, sg.owner)) && !hostileTags(a.tag, sg.owner));
     const s = G.S[provState(sg.pid)]; if (s.owner !== sg.owner || (G.P[sg.pid].by && sg.fall)) { done.push(sg); return; }
     if (!att.length || defenders) { sg.calm++; if (sg.calm >= 3) { done.push(sg); siegeStat('lifted'); const msg = `Se levanta el asedio de ${provName(sg.pid)}.`; if (sg.att === G.player || sg.owner === G.player) notify('war', msg, provState(sg.pid)); } return; } sg.calm = 0;
+    att.forEach(a => { if (a.tag !== G.player && G.C[a.tag] && G.C[a.tag].ai && !sg.fall) { a.path = []; a.chase = null; } });       // la IA no abandona un asedio en marcha
     let arts = 0, eng = 0; att.forEach(a => a.divs.forEach(d => { if (dKind(d) === 'art') arts++; eng += (DIVS[d.t] && DIVS[d.t].fort) || 0; }));
     const lvl = G.P[sg.pid].fort || 0, wasW = sg.walls; sg.walls = Math.max(0, sg.walls - (1.1 + 2.7 * arts + 28 * eng) / (1 + 0.35 * lvl)); sg.hunger = Math.min(100, sg.hunger + SIEGE_HUNGER_RATE * (G.C[sg.owner].ai ? 1 : 1));
     const inv = sg.att === G.player || sg.owner === G.player;

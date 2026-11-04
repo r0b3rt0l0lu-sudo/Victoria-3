@@ -277,7 +277,8 @@ function tacMelee(V, b, all, step) {
   all.forEach(blk => {
     if (blk.mode !== 'melee' && blk.mode !== 'charge') return; const f = blk.foe; if (!f || f.mode === 'rout' || f.side === blk.side) return;
     const near = Math.abs(f.x - blk.x) < (blk.dep + f.dep) / 2 + 12 && Math.abs(f.y - blk.y) < (blk.wid + f.wid) / 2 + 6; if (!near) return;
-    const ang = Math.abs(bvAng(f.hd, Math.atan2(blk.y - f.y, blk.x - f.x))), mult = ang > 1.9 ? 1.8 : ang > 1.1 ? 1.35 : 1, cov = (f.terr && f.terr.cover) || f.garr ? 0.75 : 1, ty = blk.type === 'cav' ? 1.4 : 1, wl = typeof bvWeap === 'function' ? bvWeap(f) : 0;
+    let ty; const ang = Math.abs(bvAng(f.hd, Math.atan2(blk.y - f.y, blk.x - f.x))), mult = ang > 1.9 ? 1.8 : ang > 1.1 ? 1.35 : 1, cov = (f.terr && f.terr.cover) || f.garr ? 0.75 : 1, wl = typeof bvWeap === 'function' ? bvWeap(f) : 0;
+    ty = blk.type === 'cav' ? 1.4 : 1;
     if (blk.type === 'cav' && f.type === 'inf' && wl > 0 && ang < 1.1 && (f.mm === undefined ? 0.8 : f.mm) > 0.4 && f.d.o / DIVS[f.d.t].org > 0.35) { ty = 1.4 / (1 + 0.45 * wl); blk.d.s = Math.max(0, blk.d.s - 0.004 * step * wl); blk.d.o = Math.max(0, blk.d.o - DIVS[blk.d.t].org * 0.006 * step * wl); }
     const dmg = 0.012 * step * mult * cov * ty * (0.6 + 0.8 * clamp(blk.d.o / DIVS[blk.d.t].org, 0, 1)) * ((blk.mm === undefined ? 0.8 : blk.mm) + 0.4) / 1.2;
     f.d.s = Math.max(0, f.d.s - dmg); f.d.o = Math.max(0, f.d.o - DIVS[f.d.t].org * dmg * 1.4); f.flanked = ang > 1.1 ? V.t : f.flanked;

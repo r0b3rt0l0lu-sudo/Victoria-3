@@ -261,7 +261,7 @@ function bvFire(V, b, blk, dt, foes) {
   }
   if (blk.type !== 'inf' && blk.type !== 'cav' && blk.type !== 'tank') return;
   if (blk.mode === 'melee' || blk.mode === 'charge' || blk.mode === 'gallop' || blk.mode === 'recoil') return;
-  const wl = typeof bvWeap === 'function' ? bvWeap(blk) : 1; if (fd > 190 * WEAP_RANGE[wl]) return;
+  const wl = typeof bvWeap === 'function' ? bvWeap(blk) : 1; if (fd > 190 * WEAP_RANGE[wl] * (blk._wxr || 1)) return;
   const rate = WEAP_RATE[wl] * (st === 'skirmish' ? 7 : st === 'hold' ? 5 : 4) * alive.length * 0.22 * (blk.type === 'cav' ? 0.3 : blk.type === 'tank' ? 0.5 : 1) * (blk.mode === 'fire' ? 1.6 : 0.7);
   blk.fireAcc += dt * rate;
   while (blk.fireAcc > 1) { blk.fireAcc--;
@@ -290,7 +290,7 @@ function bvFrame(V, b, ctx, now) {
   const lines = {A: bvLine(V, b, 'A'), B: bvLine(V, b, 'B')}, all = [...V.blocks.values()];
   if (!V.over) bvRelief(V, b, dt);
   if (typeof bvCorpsUpdate === 'function') bvCorpsUpdate(V);
-  all.forEach(blk => bvStepBlock(V, b, blk, dt, lines, all)); bvSeparate(all, dt);
+  all.forEach(blk => bvStepBlock(V, b, blk, dt * (typeof bvSpeedMul === 'function' ? bvSpeedMul(V, b, blk) : 1), lines, all)); bvSeparate(all, dt); if (typeof bvGround === 'function') bvGround(V, b, all, dt);
   if (typeof tacThink === 'function') tacThink(V, b, all, dt);
   if (typeof tacMorale === 'function') { tacMorale(V, b, all, dt); V._pfx = (V._pfx || 0) + dt; if (V._pfx > 1) { V._pfx = 0; tacPlanFx(V, b, all); } }
   all.forEach(blk => bvStepFigs(V, b, blk, dt)); V.ghosts.forEach(blk => bvStepFigs(V, b, blk, dt, true));

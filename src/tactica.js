@@ -367,7 +367,8 @@ function tacArtFire(V, b, blk, dt, all) {
   const was = blk.sil; blk.sil = !guns.length || crew.length < 2; if (blk.sil) { if (!was && blk.figs.length) { /* silenciada */ } return; }
   const dir = blk.side === 'A' ? 1 : -1, st = bvStrat(b, blk.side), heavy = st === 'barrage' || V.salvo[blk.side] > 0, range = tacArtRange(V, b, blk);
   blk.cd -= dt; if (blk.cd > 0) return;
-  const inR = all.filter(o => o.side !== blk.side && o.mode !== 'rout' && Math.hypot(o.x - blk.x, o.y - blk.y) <= range);
+  const indirect = G.C[blk.tag] && typeof hasTech === 'function' && hasTech(G.C[blk.tag], 'quick_firing');
+  const inR = all.filter(o => o.side !== blk.side && o.mode !== 'rout' && Math.hypot(o.x - blk.x, o.y - blk.y) <= range * (typeof wxMods === 'function' ? Math.max(0.7, wxMods(b).rng) : 1) && (indirect || typeof bvLosCached !== 'function' || bvLosCached(V, b, blk, o)));
   if (!inR.length) { blk.cd = 0.8; return; }
   const dist = o => Math.hypot(o.x - blk.x, o.y - blk.y), nearest = l => l.slice().sort((p, q) => dist(p) - dist(q))[0];
   let tgt = null, ctr = false; const pl = blk.d.plan;

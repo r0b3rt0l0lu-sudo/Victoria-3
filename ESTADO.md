@@ -91,3 +91,8 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - `src/campo.js`: regimientos (cada división = 3, `mkReg`/`regsOf` con fuerza y organización repartidas), cuerpos de 5 con estrategia propia (`b.cstr`) y cañones repartidos (`b.cgun`), reservas fuera del campo que entran por el margen, avance en línea, subcuadrados separados que adelgazan, mando de batalla simplificado (`tacMandoHtml`), IA por cuerpos y por terreno (despliegue, estrategias, aldeas).
 - `src/terreno2.js`: terreno amplio (colinas, bosques, ríos con vados/puentes, lagos, pantanos, aldeas, caminos, muros, rocas, acantilados, dunas, nieve), `bvTerrAt`, `bvBuildBg`, `terrMods`, `terrainInfo`, esquiva de obstáculos.
 - Mundo de batalla 1920×840; fuertes con más integridad; sin trincheras antes de 1900 (también sin bono de atrincheramiento).
+
+## Ajustes recientes
+- Infamia: sube ~55% mas lento (declaracion x0.45, gas +3, prisioneros menores) y decae 1.4/mes.
+- IA: `aiConsolidate` (ia_v3.js) fusiona ejercitos hasta 7 divisiones (media medida 4-6 por ejercito).
+- Batalla: regimientos se acercan y combaten cuerpo a cuerpo (`tacMelee`, `bvWantsAssault`) ademas de disparar a distancia; animacion de fogonazo/humo al disparar (`bvPlate`, `bvFire`).

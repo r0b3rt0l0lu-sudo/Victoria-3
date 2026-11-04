@@ -217,6 +217,10 @@ function bvPlate(g, blk, hover) {
     g.fillStyle = 'rgba(8,10,14,.7)'; g.fillRect(-w / 2, h / 2 + 1.5, w, 2.2); g.fillStyle = sF < 0.35 ? '#e8644f' : '#79c35a'; g.fillRect(-w / 2, h / 2 + 1.5, w * sF, 2.2);
     if (orgF < 0.3 || blk.wav) { g.strokeStyle = 'rgba(255,150,70,.9)'; g.lineWidth = 1; g.strokeRect(-h / 2 - 1.5, -w / 2 - 1.5, h + 3, w + 3); }
   }
+  { const fa = performance.now() - (blk.fireAt || -1e9), face = Math.cos(blk.hd) >= 0 ? 1 : -1;       // animación de disparo: fogonazos y fuego de fila en el borde que mira al enemigo
+    if (fa < 320) { const k = 1 - fa / 320; g.globalCompositeOperation = 'lighter'; for (let i = 0; i < 4; i++) { const yy = (i - 1.5) * (w / 4) + Math.sin(fa * 0.07 + i * 2.1) * 2, xx = face * (h / 2 + 2 + (1 - k) * 5); const rg = g.createRadialGradient(xx, yy, 0, xx, yy, 7); rg.addColorStop(0, `rgba(255,236,160,${0.9 * k})`); rg.addColorStop(1, 'rgba(255,140,40,0)'); g.fillStyle = rg; g.beginPath(); g.arc(xx, yy, 7, 0, 6.3); g.fill(); } g.globalCompositeOperation = 'source-over'; }
+    else if (blk.mode === 'fire' || blk.mode === 'artfire') { const ph = performance.now() / 110; for (let i = 0; i < 3; i++) { const on = Math.sin(ph + i * 2.4 + blk.ph) > 0.35; if (!on) continue; g.fillStyle = 'rgba(255,214,120,.85)'; g.beginPath(); g.arc(face * (h / 2 + 2), (i - 1) * (w / 3), 1.5, 0, 6.3); g.fill(); } }
+    if (blk.mode === 'melee') { g.strokeStyle = 'rgba(255,230,160,.9)'; g.lineWidth = 1.4; const ph = performance.now() / 70; for (let i = 0; i < 3; i++) { const a = ph + i * 2.1, xx = face * (h / 2 + 3) + Math.cos(a) * 3, yy = (i - 1) * (w / 3) + Math.sin(a) * 3; g.beginPath(); g.moveTo(xx - 3, yy - 3); g.lineTo(xx + 3, yy + 3); g.moveTo(xx + 3, yy - 3); g.lineTo(xx - 3, yy + 3); g.stroke(); } } }
   if (hover) { g.strokeStyle = '#fff7d0'; g.lineWidth = 1.6; g.strokeRect(-h / 2 - 3, -w / 2 - 3, h + 6, w + 6); }
   g.restore();
 }
@@ -259,3 +263,23 @@ function tacObrasHtml(b, V) {
 Object.assign(ACT, { mandosec: d => { const V = R.bviz; if (!V) return; V.ui = V.ui || {}; V.ui[d.k] = !secOpen(V, d.k, d.k === 'corps'); renderBattlePanel(); } });
 // los regimientos que entran lo hacen por el margen: aviso
 const _tacreg0 = ACT.tacreg; ACT.tacreg = function (d) { const V = R.bviz, c = V && (V.corps || []).find(q => q.id === d.c), r = c && c.regs[+d.i], was = r && r.out; _tacreg0(d); const b = G.battles.find(x => x.id === UI.battle); if (was && r && !r.out && b && !b.prep && V) bvBanner(V, `📣 Un regimiento de ${G.C[c.tag].name} entra por el margen`, c.side, ''); };
+
+/* ---------- aproximación al combate cuerpo a cuerpo ---------- */
+// tras un periodo de fuego a distancia, los regimientos con moral y organización cierran con la bayoneta (salvo hostigadores y defensores firmes)
+function bvWantsAssault(V, b, blk, st, att, foe, dt) {
+  if (!foe || blk.type === 'art' || foe.role === 'reserve' || foe.garr || blk.garr) return false; blk.fireT = (blk.fireT || 0) + dt;
+  if (blk.fireDur === undefined) blk.fireDur = (att ? 6 : 11) + Math.random() * 8; if (st === 'skirmish' || (st === 'hold' && !att)) return false;
+  const orgF = blk.d.o / DIVS[blk.d.t].org, mm = blk.mm === undefined ? 0.8 : blk.mm; if (orgF < 0.32 || mm < 0.3 || blk.brk > 0) return false;
+  if (st === 'charge') return blk.fireT > 1.5; return blk.fireT > blk.fireDur * (blk.type === 'cav' ? 0.45 : 1);
+}
+// el combate cuerpo a cuerpo hace daño real a ambos bandos (más por flanco y espalda, menos si el enemigo tiene cobertura)
+function tacMelee(V, b, all, step) {
+  all.forEach(blk => {
+    if (blk.mode !== 'melee' && blk.mode !== 'charge') return; const f = blk.foe; if (!f || f.mode === 'rout' || f.side === blk.side) return;
+    const near = Math.abs(f.x - blk.x) < (blk.dep + f.dep) / 2 + 12 && Math.abs(f.y - blk.y) < (blk.wid + f.wid) / 2 + 6; if (!near) return;
+    const ang = Math.abs(bvAng(f.hd, Math.atan2(blk.y - f.y, blk.x - f.x))), mult = ang > 1.9 ? 1.8 : ang > 1.1 ? 1.35 : 1, cov = (f.terr && f.terr.cover) || f.garr ? 0.75 : 1, ty = blk.type === 'cav' ? 1.4 : 1;
+    const dmg = 0.012 * step * mult * cov * ty * (0.6 + 0.8 * clamp(blk.d.o / DIVS[blk.d.t].org, 0, 1)) * ((blk.mm === undefined ? 0.8 : blk.mm) + 0.4) / 1.2;
+    f.d.s = Math.max(0, f.d.s - dmg); f.d.o = Math.max(0, f.d.o - DIVS[f.d.t].org * dmg * 1.4); f.flanked = ang > 1.1 ? V.t : f.flanked;
+    for (let i = 0; i < 2; i++) bvPart(V, {k: 'spark', x: (blk.x + f.x) / 2 + rnd(-8, 8), y: (blk.y + f.y) / 2 + rnd(-8, 8), life: 0.35, hot: 1}); if (typeof SFX !== 'undefined' && Math.random() < 0.3) SFX.volley(0.6);
+  });
+}

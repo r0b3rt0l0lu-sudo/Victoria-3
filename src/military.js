@@ -46,7 +46,7 @@ function launchGas(b, side) {
   if (!c || !hasTech(c, 'chemical_weapons')) return {ok: false, msg: 'No dispones de armas químicas.'};
   if (b.ended) return {ok: false, msg: 'La batalla ha terminado.'};
   if (b.gas && b.day <= b.gas.until + 4) return {ok: false, msg: 'Aún no puedes repetir el ataque con gas.'};
-  b.gas = {side, from: b.day, until: b.day + 2}; c.infamy += 6; c.prestige = Math.max(0, c.prestige - 3);
+  b.gas = {side, from: b.day, until: b.day + 2}; c.infamy += 3; c.prestige = Math.max(0, c.prestige - 3);
   b.log = b.log || []; b.log.push({d: b.day, k: 'gas', s: side, t: `${c.name} lanza un ataque con gas: una nube tóxica se arrastra sobre las trincheras enemigas.`}); if (b.log.length > 14) b.log.shift();
   b.flash = {k: 'gas', s: side, d: b.day}; b.evSeq = (b.evSeq || 0) + 1; b.evK = 'gas'; b.evS = side;
   if (tag === G.player) notify('war', '☣️ Ataque con gas lanzado: +6 de infamia, −3 de prestigio. Las demás potencias lo condenan.', b.state); else if (b.A0 === G.player || b.B0 === G.player) notify('war', `☣️ ¡${c.name} lanza un ataque con gas contra tus tropas!`, b.state);

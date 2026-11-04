@@ -141,7 +141,7 @@ function declareWar(attTag, defTag, cbId, targets, opts) {
   }
   G.wars.push(w);
   A.wars.push(w.id); D.wars.push(w.id);
-  A.infamy += cb.infamy * (1 + targets.length * 0.3);
+  A.infamy += cb.infamy * 0.45 * (1 + targets.length * 0.3);
   addRel(attTag, defTag, -100);
   recruitSides(w);
   prepareFronts(w);
@@ -410,7 +410,7 @@ function diploMonth() {
   G.tags.forEach(t => {
     if (t === NONE) return; const c = G.C[t];
     for (const o in c.relations) { let r = c.relations[o]; r *= 0.985; c.relations[o] = r; }
-    c.infamy = Math.max(0, c.infamy - 0.7);
+    c.infamy = Math.max(0, c.infamy - 1.4);
   });
   G.pacts.forEach(p => {
     if (!G.C[p.a] || !G.C[p.b]) return;

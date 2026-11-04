@@ -182,12 +182,14 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
       if (ph < 0.42) { mode = 'skirmish'; tx = home.x + dir * 24; } else if (ph < 0.6) { mode = 'fire'; tx = blk.x; } else { mode = 'retreat'; tx = home.x - dir * 30; spd = F.spd * 1.2; }
       ty = home.y + Math.sin(t * 1.1 + blk.ph) * 6;
     } else if (st === 'barrage') { mode = b.day <= 3 ? 'hold' : 'advance'; if (dist < 150) mode = 'fire'; }
-    else if (st === 'hold') { mode = att ? (dist < 160 ? 'fire' : 'advance') : 'hold'; if (!att && dist < 160) mode = 'fire'; }
-    else { mode = dist < 150 ? 'fire' : 'advance'; if (att) tx += dir * Math.max(0, Math.sin(t * 1.0 + blk.ph)) * 8; }
+    else if (st === 'hold') { mode = att ? (dist < 160 ? 'fire' : 'advance') : 'hold'; if (!att && dist < 160) mode = 'fire'; if (mode === 'fire' && att && typeof bvWantsAssault === 'function' && bvWantsAssault(V, b, blk, st, att, foe, dt)) { mode = 'charge'; spd = F.spd * 1.9; [tx, ty] = contact(foe); path = [[blk.x, blk.y], [tx, ty]]; blk.asl = true; } }
+    else { mode = dist < 150 ? 'fire' : 'advance'; if (att) tx += dir * Math.max(0, Math.sin(t * 1.0 + blk.ph)) * 8; if (mode === 'fire' && typeof bvWantsAssault === 'function' && bvWantsAssault(V, b, blk, st, att, foe, dt)) { mode = 'charge'; spd = F.spd * 1.9; [tx, ty] = contact(foe); path = [[blk.x, blk.y], [tx, ty]]; blk.asl = true; } }
     if (engaged && (st === 'charge' || boosting) && mode !== 'retreat' && mode !== 'recoil') { if (mode !== 'gallop') mode = 'melee'; if (mode === 'melee') { tx = blk.x; ty = blk.y; } }
     else if (engaged && mode === 'gallop') { /* la carga de caballería choca y vuelve */ }
+    else if (engaged && blk.asl && mode !== 'retreat' && mode !== 'recoil') { mode = 'melee'; tx = blk.x; ty = blk.y; }
     else if (engaged && foe && foe.foe === blk && (foe.mode === 'melee' || foe.mode === 'charge' || foe.mode === 'gallop') && mode !== 'retreat' && mode !== 'recoil') { mode = 'melee'; tx = blk.x; ty = blk.y; }      // quien recibe la carga responde cuerpo a cuerpo
   }
+  if (mode !== 'charge' && mode !== 'melee') blk.asl = false; if (mode !== 'fire') blk.fireT = 0;
   blk.path = path;
   // ---- movimiento (el terreno frena: vado, bosque, cuesta) ----
   if (blk.enter) { if (Math.abs(blk.x - home.x) > 90) { spd *= 2.8; if (mode === 'hold' || mode === 'reserve' || mode === 'artfire') { mode = 'advance'; tx = home.x; ty = home.y; } } else blk.enter = false; }       // los refuerzos entran por el margen
@@ -264,8 +266,8 @@ function bvFire(V, b, blk, dt, foes) {
   blk.fireAcc += dt * rate;
   while (blk.fireAcc > 1) { blk.fireAcc--;
     const front = alive.filter(f => f.kind === 'sol' && Math.floor(f.k / blk.F.cols) <= 1), pool = front.length ? front : alive, u = pool[Math.floor(Math.random() * pool.length)], tg = pickFoeFig(foe); if (!tg) break;
-    const ca = Math.cos(blk.hd), sa = Math.sin(blk.hd);
-    bvPart(V, {k: 'flash', x: u.x + ca * 5, y: u.y + sa * 5, life: 0.1, big: blk.type === 'tank' ? 1 : 0}); bvPart(V, {k: 'smoke', x: u.x + ca * 7, y: u.y + sa * 7 - 1, life: 1.7, r: 3, vx: dir * 5 + V.wind * 0.6}); bvPart(V, {k: 'tracer', x: u.x, y: u.y, x2: tg.x, y2: tg.y + rnd(-3, 3), life: 0.08}); u.flash = 0.12; if (typeof SFX !== 'undefined') SFX.volley(); }
+    const face = Math.cos(blk.hd) >= 0 ? 1 : -1, fx = blk.x + face * (blk.dep / 2 + 1), fy = blk.y + rnd(-blk.wid / 2, blk.wid / 2); blk.fireAt = performance.now();
+    bvPart(V, {k: 'flash', x: fx + face * 2, y: fy, life: 0.14, big: 1}); bvPart(V, {k: 'smoke', x: fx + face * 4, y: fy - 1, life: 2.1, r: 6, vx: dir * 6 + V.wind * 0.6}); bvPart(V, {k: 'smoke', x: fx + face * 9, y: fy + rnd(-3, 3), life: 1.5, r: 4, vx: dir * 7 + V.wind * 0.6}); bvPart(V, {k: 'tracer', x: fx, y: fy, x2: tg.x, y2: tg.y + rnd(-3, 3), life: 0.1}); u.flash = 0.12; if (typeof SFX !== 'undefined') SFX.volley(); }
 }
 function pickFoeFig(blk) { const l = blk.figs.filter(f => f.alive); return l.length ? l[Math.floor(Math.random() * l.length)] : null; }
 /* ---------- bucle ---------- */

@@ -75,7 +75,20 @@ function aiAusterity(t, c) {
   if (c.treasury >= 0 || c.taxLevel < 4 || c.wars.length || (G.date.t + t.charCodeAt(0)) % 30 !== 0) return false;
   const as = armiesOf(t).filter(a => !a.sea && !a.battle && a.divs.length).sort((p, q) => q.divs.length - p.divs.length); if (!as.length) return false; as[0].divs.pop(); if (!as[0].divs.length) as[0]._dead = true; G.armies = G.armies.filter(a => !a._dead); return true;
 }
+// la IA agrupa sus divisiones sueltas en ejércitos de 6-7 divisiones: los pequeños marchan hacia el grupo mayor cercano y se funden con él
+const AI_GROUP = 7;
+function aiConsolidate(t) {
+  const c = G.C[t], arms = armiesOf(t).filter(a => !a.sea && !a.battle && !a.garrison); if (arms.length < 2) return;
+  const ok = a => { const o = provOwner(a.loc); return o === t || sameSide(t, o) || !c.wars.length; };
+  arms.slice().sort((p, q) => p.divs.length - q.divs.length || p.id - q.id).forEach(a => {
+    if (a.divs.length >= AI_GROUP - 1 || a.joinTo || a.front || !ok(a)) return; let best = null, bs = -1e9;
+    arms.forEach(o => { if (o === a || o.joinTo === a.id || o.battle) return; if (!(o.divs.length > a.divs.length || (o.divs.length === a.divs.length && o.id < a.id))) return; if (o.divs.length + a.divs.length > AI_GROUP) return;
+      const d = provDist(a.loc, o.loc); if (d > 14) return; const sc = o.divs.length * 3 - d; if (sc > bs) { bs = sc; best = o; } });
+    if (best) a.joinTo = best.id;       // joinDay se encarga de la marcha y de la fusión
+  });
+}
 function aiRecruitV3(t, c) {
+  aiConsolidate(t);
   if (aiAusterity(t, c)) return;
   const lim = divLimit(c), have = countDivs(t), target = c.wars.length ? 0.95 : aiStandingTarget(c);
   const sts = c.states.filter(id => G.S[id].b.barracks >= 1);

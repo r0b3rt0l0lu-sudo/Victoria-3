@@ -268,20 +268,20 @@ function sideStats(b, ids, isAttacker) {
     const sup = typeof supplyMod === 'function' ? supplyMod(a) : 1;
     const landPen = a.landed && G.date.t - a.landed < 6 ? 0.75 : 1;
     const trT = typeof hasTech === 'function' && hasTech(c, 'trench_warfare'), atkArm = sideKey ? (b['arm' + (sideKey === 'A' ? 'B' : 'A')] || 0) : 0;
-    const dig = isAttacker ? 0 : Math.min(trT ? 10 : 6, a.dig || 0) * (trT ? 0.05 : 0.04) * (a.mode === 'hold' || a.mode === 'dig' ? 1.25 : 1) * (1 - 0.55 * clamp(atkArm * 2, 0, 1));
+    const dig = isAttacker || G.date.y < 1900 ? 0 : Math.min(trT ? 10 : 6, a.dig || 0) * (trT ? 0.05 : 0.04) * (a.mode === 'hold' || a.mode === 'dig' ? 1.25 : 1) * (1 - 0.55 * clamp(atkArm * 2, 0, 1));
     const stl = typeof intelStealBonus === 'function' && sideKey ? intelStealBonus(a.tag, sideKey === 'A' ? b.B0 : b.A0) : 0;
     const tm = typeof terrMods === 'function' && sideKey ? terrMods(b, sideKey) : {att: 0, def: 0};
     const am = (1 + mb.att + stl + stAtt + c.mods.army + (a.gen.atk - 1) * 0.05 + gm.att + blocArmyBonus(c) + dm0(a.tag, 'att') + air + (isAttacker ? plan : 0)) * sup * landPen * mm * (1 + tm.att) * (typeof resPowderMod === 'function' ? resPowderMod(a) : 1);
     const dm = (1 + mb.def + stl + stDef + c.mods.army * 0.6 + (c.mods.defense || 0) + (a.gen.def - 1) * 0.05 + gm.def + dm0(a.tag, 'def') + air + dig) * sup * mm * (1 + tm.def);
     brave += gm.brave; gun += gm.art;
     a.divs.forEach(d => {
-      if (d.out) return;
+      const fr = typeof divFrac === 'function' ? divFrac(d) : 1; if (fr <= 0) return;
       const info = DIVS[d.t];
       if (wsum < BATTLE_WIDTH + (terr.mnt > 0.4 ? -2 : 0)) {
         const tm = trainMod(d);
         const str = d.s * (0.55 + 0.45 * d.o / info.org) * tm * (d.lv ? (isAttacker ? 0.55 : 0.75) : (typeof equipMod === 'function' ? equipMod(a.tag, d.t) : 1) * (typeof qualMod === 'function' ? qualMod(a.tag, d.t) : 1));
         const kd = dKind(d), um = 1 + (kd === 'cav' ? gm.cav + (ST.cavAtt || 0) : kd === 'art' ? gm.art + (ST.artAtt || 0) : 0);
-        const of = ordFx(d); F += info.att * str * am * um * of.f; T += info.def * str * dm * (isAttacker ? 1 : terr.def) * of.t;
+        const of = ordFx(d); F += info.att * str * am * um * of.f * fr; T += info.def * str * dm * (isAttacker ? 1 : terr.def) * of.t * fr;
         n++; wsum += info.width || 1; tr += tm; if (kd === 'art') art++; if (kd === 'cav') cav++;
       }
       org += d.o / info.org; orgN++; armS += (info.armor || 0); armN++;
@@ -346,10 +346,10 @@ function battleDay(b) {
     let lost = 0;
     armies.forEach(a => { let act = 0;
       a.divs.forEach((d, i) => {
-        if (d.out || act++ >= BATTLE_WIDTH) return;
+        const fr = typeof divFrac === 'function' ? divFrac(d) : 1; if (fr <= 0 || act++ >= BATTLE_WIDTH) return;
         const info = DIVS[d.t];
-        d.o = Math.max(0, d.o - info.org * (orgLoss + extra) / 100 * (0.8 + Math.random() * 0.4) * (1 - (typeof docMod === 'function' ? docMod(a.tag, 'org') : 0)) * ordFx(d).o);
-        const sl = (orgLoss / 100) * 0.8 * (0.6 + 0.8 * (1 - d.o / info.org)) * cas;
+        d.o = Math.max(0, d.o - info.org * (orgLoss + extra) / 100 * (0.8 + Math.random() * 0.4) * (1 - (typeof docMod === 'function' ? docMod(a.tag, 'org') : 0)) * ordFx(d).o * fr);
+        const sl = (orgLoss / 100) * 0.8 * (0.6 + 0.8 * (1 - d.o / info.org)) * cas * fr;
         d.s = Math.max(0, d.s - sl); lost += sl * MEN_PER_DIV;
         d.tr = Math.min(1, (d.tr === undefined ? 0.5 : d.tr) + 0.004);      // la experiencia de combate entrena
       });
@@ -371,7 +371,7 @@ function battleDay(b) {
   const oA = A2.length ? sideStats(b, b.A, true).org : 0, oB = B2.length ? sideStats(b, b.B, true).org : 0;
   if (!A2.length || !B2.length) { endBattle(b, A2.length ? 'A' : 'B'); return; }
   const th = list => list.some(a => a.mode === 'hold') ? 0.08 : (typeof morRetreatTh === 'function' ? morRetreatTh(list) : 0.18);       // «mantener posición» resiste hasta el final
-  { const actN = list => list.reduce((n, a) => n + a.divs.filter(d => !d.out).length, 0); if (!actN(A2)) { endBattle(b, 'B'); return; } if (!actN(B2)) { endBattle(b, 'A'); return; } }
+  { const actN = list => list.reduce((n, a) => n + a.divs.filter(d => (typeof divFrac === 'function' ? divFrac(d) : 1) > 0).length, 0); if (!actN(A2)) { endBattle(b, 'B'); return; } if (!actN(B2)) { endBattle(b, 'A'); return; } }
   if (b.day >= 4 && (oA < th(A2) || oB < th(B2))) endBattle(b, oA < oB ? 'B' : 'A');
 }
 // Bajas: se restan de la población de reclutamiento del país y suben el cansancio de guerra

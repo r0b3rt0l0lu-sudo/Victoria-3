@@ -59,7 +59,7 @@ function tacCaptureForts(V, b, all, step) {
 function tacFortDay(b) {
   ['A', 'B'].forEach(side => { const fs = tacForts(b, side).filter(f => f.guns); if (!fs.length) return; const guns = fs.reduce((n, f) => n + f.guns * (tacGarrisonOf(b, f).length || f.kind === 'fort' ? 1 : 0.35), 0); if (!guns) return;
     const foe = side === 'A' ? 'B' : 'A', as = sideIds(b, foe).map(armyById).filter(Boolean); let k = 0, lost = 0;
-    as.forEach(a => a.divs.forEach(d => { if (d.out || k >= 3) return; k++; const org = DIVS[d.t].org; d.o = Math.max(0, d.o - org * 0.004 * guns); const sl = 0.0016 * guns; d.s = Math.max(0, d.s - sl); lost += sl * MEN_PER_DIV; }));
+    as.forEach(a => a.divs.forEach(d => { if (divFrac(d) <= 0 || k >= 3) return; k++; const org = DIVS[d.t].org; d.o = Math.max(0, d.o - org * 0.004 * guns); const sl = 0.0016 * guns; d.s = Math.max(0, d.s - sl); lost += sl * MEN_PER_DIV; }));
     if (foe === 'A') b.lostA = (b.lostA || 0) + lost; else b.lostB = (b.lostB || 0) + lost; });
 }
 /* ---------- flanqueo: bonos muy fuertes ---------- */
@@ -91,7 +91,7 @@ function tacEncircle(V, b, all, step) {
 function tacSurrender(V, b, v, E) {
   const cap = E.slice().sort((p, q) => Math.hypot(p.x - v.x, p.y - v.y) - Math.hypot(q.x - v.x, q.y - v.y))[0]; if (!cap) { v.surT = 0; return; }
   const men = clamp(v.d.s, 0, 1) * MEN_PER_DIV * 0.9, ctag = cap.tag; takePrisoners(ctag, v.tag, men); b.pris = b.pris || {A: 0, B: 0}; b.pris[cap.side] = (b.pris[cap.side] || 0) + Math.round(men);
-  v.a.divs = v.a.divs.filter(x => x !== v.d); V.blocks.delete(v.d); const cn = G.C[ctag].name, vn = G.C[v.tag].name;
+  v.d.s = 0; V.blocks.delete(v.d); const cn = G.C[ctag].name, vn = G.C[v.tag].name;
   bvBanner(V, `🏳️ ${vn}: una división rodeada se rinde (${fmtN(men, 0)} prisioneros)`, cap.side, ''); (b.log = b.log || []).push({k: 'panic', d: b.day, t: `Una división de ${vn} queda cercada y se rinde ante ${cn}: ${fmtN(men, 0)} prisioneros.`}); if (b.log.length > 30) b.log.shift();
   if (v.tag === G.player || ctag === G.player) notify('war', `${cn} captura ${fmtN(men, 0)} hombres de ${vn} tras cercarlos en ${provName(b.prov)}.`, b.state);
 }
@@ -129,34 +129,26 @@ function tacAi(V, b, all, s, step) {
 function tacThink(V, b, all, dt) {
   if (V.over || b.prep || b.ended || V.replay || dt <= 0) return;
   V._th = (V._th || 0) + dt; if (V._th < 1.0) return; const step = V._th; V._th = 0;
-  tacCaptureForts(V, b, all, step); tacFortGuns(V, b, all, step); tacFlankShock(V, b, all, step); if (typeof tacMoraleX === 'function') tacMoraleX(V, b, all, step); tacEncircle(V, b, all, step);
-  const ps = playerSide(b); ['A', 'B'].forEach(s => { if (s !== ps) { if (typeof tacAiAbil === 'function') tacAiAbil(V, b, all, s); tacAi(V, b, all, s, step); } });
+  tacCaptureForts(V, b, all, step); tacFortGuns(V, b, all, step); tacFlankShock(V, b, all, step); if (typeof tacMoraleX === 'function') tacMoraleX(V, b, all, step); tacEncircle(V, b, all, step); if (typeof tacVillages === 'function') tacVillages(V, b, all, step);
+  const ps = playerSide(b); ['A', 'B'].forEach(s => { if (s !== ps) { if (typeof tacAiAbil === 'function') tacAiAbil(V, b, all, s); if (typeof tacAiCorps === 'function') { tacAiCorps(V, b, all, s); tacAiVillages(V, b, all, s); } tacAi(V, b, all, s, step); } });
 }
 /* ---------- tropas comprometidas ---------- */
-function tacActive(b, side) { return sideIds(b, side).map(armyById).filter(Boolean).reduce((n, a) => n + a.divs.filter(d => !d.out).length, 0); }
+function tacActive(b, side) { return Math.round(sideIds(b, side).map(armyById).filter(Boolean).reduce((n, a) => n + a.divs.reduce((m, d) => m + divFrac(d), 0), 0) * 10) / 10; }
 function tacAiCommit(b, side) {
   const foe = side === 'A' ? 'B' : 'A', mine = tacActive(b, side), theirs = tacActive(b, foe); if (mine <= theirs * 1.8 || mine <= 4) return;
-  const keep = Math.max(4, Math.ceil(theirs * 1.25)); let act = mine; const divs = []; sideIds(b, side).map(armyById).filter(Boolean).forEach(a => a.divs.forEach(d => divs.push(d)));
-  divs.slice().reverse().forEach(d => { if (act > keep && !d.out) { d.out = true; act--; } });
+  const keep = Math.max(4, Math.ceil(theirs * 1.25)); let act = mine; const regs = regsOfSide(b, side).filter(r => r.nk === REG_N);
+  regs.slice().reverse().forEach(r => { if (act > keep && !r.out) { r.out = true; act -= 1 / REG_N; } }); regsSaveFlags(b);
 }
-function tacAiReinforce(b) { ['A', 'B'].forEach(side => { if (side === playerSide(b)) return; const ids = sideIds(b, side).map(armyById).filter(Boolean), outs = ids.reduce((n, a) => n + a.divs.filter(d => d.out).length, 0); if (!outs) return; const act = tacActive(b, side), org = side === 'A' ? b.orgA : b.orgB;
-  if (act <= 3 || (org !== undefined && org < 0.5)) { ids.forEach(a => a.divs.forEach(d => { d.out = false; })); (b.log = b.log || []).push({k: 'reinf', d: b.day, t: `Llegan refuerzos de la reserva de ${G.C[side === 'A' ? b.A0 : b.B0].name}.`}); if (b.log.length > 30) b.log.shift(); } }); }
-function tacCommitHtml(b, V) {
-  const ps = playerSide(b); if (!ps) return ''; const as = sideIds(b, ps).map(armyById).filter(Boolean), outs = as.reduce((n, a) => n + a.divs.filter(d => d.out).length, 0), tot = as.reduce((n, a) => n + a.divs.length, 0);
-  if (!b.prep && !outs) return ''; void V;
-  return `<div class="commit"><div class="commit-h">👥 <b>Tropas en combate</b> <small>${b.prep ? 'Elige qué divisiones entran. Las que dejes fuera no combaten ni sufren bajas.' : `${outs} división${outs > 1 ? 'es' : ''} en reserva fuera del combate.`}</small></div>
-  ${as.map(a => `<div class="cm-army"><span>${a.name}</span>${a.divs.map((d, i) => `<button class="dvchip ${d.out ? 'off' : 'on'}" ${b.prep ? `data-act="tacout" data-a="${a.id}" data-i="${i}"` : 'disabled'} data-tip="<b>${DIVS[d.t].name}</b><br>Fuerza ${Math.round(d.s * 100)}% · organización ${Math.round(d.o / DIVS[d.t].org * 100)}%<br>${d.out ? 'Fuera del combate' : 'Entra en combate'}${b.prep ? ' (clic para cambiar)' : ''}">${DIVS[d.t].icon}<small>${Math.round(d.s * 100)}%</small></button>`).join('')}</div>`).join('')}
-  <div class="cm-foot"><small>${tot - outs} de ${tot} comprometidas</small>${outs ? '<button data-act="tacreinf">📣 Llamar a la reserva</button>' : ''}</div></div>`;
-}
+function tacAiReinforce(b) { ['A', 'B'].forEach(side => { if (side === playerSide(b)) return; const regs = regsOfSide(b, side), outs = regs.filter(r => r.out).length; if (!outs) return; const act = tacActive(b, side), org = side === 'A' ? b.orgA : b.orgB;
+  if (act <= 3 || (org !== undefined && org < 0.5)) { regs.forEach(r => { r.out = false; }); regsSaveFlags(b); (b.log = b.log || []).push({k: 'reinf', d: b.day, t: `Llegan refuerzos de la reserva de ${G.C[side === 'A' ? b.A0 : b.B0].name}.`}); if (b.log.length > 30) b.log.shift(); } }); }
+function tacCommitHtml() { return ''; }
 function tacFortHtml(b, V) {
   const f = (b.forts || []).find(x => x.id === V.selFort); if (!f) return ''; const K = FORT_KINDS[f.kind], ps = playerSide(b), mineF = f.side === ps, g = tacGarrisonOf(b, f).length, tgt = V.fortTgt && V.fortTgt[f.id] ? DIVS[V.fortTgt[f.id].t].name : 'automático';
   return `<div class="fortinfo"><b>${K.ic} ${K.n}</b> · ${G.C[f.side === 'A' ? b.A0 : b.B0].name}${f.cap ? ' <small class="bad">(ocupado)</small>' : ''}<small> · integridad ${Math.round(f.hp / f.hpMax * 100)}% · cañones ${f.guns} · guarnición ${g}/${K.need} · objetivo: ${tgt}</small>
   ${mineF && !b.ended ? `<div class="ordbtns">${f.guns ? `<button data-act="tacfortaim" class="${V.fortAim === f.id ? 'on' : ''}" data-tip="Elige a qué bloque enemigo disparan los cañones del fuerte.">🎯 Fijar objetivo</button><button data-act="tacfortauto">🔄 Automático</button>` : ''}${b.prep && f.kind === 'trench' ? '<button data-act="tacrot" data-tip="Gira la trinchera 90° (tecla R)">↻ Girar</button>' : ''}</div>` : ''}</div>`;
 }
 Object.assign(ACT, {
-  tacout: d => { const b = G.battles.find(x => x.id === UI.battle); if (!b || !b.prep) return; const a = armyById(+d.a); if (!a) return; const dv = a.divs[+d.i]; if (!dv) return; const ps = playerSide(b);
-    if (!dv.out && tacActive(b, ps) <= 1) { toast('⚠️', 'Debe quedar al menos una división en combate.'); return; } dv.out = !dv.out; renderBattlePanel(); },
-  tacreinf: () => { const b = G.battles.find(x => x.id === UI.battle); if (!b) return; const ps = playerSide(b); if (!ps) return; sideIds(b, ps).map(armyById).filter(Boolean).forEach(a => a.divs.forEach(dv => { dv.out = false; })); if (R.bviz) bvBanner(R.bviz, '📣 Llega la reserva', ps, ''); toast('📣', 'Todas tus divisiones entran en combate.'); renderBattlePanel(); },
+  tacreinf: () => { const b = G.battles.find(x => x.id === UI.battle); if (!b) return; const ps = playerSide(b); if (!ps) return; regsOfSide(b, ps).forEach(r => { r.out = false; }); regsSaveFlags(b); if (R.bviz) bvBanner(R.bviz, '📣 Llega la reserva', ps, ''); toast('📣', 'Todos tus regimientos entran en combate.'); renderBattlePanel(); },
   tacfortaim: () => { const V = R.bviz; if (!V || !V.selFort) return; V.fortAim = V.fortAim === V.selFort ? null : V.selFort; if (V.fortAim) toast('🎯', 'Haz clic sobre el bloque enemigo al que deben disparar.'); renderBattlePanel(); },
   tacfortauto: () => { const V = R.bviz; if (!V || !V.selFort) return; if (V.fortTgt) delete V.fortTgt[V.selFort]; V.fortAim = null; renderBattlePanel(); },
   tacrot: () => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !b) return; const f = (b.forts || []).find(x => x.id === V.selFort); if (f && f.kind === 'trench' && b.prep && f.side === playerSide(b)) { f.rot = f.rot ? 0 : 1; const w = f.w; f.w = f.h; f.h = w; tacLayoutFort(b, f); } else { V.rot = !V.rot; toast('↻', V.rot ? 'La próxima trinchera se colocará en vertical.' : 'La próxima trinchera se colocará en horizontal.'); } renderBattlePanel(); }
@@ -171,7 +163,7 @@ battleDay = function (b) {
 };
 const _endBattle2 = endBattle;
 endBattle = function (b, winner) {
-  [b.A, b.B].forEach(ids => ids.map(armyById).filter(Boolean).forEach(a => a.divs.forEach(d => { delete d.out; })));
+  [b.A, b.B].forEach(ids => ids.map(armyById).filter(Boolean).forEach(a => a.divs.forEach(d => { delete d.out; delete d.rs; if (d.rg) d.rg.forEach(r => { r.out = false; delete r.plan; delete r.cust; r.dev = 0; r.devO = 0; }); })));
   _endBattle2(b, winner);
   const ps = playerSide(b); if (ps && b.pris && (b.pris[ps] || 0) >= 600 && typeof showPrisDialog === 'function') setTimeout(() => showPrisDialog(), 400);
 };

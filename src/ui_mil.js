@@ -217,7 +217,7 @@ function renderBattlePanel() {
   if (root.dataset.bid !== String(b.id)) {
     root.dataset.bid = b.id; root._sb = '';
     root.innerHTML = `<div class="bhead"><div class="bh-side att">${flag(b.A0, 'md')}<b>${G.C[b.A0].name}</b></div><div class="bh-mid"><span class="bh-vs">⚔</span><h2 id="bt-title"></h2><small id="bt-sub"></small></div><div class="bh-side def"><b>${G.C[b.B0].name}</b>${flag(b.B0, 'md')}</div><button class="bvplay" data-act="bvpause"></button><button class="x" data-act="closebattle">✕</button></div>
-    <div class="bgrid"><div class="bleft"><div id="bt-sum"></div><div id="bt-terr" class="bterr"></div><canvas id="bmap" width="${BV_W * 2}" height="${BV_H * 2}"></canvas><div id="bt-cam" class="bcam"></div><div class="bhint">Cada cuadrado es una división. Pasa el ratón para ver su orden; rueda = zoom, arrastrar = mover. Barras: <span class="g">fuerza</span> · <span class="o">organización</span>.</div><div id="bt-orders" class="bord"></div><div id="bt-strat"></div><div id="bt-log" class="blog"></div></div>
+    <div class="bgrid"><div class="bleft"><div id="bt-sum"></div><div id="bt-terr" class="bterr"></div><canvas id="bmap" width="${BV_W}" height="${BV_H}"></canvas><div id="bt-cam" class="bcam"></div><div class="bhint">Cada cuadrado es una división. Pasa el ratón para ver su orden; rueda = zoom, arrastrar = mover. Barras: <span class="g">fuerza</span> · <span class="o">organización</span>.</div><div id="bt-orders" class="bord"></div><div id="bt-strat"></div><div id="bt-log" class="blog"></div></div>
     <div class="bright"><div id="bt-stats"></div><div id="bt-hist"></div></div></div>`;
     R.bviz = null;
     if (!R.skip3d) { R.skip3d = true; R.bvPrevPause = G.paused; G.paused = true; }
@@ -234,6 +234,7 @@ function renderBattlePanel() {
     const ma = (mySide[0] === 'A' ? b.A : b.B).map(armyById).filter(Boolean), cur = (ma.find(a => a.strat) || {}).strat || '';
     sh += `<div class="strpick"><small>Tu estrategia:</small> <button class="${cur === '' ? 'on' : ''}" data-act="battlestrat" data-s="">🤖 Automática</button>${Object.keys(STRATS).map(k => `<button class="${cur === k ? 'on' : ''}" data-act="battlestrat" data-s="${k}" data-tip="${STRATS[k].desc}">${STRATS[k].icon} ${STRATS[k].name}</button>`).join('')}</div>`;
   }
+  if (typeof tacCorpsHtml === 'function' && mySide && !done) { const ch2 = tacCorpsHtml(b, R.bviz); if (ch2) sh = ch2; }
   if (root._sb !== sh) { root._sb = sh; $('#bt-strat').innerHTML = sh; }
   $('#bt-stats').innerHTML = `<div class="bsides">${bs(A, 'att', 'Atacante', true, b.lostA)}${bs(B, 'def', 'Defensor', false, b.lostB)}</div>`;
   $('#bt-hist').innerHTML = `<svg class="bhist" viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none">${line(0, '#e8644f')}${line(1, '#6aa8e8')}</svg>

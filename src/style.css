@@ -666,3 +666,11 @@ svg.orders text.sdepot{font-size:16px;text-anchor:middle;dominant-baseline:centr
 .abil{border:1px solid var(--goldd);border-radius:8px;padding:8px 10px;margin:6px 0;background:rgba(18,24,30,.7)}.abil-h small{color:var(--dim);margin-left:6px}
 .abil .ordbtns button{background:linear-gradient(#2d333b,#20252b);color:#e8e2d0;border:1px solid #4a4f58;border-radius:14px;padding:3px 10px;font-size:12px;cursor:pointer}.abil .ordbtns button.on{background:linear-gradient(#8a6f2f,#5b4818);border-color:var(--gold2)}.abil .ordbtns button.nofunds{opacity:.5}
 .marker.siegemk{font-size:24px;filter:drop-shadow(0 1px 3px #000);cursor:help;pointer-events:auto}
+
+/* ===== cuerpos de ejército ===== */
+.corpsbox{margin:6px 0;display:flex;flex-direction:column;gap:6px}
+.corps{border:1px solid var(--goldd);border-radius:8px;padding:6px 9px;background:rgba(18,24,30,.7)}.corps.sel{border-color:var(--gold2);box-shadow:0 0 12px rgba(236,200,110,.3)}
+.corps-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.corps-h small{color:var(--dim);flex:1}.corps-h button,.gunsel button,.corps .strpick button{background:linear-gradient(#2d333b,#20252b);color:#e8e2d0;border:1px solid #4a4f58;border-radius:12px;padding:2px 9px;font-size:12px;cursor:pointer}
+.corps-h button.on,.gunsel button.on,.corps .strpick button.on{background:linear-gradient(#8a6f2f,#5b4818);border-color:var(--gold2);color:#fff6d6}
+.corps .strpick{display:flex;gap:4px;align-items:center;margin:4px 0}.corps .strpick button{padding:1px 8px;font-size:14px}.curst{font-size:11.5px;color:var(--dim);margin-left:6px}
+.corps .cm-army{display:flex;gap:4px;flex-wrap:wrap;align-items:center}.gunsel{display:flex;gap:4px;align-items:center;margin-left:10px}.gunsel small{color:var(--dim)}

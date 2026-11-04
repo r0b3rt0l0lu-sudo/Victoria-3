@@ -42,7 +42,7 @@ function tacMoraleX(V, b, all, step) {
     if (V.t - (blk.flanked || -9) < 2.5) dm -= 0.045 * step;
     const mates = all.filter(o => o !== blk && o.side === blk.side && o.mode !== 'rout' && Math.hypot(o.x - blk.x, o.y - blk.y) < 95).length;
     all.forEach(o => { if (o === blk || o.side !== blk.side) return; if (o.brk > 0 || o.mode === 'rout' || o.mode === 'recoil') { const d = Math.hypot(o.x - blk.x, o.y - blk.y); if (d < 115) dm -= 0.055 * step * (1 - d / 115) + (o.brk > 5.5 ? 0.09 * (1 - d / 115) : 0); } });      // el pánico se contagia
-    if (ds < 0.003) dm += (0.011 + 0.007 * Math.min(3, mates)) * step; if (blk.garr) dm += 0.02 * step;
+    if (ds < 0.003) dm += (0.011 + 0.007 * Math.min(3, mates)) * step; if (blk.garr) dm += 0.02 * step; if (blk.terr && blk.terr.village) dm += 0.02 * step;
     if (buffOn(V, blk.side, 'endure')) dm = Math.max(dm, 0);
     blk.mm = clamp(blk.mm + dm, 0, 1); blk.wav = blk.mm < 0.3;
     const immune = blk.garr || buffOn(V, blk.side, 'endure') || buffOn(V, blk.side, 'inspire') || (blk.d.plan && blk.d.plan.k === 'defend' && blk.mm > 0.04);

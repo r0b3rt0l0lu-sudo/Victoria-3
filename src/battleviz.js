@@ -3,12 +3,12 @@
    la estrategia de su bando: unos fijan al enemigo, otros flanquean, otros hostigan, cargan o se repliegan, y la reserva releva a los
    bloques agotados. Los soldados siguen su casilla dentro del bloque; las bajas, la organización y las rotas vienen de la batalla real.
    Pasa el ratón por un bloque para ver su general, fuerza, organización, moral y orden actual. */
-const BV_W = 960, BV_H = 420, BV_K = 1.33;
+const BV_W = 1920, BV_H = 840, BV_K = 2.4;
 const BV_FORM = {
-  inf: {n: 24, cols: 6, rows: 4, sx: 7.8, sy: 6.6, spd: 22},
-  cav: {n: 10, cols: 5, rows: 2, sx: 9.5, sy: 11, spd: 46},
-  art: {n: 3, cols: 3, rows: 1, sx: 20, sy: 10, spd: 11},
-  tank: {n: 4, cols: 4, rows: 1, sx: 15, sy: 14, spd: 30}
+  inf: {n: 6, cols: 3, rows: 2, sx: 6, sy: 7, spd: 32, w: 26, h: 22},
+  cav: {n: 4, cols: 4, rows: 1, sx: 5.5, sy: 7, spd: 70, w: 26, h: 22},
+  art: {n: 3, cols: 3, rows: 1, sx: 7, sy: 7, spd: 18, w: 24, h: 18},
+  tank: {n: 3, cols: 3, rows: 1, sx: 8, sy: 8, spd: 44, w: 26, h: 22}
 };
 const BV_KIND = {inf: 'Infantería', cav: 'Caballería', art: 'Artillería', tank: 'Carros de combate'};
 const BV_STATUS = {deploy: 'Desplegándose', advance: 'Avanzando', hold: 'Manteniendo la línea', fire: 'Fuego de fusilería', melee: 'Cuerpo a cuerpo', charge: '¡A la carga!', flank: 'Flanqueando', fixing: 'Fijando al enemigo',
@@ -138,7 +138,7 @@ function bvFoe(blk, all) {
 }
 function bvOrder(blk) { const o = blk.d.ord; return o && G.date.t <= o.until && ORDERS[o.k] ? o : null; }
 function bvStepBlock(V, b, blk, dt, lines, all) {
-  const od = bvOrder(blk), side = blk.side, dir = side === 'A' ? 1 : -1, opp = side === 'A' ? 'B' : 'A', st = od && od.k === 'charge' ? 'charge' : od && od.k === 'hold' ? 'hold' : bvStrat(b, side), att = b.att === side, L = lines[side], LE = lines[opp];
+  const od = bvOrder(blk), side = blk.side, dir = side === 'A' ? 1 : -1, opp = side === 'A' ? 'B' : 'A', st = od && od.k === 'charge' ? 'charge' : od && od.k === 'hold' ? 'hold' : bvStratC(V, b, blk), att = b.att === side, L = bvLineFor(V, b, blk, lines), LE = lines[opp];
   const skey = st + '|' + blk.role; if (blk.skey !== skey) { blk.skey = skey; blk.fs = 0; blk.path = null; }
   blk.defLine = !!(blk.d.plan && blk.d.plan.k === 'defend');
   const compT = ((st === 'hold' && !att) || (od && od.k === 'hold') || blk.defLine) && blk.role === 'line' ? 0.8 : 1; blk.comp += (compT - blk.comp) * Math.min(1, dt * 1.5); bvDims(blk);
@@ -190,13 +190,14 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
   }
   blk.path = path;
   // ---- movimiento (el terreno frena: vado, bosque, cuesta) ----
+  if (blk.corps && blk.corps.nl > 1 && blk.role === 'line' && (mode === 'advance' || mode === 'fire')) { const lead = (blk.x - blk.corps.cx) * dir; if (lead > 10) spd *= 0.35; else if (lead < -10) spd *= 1.35; }       // avance en línea
   blk.terr = bvTerrAt(V.tf, blk.x, blk.y, side); if (b.forts && typeof tacFortAt === 'function' && tacFortAt(b, blk.x, blk.y)) blk.terr.cover = true; spd *= blk.terr.slow;
   if (blk.terr.water && (blk.sp || 0) > 5 && Math.random() < dt * 14) bvPart(V, {k: 'splash', x: blk.x + rnd(-blk.dep / 2, blk.dep / 2), y: blk.y + rnd(-blk.wid / 2, blk.wid / 2), life: 0.6});
   if (typeof tacWaypoint === 'function') { const wp = tacWaypoint(V.tf, blk, tx, ty); if (wp) { tx = wp[0]; ty = wp[1]; } }
   const wasW = blk.terr && blk.terr.water;
   const dx = tx - blk.x, dy = ty - blk.y, d = Math.hypot(dx, dy) || 1, want = Math.min(spd, d * 2.4);
   blk.vx += (dx / d * want - blk.vx) * Math.min(1, dt * 2.6); blk.vy += (dy / d * want - blk.vy) * Math.min(1, dt * 2.6);
-  if (!blk.init) { blk.init = true; const off = b.day > 1 ? 0 : 160; blk.x = home.x - dir * off + rnd(-8, 8); blk.y = home.y + rnd(-10, 10); blk.figs.forEach(f => { const s = bvSlot(blk, f); f.x = s[0] + rnd(-3, 3); f.y = s[1] + rnd(-3, 3); }); }
+  if (!blk.init) { blk.init = true; const off = b.day > 1 ? 0 : 260; blk.x = home.x - dir * off + rnd(-8, 8); blk.y = home.y + rnd(-10, 10); blk.figs.forEach(f => { const s = bvSlot(blk, f); f.x = s[0] + rnd(-3, 3); f.y = s[1] + rnd(-3, 3); }); }
   blk.x += blk.vx * dt; blk.y += blk.vy * dt; blk.y = clamp(blk.y, 30, BV_H - 22);
   if (!wasW && V.tf && bvTerrAt(V.tf, blk.x, blk.y, side).water) { blk.x -= blk.vx * dt; blk.y -= blk.vy * dt; blk.vx *= 0.15; blk.vy *= 0.15; }       // no se cruza el agua fuera de los vados
   const sp = Math.hypot(blk.vx, blk.vy); blk.sp = sp;
@@ -244,7 +245,7 @@ function bvStepFigs(V, b, blk, dt, ghost) {
 function bvFire(V, b, blk, dt, foes) {
   if (blk.mode === 'rout' || blk.mode === 'retreat' || V.over && V.over.loser === blk.side) return;
   if (blk.type === 'art' && typeof tacArtFire === 'function') { tacArtFire(V, b, blk, dt, foes); return; }
-  const dir = blk.side === 'A' ? 1 : -1, st = bvStrat(b, blk.side), foe = blk.foe; if (!foe) return;
+  const dir = blk.side === 'A' ? 1 : -1, st = bvStratC(V, b, blk), foe = blk.foe; if (!foe) return;
   const alive = blk.figs.filter(f => f.alive && !f.flee); if (!alive.length) return;
   const fd = Math.hypot(foe.x - blk.x, foe.y - blk.y);
   if (blk.type === 'art') {
@@ -285,6 +286,7 @@ function bvFrame(V, b, ctx, now) {
   V.tf = battleTerrain(b);
   const lines = {A: bvLine(V, b, 'A'), B: bvLine(V, b, 'B')}, all = [...V.blocks.values()];
   if (!V.over) bvRelief(V, b, dt);
+  if (typeof bvCorpsUpdate === 'function') bvCorpsUpdate(V);
   all.forEach(blk => bvStepBlock(V, b, blk, dt, lines, all)); bvSeparate(all, dt);
   if (typeof tacThink === 'function') tacThink(V, b, all, dt);
   if (typeof tacMorale === 'function') { tacMorale(V, b, all, dt); V._pfx = (V._pfx || 0) + dt; if (V._pfx > 1) { V._pfx = 0; tacPlanFx(V, b, all); } }
@@ -311,12 +313,12 @@ function bvFrame(V, b, ctx, now) {
 }
 /* ---------- cámara: zoom, desplazamiento y seguimiento ---------- */
 const bvToWorld = (V, sx, sy) => [(sx - BV_W / 2) / V.cam.z + V.cam.x, (sy - BV_H / 2) / V.cam.z + V.cam.y];
-function bvClampCam(V) { const c = V.cam; c.z = clamp(c.z, 1, 3.4); const hx = BV_W / 2 / c.z, hy = BV_H / 2 / c.z; c.x = clamp(c.x, hx, BV_W - hx); c.y = clamp(c.y, hy, BV_H - hy); }
+function bvClampCam(V) { const c = V.cam; c.z = clamp(c.z, 1, 5.5); const hx = BV_W / 2 / c.z, hy = BV_H / 2 / c.z; c.x = clamp(c.x, hx, BV_W - hx); c.y = clamp(c.y, hy, BV_H - hy); }
 function bvCamStep(V, dt) {
   const c = V.cam; if (V.follow) { const tg = V.sel || V.hover || null; if (tg) { c.z += (Math.max(c.z, 2) - c.z) * Math.min(1, dt * 3); c.x += (tg.x - c.x) * Math.min(1, dt * 4); c.y += (tg.y - c.y) * Math.min(1, dt * 4); } }
   bvClampCam(V);
 }
-function bvZoomAt(V, factor, sx, sy) { const c = V.cam, [wx, wy] = bvToWorld(V, sx === undefined ? BV_W / 2 : sx, sy === undefined ? BV_H / 2 : sy); c.z = clamp(c.z * factor, 1, 3.4); const sxx = sx === undefined ? BV_W / 2 : sx, syy = sy === undefined ? BV_H / 2 : sy; c.x = wx - (sxx - BV_W / 2) / c.z; c.y = wy - (syy - BV_H / 2) / c.z; bvClampCam(V); }
+function bvZoomAt(V, factor, sx, sy) { const c = V.cam, [wx, wy] = bvToWorld(V, sx === undefined ? BV_W / 2 : sx, sy === undefined ? BV_H / 2 : sy); c.z = clamp(c.z * factor, 1, 5.5); const sxx = sx === undefined ? BV_W / 2 : sx, syy = sy === undefined ? BV_H / 2 : sy; c.x = wx - (sxx - BV_W / 2) / c.z; c.y = wy - (syy - BV_H / 2) / c.z; bvClampCam(V); }
 function bvHover(V, all) {
   V.hover = null; if (!V.mouse) return; const [wx, wy] = bvToWorld(V, V.mouse.x, V.mouse.y); let bd = 1e9;
   all.forEach(blk => { const d = Math.hypot(blk.x - wx, blk.y - wy), r = Math.max(blk.dep, blk.wid) / 2 + 6; if (d < r && d < bd) { bd = d; V.hover = blk; } });
@@ -326,6 +328,7 @@ function bvTrenchLevel(V, b, side) {
   let lv = 0; (side === 'A' ? b.A : b.B).forEach(id => { const a = armyById(id); if (a) lv = Math.max(lv, a.dig || 0); }); return lv;
 }
 function bvTrenches(g, V, b, lines) {
+  if (G.date.y < 1900) return;                  // sin trincheras de campaña hasta 1900
   const side = b.att === 'A' ? 'B' : 'A', dir = side === 'A' ? 1 : -1; V.dig = V.dig || {A: 0, B: 0}; if (V.t - (V.digT || -9) > 0.5) { V.digT = V.t; V.dig[side] = bvTrenchLevel(V, b, side); }
   const lv = V.dig[side]; if (lv < 2) return; const tech = G.C[side === 'A' ? b.A0 : b.B0] && hasTech(G.C[side === 'A' ? b.A0 : b.B0], 'trench_warfare');
   const x = lines[side] - dir * 18, w = 5 + lv * (tech ? 0.7 : 0.4), top = 46, bot = BV_H - 28;
@@ -447,14 +450,14 @@ function bvDraw(V, b, g, lines, all) {
     const a = blk.path[blk.path.length - 2], e = blk.path[blk.path.length - 1], an = Math.atan2(e[1] - a[1], e[0] - a[0]); g.beginPath(); g.moveTo(e[0] + Math.cos(an) * 8, e[1] + Math.sin(an) * 8); g.lineTo(e[0] + Math.cos(an + 2.5) * 7, e[1] + Math.sin(an + 2.5) * 7); g.lineTo(e[0] + Math.cos(an - 2.5) * 7, e[1] + Math.sin(an - 2.5) * 7); g.fill(); });
   if (typeof tacDrawPlans === 'function') { tacDrawArt(g, V, b, all); tacDrawPlans(g, V, b, all); }
   // soldados (ordenados por y)
-  const figs = []; all.concat(V.ghosts).forEach(blk => { if (typeof tacHidden === 'function' && tacHidden(b, blk)) return; blk.figs.forEach(f => { if (f.alive || f.dying > 0) figs.push([blk, f]); }); }); figs.sort((p, q) => p[1].y - q[1].y);
-  figs.forEach(([blk, f]) => bvFig(g, V, blk, f));
+  // los regimientos se dibujan como contadores; los soldados individuales ya no se pintan
   // barras de fuerza/organización y banderines
   blocks.forEach(blk => { const c = Math.cos(blk.hd), s = Math.sin(blk.hd), by = blk.y + Math.abs(s) * blk.dep / 2 + Math.abs(c) * blk.wid / 2 + 5; if (blk.role !== 'reserve' || V.hover === blk) { const w = Math.max(24, blk.wid * 0.8), x0 = blk.x - w / 2, org = clamp(blk.d.o / DIVS[blk.d.t].org, 0, 1);
       g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(x0 - 1, by - 1, w + 2, 8.5); g.fillStyle = '#79c35a'; g.fillRect(x0, by, w * clamp(blk.d.s, 0, 1), 2); g.fillStyle = org < 0.3 ? '#e8644f' : '#e0b04a'; g.fillRect(x0, by + 2.5, w * org, 2); const mmv = blk.mm === undefined ? 0.8 : blk.mm; g.fillStyle = mmv < 0.3 ? '#ff5a46' : '#5aa8ff'; g.fillRect(x0, by + 5, w * clamp(mmv, 0, 1), 2); }
     if (blk.brk > 0 || blk.wav) { g.font = '12px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#fff'; g.fillText(blk.brk > 0 ? '😱' : '😰', blk.x, blk.y - blk.wid / 2 - 5); }
     bvFlag(g, V, blk, V.over, V.over && V.over.loser !== blk.side);
     const od = bvOrder(blk); if (od) { const left = Math.max(1, Math.ceil(od.until - G.date.t)); g.fillStyle = 'rgba(10,12,16,.85)'; g.beginPath(); g.arc(blk.x, blk.y - blk.wid / 2 - 17, 8, 0, 6.3); g.fill(); g.strokeStyle = '#ffe28a'; g.lineWidth = 1.2; g.stroke(); g.font = '10px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#fff'; g.fillText(ORDERS[od.k].icon, blk.x, blk.y - blk.wid / 2 - 17); g.font = 'bold 8px sans-serif'; g.fillStyle = '#ffe28a'; g.fillText(left + 'd', blk.x + 12, blk.y - blk.wid / 2 - 10); } });
+  if (typeof bvCorpsFlags === 'function') bvCorpsFlags(g, V, b);
   // destellos, trazadoras y proyectiles
   V.parts.forEach(p => { const k = p.age / p.life;
     if (p.k === 'flash') { g.fillStyle = `rgba(255,235,150,${1 - k})`; g.beginPath(); g.arc(p.x, p.y, (p.big ? 6 : 3.2) * (1 - k * 0.3), 0, 6.3); g.fill(); }
@@ -468,10 +471,10 @@ function bvDraw(V, b, g, lines, all) {
   if (typeof bvFxOver === 'function') bvFxOver(g, V, b, W, H);
   g.restore();
   if (typeof bvPost === 'function') bvPost(g, V, b);
-  bvOverlay(V, b, g, lines, all);
+  g.save(); g.scale(BV_W / 960, BV_H / 420); bvOverlay(V, b, g, lines, all); g.restore();
 }
 function bvOverlay(V, b, g, lines, all) {
-  const W = BV_W, H = BV_H, men = s => Math.round(all.filter(x => x.side === s).reduce((n, x) => n + clamp(x.d.s, 0, 1) * MEN_PER_DIV, 0));
+  const W = 960, H = 420, men = s => Math.round(all.filter(x => x.side === s).reduce((n, x) => n + clamp(x.d.s, 0, 1) * MEN_PER_DIV, 0));
   const orgA = b.orgA === undefined ? 1 : b.orgA, orgB = b.orgB === undefined ? 1 : b.orgB, m = clamp(0.5 + (b.adv || 0) * 0.28 + (orgA - orgB) * 0.28, 0.04, 0.96), ca = G.C[b.A0].color, cb2 = G.C[b.B0].color;
   g.fillStyle = 'rgba(8,12,16,.82)'; g.fillRect(0, 0, W, 34); g.fillStyle = ca; g.fillRect(0, 2, W * m, 6); g.fillStyle = cb2; g.fillRect(W * m, 2, W * (1 - m), 6); g.fillStyle = '#fff'; g.fillRect(W * m - 1, 0, 2, 11);
   g.font = 'bold 16px sans-serif'; g.textBaseline = 'middle'; g.fillStyle = '#f5ecd0'; g.textAlign = 'left'; g.fillText(`${G.C[b.A0].name} · ${fmtN(men('A'), 0)} h.`, 8, 23); g.textAlign = 'right'; g.fillText(`${fmtN(men('B'), 0)} h. · ${G.C[b.B0].name}`, W - 8, 23);
@@ -489,7 +492,7 @@ function bvOverlay(V, b, g, lines, all) {
   const h = V.hover; if (h) {
     const orgF = clamp(h.d.o / DIVS[h.d.t].org, 0, 1), mor = h.mm !== undefined ? h.mm : typeof armyMor === 'function' ? armyMor(h.a) : 0.8, gen = h.a.gen || {name: '—', lvl: 1};
     const lines2 = [`${DIVS[h.d.t].icon} ${BV_KIND[h.type] || DIVS[h.d.t].name} · ${G.C[h.tag].name}`, `${h.a.name} · Gral. ${gen.name} (nv. ${gen.lvl})`, `Fuerza ${Math.round(clamp(h.d.s, 0, 1) * 100)}% · ${fmtN(clamp(h.d.s, 0, 1) * MEN_PER_DIV, 0)} hombres`, `Organización ${Math.round(orgF * 100)}% · Moral ${Math.round(mor * 100)}%${h.brk > 0 ? ' (¡rota!)' : h.wav ? ' (vacilante)' : ''}`, `Orden: ${BV_STATUS[h.mode] || h.mode}${bvOrder(h) ? ' · ' + ORDERS[bvOrder(h).k].icon + ' ' + ORDERS[bvOrder(h).k].name : ''}`, `Terreno: ${h.terr && h.terr.water ? 'vadeando el río (muy lento)' : h.terr && h.terr.cover ? 'entre los árboles (cobertura)' : h.terr && h.terr.hill ? 'en la colina' : 'campo abierto'}`];
-    g.font = '13px sans-serif'; const w = Math.max(...lines2.map(t => g.measureText(t).width)) + 20, hh = lines2.length * 17 + 14; const cz = V.cam.z, shx = (h.x - V.cam.x) * cz + W / 2, shy = (h.y - V.cam.y) * cz + H / 2; let x = clamp(shx + 36 * Math.min(cz, 1.5), 6, W - w - 6), y = clamp(shy - hh / 2, 40, H - hh - 6);
+    g.font = '13px sans-serif'; const w = Math.max(...lines2.map(t => g.measureText(t).width)) + 20, hh = lines2.length * 17 + 14; const cz = V.cam.z, shx = ((h.x - V.cam.x) * cz + BV_W / 2) / 2, shy = ((h.y - V.cam.y) * cz + BV_H / 2) / 2; let x = clamp(shx + 36 * Math.min(cz, 1.5), 6, W - w - 6), y = clamp(shy - hh / 2, 40, H - hh - 6);
     g.fillStyle = 'rgba(14,18,24,.94)'; g.fillRect(x, y, w, hh); g.strokeStyle = h.color; g.lineWidth = 1.5; g.strokeRect(x, y, w, hh); g.textAlign = 'left';
     lines2.forEach((t, i) => { g.fillStyle = i === 0 ? '#ffe28a' : i === 4 ? '#9fd3ff' : i === 5 ? '#a9d98c' : '#e6e1d0'; g.font = i === 0 ? 'bold 13.5px sans-serif' : '13px sans-serif'; g.fillText(t, x + 10, y + 16 + i * 17); });
   }
@@ -579,8 +582,8 @@ Object.assign(ACT, {
   bvgas: () => { const b = G.battles.find(x => x.id === UI.battle); if (!b) return; const side = b.A0 === G.player ? 'A' : b.B0 === G.player ? 'B' : null; if (!side) { toast('⚠️', 'Solo el líder de cada bando puede ordenar un ataque con gas.'); return; } const r = launchGas(b, side); if (!r.ok) toast('⚠️', r.msg); renderBattlePanel(); },
   bvorder: d => {
     const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !V.sel || !b || b.ended) return; const dv = V.sel.d;
-    if (d.k === 'cancel') { delete dv.ord; toast('🎯', 'Orden cancelada.'); }
-    else if (ORDERS[d.k]) { dv.ord = {k: d.k, until: G.date.t + 4}; bvBanner(V, `${ORDERS[d.k].icon} ${ORDERS[d.k].name}: ${V.sel.a.name}`, V.sel.side, ''); toast(ORDERS[d.k].icon, `${V.sel.a.name}: ${ORDERS[d.k].name} durante 4 días.`); }
+    if (d.k === 'cancel') { delete dv.ord; if (dv.par) delete dv.par.ord; toast('🎯', 'Orden cancelada.'); }
+    else if (ORDERS[d.k]) { dv.ord = {k: d.k, until: G.date.t + 4}; if (dv.par) dv.par.ord = dv.ord; bvBanner(V, `${ORDERS[d.k].icon} ${ORDERS[d.k].name}: ${V.sel.a.name}`, V.sel.side, ''); toast(ORDERS[d.k].icon, `${V.sel.a.name}: ${ORDERS[d.k].name} durante 4 días.`); }
     renderBattlePanel();
   }
 });

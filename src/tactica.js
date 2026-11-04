@@ -29,6 +29,7 @@ function tacZoneOk(b, side, x, y) {
   return x >= lo && x <= hi && y >= 48 && y <= BV_H - 28;
 }
 function tacBuildFort(b, side, kind, x, y) {
+  if (kind === 'trench' && G.date.y < 1900) return {ok: false, msg: 'Las trincheras no existen hasta 1900.'};
   const K = FORT_KINDS[kind], ids = sideIds(b, side), rot = kind === 'trench' && R.bviz && R.bviz.rot ? 1 : 0, fw = rot ? K.h : K.w, fh = rot ? K.w : K.h;
   if ((b.forts || []).filter(f => f.side === side && f.kind !== 'fort').length >= FORT_MAX) return {ok: false, msg: `Solo puedes construir ${FORT_MAX} fuertes como máximo (sin contar el fuerte de la provincia).`};
   if (!tacZoneOk(b, side, x, y)) return {ok: false, msg: 'Solo puedes construir en tu mitad del campo.'};
@@ -44,7 +45,7 @@ function tacAddGun(b, f) {
   spendSideRes(ids, FORT_GUN_COST); f.guns++; return {ok: true};
 }
 // guarnición: los bloques asignados se instalan dentro del fuerte
-function tacGarrisonOf(b, f) { const out = []; sideIds(b, f.side).map(armyById).filter(Boolean).forEach(a => a.divs.forEach(d => { if (d.cust && d.cust.fort === f.id) out.push(d); })); return out; }
+function tacGarrisonOf(b, f) { return regsOfSide(b, f.side).filter(r => r.cust && r.cust.fort === f.id); }
 function tacLayoutFort(b, f) {
   const gs = tacGarrisonOf(b, f), n = gs.length; if (!n) return; const horiz = f.w >= f.h, long = horiz ? f.w : f.h, sp = Math.min(40, (long - 8) / Math.max(1, n));
   gs.forEach((d, i) => { const o = (i - (n - 1) / 2) * sp; d.cust = {abs: true, x: horiz ? f.x + o : f.x, y: horiz ? f.y : f.y + o, fort: f.id}; });
@@ -70,7 +71,7 @@ function tacAiFortify(b, side) {
   const dir = side === 'A' ? 1 : -1, base = tacLineBase(b, side), as = ids.map(armyById).filter(Boolean), art = as.some(a => a.divs.some(d => dKind(d) === 'art')), tf = battleTerrain(b);
   const n = isDef ? 3 : 1, ys = [BV_H * 0.28, BV_H * 0.5, BV_H * 0.72];
   for (let i = 0; i < n; i++) {
-    const kind = i === 1 && art ? 'battery' : (isDef && i === 0 ? 'redoubt' : 'trench'), K = FORT_KINDS[kind], x = base - dir * (K.w / 2 + 4 + (kind === 'trench' ? 2 : 14)), y = ys[i] + (hash2(b.id, i, 5) - 0.5) * 30;
+    const kind = i === 1 && art ? 'battery' : (isDef && i === 0 ? 'redoubt' : G.date.y >= 1900 ? 'trench' : 'redoubt'), K = FORT_KINDS[kind], x = base - dir * (K.w / 2 + 4 + (kind === 'trench' ? 2 : 14)), y = ys[i] + (hash2(b.id, i, 5) - 0.5) * 30;
     if (!tacCan(ids, K.cost) || bvTerrAt(tf, x, y, side).water) continue; tacBuildFort(b, side, kind, x, y);
   }
 }
@@ -141,7 +142,11 @@ const PLANS = {
   defend: {n: 'Línea defensiva', ic: '🛡️', col: '#5aa8ff', hint: 'Marca los dos extremos de la línea que debe mantener.', multi: 2},
   retreat: {n: 'Retirada', ic: '↩️', col: '#b7bcc4', hint: 'Haz clic en el punto hasta donde debe retirarse.', multi: false}
 };
-function tacSetPlan(V, plan) { if (!V.sel) return; const dv = V.sel.d; if (dv.cust && dv.cust.fort && !(V.sel.type === 'art' && plan.k === 'target')) delete dv.cust; dv.plan = plan; V.sel.skey = ''; plan.i = 0; }
+function tacSetPlan(V, plan) {
+  if (!V.sel) return; const sel = V.sel, grp = V.selCorps && sel.corps && sel.corps.id === V.selCorps ? sel.corps.blks.concat(plan.k === 'target' ? sel.corps.ablks : []).filter(k => k.mode !== 'rout') : [sel];
+  grp.forEach(k => { const dv = k.d; if (dv.cust && dv.cust.fort && !(k.type === 'art' && plan.k === 'target')) delete dv.cust; const off = k === sel ? 0 : k.y - sel.y;
+    dv.plan = Object.assign({}, plan, {pts: (plan.pts || []).map(p => [p[0], clamp(p[1] + off, 30, BV_H - 20)]), i: 0}); k.skey = ''; });
+}
 function tacClickMap(V, b, wx, wy, dbl) {
   const dr = V.draw; if (!dr || !V.sel) return false; const P = PLANS[dr.k];
   if (dr.k === 'target') { const h = V.hover; if (h && h.side !== V.sel.side && h.mode !== 'rout') { tacSetPlan(V, {k: 'target', foe: h.d, pts: []}); V.draw = null; bvBanner(V, `🎯 ${V.sel.a.name} → ${DIVS[h.d.t].name} enemiga`, V.sel.side, ''); } else toast('🎯', 'Haz clic sobre un bloque enemigo.'); return true; }
@@ -286,7 +291,6 @@ function tacTerrainExtra(b, tf) {
   tf.hill2 = tf.hill && H(35) < 0.35 ? {x: W / 2 - (tf.hill.x - W / 2) * 0.8 + (H(36) - 0.5) * 80, y: 80 + H(37) * (Hh - 160), rx: 44 + H(38) * 24, ry: 52 + H(39) * 24} : null;
   tf.road = (() => { const ry = BV_H * (0.58 + (hash2(1, b.id * 77 + 5, 31) - 0.5) * 0.22), P0 = [-10, ry + 14], C1 = [W * 0.3, ry - 30], C2 = [W * 0.6, ry + 40], P3 = [W + 10, ry - 8], pts = []; for (let i = 0; i <= 40; i++) { const t = i / 40, u = 1 - t; pts.push([u * u * u * P0[0] + 3 * u * u * t * C1[0] + 3 * u * t * t * C2[0] + t * t * t * P3[0], u * u * u * P0[1] + 3 * u * u * t * C1[1] + 3 * u * t * t * C2[1] + t * t * t * P3[1]]); } return {pts}; })();
 }
-const tacRoadAt = (tf, x, y) => { if (!tf.road) return false; let best = 1e9; tf.road.pts.forEach(p => { if (Math.abs(p[0] - x) < 30) best = Math.min(best, Math.hypot(p[0] - x, p[1] - y)); }); return best < 9; };
 function tacTerrAtExtra(tf, x, y, side, o) {
   (tf.marsh || []).forEach(m => { if (((x - m.x) / m.rx) ** 2 + ((y - m.y) / m.ry) ** 2 < 1) { o.marsh = true; o.slow = Math.min(o.slow, 0.5); } });
   if (tf.pond && ((x - tf.pond.x) / tf.pond.rx) ** 2 + ((y - tf.pond.y) / tf.pond.ry) ** 2 < 1) { o.water = true; o.slow = Math.min(o.slow, 0.3); }
@@ -327,12 +331,12 @@ Object.assign(ACT, {
 // HTML del panel: preparación, planes y velocidad
 function tacPanelHtml(b, V, sel) {
   const ps = playerSide(b); if (!ps || !V) return '';
-  let h = tacCommitHtml(b, V) + tacFortHtml(b, V); const ids = sideIds(b, ps);
+  let h = tacFortHtml(b, V); const ids = sideIds(b, ps);
   if (b.prep) {
     const t = sideRes(ids).t, chips = RES_KEYS.map(k => `<span class="rchip" data-tip="${RES_INFO[k].n} (por división)">${RES_INFO[k].ic} ${t[k].toFixed(1)}</span>`).join(''), selF = (b.forts || []).find(x => x.id === V.selFort);
     h += `<div class="prep"><div class="prep-h"><b>⚙️ Fase de preparación</b><small>El combate está detenido. Arrastra tus bloques por tu mitad del campo (zona marcada) y levanta fuertes con las reservas de tu ejército.</small></div>
-    <div class="prep-r">${chips}</div><div class="prep-b">${['trench', 'redoubt', 'battery'].map(k => { const K = FORT_KINDS[k], ok = tacCan(ids, K.cost); return `<button data-act="tacfort" data-k="${k}" class="${V.tool && V.tool.k === k ? 'on' : ''} ${ok ? '' : 'nofunds'}" data-tip="<b>${K.n}</b><br>${K.desc}<br>Coste por división: ${fmtCost(K.cost)}">${K.ic} ${K.n}<small>${fmtCost(K.cost)}</small></button>`; }).join('')}
-    <button data-act="tacgar" class="${V.garr ? 'on' : ''}" data-tip="<b>Guarnecer</b><br>Selecciona uno de tus bloques, pulsa este botón y haz clic en un fuerte: el bloque se instala dentro. También puedes arrastrar el bloque encima del fuerte. Capacidad: trinchera 2, reducto 2, batería 1, fuerte 3.">🏰 Guarnecer</button><button data-act="tacgun" data-tip="<b>Añadir un cañón</b> a la obra seleccionada. Cuesta ${fmtCost(FORT_GUN_COST)} por división.">➕ Cañón<small>${fmtCost(FORT_GUN_COST)}</small></button><button data-act="tacrot" data-tip="Gira la trinchera: horizontal o vertical (tecla R)">↻ Girar</button><button data-act="tacdel" data-tip="Desmonta la obra seleccionada (recuperas la mitad de los recursos).">🗑 Quitar</button></div>
+    <div class="prep-r">${chips}</div><div class="prep-b">${['trench', 'redoubt', 'battery'].filter(k => k !== 'trench' || G.date.y >= 1900).map(k => { const K = FORT_KINDS[k], ok = tacCan(ids, K.cost); return `<button data-act="tacfort" data-k="${k}" class="${V.tool && V.tool.k === k ? 'on' : ''} ${ok ? '' : 'nofunds'}" data-tip="<b>${K.n}</b><br>${K.desc}<br>Coste por división: ${fmtCost(K.cost)}">${K.ic} ${K.n}<small>${fmtCost(K.cost)}</small></button>`; }).join('')}
+    <button data-act="tacgar" class="${V.garr ? 'on' : ''}" data-tip="<b>Guarnecer</b><br>Selecciona uno de tus bloques, pulsa este botón y haz clic en un fuerte: el bloque se instala dentro. También puedes arrastrar el bloque encima del fuerte. Capacidad: trinchera 2, reducto 2, batería 1, fuerte 3.">🏰 Guarnecer</button><button data-act="tacgun" data-tip="<b>Añadir un cañón</b> a la obra seleccionada. Cuesta ${fmtCost(FORT_GUN_COST)} por división.">➕ Cañón<small>${fmtCost(FORT_GUN_COST)}</small></button>${G.date.y >= 1900 ? '<button data-act="tacrot" data-tip="Gira la trinchera: horizontal o vertical (tecla R)">↻ Girar</button>' : ''}<button data-act="tacdel" data-tip="Desmonta la obra seleccionada (recuperas la mitad de los recursos).">🗑 Quitar</button></div>
     <div class="prep-s">${selF ? `Seleccionado: <b>${FORT_KINDS[selF.kind].ic} ${FORT_KINDS[selF.kind].n}</b> · cañones ${selF.guns}` : V.tool ? `Haz clic en tu zona para colocar: <b>${FORT_KINDS[V.tool.k].n}</b>` : (V.garr ? 'Modo guarnición: elige un bloque tuyo y haz clic en un fuerte para instalarlo dentro.' : (b.forts || []).some(f => f.kind === 'fort') ? 'Hay un fuerte de la provincia: arrastra un bloque encima o usa «Guarnecer».' : 'Elige una obra o arrastra un bloque.')}</div>
     <button class="primary prep-go" data-act="tacstart">▶ ¡Comenzar la batalla!</button></div>`;
   }

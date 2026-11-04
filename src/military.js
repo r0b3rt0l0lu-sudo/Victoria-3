@@ -304,6 +304,8 @@ function battleEvents(b, sa, sb) {
   }
   if (b.gas && b.day >= b.gas.from && b.day <= b.gas.until) { const o = opp(b.gas.side); add(o, 'x', 2.4); add(o, 'c', 1.2); }
   ['A', 'B'].forEach(s => { const c = G.C[s === 'A' ? b.A0 : b.B0]; if (c && c.ai && b.day >= 2 && hasTech(c, 'chemical_weapons') && (!b.gas || b.day > b.gas.until + 4) && Math.random() < ((s === 'A' ? b.strB : b.strA) === 'hold' ? 0.07 : 0.02)) launchGas(b, s); });
+  { const at = b.att, df = opp(at), ast = at === 'A' ? b.strA : b.strB;       // metralla del defensor contra el asalto
+    if (S[df].art > 0 && (ast === 'frontal' || ast === 'charge' || !ast) && Math.random() < 0.35) { add(at, 'x', Math.min(6, 1.3 * S[df].art * (1 + S[df].gun))); say(df, 'barrage', `Metralla de ${nm(df)}: la artillería barre a quemarropa el asalto de ${nm(at)}.`); } }
   if (Math.random() > 0.3) return ev;
   const opts = [];
   ['A', 'B'].forEach(s => {
@@ -322,7 +324,7 @@ function battleEvents(b, sa, sb) {
   for (const o of opts) { r -= o[0]; if (r <= 0) { pickd = o; break; } }
   const [, kind, s] = pickd, o = opp(s);
   if (kind === 'charge') { add(s, 'f', 1.7); add(s, 'c', 2.0); say(s, 'charge', `¡Carga desesperada de ${nm(s)}! Ataque brutal a costa de muchas bajas.`); }
-  else if (kind === 'cav') { add(s, 'f', 1.3); add(o, 'x', 2.5 + (S[o].art > 0 ? 3 : 0)); say(s, 'cav', `La caballería de ${nm(s)} carga sobre el flanco${S[o].art > 0 ? ' y arrolla a la artillería' : ''}.`); }
+  else if (kind === 'cav') { const ol = weapLvl(o === 'A' ? b.A0 : b.B0), kk = S[o].org < 0.5 ? 1 : 1 / (1 + 0.5 * ol); add(s, 'f', 1 + 0.3 * kk); add(o, 'x', (2.5 + (S[o].art > 0 ? 3 : 0)) * kk); if (kk < 1) add(s, 'x', 1.5 * ol); say(s, 'cav', `La caballería de ${nm(s)} carga sobre el flanco${S[o].art > 0 ? ' y arrolla a la artillería' : ''}.`); }
   else if (kind === 'barrage') { add(o, 'x', Math.min(8, 1.6 * S[s].art * (1 + S[s].gun))); say(s, 'barrage', `Cañoneo de ${nm(s)}: la artillería castiga a ${nm(o)}.`); }
   else if (kind === 'flank') { add(s, 'f', 1.25); add(o, 'x', 3); say(s, 'flank', `${nm(s)} logra un flanqueo y desordena al enemigo.`); }
   else if (kind === 'panic') { add(s, 'x', 5); say(s, 'panic', `El pánico cunde en las filas de ${nm(s)}.`); }

@@ -261,13 +261,13 @@ function bvFire(V, b, blk, dt, foes) {
   }
   if (blk.type !== 'inf' && blk.type !== 'cav' && blk.type !== 'tank') return;
   if (blk.mode === 'melee' || blk.mode === 'charge' || blk.mode === 'gallop' || blk.mode === 'recoil') return;
-  if (fd > 190) return;
-  const rate = (st === 'skirmish' ? 7 : st === 'hold' ? 5 : 4) * alive.length * 0.22 * (blk.type === 'cav' ? 0.3 : blk.type === 'tank' ? 0.5 : 1) * (blk.mode === 'fire' ? 1.6 : 0.7);
+  const wl = typeof bvWeap === 'function' ? bvWeap(blk) : 1; if (fd > 190 * WEAP_RANGE[wl]) return;
+  const rate = WEAP_RATE[wl] * (st === 'skirmish' ? 7 : st === 'hold' ? 5 : 4) * alive.length * 0.22 * (blk.type === 'cav' ? 0.3 : blk.type === 'tank' ? 0.5 : 1) * (blk.mode === 'fire' ? 1.6 : 0.7);
   blk.fireAcc += dt * rate;
   while (blk.fireAcc > 1) { blk.fireAcc--;
     const front = alive.filter(f => f.kind === 'sol' && Math.floor(f.k / blk.F.cols) <= 1), pool = front.length ? front : alive, u = pool[Math.floor(Math.random() * pool.length)], tg = pickFoeFig(foe); if (!tg) break;
     const face = Math.cos(blk.hd) >= 0 ? 1 : -1, fx = blk.x + face * (blk.dep / 2 + 1), fy = blk.y + rnd(-blk.wid / 2, blk.wid / 2); blk.fireAt = performance.now();
-    bvPart(V, {k: 'flash', x: fx + face * 2, y: fy, life: 0.14, big: 1}); bvPart(V, {k: 'smoke', x: fx + face * 4, y: fy - 1, life: 2.1, r: 6, vx: dir * 6 + V.wind * 0.6}); bvPart(V, {k: 'smoke', x: fx + face * 9, y: fy + rnd(-3, 3), life: 1.5, r: 4, vx: dir * 7 + V.wind * 0.6}); bvPart(V, {k: 'tracer', x: fx, y: fy, x2: tg.x, y2: tg.y + rnd(-3, 3), life: 0.1}); u.flash = 0.12; if (typeof SFX !== 'undefined') SFX.volley(); }
+    bvPart(V, {k: 'flash', x: fx + face * 2, y: fy, life: 0.14, big: 1}); if (!(typeof smokeless === 'function' && smokeless(blk.tag))) { bvPart(V, {k: 'smoke', x: fx + face * 4, y: fy - 1, life: 2.1, r: 6, vx: dir * 6 + V.wind * 0.6}); bvPart(V, {k: 'smoke', x: fx + face * 9, y: fy + rnd(-3, 3), life: 1.5, r: 4, vx: dir * 7 + V.wind * 0.6}); } bvPart(V, {k: 'tracer', x: fx, y: fy, x2: tg.x, y2: tg.y + rnd(-3, 3), life: 0.1}); u.flash = 0.12; if (typeof SFX !== 'undefined') SFX.volley(); }
 }
 function pickFoeFig(blk) { const l = blk.figs.filter(f => f.alive); return l.length ? l[Math.floor(Math.random() * l.length)] : null; }
 /* ---------- bucle ---------- */

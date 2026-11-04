@@ -4420,6 +4420,8 @@ function battleEvents(b, sa, sb) {
   }
   if (b.gas && b.day >= b.gas.from && b.day <= b.gas.until) { const o = opp(b.gas.side); add(o, 'x', 2.4); add(o, 'c', 1.2); }
   ['A', 'B'].forEach(s => { const c = G.C[s === 'A' ? b.A0 : b.B0]; if (c && c.ai && b.day >= 2 && hasTech(c, 'chemical_weapons') && (!b.gas || b.day > b.gas.until + 4) && Math.random() < ((s === 'A' ? b.strB : b.strA) === 'hold' ? 0.07 : 0.02)) launchGas(b, s); });
+  { const at = b.att, df = opp(at), ast = at === 'A' ? b.strA : b.strB;       // metralla del defensor contra el asalto
+    if (S[df].art > 0 && (ast === 'frontal' || ast === 'charge' || !ast) && Math.random() < 0.35) { add(at, 'x', Math.min(6, 1.3 * S[df].art * (1 + S[df].gun))); say(df, 'barrage', `Metralla de ${nm(df)}: la artillería barre a quemarropa el asalto de ${nm(at)}.`); } }
   if (Math.random() > 0.3) return ev;
   const opts = [];
   ['A', 'B'].forEach(s => {
@@ -4438,7 +4440,7 @@ function battleEvents(b, sa, sb) {
   for (const o of opts) { r -= o[0]; if (r <= 0) { pickd = o; break; } }
   const [, kind, s] = pickd, o = opp(s);
   if (kind === 'charge') { add(s, 'f', 1.7); add(s, 'c', 2.0); say(s, 'charge', `¡Carga desesperada de ${nm(s)}! Ataque brutal a costa de muchas bajas.`); }
-  else if (kind === 'cav') { add(s, 'f', 1.3); add(o, 'x', 2.5 + (S[o].art > 0 ? 3 : 0)); say(s, 'cav', `La caballería de ${nm(s)} carga sobre el flanco${S[o].art > 0 ? ' y arrolla a la artillería' : ''}.`); }
+  else if (kind === 'cav') { const ol = weapLvl(o === 'A' ? b.A0 : b.B0), kk = S[o].org < 0.5 ? 1 : 1 / (1 + 0.5 * ol); add(s, 'f', 1 + 0.3 * kk); add(o, 'x', (2.5 + (S[o].art > 0 ? 3 : 0)) * kk); if (kk < 1) add(s, 'x', 1.5 * ol); say(s, 'cav', `La caballería de ${nm(s)} carga sobre el flanco${S[o].art > 0 ? ' y arrolla a la artillería' : ''}.`); }
   else if (kind === 'barrage') { add(o, 'x', Math.min(8, 1.6 * S[s].art * (1 + S[s].gun))); say(s, 'barrage', `Cañoneo de ${nm(s)}: la artillería castiga a ${nm(o)}.`); }
   else if (kind === 'flank') { add(s, 'f', 1.25); add(o, 'x', 3); say(s, 'flank', `${nm(s)} logra un flanqueo y desordena al enemigo.`); }
   else if (kind === 'panic') { add(s, 'x', 5); say(s, 'panic', `El pánico cunde en las filas de ${nm(s)}.`); }
@@ -7785,13 +7787,13 @@ function bvFire(V, b, blk, dt, foes) {
   }
   if (blk.type !== 'inf' && blk.type !== 'cav' && blk.type !== 'tank') return;
   if (blk.mode === 'melee' || blk.mode === 'charge' || blk.mode === 'gallop' || blk.mode === 'recoil') return;
-  if (fd > 190) return;
-  const rate = (st === 'skirmish' ? 7 : st === 'hold' ? 5 : 4) * alive.length * 0.22 * (blk.type === 'cav' ? 0.3 : blk.type === 'tank' ? 0.5 : 1) * (blk.mode === 'fire' ? 1.6 : 0.7);
+  const wl = typeof bvWeap === 'function' ? bvWeap(blk) : 1; if (fd > 190 * WEAP_RANGE[wl]) return;
+  const rate = WEAP_RATE[wl] * (st === 'skirmish' ? 7 : st === 'hold' ? 5 : 4) * alive.length * 0.22 * (blk.type === 'cav' ? 0.3 : blk.type === 'tank' ? 0.5 : 1) * (blk.mode === 'fire' ? 1.6 : 0.7);
   blk.fireAcc += dt * rate;
   while (blk.fireAcc > 1) { blk.fireAcc--;
     const front = alive.filter(f => f.kind === 'sol' && Math.floor(f.k / blk.F.cols) <= 1), pool = front.length ? front : alive, u = pool[Math.floor(Math.random() * pool.length)], tg = pickFoeFig(foe); if (!tg) break;
     const face = Math.cos(blk.hd) >= 0 ? 1 : -1, fx = blk.x + face * (blk.dep / 2 + 1), fy = blk.y + rnd(-blk.wid / 2, blk.wid / 2); blk.fireAt = performance.now();
-    bvPart(V, {k: 'flash', x: fx + face * 2, y: fy, life: 0.14, big: 1}); bvPart(V, {k: 'smoke', x: fx + face * 4, y: fy - 1, life: 2.1, r: 6, vx: dir * 6 + V.wind * 0.6}); bvPart(V, {k: 'smoke', x: fx + face * 9, y: fy + rnd(-3, 3), life: 1.5, r: 4, vx: dir * 7 + V.wind * 0.6}); bvPart(V, {k: 'tracer', x: fx, y: fy, x2: tg.x, y2: tg.y + rnd(-3, 3), life: 0.1}); u.flash = 0.12; if (typeof SFX !== 'undefined') SFX.volley(); }
+    bvPart(V, {k: 'flash', x: fx + face * 2, y: fy, life: 0.14, big: 1}); if (!(typeof smokeless === 'function' && smokeless(blk.tag))) { bvPart(V, {k: 'smoke', x: fx + face * 4, y: fy - 1, life: 2.1, r: 6, vx: dir * 6 + V.wind * 0.6}); bvPart(V, {k: 'smoke', x: fx + face * 9, y: fy + rnd(-3, 3), life: 1.5, r: 4, vx: dir * 7 + V.wind * 0.6}); } bvPart(V, {k: 'tracer', x: fx, y: fy, x2: tg.x, y2: tg.y + rnd(-3, 3), life: 0.1}); u.flash = 0.12; if (typeof SFX !== 'undefined') SFX.volley(); }
 }
 function pickFoeFig(blk) { const l = blk.figs.filter(f => f.alive); return l.length ? l[Math.floor(Math.random() * l.length)] : null; }
 /* ---------- bucle ---------- */
@@ -10678,6 +10680,7 @@ function tacArtFire(V, b, blk, dt, all) {
   if (!tgt) { const arts = inR.filter(o => o.type === 'art' && !o.sil && o.role !== 'reserve'); if (arts.length && Math.random() < 0.55) { tgt = nearest(arts); ctr = true; } }
   if (!tgt) { const hot = inR.filter(o => (o.mode === 'gallop' || o.mode === 'charge' || o.mode === 'melee') && dist(o) < 190); const lines = inR.filter(o => o.role !== 'reserve'); tgt = hot.length ? nearest(hot) : lines.length ? nearest(lines) : nearest(inR); }
   blk.cd = (heavy ? rnd(0.9, 1.5) : rnd(3, 5)) * (ctr ? 0.65 : 1); blk.tgt = tgt;
+  if (tgt.type !== 'art' && dist(tgt) < 130 && typeof tacCanister === 'function') { blk.cd = rnd(1.4, 2.4); blk.fireAt = performance.now(); tacCanister(V, b, blk, tgt, guns[Math.floor(Math.random() * guns.length)]); return; }
   const gn = guns[Math.floor(Math.random() * guns.length)], fg = pickFoeFig(tgt), tx = (fg ? fg.x : tgt.x) + rnd(-14, 14), ty = (fg ? fg.y : tgt.y) + rnd(-14, 14);
   bvPart(V, {k: 'shell', x: gn.x, y: gn.y, x2: tx, y2: ty, life: 0.55 + dist(tgt) / 520, s: blk.side, vt: tgt.id, ctr, stag: blk.tag}); gn.recoil = 1; blk.fireAt = performance.now(); bvPart(V, {k: 'flash', x: gn.x + Math.cos(blk.hd) * 12, y: gn.y + Math.sin(blk.hd) * 12, life: 0.14, big: 1}); if (typeof SFX !== 'undefined') SFX.cannon(0.8);
   for (let n = 0; n < 3; n++) bvPart(V, {k: 'smoke', x: gn.x + Math.cos(blk.hd) * 12, y: gn.y + Math.sin(blk.hd) * 12, life: 2.2, r: 5, vx: dir * 8 + V.wind * 0.5 + rnd(-4, 4)});
@@ -11006,7 +11009,9 @@ function siegeDay() {
     if (!att.length || defenders) { sg.calm++; if (sg.calm >= 3) { done.push(sg); siegeStat('lifted'); const msg = `Se levanta el asedio de ${provName(sg.pid)}.`; if (sg.att === G.player || sg.owner === G.player) notify('war', msg, provState(sg.pid)); } return; } sg.calm = 0;
     att.forEach(a => { if (a.tag !== G.player && G.C[a.tag] && G.C[a.tag].ai && !sg.fall) { a.path = []; a.chase = null; } });       // la IA no abandona un asedio en marcha
     let arts = 0, eng = 0; att.forEach(a => a.divs.forEach(d => { if (dKind(d) === 'art') arts++; eng += (DIVS[d.t] && DIVS[d.t].fort) || 0; }));
-    const lvl = G.P[sg.pid].fort || 0, wasW = sg.walls; sg.walls = Math.max(0, sg.walls - (1.1 + 2.7 * arts + 28 * eng) / (1 + 0.35 * lvl)); sg.hunger = Math.min(100, sg.hunger + SIEGE_HUNGER_RATE * (G.C[sg.owner].ai ? 1 : 1));
+    const lvl = G.P[sg.pid].fort || 0, wasW = sg.walls; const rif = att.some(a => typeof hasTech === 'function' && G.C[a.tag] && hasTech(G.C[a.tag], 'steel_artillery')) ? 1 : 0, rif1 = att.some(a => G.C[a.tag] && hasTech(G.C[a.tag], 'rifled_muskets')) ? 0.25 : 0;
+    sg.walls = Math.max(0, sg.walls - (1.1 + 2.7 * arts * (1 + 0.6 * rif + rif1) + 28 * eng) / (1 + 0.35 * lvl * (rif ? 0.6 : 1)));
+    att.forEach(a => a.divs.forEach(d => { d.s = Math.max(0.05, d.s - 0.0006 * (1 + sg.hunger / 100)); }));       // enfermedad en el campamento de asedio sg.hunger = Math.min(100, sg.hunger + SIEGE_HUNGER_RATE * (G.C[sg.owner].ai ? 1 : 1));
     const inv = sg.att === G.player || sg.owner === G.player;
     if (wasW > 0 && sg.walls <= 0 && inv) notify('war', `¡Brecha abierta en las murallas de ${provName(sg.pid)}! La ciudad ya puede ser tomada.`, provState(sg.pid));
     if (sg.hunger >= 100 && !sg.fall) { sg.fall = true; siegeStat('hunger'); if (inv) notify('war', `${provName(sg.pid)} se rinde por hambre.`, provState(sg.pid)); }
@@ -11471,7 +11476,8 @@ function tacMelee(V, b, all, step) {
   all.forEach(blk => {
     if (blk.mode !== 'melee' && blk.mode !== 'charge') return; const f = blk.foe; if (!f || f.mode === 'rout' || f.side === blk.side) return;
     const near = Math.abs(f.x - blk.x) < (blk.dep + f.dep) / 2 + 12 && Math.abs(f.y - blk.y) < (blk.wid + f.wid) / 2 + 6; if (!near) return;
-    const ang = Math.abs(bvAng(f.hd, Math.atan2(blk.y - f.y, blk.x - f.x))), mult = ang > 1.9 ? 1.8 : ang > 1.1 ? 1.35 : 1, cov = (f.terr && f.terr.cover) || f.garr ? 0.75 : 1, ty = blk.type === 'cav' ? 1.4 : 1;
+    const ang = Math.abs(bvAng(f.hd, Math.atan2(blk.y - f.y, blk.x - f.x))), mult = ang > 1.9 ? 1.8 : ang > 1.1 ? 1.35 : 1, cov = (f.terr && f.terr.cover) || f.garr ? 0.75 : 1, ty = blk.type === 'cav' ? 1.4 : 1, wl = typeof bvWeap === 'function' ? bvWeap(f) : 0;
+    if (blk.type === 'cav' && f.type === 'inf' && wl > 0 && ang < 1.1 && (f.mm === undefined ? 0.8 : f.mm) > 0.4 && f.d.o / DIVS[f.d.t].org > 0.35) { ty = 1.4 / (1 + 0.45 * wl); blk.d.s = Math.max(0, blk.d.s - 0.004 * step * wl); blk.d.o = Math.max(0, blk.d.o - DIVS[blk.d.t].org * 0.006 * step * wl); }
     const dmg = 0.012 * step * mult * cov * ty * (0.6 + 0.8 * clamp(blk.d.o / DIVS[blk.d.t].org, 0, 1)) * ((blk.mm === undefined ? 0.8 : blk.mm) + 0.4) / 1.2;
     f.d.s = Math.max(0, f.d.s - dmg); f.d.o = Math.max(0, f.d.o - DIVS[f.d.t].org * dmg * 1.4); f.flanked = ang > 1.1 ? V.t : f.flanked;
     for (let i = 0; i < 2; i++) bvPart(V, {k: 'spark', x: (blk.x + f.x) / 2 + rnd(-8, 8), y: (blk.y + f.y) / 2 + rnd(-8, 8), life: 0.35, hot: 1}); if (typeof SFX !== 'undefined' && Math.random() < 0.3) SFX.volley(0.6);
@@ -11640,6 +11646,75 @@ function trenchInfo(b) {
   const tag = ds === 'A' ? b.A0 : b.B0, tech = hasTech(G.C[tag], 'trench_warfare'), per = tech ? 0.05 : 0.04, arm = b['arm' + (ds === 'A' ? 'B' : 'A')] || 0, red = clamp(arm * 2, 0, 1) * 0.55, eff = lv * per * (1 - red);
   return ['⛏️', `${tech ? 'Trincheras' : 'Atrincheramiento'} nv. ${lv}`, `+${Math.round(eff * 100)}% de defensa para ${G.C[tag].name}.`];
 }
+
+/* ===== REALISMO POSTNAPOLEÓNICO (ver ESTUDIO_GUERRA.md) =====
+   Armas por época, coste del ataque frontal, metralla, caballería frente al fusil rayado, convergencia de ejércitos
+   («marchar separados, golpear unidos») y guerrilla contra convoyes y depósitos del ocupante. */
+// 0 = ánima lisa · 1 = fusil rayado · 2 = retrocarga · 3 = ametralladora / cargador
+function weapLvl(tag) {
+  const c = G.C[tag]; if (!c || typeof hasTech !== 'function') return 0;
+  return hasTech(c, 'machine_guns') ? 3 : hasTech(c, 'breech_loaders') ? 2 : hasTech(c, 'rifled_muskets') ? 1 : 0;
+}
+const WEAP_NAMES = ['ánima lisa', 'fusil rayado', 'retrocarga', 'ametralladora'];
+const WEAP_RANGE = [0.55, 1, 1.2, 1.3], WEAP_RATE = [0.6, 1, 1.5, 2];
+function smokeless(tag) { const c = G.C[tag]; return !!c && typeof hasTech === 'function' && (hasTech(c, 'machine_guns') || hasTech(c, 'quick_firing')); }
+// el ataque frontal contra fusiles modernos sale caro; el flanqueo y el hostigamiento, mucho menos
+const FRONT_COST = {frontal: 1, charge: 1.35, barrage: 0.8, hold: 0.7, skirmish: 0.6, flank: 0.45};
+const _sideStatsR = sideStats;
+sideStats = function (b, ids, isAttacker) {
+  const r = _sideStatsR(b, ids, isAttacker);
+  const key = ids === b.A ? 'A' : ids === b.B ? 'B' : null; if (!key) return r;
+  const opp = key === 'A' ? b.B0 : b.A0, ol = weapLvl(opp), st = b['str' + key] || 'frontal';
+  if (isAttacker && ol > 0) {
+    const cover = MAP.provs[b.prov] ? clamp(MAP.provs[b.prov].terr.def - 1, 0, 0.4) : 0;
+    let k = 1 + 0.16 * ol * (FRONT_COST[st] || 1) * (1 + cover);
+    if (r.art > 0 && b.day > 1) k *= 0.92;            // preparación artillera
+    r.cas *= clamp(k, 1, 1.75);
+  }
+  // convergencia: ejércitos que llegan al campo desde direcciones distintas (Moltke); con Estado Mayor es más eficaz
+  const dirs = new Set(); ids.forEach(id => { const a = armyById(id); if (a && a.from !== undefined && a.from !== null) dirs.add(a.from); });
+  if (dirs.size >= 2) {
+    const c = G.C[key === 'A' ? b.A0 : b.B0], staff = c && typeof hasTech === 'function' && hasTech(c, 'general_staff');
+    const bonus = Math.min(0.15, 0.04 * (dirs.size - 1)) * (staff ? 1.5 : 0.8);
+    r.F *= 1 + bonus; r.conv = bonus;
+  }
+  return r;
+};
+/* ---- viewer: alcance y cadencia por época; metralla; caballería ---- */
+function bvWeap(blk) { return weapLvl(blk.tag); }
+function tacCanister(V, b, blk, tgt, gn) {
+  const dir = blk.side === 'A' ? 1 : -1;
+  for (let i = 0; i < 7; i++) bvPart(V, {k: 'tracer', x: gn.x, y: gn.y, x2: tgt.x + rnd(-tgt.wid / 2, tgt.wid / 2), y2: tgt.y + rnd(-tgt.wid / 2, tgt.wid / 2), life: 0.12});
+  for (let i = 0; i < 4; i++) bvPart(V, {k: 'smoke', x: gn.x + dir * 12, y: gn.y + rnd(-6, 6), life: 1.8, r: 6, vx: dir * 12 + rnd(-4, 4)});
+  const al = tgt.figs.filter(q => q.alive && !q.flee);
+  for (let i = 0; i < 3 && al.length; i++) { const q = al.splice(Math.floor(Math.random() * al.length), 1)[0]; if (q) bvKill(V, tgt, q); }
+  const org = DIVS[tgt.d.t].org; tgt.d.s = Math.max(0, tgt.d.s - 0.009); tgt.d.o = Math.max(0, tgt.d.o - org * 0.03);
+  if (typeof SFX !== 'undefined') SFX.cannon(1);
+}
+/* ---- guerrilla: los focos de resistencia hostigan convoyes y depósitos del ocupante ---- */
+const _resistanceWeekR = resistanceWeek;
+resistanceWeek = function () {
+  _resistanceWeekR();
+  const R = (G.mx && G.mx.res) || {};
+  if (G.convoys && G.convoys.length) {
+    const dead = new Set();
+    G.convoys.forEach(cv => {
+      const pid = cv.path[cv.i]; if (pid === undefined) return;
+      const near = [pid, ...MAP.provs[pid].nb].reduce((m, p) => Math.max(m, G.P[p] && G.P[p].by === cv.tag ? (R[p] || 0) : 0), 0);
+      if (near > 35 && Math.random() < (near - 30) / 220) {
+        dead.add(cv.id);
+        const msg = `Guerrilleros emboscan un convoy de ${G.C[cv.tag].name} cerca de ${provName(pid)}.`;
+        if (cv.tag === G.player || G.P[pid].by === cv.tag && provOwner(pid) === G.player) notify('war', msg, provState(pid)); else if (typeof logMsg === 'function') logMsg(msg);
+      }
+    });
+    if (dead.size) G.convoys = G.convoys.filter(cv => !dead.has(cv.id));
+  }
+  (G.depotList || []).slice().forEach(pid => {
+    const p = G.P[pid], r = R[pid] || 0; if (!p.depot || !p.by || p.by !== p.depot || r < 50 || Math.random() > (r - 45) / 400) return;
+    if (p.depot === G.player) notify('war', `Los guerrilleros incendian tu depósito de ${provName(pid)}.`, provState(pid));
+    removeDepot(pid);
+  });
+};
 
 /* ===== PANEL DE INICIO: ambiente cinematográfico =====
    Capa de partículas (ascuas doradas, polvo y bandas de niebla), rayos de luz, viñeta, y un lento giro de la cámara sobre el mapa mientras eliges
@@ -13944,7 +14019,7 @@ const MANUAL = [
 </tbody></table>
 <p>Para las propuestas que debe aceptar la otra parte, pasa el ratón sobre el botón: verás la <b>probabilidad de aceptación</b> y sus motivos (relaciones, enemigo común, regímenes afines, infamia, rivalidades, fuerza relativa). Puedes <b>romper</b> un acuerdo en cualquier momento (−25 de relación y −2 de prestigio).</p>
 <h4>Propuestas de la IA</h4><p>Los países pueden proponerte acuerdos o que ingreses en su bloque. Aparecen en el icono ✉️ y en <b>Diplomacia → Acuerdos</b>, donde puedes aceptarlas o rechazarlas.</p>
-<h4>Infamia</h4><p>Cada guerra de agresión genera infamia (más con la conquista). Mientras es alta, todos los países te toleran peor. Se reduce lentamente con el tiempo.</p>`},
+<h4>Realismo de combate</h4><p>El armamento (ánima lisa, fusil rayado, retrocarga, ametralladora) fija alcance y cadencia en la batalla y encarece el <b>ataque frontal</b> contra defensores bien armados; el flanqueo y la preparación artillera lo reducen. La artillería dispara <b>metralla</b> a quemarropa contra los asaltos. La caballería pierde fuerza de choque contra infantería formada con fusil rayado, pero sigue siendo letal contra tropas desordenadas. Los ejércitos que llegan por direcciones distintas obtienen un bono de <b>convergencia</b> (mayor con Estado Mayor). La artillería de acero abre brechas más rápido, los asedios causan enfermedad en el campamento y los focos de resistencia pueden emboscar convoyes e incendiar depósitos del ocupante.</p><h4>Infamia</h4><p>Cada guerra de agresión genera infamia (más con la conquista). Mientras es alta, todos los países te toleran peor. Se reduce lentamente con el tiempo.</p>`},
 
 {id: 'blocs', title: '14. Bloques', html: `
 <p>Los bloques agrupan a varios países bajo un líder. Para fundarlo necesitas <b>30 de prestigio y 60 de influencia</b>; el máximo de miembros es 3 + 1 por cada 40 de prestigio del líder. Un vasallo no puede liderar un bloque.</p>

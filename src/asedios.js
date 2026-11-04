@@ -32,7 +32,9 @@ function siegeDay() {
     if (!att.length || defenders) { sg.calm++; if (sg.calm >= 3) { done.push(sg); siegeStat('lifted'); const msg = `Se levanta el asedio de ${provName(sg.pid)}.`; if (sg.att === G.player || sg.owner === G.player) notify('war', msg, provState(sg.pid)); } return; } sg.calm = 0;
     att.forEach(a => { if (a.tag !== G.player && G.C[a.tag] && G.C[a.tag].ai && !sg.fall) { a.path = []; a.chase = null; } });       // la IA no abandona un asedio en marcha
     let arts = 0, eng = 0; att.forEach(a => a.divs.forEach(d => { if (dKind(d) === 'art') arts++; eng += (DIVS[d.t] && DIVS[d.t].fort) || 0; }));
-    const lvl = G.P[sg.pid].fort || 0, wasW = sg.walls; sg.walls = Math.max(0, sg.walls - (1.1 + 2.7 * arts + 28 * eng) / (1 + 0.35 * lvl)); sg.hunger = Math.min(100, sg.hunger + SIEGE_HUNGER_RATE * (G.C[sg.owner].ai ? 1 : 1));
+    const lvl = G.P[sg.pid].fort || 0, wasW = sg.walls; const rif = att.some(a => typeof hasTech === 'function' && G.C[a.tag] && hasTech(G.C[a.tag], 'steel_artillery')) ? 1 : 0, rif1 = att.some(a => G.C[a.tag] && hasTech(G.C[a.tag], 'rifled_muskets')) ? 0.25 : 0;
+    sg.walls = Math.max(0, sg.walls - (1.1 + 2.7 * arts * (1 + 0.6 * rif + rif1) + 28 * eng) / (1 + 0.35 * lvl * (rif ? 0.6 : 1)));
+    att.forEach(a => a.divs.forEach(d => { d.s = Math.max(0.05, d.s - 0.0006 * (1 + sg.hunger / 100)); }));       // enfermedad en el campamento de asedio sg.hunger = Math.min(100, sg.hunger + SIEGE_HUNGER_RATE * (G.C[sg.owner].ai ? 1 : 1));
     const inv = sg.att === G.player || sg.owner === G.player;
     if (wasW > 0 && sg.walls <= 0 && inv) notify('war', `¡Brecha abierta en las murallas de ${provName(sg.pid)}! La ciudad ya puede ser tomada.`, provState(sg.pid));
     if (sg.hunger >= 100 && !sg.fall) { sg.fall = true; siegeStat('hunger'); if (inv) notify('war', `${provName(sg.pid)} se rinde por hambre.`, provState(sg.pid)); }

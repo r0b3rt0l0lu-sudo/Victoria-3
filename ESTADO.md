@@ -96,3 +96,6 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - Infamia: sube ~55% mas lento (declaracion x0.45, gas +3, prisioneros menores) y decae 1.4/mes.
 - IA: `aiConsolidate` (ia_v3.js) fusiona ejercitos hasta 7 divisiones (media medida 4-6 por ejercito).
 - Batalla: regimientos se acercan y combaten cuerpo a cuerpo (`tacMelee`, `bvWantsAssault`) ademas de disparar a distancia; animacion de fogonazo/humo al disparar (`bvPlate`, `bvFire`).
+
+## Realismo (fase 2)
+- `src/realismo.js`: `weapLvl`, coste del ataque frontal (`sideStats` envuelto), convergencia de ejercitos, metralla (`tacCanister`), guerrilla sobre convoyes/depositos. Caballeria vs fusil en `tacMelee`; asedios con artilleria de acero y enfermedad. Pendiente: friccion de ordenes y mas mando.

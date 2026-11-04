@@ -217,7 +217,7 @@ function renderBattlePanel() {
   if (root.dataset.bid !== String(b.id)) {
     root.dataset.bid = b.id; root._sb = '';
     root.innerHTML = `<div class="bhead"><div class="bh-side att">${flag(b.A0, 'md')}<b>${G.C[b.A0].name}</b></div><div class="bh-mid"><span class="bh-vs">⚔</span><h2 id="bt-title"></h2><small id="bt-sub"></small></div><div class="bh-side def"><b>${G.C[b.B0].name}</b>${flag(b.B0, 'md')}</div><button class="bvplay" data-act="bvpause"></button><button class="x" data-act="closebattle">✕</button></div>
-    <div class="bgrid"><div class="bleft"><div id="bt-sum"></div><div id="bt-terr" class="bterr"></div><canvas id="bmap" width="${BV_W}" height="${BV_H}"></canvas><div id="bt-cam" class="bcam"></div><div class="bhint">Cada cuadrado es una división. Pasa el ratón para ver su orden; rueda = zoom, arrastrar = mover. Barras: <span class="g">fuerza</span> · <span class="o">organización</span>.</div><div id="bt-orders" class="bord"></div><div id="bt-strat"></div><div id="bt-log" class="blog"></div></div>
+    <div class="bgrid"><div class="bleft"><div id="bt-sum"></div><div id="bt-terr" class="bterr"></div><canvas id="bmap" width="${BV_W}" height="${BV_H}"></canvas><div id="bt-cam" class="bcam"></div><div class="bhint">Cada cuadrado es un regimiento (3.000 hombres). Rueda = zoom · arrastrar = mover · pasa el ratón para ver sus datos.</div><div id="bt-orders" class="bord"></div><div id="bt-strat"></div><div id="bt-log" class="blog"></div></div>
     <div class="bright"><div id="bt-stats"></div><div id="bt-hist"></div></div></div>`;
     R.bviz = null;
     if (!R.skip3d) { R.skip3d = true; R.bvPrevPause = G.paused; G.paused = true; }
@@ -234,7 +234,7 @@ function renderBattlePanel() {
     const ma = (mySide[0] === 'A' ? b.A : b.B).map(armyById).filter(Boolean), cur = (ma.find(a => a.strat) || {}).strat || '';
     sh += `<div class="strpick"><small>Tu estrategia:</small> <button class="${cur === '' ? 'on' : ''}" data-act="battlestrat" data-s="">🤖 Automática</button>${Object.keys(STRATS).map(k => `<button class="${cur === k ? 'on' : ''}" data-act="battlestrat" data-s="${k}" data-tip="${STRATS[k].desc}">${STRATS[k].icon} ${STRATS[k].name}</button>`).join('')}</div>`;
   }
-  if (typeof tacCorpsHtml === 'function' && mySide && !done) { const ch2 = tacCorpsHtml(b, R.bviz); if (ch2) sh = ch2; }
+  if (typeof tacMandoHtml === 'function' && mySide && !done) sh = '';
   if (root._sb !== sh) { root._sb = sh; $('#bt-strat').innerHTML = sh; }
   $('#bt-stats').innerHTML = `<div class="bsides">${bs(A, 'att', 'Atacante', true, b.lostA)}${bs(B, 'def', 'Defensor', false, b.lostB)}</div>`;
   $('#bt-hist').innerHTML = `<svg class="bhist" viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none">${line(0, '#e8644f')}${line(1, '#6aa8e8')}</svg>
@@ -250,7 +250,8 @@ function renderBattlePanel() {
     const sel = V && V.sel && V.blocks.has(V.sel.d) ? V.sel : null; let oh = '';
     if (mySide && !done && !rp) oh = sel ? `<div class="ordhead">🎯 <b>${DIVS[sel.d.t].icon} ${BV_KIND[sel.type]}</b> · ${sel.a.name} <small>fuerza ${Math.round(sel.d.s * 100)}% · organización ${Math.round(sel.d.o / DIVS[sel.d.t].org * 100)}%</small></div><div class="ordbtns">${Object.keys(ORDERS).map(k => `<button data-act="bvorder" data-k="${k}" class="${bvOrder(sel) && bvOrder(sel).k === k ? 'on' : ''}" data-tip="<b>${ORDERS[k].name}</b><br>${ORDERS[k].desc}">${ORDERS[k].icon} ${ORDERS[k].name}</button>`).join('')}<button data-act="bvorder" data-k="cancel">✖ Sin orden</button></div>${sel.role === 'reserve' ? '<small class="dim">Está en reserva: aún no combate; la orden surtirá efecto cuando entre en línea.</small>' : ''}` : '<div class="ordhint">👆 Haz clic en uno de tus bloques para darle órdenes directas (cargar, resistir, flanquear o retirar).</div>';
     if (mySide && !done && !rp && hasTech(me(), 'chemical_weapons')) oh += `<div class="ordgas"><button data-act="bvgas" data-tip="<b>Ataque con gas</b><br>Castiga la organización y las bajas del enemigo durante 3 días. +6 infamia y −3 prestigio; las potencias lo condenan.">☣️ Ataque con gas</button></div>`;
-    if (typeof tacPanelHtml === 'function') oh = tacPanelHtml(b, V, sel) + oh;
+    if (typeof tacMandoHtml === 'function' && mySide && !done && !rp) oh = tacMandoHtml(b, V, sel);
+    else if (typeof tacPanelHtml === 'function') oh = tacPanelHtml(b, V, sel) + oh;
     if (root._so !== oh) { root._so = oh; $('#bt-orders').innerHTML = oh; } }
   bvStart();
 }

@@ -190,6 +190,7 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
   }
   blk.path = path;
   // ---- movimiento (el terreno frena: vado, bosque, cuesta) ----
+  if (blk.enter) { if (Math.abs(blk.x - home.x) > 90) { spd *= 2.8; if (mode === 'hold' || mode === 'reserve' || mode === 'artfire') { mode = 'advance'; tx = home.x; ty = home.y; } } else blk.enter = false; }       // los refuerzos entran por el margen
   if (blk.corps && blk.corps.nl > 1 && blk.role === 'line' && (mode === 'advance' || mode === 'fire')) { const lead = (blk.x - blk.corps.cx) * dir; if (lead > 10) spd *= 0.35; else if (lead < -10) spd *= 1.35; }       // avance en línea
   blk.terr = bvTerrAt(V.tf, blk.x, blk.y, side); if (b.forts && typeof tacFortAt === 'function' && tacFortAt(b, blk.x, blk.y)) blk.terr.cover = true; spd *= blk.terr.slow;
   if (blk.terr.water && (blk.sp || 0) > 5 && Math.random() < dt * 14) bvPart(V, {k: 'splash', x: blk.x + rnd(-blk.dep / 2, blk.dep / 2), y: blk.y + rnd(-blk.wid / 2, blk.wid / 2), life: 0.6});
@@ -197,7 +198,7 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
   const wasW = blk.terr && blk.terr.water;
   const dx = tx - blk.x, dy = ty - blk.y, d = Math.hypot(dx, dy) || 1, want = Math.min(spd, d * 2.4);
   blk.vx += (dx / d * want - blk.vx) * Math.min(1, dt * 2.6); blk.vy += (dy / d * want - blk.vy) * Math.min(1, dt * 2.6);
-  if (!blk.init) { blk.init = true; const off = b.day > 1 ? 0 : 260; blk.x = home.x - dir * off + rnd(-8, 8); blk.y = home.y + rnd(-10, 10); blk.figs.forEach(f => { const s = bvSlot(blk, f); f.x = s[0] + rnd(-3, 3); f.y = s[1] + rnd(-3, 3); }); }
+  if (!blk.init) { blk.init = true; const off = b.day > 1 ? 0 : 260; if (blk.enter) { blk.x = dir > 0 ? 6 : BV_W - 6; blk.y = home.y + rnd(-8, 8); } else { blk.x = home.x - dir * off + rnd(-8, 8); blk.y = home.y + rnd(-10, 10); } blk.figs.forEach(f => { const s = bvSlot(blk, f); f.x = s[0] + rnd(-3, 3); f.y = s[1] + rnd(-3, 3); }); }
   blk.x += blk.vx * dt; blk.y += blk.vy * dt; blk.y = clamp(blk.y, 30, BV_H - 22);
   if (!wasW && V.tf && bvTerrAt(V.tf, blk.x, blk.y, side).water) { blk.x -= blk.vx * dt; blk.y -= blk.vy * dt; blk.vx *= 0.15; blk.vy *= 0.15; }       // no se cruza el agua fuera de los vados
   const sp = Math.hypot(blk.vx, blk.vy); blk.sp = sp;
@@ -555,7 +556,7 @@ function bvClick(V) {
   if (V.replay) return; const h = V.hover;
   { const bb = G.battles.find(x => x.id === UI.battle); if (bb && V.draw && !bb.ended && V.mouse && typeof tacClickMap === 'function') { const [wx, wy] = bvToWorld(V, V.mouse.x, V.mouse.y); if (tacClickMap(V, bb, wx, wy)) { renderBattlePanel(); return; } } }
   { const bb2 = G.battles.find(x => x.id === UI.battle); if (bb2 && V.mouse && typeof tacFortClick === 'function' && tacFortClick(V, bb2, h)) { renderBattlePanel(); return; } }
-  if (h && h.tag === G.player && !V.over) V.sel = V.sel === h ? null : h; else if (!h) V.sel = null;
+  if (h && h.tag === G.player && !V.over) { V.sel = V.sel === h ? null : h; V.selCorps = null; } else if (!h) { V.sel = null; V.selCorps = null; }
   if (typeof renderBattlePanel === 'function') renderBattlePanel();
 }
 function bvBind(cv) {

@@ -674,3 +674,15 @@ svg.orders text.sdepot{font-size:16px;text-anchor:middle;dominant-baseline:centr
 .corps-h button.on,.gunsel button.on,.corps .strpick button.on{background:linear-gradient(#8a6f2f,#5b4818);border-color:var(--gold2);color:#fff6d6}
 .corps .strpick{display:flex;gap:4px;align-items:center;margin:4px 0}.corps .strpick button{padding:1px 8px;font-size:14px}.curst{font-size:11.5px;color:var(--dim);margin-left:6px}
 .corps .cm-army{display:flex;gap:4px;flex-wrap:wrap;align-items:center}.gunsel{display:flex;gap:4px;align-items:center;margin-left:10px}.gunsel small{color:var(--dim)}
+
+/* ===== mando de batalla simplificado ===== */
+.mando{display:flex;flex-direction:column;gap:7px;margin:6px 0}
+.mguide{background:rgba(255,226,138,.08);border:1px dashed rgba(255,226,138,.45);border-radius:8px;padding:7px 10px;font-size:13px;color:#f1e4b0}
+.msel{border:1px solid var(--goldd);border-radius:8px;padding:7px 9px;background:rgba(18,24,30,.75)}.msel-h{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-bottom:6px}.msel-h small{color:var(--dim);flex:1}
+.mord{display:flex;gap:6px;flex-wrap:wrap}.mord button{display:flex;flex-direction:column;align-items:center;min-width:76px;padding:5px 8px;border-radius:10px;border:1px solid #4a4f58;background:linear-gradient(#2d333b,#20252b);color:#e8e2d0;font-size:12px;cursor:pointer}.mord button span{font-size:19px;line-height:1.1}
+.mord button:hover:not(:disabled){border-color:var(--gold);color:#fff}.mord button.on{background:linear-gradient(#8a6f2f,#5b4818);border-color:var(--gold2);color:#fff6d6}.mord button:disabled{opacity:.4;cursor:default}.mord button.fix{background:linear-gradient(#3f7a3f,#2a5a2a)}
+.mini{background:linear-gradient(#2d333b,#20252b);color:#e8e2d0;border:1px solid #4a4f58;border-radius:12px;padding:2px 9px;font-size:12px;cursor:pointer}
+.msec{border:1px solid rgba(201,166,87,.3);border-radius:8px;background:rgba(18,24,30,.55)}.msec-h{width:100%;text-align:left;background:none;border:0;color:#e8e2d0;padding:6px 10px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px}.msec-h:hover{color:#fff}.mbadge{margin-left:auto;font-size:11px;background:rgba(0,0,0,.4);border-radius:9px;padding:0 8px;color:var(--dim)}
+.msec-b{padding:2px 10px 9px}.crow{border-top:1px solid rgba(201,166,87,.15)}.crow:first-child{border-top:0}.crow.sel{background:rgba(236,200,110,.07);border-radius:6px}
+.crow-h{width:100%;display:flex;gap:10px;align-items:baseline;background:none;border:0;color:#e8e2d0;padding:5px 2px;cursor:pointer;text-align:left}.crow-h small{color:var(--dim);margin-left:auto}.crow-h span{font-size:12px;color:#cdbf8a}.crow-b{padding:2px 2px 7px}
+.msec .strpick{display:flex;gap:4px;margin:2px 0 5px}.msec .strpick button{background:linear-gradient(#2d333b,#20252b);color:#e8e2d0;border:1px solid #4a4f58;border-radius:10px;padding:2px 9px;font-size:15px;cursor:pointer}.msec .strpick button.on{background:linear-gradient(#8a6f2f,#5b4818);border-color:var(--gold2)}

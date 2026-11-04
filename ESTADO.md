@@ -86,3 +86,8 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - `src/tactica2.js`: IA táctica (guarnece fuertes, flanquea, fija débiles, se repliega/cambia de posición ante flanqueos), ríos solo por vados y lagunas rodeadas, cañones de fuerte (auto/objetivo) y daño diario, captura de fuertes vacíos, cercos con rendición y prisioneros (liberar, trabajos, canje, rescate, reclutar, ejecutar), tropas comprometidas (`d.out`), flanqueo hasta +40 %.
 - `military.js`: más bajas (org ×1,33, fuerza ×2,1), batallas desde el día 4, puntuación de guerra con más peso de victorias y bajas, `d.out` excluye divisiones.
 - Trincheras girables (`f.rot`), guarnición oculta con soldados dibujados en el fuerte (`aspecto.js`), las tropas no se retiran solas (solo si quedan sin hombres u orden de retirada; la caballería solo rompe a tropas cansadas o desmoralizadas).
+
+## Sesión: campo de batalla estilo mapa de campaña
+- `src/campo.js`: regimientos (cada división = 3, `mkReg`/`regsOf` con fuerza y organización repartidas), cuerpos de 5 con estrategia propia (`b.cstr`) y cañones repartidos (`b.cgun`), reservas fuera del campo que entran por el margen, avance en línea, subcuadrados separados que adelgazan, mando de batalla simplificado (`tacMandoHtml`), IA por cuerpos y por terreno (despliegue, estrategias, aldeas).
+- `src/terreno2.js`: terreno amplio (colinas, bosques, ríos con vados/puentes, lagos, pantanos, aldeas, caminos, muros, rocas, acantilados, dunas, nieve), `bvTerrAt`, `bvBuildBg`, `terrMods`, `terrainInfo`, esquiva de obstáculos.
+- Mundo de batalla 1920×840; fuertes con más integridad; sin trincheras antes de 1900 (también sin bono de atrincheramiento).

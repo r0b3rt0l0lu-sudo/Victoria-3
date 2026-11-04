@@ -6,10 +6,10 @@
      pleno combate. · CÁMARA LENTA: 0 (pausa táctica), ×0,25, ×0,5 y ×1.
    · MORAL: el cansancio y la desmoralización hacen que un bloque rompa filas ante una carga de caballería; los fuertes pueden destruirse. */
 const FORT_KINDS = {
-  trench: {n: 'Trinchera', ic: '⛏️', w: 78, h: 14, cost: {wood: 1.5, mat: 0.6}, hp: 100, def: 0.05, need: 2, desc: 'Foso y parapeto largo: +5% de defensa si hay al menos 2 bloques tras él.'},
-  redoubt: {n: 'Reducto', ic: '🏰', w: 58, h: 46, cost: {wood: 3, mat: 2.5}, hp: 190, def: 0.09, need: 2, desc: 'Fortín de tierra y madera: +9% de defensa; resiste más el cañoneo.'},
-  battery: {n: 'Batería', ic: '💣', w: 48, h: 30, cost: {wood: 2, mat: 3, powder: 2}, hp: 130, def: 0.04, need: 1, guns: 2, desc: 'Plataforma con 2 cañones: +3% de ataque por cañón y +4% de defensa.'},
-  fort: {n: 'Fuerte', ic: '🏯', w: 96, h: 70, cost: {}, hp: 260, def: 0.07, need: 3, guns: 1, desc: 'Fuerte permanente de la provincia: gran defensa y cañones.'}
+  trench: {n: 'Trinchera', ic: '⛏️', w: 78, h: 14, cost: {wood: 1.5, mat: 0.6}, hp: 160, def: 0.05, need: 2, desc: 'Foso y parapeto largo: +5% de defensa si hay al menos 2 bloques tras él.'},
+  redoubt: {n: 'Reducto', ic: '🏰', w: 58, h: 46, cost: {wood: 3, mat: 2.5}, hp: 300, def: 0.09, need: 2, desc: 'Fortín de tierra y madera: +9% de defensa; resiste más el cañoneo.'},
+  battery: {n: 'Batería', ic: '💣', w: 48, h: 30, cost: {wood: 2, mat: 3, powder: 2}, hp: 210, def: 0.04, need: 1, guns: 2, desc: 'Plataforma con 2 cañones: +3% de ataque por cañón y +4% de defensa.'},
+  fort: {n: 'Fuerte', ic: '🏯', w: 96, h: 70, cost: {}, hp: 420, def: 0.07, need: 3, guns: 1, desc: 'Fuerte permanente de la provincia: gran defensa y cañones.'}
 };
 const FORT_MAX = 2, FORT_GUN_COST = {wood: 1, mat: 1.5, powder: 1.5}, FORT_CAP_DEF = 0.18;
 const fmtCost = c => Object.keys(c).map(k => RES_INFO[k].ic + c[k]).join(' ');
@@ -110,7 +110,7 @@ function tacFortDamage(b) {
   ['A', 'B'].forEach(side => {
     const fs = tacForts(b, side); if (!fs.length) return; const foe = side === 'A' ? 'B' : 'A', as = sideIds(b, foe).map(armyById).filter(Boolean);
     const arts = as.reduce((n, a) => n + a.divs.filter(d => dKind(d) === 'art').length, 0), push = Math.max(0, (side === 'A' ? -1 : 1) * (b.adv || 0)) * 10;
-    const dmg = (2.5 + arts * 7 + push) * (0.8 + Math.random() * 0.4) / fs.length;
+    const dmg = (2.5 + arts * 7 + push) * 0.75 * (0.8 + Math.random() * 0.4) / fs.length;
     fs.forEach(f => { const was = f.hp; f.hp = Math.max(0, f.hp - dmg * (f.kind === 'trench' ? 0.8 : 1)); if (was > 0 && f.hp <= 0) { tacRelease(b, f); const ev = {k: 'panic', d: b.day, t: `${FORT_KINDS[f.kind].ic} ¡Cae ${FORT_KINDS[f.kind].n.toLowerCase()} de ${G.C[side === 'A' ? b.A0 : b.B0].name}!`}; (b.log = b.log || []).push(ev); if (b.log.length > 30) b.log.shift(); } });
   });
 }
@@ -306,7 +306,7 @@ function tacMouseDown(V, b, e, p) {
     if (V.tool) { const r = tacBuildFort(b, ps, V.tool.k, wx, wy); if (!r.ok) toast('⚠️', r.msg); else { V.selFort = r.f.id; V.tool = null; } renderBattlePanel(); return true; }
     if (V.garr) { const f0 = tacFortAt(b, wx, wy); if (f0 && f0.side === ps) { if (!V.sel || V.sel.side !== ps) toast('⚠️', 'Primero selecciona uno de tus bloques.'); else { const r = tacGarrison(b, f0, V.sel); if (!r.ok) toast('⚠️', r.msg); else toast('🏰', `${V.sel.a.name} guarnece ${FORT_KINDS[f0.kind].n.toLowerCase()}.`); } renderBattlePanel(); return true; } }
     if (V.draw) return false;
-    const h = V.hover; if (h && h.side === ps) { V.sel = h; V.dragBlk = h; V.selFort = null; renderBattlePanel(); return true; }
+    const h = V.hover; if (h && h.side === ps) { V.sel = h; V.selCorps = null; V.dragBlk = h; V.selFort = null; renderBattlePanel(); return true; }
     const f = tacFortAt(b, wx, wy); if (f && f.side === ps) { V.selFort = f.id; V.sel = null; renderBattlePanel(); return true; }
   }
   return false;

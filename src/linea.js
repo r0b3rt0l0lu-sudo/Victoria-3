@@ -40,14 +40,21 @@ function fmSlot(c, fm, pl, ls, i) {
   return [x, y];
 }
 // ---- fijar una maniobra sobre un cuerpo ----
-function bvFormSet(V, b, c, kind, pts, quiet) {
+function bvFormSet(V, b, c, kind, pts, quiet, delay, mis) {
   const ls = fmLs(c); if (!ls.length) return false;
   c.blks.forEach(k => { if (k.role === 'line') { delete k.d.plan; delete k.d.stay; k.skey = ''; } });
   b.cplan = b.cplan || {}; const ys = ls.reduce((n, k) => n + k.y, 0) / ls.length, T = (pts && pts[0]) || [ls[0].x, ys], side = T[1] < ys ? 'top' : 'bottom';
-  const pl = {k: kind, pts: (pts || []).map(p => [p[0], p[1]]), i: 0, t0: V.t, done: false, st: 0, psi: 0, sweep: side, side, lead: side};
+  const pl = {k: kind, pts: (pts || []).map(p => [p[0], p[1]]), i: 0, t0: V.t + (delay || 0), done: false, st: 0, psi: 0, sweep: side, side, lead: side, msg: !!delay};
+  if (mis) { pl.mis = true; pl.pts.forEach(p => { p[1] = clamp(p[1] + (Math.random() < 0.5 ? -1 : 1) * (50 + Math.random() * 45), 36, BV_H - 20); }); }
   b.cplan[c.id] = pl; delete V.fm[c.id];
-  if (!quiet) { const F = FORM[kind]; bvBanner(V, `${F.ic} ${F.n}: ${corpsName(c)}`, c.side, ''); (b.log = b.log || []).push({k: kind === 'fenv' || kind === 'fech' ? 'flank' : 'charge', d: b.day, t: `${G.C[c.tag].name}: ${corpsName(c)} ejecuta «${F.n}».`}); if (b.log.length > 30) b.log.shift(); }
+  if (!quiet) { const F = FORM[kind]; bvBanner(V, delay >= 1.5 ? `✉️ Orden «${F.n}» enviada al ${corpsName(c)}: llegará en ${delay} s` : `${F.ic} ${F.n}: ${corpsName(c)}`, c.side, ''); (b.log = b.log || []).push({k: kind === 'fenv' || kind === 'fech' ? 'flank' : 'charge', d: b.day, t: `${G.C[c.tag].name}: ${corpsName(c)} ejecuta «${F.n}».`}); if (b.log.length > 30) b.log.shift(); }
   return true;
+}
+function fmFriction(V, b, c) {          // las órdenes tardan en llegar y a veces se malinterpretan
+  const cc = G.C[c.tag], has = k => typeof hasTech === 'function' && hasTech(cc, k), cm = V.cmd && V.cmd[c.id], hq = [c.side === 'A' ? 30 : BV_W - 30, BV_H / 2], cx = cm ? cm.x : hq[0], cy = cm ? cm.y : hq[1];
+  let d = 0.8 + Math.hypot(cx - hq[0], cy - hq[1]) / 280; if (has('telegraph')) d *= 0.8; if (has('general_staff')) d *= 0.6;
+  const wx = battleWeather(b).k; if (wx === 'fog' || wx === 'rain') d *= 1.25;
+  return {delay: +d.toFixed(1), mis: Math.random() < 0.1 * (has('general_staff') ? 0.4 : 1) * (wx === 'fog' ? 1.6 : 1)};
 }
 function fmEndPsi(c, fm, pl, ls) {            // ángulo final del giro para que el extremo exterior llegue al punto marcado
   const T = pl.pts[pl.pts.length - 1], n = ls.length, out = pl.sweep === 'top' ? 0 : n - 1; let best = 1e9, bp = 0.9; pl.gx = fm.x + (T[0] - fm.x) * 0.45; const fm2 = Object.assign({}, fm, {x: pl.gx});
@@ -65,10 +72,12 @@ function fmUpdate(V, b, c, pl, dt, all) {
     if (pl.k === 'fech' && pl.skew === undefined) pl.skew = Math.min(150, 26 * n);
   }
   fm.yc = yc;
+  if (!pl.arr && V.t >= pl.t0) { pl.arr = true; if (pl.msg) { const F = FORM[pl.k]; bvBanner(V, pl.mis ? `⚠️ El ${corpsName(c)} entendió mal la orden «${F.n}» y se desvía` : `${F.ic} El ${corpsName(c)} recibe la orden «${F.n}»`, c.side, ''); if (pl.mis) { (b.log = b.log || []).push({k: 'panic', d: b.day, t: `Una orden mal transmitida desvía al ${corpsName(c)} de ${G.C[c.tag].name}.`}); if (b.log.length > 30) b.log.shift(); } } }
   if (pl.k === 'fenv' && pl.psiEnd === undefined) pl.psiEnd = fmEndPsi(c, fm, pl, ls);
   let lagMax = 0; ls.forEach((k, i) => { const [sx, sy] = fmSlot(c, fm, pl, ls, i); k._sx = sx; k._sy = sy; k._lag = Math.hypot(k.x - sx, k.y - sy); if (k._lag > lagMax && k.mode !== 'melee' && k.mode !== 'charge') lagMax = k._lag; });
   fm.lag = lagMax; fm.coh = clamp(1 - (lagMax - 9) / 46, 0.1, 1);
   const vb = Math.min(...ls.map(k => k.F.spd * (k.terr ? k.terr.slow : 1))) * 0.9;
+  if (V.t < pl.t0) return;                                    // la orden aún no ha llegado
   if (V.t - pl.t0 > 120 && !pl.done && pl.k !== 'frea') pl.done = true;
   const foeNear = ls.reduce((m, k) => Math.min(m, k.foe && k.foe.role !== 'reserve' ? Math.hypot(k.foe.x - k.x, k.foe.y - k.y) : 1e9), 1e9);
   const stepTo = (T, sp) => { const dx = T[0] - fm.x, dy = T[1] - fm.y, d = Math.hypot(dx, dy); if (d < 6) return true; const s = Math.min(sp * dt, d); fm.x += dx / d * s; fm.y += dy / d * s; return false; };
@@ -180,8 +189,8 @@ tacSetPlan = function (V, plan) {
   const b = G.battles.find(x => x.id === UI.battle);
   if (V.sel && b) {
     const whole = V.selCorps && V.sel.corps && V.sel.corps.id === V.selCorps, c = V.sel.corps;
-    if (FORM[plan.k] && c) { bvFormSet(V, b, c, plan.k, plan.pts || []); return; }
-    if (whole && FORM_MAP[plan.k] && c) { const pts = plan.k === 'flank' ? [plan.pts[plan.pts.length - 1]] : plan.k === 'retreat' ? [plan.pts[0]] : plan.pts; if (bvFormSet(V, b, c, FORM_MAP[plan.k], pts)) return; }
+    if (FORM[plan.k] && c) { const fr = fmFriction(V, b, c); bvFormSet(V, b, c, plan.k, plan.pts || [], false, fr.delay, fr.mis); return; }
+    if (whole && FORM_MAP[plan.k] && c) { const pts = plan.k === 'flank' ? [plan.pts[plan.pts.length - 1]] : plan.k === 'retreat' ? [plan.pts[0]] : plan.pts; const fr = fmFriction(V, b, c); if (bvFormSet(V, b, c, FORM_MAP[plan.k], pts, false, fr.delay, fr.mis)) return; }
     if (!FORM[plan.k] && c && b.cplan && b.cplan[c.id] && !whole) { /* la orden individual saca al regimiento de la formación */ }
   }
   _tacSetPlanL(V, plan);
@@ -189,7 +198,7 @@ tacSetPlan = function (V, plan) {
 const _ACTtacplanL = ACT.tacplan;
 ACT.tacplan = d => {
   const V = R.bviz, b = G.battles.find(x => x.id === UI.battle);
-  if (d.k === 'frea') { if (!V || !V.sel || !b || b.ended || V.replay || V.sel.side !== playerSide(b) || !V.sel.corps) return; bvFormSet(V, b, V.sel.corps, 'frea', []); renderBattlePanel(); return; }
+  if (d.k === 'frea') { if (!V || !V.sel || !b || b.ended || V.replay || V.sel.side !== playerSide(b) || !V.sel.corps) return; const fr = fmFriction(V, b, V.sel.corps); bvFormSet(V, b, V.sel.corps, 'frea', [], false, fr.delay, false); renderBattlePanel(); return; }
   if (d.k === 'clear' && V && V.sel && V.sel.corps && b && b.cplan && b.cplan[V.sel.corps.id]) { delete b.cplan[V.sel.corps.id]; delete V.fm[V.sel.corps.id]; V.sel.corps.blks.forEach(k => { k.skey = ''; }); }
   _ACTtacplanL(d);
 };
@@ -219,6 +228,7 @@ bvCorpsFlags = function (g, V, b) {
     const pl = b.cplan && b.cplan[c.id], fm = V.fm && V.fm[c.id]; if (!pl || !fm || c.side !== ps) return; const F = FORM[pl.k], ls = fmLs(c); if (!F || !ls.length) return;
     const sel = V.selCorps === c.id || (V.sel && V.sel.corps && V.sel.corps.id === c.id);
     ls.forEach((k, i) => { if (k._sx === undefined) return; g.strokeStyle = F.col; g.globalAlpha = sel ? 0.55 : 0.28; g.lineWidth = 1; g.setLineDash([3, 3]); g.strokeRect(k._sx - k.dep / 2, k._sy - k.wid / 2, k.dep, k.wid); g.setLineDash([]); g.globalAlpha = 1; });
+    if (V.t < pl.t0) { g.font = '15px sans-serif'; g.textAlign = 'center'; g.fillText('✉️', fm.x, fm.y - 8); }
     const T = pl.pts[Math.min(pl.i, pl.pts.length - 1)]; if (T && !pl.done) { g.strokeStyle = F.col; g.fillStyle = F.col; g.globalAlpha = 0.7; g.lineWidth = 1.6; g.setLineDash([7, 5]); g.beginPath(); g.moveTo(fm.x, fm.y); g.lineTo(T[0], T[1]); g.stroke(); g.setLineDash([]); g.beginPath(); g.arc(T[0], T[1], 6, 0, 6.3); g.fill(); g.globalAlpha = 1; g.font = '13px sans-serif'; g.textAlign = 'center'; g.fillText(F.ic, T[0], T[1] - 10); }
     if (pl.k === 'fenv' && !pl.done && ls.length > 1) { const out = pl.sweep === 'top' ? 0 : ls.length - 1, sv = pl.psi; g.strokeStyle = F.col; g.globalAlpha = 0.55; g.setLineDash([5, 4]); g.beginPath(); for (let p = sv; p <= pl.psiEnd + 0.001; p += 0.06) { pl.psi = p; const [x, y] = fmSlot(c, fm, pl, ls, out); p === sv ? g.moveTo(x, y) : g.lineTo(x, y); } g.stroke(); g.setLineDash([]); g.globalAlpha = 1; pl.psi = sv; }
     if (sel) { g.fillStyle = 'rgba(8,12,16,.8)'; const txt = `${F.ic} ${F.n} · cohesión ${Math.round((fm.coh === undefined ? 1 : fm.coh) * 100)}%${pl.done ? ' · completada' : ''}`; g.font = 'bold 10px sans-serif'; const w = g.measureText(txt).width + 10; g.fillRect(fm.x - w / 2, fm.y - 26, w, 14); g.fillStyle = '#ffe28a'; g.textAlign = 'center'; g.fillText(txt, fm.x, fm.y - 15); }

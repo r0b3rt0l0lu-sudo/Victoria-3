@@ -109,3 +109,6 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 
 ## Linea y maniobras (src/linea.js, ESTUDIO_LINEA.md)
 - Guia por cuerpo + slots (`fmSlot`, `fmUpdate`), ordenes `FORM` (fadv, fchg, fenv, fech, fref, frea, fret) en `b.cplan`; `fmIntegrity` (huecos/flancos abiertos -> `b.coh` en `sideStats`), IA `fmAi`, regla de linea unida por bando (`V.sideCx`).
+
+## Ejercito (src/ejercito.js)
+- `armyOrder` (ordenes de ejercito coordinadas), segunda linea (`b.sup`, `r.sup`, `supFeed`), persecucion en `endBattle` + viewer, friccion de ordenes (`fmFriction` en linea.js: `pl.t0` con retraso, `pl.mis`).

@@ -149,7 +149,10 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
   const contact = f => [f.x - dir * ((blk.dep + f.dep) / 2 + 7), f.y];
   const man = V.man[side], boosting = V.boost[side] > 0;
   if (V.over) {            // fin de la batalla
-    if (V.over.loser === side) { mode = 'retreat'; tx = home.x - dir * 400; spd = F.spd * 1.4; } else { mode = 'victory'; tx = home.x + dir * 30; spd = F.spd * 0.6; }
+    if (V.over.loser === side) { mode = 'retreat'; tx = home.x - dir * 400; spd = F.spd * 1.4; } else {
+      mode = 'victory'; tx = home.x + dir * 30; spd = F.spd * 0.6;
+      if (blk.type === 'cav' && V.over.t < 16 && blk.d.s > 0.2) { let tg = null, bd = 1e9; all.forEach(o => { if (o.side === side || o.role === 'reserve') return; const dd = Math.hypot(o.x - blk.x, o.y - blk.y); if (dd < bd) { bd = dd; tg = o; } }); if (tg) { mode = 'gallop'; tx = tg.x; ty = tg.y; spd = F.spd * 2.3; path = [[blk.x, blk.y], [tx, ty]]; } }
+    }
   } else if (b.prep) { mode = 'deploy'; spd = F.spd * 5;
   } else if (blk.brk > 0) { mode = 'retreat'; tx = home.x - dir * 210; spd = F.spd * 1.5;
   } else if (blk.d.cust && blk.d.cust.fort && !(blk.d.plan && blk.d.plan.k !== 'target') && tacFortAlive(b, blk.d.cust.fort)) { mode = (blk.foe && Math.hypot(blk.foe.x - blk.x, blk.foe.y - blk.y) < 190 && blk.foe.role !== 'reserve') ? 'fire' : 'hold'; spd = F.spd * 3; blk.garr = true;

@@ -7675,7 +7675,10 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
   const contact = f => [f.x - dir * ((blk.dep + f.dep) / 2 + 7), f.y];
   const man = V.man[side], boosting = V.boost[side] > 0;
   if (V.over) {            // fin de la batalla
-    if (V.over.loser === side) { mode = 'retreat'; tx = home.x - dir * 400; spd = F.spd * 1.4; } else { mode = 'victory'; tx = home.x + dir * 30; spd = F.spd * 0.6; }
+    if (V.over.loser === side) { mode = 'retreat'; tx = home.x - dir * 400; spd = F.spd * 1.4; } else {
+      mode = 'victory'; tx = home.x + dir * 30; spd = F.spd * 0.6;
+      if (blk.type === 'cav' && V.over.t < 16 && blk.d.s > 0.2) { let tg = null, bd = 1e9; all.forEach(o => { if (o.side === side || o.role === 'reserve') return; const dd = Math.hypot(o.x - blk.x, o.y - blk.y); if (dd < bd) { bd = dd; tg = o; } }); if (tg) { mode = 'gallop'; tx = tg.x; ty = tg.y; spd = F.spd * 2.3; path = [[blk.x, blk.y], [tx, ty]]; } }
+    }
   } else if (b.prep) { mode = 'deploy'; spd = F.spd * 5;
   } else if (blk.brk > 0) { mode = 'retreat'; tx = home.x - dir * 210; spd = F.spd * 1.5;
   } else if (blk.d.cust && blk.d.cust.fort && !(blk.d.plan && blk.d.plan.k !== 'target') && tacFortAlive(b, blk.d.cust.fort)) { mode = (blk.foe && Math.hypot(blk.foe.x - blk.x, blk.foe.y - blk.y) < 190 && blk.foe.role !== 'reserve') ? 'fire' : 'hold'; spd = F.spd * 3; blk.garr = true;
@@ -12054,14 +12057,21 @@ function fmSlot(c, fm, pl, ls, i) {
   return [x, y];
 }
 // ---- fijar una maniobra sobre un cuerpo ----
-function bvFormSet(V, b, c, kind, pts, quiet) {
+function bvFormSet(V, b, c, kind, pts, quiet, delay, mis) {
   const ls = fmLs(c); if (!ls.length) return false;
   c.blks.forEach(k => { if (k.role === 'line') { delete k.d.plan; delete k.d.stay; k.skey = ''; } });
   b.cplan = b.cplan || {}; const ys = ls.reduce((n, k) => n + k.y, 0) / ls.length, T = (pts && pts[0]) || [ls[0].x, ys], side = T[1] < ys ? 'top' : 'bottom';
-  const pl = {k: kind, pts: (pts || []).map(p => [p[0], p[1]]), i: 0, t0: V.t, done: false, st: 0, psi: 0, sweep: side, side, lead: side};
+  const pl = {k: kind, pts: (pts || []).map(p => [p[0], p[1]]), i: 0, t0: V.t + (delay || 0), done: false, st: 0, psi: 0, sweep: side, side, lead: side, msg: !!delay};
+  if (mis) { pl.mis = true; pl.pts.forEach(p => { p[1] = clamp(p[1] + (Math.random() < 0.5 ? -1 : 1) * (50 + Math.random() * 45), 36, BV_H - 20); }); }
   b.cplan[c.id] = pl; delete V.fm[c.id];
-  if (!quiet) { const F = FORM[kind]; bvBanner(V, `${F.ic} ${F.n}: ${corpsName(c)}`, c.side, ''); (b.log = b.log || []).push({k: kind === 'fenv' || kind === 'fech' ? 'flank' : 'charge', d: b.day, t: `${G.C[c.tag].name}: ${corpsName(c)} ejecuta «${F.n}».`}); if (b.log.length > 30) b.log.shift(); }
+  if (!quiet) { const F = FORM[kind]; bvBanner(V, delay >= 1.5 ? `✉️ Orden «${F.n}» enviada al ${corpsName(c)}: llegará en ${delay} s` : `${F.ic} ${F.n}: ${corpsName(c)}`, c.side, ''); (b.log = b.log || []).push({k: kind === 'fenv' || kind === 'fech' ? 'flank' : 'charge', d: b.day, t: `${G.C[c.tag].name}: ${corpsName(c)} ejecuta «${F.n}».`}); if (b.log.length > 30) b.log.shift(); }
   return true;
+}
+function fmFriction(V, b, c) {          // las órdenes tardan en llegar y a veces se malinterpretan
+  const cc = G.C[c.tag], has = k => typeof hasTech === 'function' && hasTech(cc, k), cm = V.cmd && V.cmd[c.id], hq = [c.side === 'A' ? 30 : BV_W - 30, BV_H / 2], cx = cm ? cm.x : hq[0], cy = cm ? cm.y : hq[1];
+  let d = 0.8 + Math.hypot(cx - hq[0], cy - hq[1]) / 280; if (has('telegraph')) d *= 0.8; if (has('general_staff')) d *= 0.6;
+  const wx = battleWeather(b).k; if (wx === 'fog' || wx === 'rain') d *= 1.25;
+  return {delay: +d.toFixed(1), mis: Math.random() < 0.1 * (has('general_staff') ? 0.4 : 1) * (wx === 'fog' ? 1.6 : 1)};
 }
 function fmEndPsi(c, fm, pl, ls) {            // ángulo final del giro para que el extremo exterior llegue al punto marcado
   const T = pl.pts[pl.pts.length - 1], n = ls.length, out = pl.sweep === 'top' ? 0 : n - 1; let best = 1e9, bp = 0.9; pl.gx = fm.x + (T[0] - fm.x) * 0.45; const fm2 = Object.assign({}, fm, {x: pl.gx});
@@ -12079,10 +12089,12 @@ function fmUpdate(V, b, c, pl, dt, all) {
     if (pl.k === 'fech' && pl.skew === undefined) pl.skew = Math.min(150, 26 * n);
   }
   fm.yc = yc;
+  if (!pl.arr && V.t >= pl.t0) { pl.arr = true; if (pl.msg) { const F = FORM[pl.k]; bvBanner(V, pl.mis ? `⚠️ El ${corpsName(c)} entendió mal la orden «${F.n}» y se desvía` : `${F.ic} El ${corpsName(c)} recibe la orden «${F.n}»`, c.side, ''); if (pl.mis) { (b.log = b.log || []).push({k: 'panic', d: b.day, t: `Una orden mal transmitida desvía al ${corpsName(c)} de ${G.C[c.tag].name}.`}); if (b.log.length > 30) b.log.shift(); } } }
   if (pl.k === 'fenv' && pl.psiEnd === undefined) pl.psiEnd = fmEndPsi(c, fm, pl, ls);
   let lagMax = 0; ls.forEach((k, i) => { const [sx, sy] = fmSlot(c, fm, pl, ls, i); k._sx = sx; k._sy = sy; k._lag = Math.hypot(k.x - sx, k.y - sy); if (k._lag > lagMax && k.mode !== 'melee' && k.mode !== 'charge') lagMax = k._lag; });
   fm.lag = lagMax; fm.coh = clamp(1 - (lagMax - 9) / 46, 0.1, 1);
   const vb = Math.min(...ls.map(k => k.F.spd * (k.terr ? k.terr.slow : 1))) * 0.9;
+  if (V.t < pl.t0) return;                                    // la orden aún no ha llegado
   if (V.t - pl.t0 > 120 && !pl.done && pl.k !== 'frea') pl.done = true;
   const foeNear = ls.reduce((m, k) => Math.min(m, k.foe && k.foe.role !== 'reserve' ? Math.hypot(k.foe.x - k.x, k.foe.y - k.y) : 1e9), 1e9);
   const stepTo = (T, sp) => { const dx = T[0] - fm.x, dy = T[1] - fm.y, d = Math.hypot(dx, dy); if (d < 6) return true; const s = Math.min(sp * dt, d); fm.x += dx / d * s; fm.y += dy / d * s; return false; };
@@ -12194,8 +12206,8 @@ tacSetPlan = function (V, plan) {
   const b = G.battles.find(x => x.id === UI.battle);
   if (V.sel && b) {
     const whole = V.selCorps && V.sel.corps && V.sel.corps.id === V.selCorps, c = V.sel.corps;
-    if (FORM[plan.k] && c) { bvFormSet(V, b, c, plan.k, plan.pts || []); return; }
-    if (whole && FORM_MAP[plan.k] && c) { const pts = plan.k === 'flank' ? [plan.pts[plan.pts.length - 1]] : plan.k === 'retreat' ? [plan.pts[0]] : plan.pts; if (bvFormSet(V, b, c, FORM_MAP[plan.k], pts)) return; }
+    if (FORM[plan.k] && c) { const fr = fmFriction(V, b, c); bvFormSet(V, b, c, plan.k, plan.pts || [], false, fr.delay, fr.mis); return; }
+    if (whole && FORM_MAP[plan.k] && c) { const pts = plan.k === 'flank' ? [plan.pts[plan.pts.length - 1]] : plan.k === 'retreat' ? [plan.pts[0]] : plan.pts; const fr = fmFriction(V, b, c); if (bvFormSet(V, b, c, FORM_MAP[plan.k], pts, false, fr.delay, fr.mis)) return; }
     if (!FORM[plan.k] && c && b.cplan && b.cplan[c.id] && !whole) { /* la orden individual saca al regimiento de la formación */ }
   }
   _tacSetPlanL(V, plan);
@@ -12203,7 +12215,7 @@ tacSetPlan = function (V, plan) {
 const _ACTtacplanL = ACT.tacplan;
 ACT.tacplan = d => {
   const V = R.bviz, b = G.battles.find(x => x.id === UI.battle);
-  if (d.k === 'frea') { if (!V || !V.sel || !b || b.ended || V.replay || V.sel.side !== playerSide(b) || !V.sel.corps) return; bvFormSet(V, b, V.sel.corps, 'frea', []); renderBattlePanel(); return; }
+  if (d.k === 'frea') { if (!V || !V.sel || !b || b.ended || V.replay || V.sel.side !== playerSide(b) || !V.sel.corps) return; const fr = fmFriction(V, b, V.sel.corps); bvFormSet(V, b, V.sel.corps, 'frea', [], false, fr.delay, false); renderBattlePanel(); return; }
   if (d.k === 'clear' && V && V.sel && V.sel.corps && b && b.cplan && b.cplan[V.sel.corps.id]) { delete b.cplan[V.sel.corps.id]; delete V.fm[V.sel.corps.id]; V.sel.corps.blks.forEach(k => { k.skey = ''; }); }
   _ACTtacplanL(d);
 };
@@ -12233,6 +12245,7 @@ bvCorpsFlags = function (g, V, b) {
     const pl = b.cplan && b.cplan[c.id], fm = V.fm && V.fm[c.id]; if (!pl || !fm || c.side !== ps) return; const F = FORM[pl.k], ls = fmLs(c); if (!F || !ls.length) return;
     const sel = V.selCorps === c.id || (V.sel && V.sel.corps && V.sel.corps.id === c.id);
     ls.forEach((k, i) => { if (k._sx === undefined) return; g.strokeStyle = F.col; g.globalAlpha = sel ? 0.55 : 0.28; g.lineWidth = 1; g.setLineDash([3, 3]); g.strokeRect(k._sx - k.dep / 2, k._sy - k.wid / 2, k.dep, k.wid); g.setLineDash([]); g.globalAlpha = 1; });
+    if (V.t < pl.t0) { g.font = '15px sans-serif'; g.textAlign = 'center'; g.fillText('✉️', fm.x, fm.y - 8); }
     const T = pl.pts[Math.min(pl.i, pl.pts.length - 1)]; if (T && !pl.done) { g.strokeStyle = F.col; g.fillStyle = F.col; g.globalAlpha = 0.7; g.lineWidth = 1.6; g.setLineDash([7, 5]); g.beginPath(); g.moveTo(fm.x, fm.y); g.lineTo(T[0], T[1]); g.stroke(); g.setLineDash([]); g.beginPath(); g.arc(T[0], T[1], 6, 0, 6.3); g.fill(); g.globalAlpha = 1; g.font = '13px sans-serif'; g.textAlign = 'center'; g.fillText(F.ic, T[0], T[1] - 10); }
     if (pl.k === 'fenv' && !pl.done && ls.length > 1) { const out = pl.sweep === 'top' ? 0 : ls.length - 1, sv = pl.psi; g.strokeStyle = F.col; g.globalAlpha = 0.55; g.setLineDash([5, 4]); g.beginPath(); for (let p = sv; p <= pl.psiEnd + 0.001; p += 0.06) { pl.psi = p; const [x, y] = fmSlot(c, fm, pl, ls, out); p === sv ? g.moveTo(x, y) : g.lineTo(x, y); } g.stroke(); g.setLineDash([]); g.globalAlpha = 1; pl.psi = sv; }
     if (sel) { g.fillStyle = 'rgba(8,12,16,.8)'; const txt = `${F.ic} ${F.n} · cohesión ${Math.round((fm.coh === undefined ? 1 : fm.coh) * 100)}%${pl.done ? ' · completada' : ''}`; g.font = 'bold 10px sans-serif'; const w = g.measureText(txt).width + 10; g.fillRect(fm.x - w / 2, fm.y - 26, w, 14); g.fillStyle = '#ffe28a'; g.textAlign = 'center'; g.fillText(txt, fm.x, fm.y - 15); }
@@ -12243,6 +12256,115 @@ const _bvCorpsUpdateL = bvCorpsUpdate;
 bvCorpsUpdate = function (V) {
   _bvCorpsUpdateL(V); V.sideCx = {}; const cp = (R.bvB && R.bvB.cplan) || {};
   ['A', 'B'].forEach(s => { const ls = [...V.blocks.values()].filter(k => k.side === s && k.role === 'line' && k.mode !== 'rout' && !k.d.plan && !k.d.stay && !k.garr && k.type === 'inf' && !(k.corps && cp[k.corps.id])); if (ls.length > 1) V.sideCx[s] = ls.reduce((n, k) => n + k.x, 0) / ls.length; });
+};
+
+/* ===== EJÉRCITO: órdenes coordinadas, segunda línea y persecución tras la victoria ===== */
+const ARMY_ORD = {
+  aenvT: {ic: '🌀', n: 'Envolver por arriba', tip: 'El cuerpo del ala superior envuelve el flanco enemigo; el centro fija al enemigo y el ala opuesta se rehúsa.'},
+  aenvB: {ic: '🌀', n: 'Envolver por abajo', tip: 'El cuerpo del ala inferior envuelve; el centro fija al enemigo y el ala opuesta se rehúsa.'},
+  adbl: {ic: '🦀', n: 'Doble envolvimiento', tip: 'Las dos alas envuelven mientras el centro fija al enemigo (tipo Cannae).'},
+  aesc: {ic: '📐', n: 'Orden oblicuo', tip: 'Los cuerpos entran en combate de uno en uno desde el extremo superior (cada 7 s); el último se rehúsa.'},
+  adef: {ic: '🛡️', n: 'Línea defensiva', tip: 'Los extremos se doblan atrás (flancos rehusados), el centro se realinea y despliega una segunda línea.'},
+  a2l: {ic: '🧱', n: 'Segunda línea', tip: 'Alterna: activa o desactiva la segunda línea (apoyos 100 pasos detrás que releven a los regimientos agotados) en todos los cuerpos.'},
+  area: {ic: '📏', n: 'Realinear ejército', tip: 'Todos los cuerpos se detienen y reajustan la línea.'}
+};
+function armyOrder(V, b, kind) {
+  const ps = playerSide(b), cs = (V.corps || []).filter(c => c.side === ps && fmLs(c).length >= 1).sort((p, q) => p.yc - q.yc);
+  if (kind === 'a2l') { b.sup = b.sup || {}; const on = !cs.every(c => b.sup[c.id]); cs.forEach(c => { if (on) b.sup[c.id] = true; else { delete b.sup[c.id]; c.regs.forEach(r => { delete r.sup; }); } }); toast('🧱', on ? 'Segunda línea desplegada en todos los cuerpos.' : 'Segunda línea disuelta.'); return; }
+  if (cs.length < 2) { toast('⚠️', 'Necesitas al menos 2 cuerpos en la línea para dar una orden de ejército.'); return; }
+  const foes = [...V.blocks.values()].filter(k => k.side !== ps && k.role === 'line' && k.mode !== 'rout'); if (!foes.length) return;
+  const top = Math.min(...foes.map(k => k.y)), bot = Math.max(...foes.map(k => k.y)), ex = foes.reduce((n, k) => n + k.x, 0) / foes.length, dir = ps === 'A' ? 1 : -1, n = cs.length;
+  const mid = cs.slice(1, n - 1), first = cs[0], last = cs[n - 1], fix = c => { const l = fmLs(c), x = l.reduce((m, k) => m + k.x, 0) / l.length; return [[x + dir * 70, c.yc]]; };
+  const send = (c, k, pts, extraDelay) => { const fr = fmFriction(V, b, c); bvFormSet(V, b, c, k, pts, true, fr.delay + (extraDelay || 0), fr.mis); };
+  if (kind === 'aenvT' || kind === 'aenvB') { const topS = kind === 'aenvT', wing = topS ? first : last, other = topS ? last : first; send(wing, 'fenv', [[ex, topS ? top - 55 : bot + 55]]); send(other, 'fref', [[ex, topS ? BV_H : 0]]); mid.forEach(c => send(c, 'fadv', fix(c), 4)); }
+  else if (kind === 'adbl') { send(first, 'fenv', [[ex, top - 55]]); send(last, 'fenv', [[ex, bot + 55]]); mid.forEach(c => send(c, 'fadv', fix(c), 4)); }
+  else if (kind === 'aesc') { cs.forEach((c, i) => { if (i === n - 1) send(c, 'fref', [[ex, BV_H]]); else send(c, 'fech', [[ex, c.yc]], i * 7); }); }
+  else if (kind === 'adef') { send(first, 'fref', [[ex, 0]]); send(last, 'fref', [[ex, BV_H]]); mid.forEach(c => send(c, 'frea', [])); b.sup = b.sup || {}; mid.forEach(c => { b.sup[c.id] = true; }); }
+  else if (kind === 'area') cs.forEach(c => send(c, 'frea', []));
+  const A = ARMY_ORD[kind]; bvBanner(V, `${A.ic} Orden de ejército: ${A.n}`, ps, ''); (b.log = b.log || []).push({k: 'flank', d: b.day, t: `${G.C[cs[0].tag].name}: orden de ejército «${A.n}».`}); if (b.log.length > 30) b.log.shift();
+}
+ACT.armyord = d => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !b || b.ended || V.replay || b.prep) return; armyOrder(V, b, d.k); renderBattlePanel(); };
+ACT.corpsup = () => {
+  const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !V.sel || !V.sel.corps || !b || b.ended || V.replay || V.sel.side !== playerSide(b)) return;
+  const c = V.sel.corps; b.sup = b.sup || {}; if (b.sup[c.id]) { delete b.sup[c.id]; c.regs.forEach(r => { delete r.sup; }); } else b.sup[c.id] = true;
+  toast('🧱', b.sup[c.id] ? `${corpsName(c)}: segunda línea desplegada.` : `${corpsName(c)}: segunda línea disuelta.`); renderBattlePanel();
+};
+// ---- segunda línea: apoyos detrás que releven a los regimientos agotados ----
+const _bvSyncE = bvSync;
+bvSync = function (V, b) {
+  _bvSyncE(V, b);
+  if (!b.sup || b.prep) return;
+  (V.corps || []).forEach(c => {
+    if (!b.sup[c.id]) return;
+    const ls = c.blks.filter(k => k.role === 'line' && !k.d.out && k.type === 'inf').sort((p, q) => p.hy - q.hy), n = ls.length; if (n < 4) return;
+    const m = Math.max(1, Math.floor(n * 0.4)); let sups = ls.filter(k => k.d.sup);
+    if (sups.length > m) sups.slice(m).forEach(k => { delete k.d.sup; }); else if (sups.length < m) ls.filter(k => !k.d.sup).sort((p, q) => (q.d.s + q.d.o / DIVS[q.d.t].org) - (p.d.s + p.d.o / DIVS[p.d.t].org)).slice(0, m - sups.length).forEach(k => { k.d.sup = true; });
+    const front = ls.filter(k => !k.d.sup), sp = ls.filter(k => k.d.sup), nf = front.length; if (nf < 2) return;
+    const yA = ls[0].hy, yB = ls[n - 1].hy, step = (yB - yA) / (nf - 1);
+    front.forEach((k, i) => { k.hy = yA + i * step; k.hdep = 0; });
+    sp.forEach((k, j) => { const i = Math.min(nf - 2, Math.round(j * (nf - 1) / Math.max(1, sp.length))); k.hy = (front[i].hy + front[i + 1].hy) / 2; k.hdep = 105; k.supPos = true; });
+    ls.forEach(k => { if (!k.d.sup) k.supPos = false; });
+  });
+};
+function supFeed(V, b, all, dt) {
+  if (!b.sup || V.over || b.prep || V.replay) return; V._sf = (V._sf || 0) + dt; if (V._sf < 1.5) return; V._sf = 0;
+  (V.corps || []).forEach(c => {
+    if (!b.sup[c.id]) return;
+    const ls = c.blks.filter(k => k.role === 'line' && !k.d.out && k.type === 'inf'), front = ls.filter(k => !k.d.sup), sups = ls.filter(k => k.d.sup && k.d.s > 0.35 && k.d.o / DIVS[k.d.t].org > 0.45 && k.mode !== 'rout' && !(k.brk > 0));
+    if (!sups.length) return;
+    const weak = front.filter(k => k.mode !== 'rout' && (k.d.s < 0.45 || k.d.o / DIVS[k.d.t].org < 0.28 || k.brk > 0)).sort((p, q) => p.d.s - q.d.s)[0];
+    if (!weak) return; const s = sups.sort((p, q) => Math.hypot(p.hy - weak.hy, 0) - Math.hypot(q.hy - weak.hy, 0))[0];
+    weak.d.sup = true; delete s.d.sup; bvBanner(V, `🧱 La segunda línea releva a un regimiento de ${G.C[weak.tag].name}`, weak.side, '');
+  });
+}
+// ---- persecución tras la victoria ----
+const _endBattleX = endBattle;
+endBattle = function (b, winner) {
+  const win = (winner === 'A' ? b.A : b.B).map(armyById).filter(Boolean), lose = (winner === 'A' ? b.B : b.A).map(armyById).filter(Boolean);
+  const cavOk = d => dKind(d) === 'cav' && d.s > 0.3 && d.o > DIVS[d.t].org * 0.25, cavN = win.reduce((n, a) => n + a.divs.filter(cavOk).length, 0), lcav = lose.reduce((n, a) => n + a.divs.filter(d => dKind(d) === 'cav' && d.s > 0.3).length, 0);
+  _endBattleX(b, winner);
+  [...win, ...lose].forEach(a => a.divs.forEach(d => { if (d.rg) d.rg.forEach(r => { delete r.sup; }); }));
+  if (!cavN || !lose.length) return;
+  const wk = typeof battleWeather === 'function' ? battleWeather(b).k : 'clear', f = wk === 'fog' ? 0.6 : wk === 'rain' || wk === 'snow' ? 0.75 : 1, p = clamp(0.045 * cavN * f * (1 - Math.min(0.6, lcav * 0.15)), 0, 0.28);
+  if (p < 0.01) return; let men = 0, guns = 0;
+  lose.forEach(a => {
+    if (!G.armies.includes(a)) return;
+    a.divs.forEach(d => { const dm = d.s * p * 0.7; d.s = Math.max(0, d.s - dm); men += dm * MEN_PER_DIV; d.o = Math.max(0, d.o * (1 - p)); });
+    const art = a.divs.filter(d => dKind(d) === 'art'); art.forEach(d => { if (Math.random() < Math.min(0.6, p * 3)) { d.s = 0; guns++; } });
+    a.divs = a.divs.filter(d => d.s > 0.04); if (!a.divs.length) a._dead = true;
+  });
+  G.armies = G.armies.filter(a => !a._dead);
+  win.forEach(a => a.divs.forEach(d => { if (dKind(d) === 'cav') d.o = Math.max(0, d.o - DIVS[d.t].org * 0.14); }));
+  men = Math.round(men); b.pursuit = {men, guns, cav: cavN}; b.lostB = (b.lostB || 0) + (winner === 'A' ? men : 0); b.lostA = (b.lostA || 0) + (winner === 'A' ? 0 : men);
+  const lt = lose[0].tag, wt = win[0].tag; if (typeof bleed === 'function') bleed(lt, men);
+  const msg = `La caballería de ${G.C[wt].name} persigue a los derrotados de ${G.C[lt].name}: ${fmtN(men, 0)} bajas y ${guns} batería${guns === 1 ? '' : 's'} capturada${guns === 1 ? '' : 's'}.`;
+  (b.log = b.log || []).push({k: 'cav', d: b.day, t: msg}); if (b.log.length > 30) b.log.shift(); if (wt === G.player || lt === G.player) notify('war', msg, b.state);
+};
+// en el visor, la caballería vencedora galopa tras los fugitivos
+const _bvGroundX = bvGround;
+bvGround = function (V, b, all, dt) {
+  _bvGroundX(V, b, all, dt); supFeed(V, b, all, dt);
+  if (V.over && V.over.t < 16 && !V.replay) {
+    const win = V.over.loser === 'A' ? 'B' : 'A';
+    if (b.pursuit && !V._purMsg && V.over.t > 1.5) { V._purMsg = 1; bvBanner(V, `🐎 La caballería de ${G.C[win === 'A' ? b.A0 : b.B0].name} persigue a los fugitivos`, win, ''); }
+    all.forEach(k => { if (k.side !== win || k.type !== 'cav' || k.mode !== 'gallop') return; all.forEach(o => { if (o.side === win || o.mode === 'rout' && !o.figs.some(f => f.alive)) return; if (Math.hypot(o.x - k.x, o.y - k.y) < 34 && Math.random() < dt * 3) { const al = o.figs.filter(f => f.alive && !f.flee).concat(o.figs.filter(f => f.alive)); if (al.length) { bvKill(V, o, al[Math.floor(Math.random() * al.length)]); bvPart(V, {k: 'spark', x: o.x + rnd(-8, 8), y: o.y + rnd(-8, 8), life: 0.4, hot: 1}); } } }); });
+  }
+};
+// panel: órdenes de ejército y segunda línea
+const _tacStayBtnE = tacStayBtn;
+tacStayBtn = function (V, sel, ac) {
+  let h = _tacStayBtnE(V, sel, ac); const b = R.bvB, ps = b && playerSide(b); if (!b || !ps) return h;
+  const cs = (V.corps || []).filter(c => c.side === ps);
+  if (sel && sel.corps) { const on = b.sup && b.sup[sel.corps.id]; h += `<div class="mform"><button data-act="corpsup" class="${on ? 'on' : ''}" data-tip="<b>Segunda línea</b><br>Los apoyos se colocan unos 100 pasos detrás y relevan a los regimientos agotados o rotos de este cuerpo."><span>🧱</span>Segunda línea</button></div>`; }
+  if (cs.length >= 2 && !b.prep) h += '<div class="mform"><small>Órdenes de EJÉRCITO (todos los cuerpos coordinados):</small>' + Object.keys(ARMY_ORD).map(k => `<button data-act="armyord" data-k="${k}" data-tip="<b>${ARMY_ORD[k].n}</b><br>${ARMY_ORD[k].tip}"><span>${ARMY_ORD[k].ic}</span>${ARMY_ORD[k].n}</button>`).join('') + '</div>';
+  return h;
+};
+// la IA despliega segunda línea al defender
+const _fmAiE = fmAi;
+fmAi = function (V, b, all, dt) {
+  _fmAiE(V, b, all, dt); if (V.over || b.prep) return; V._sai = (V._sai || 0) + dt; if (V._sai < 9) return; V._sai = 0;
+  const ps = playerSide(b); b.sup = b.sup || {};
+  ['A', 'B'].forEach(s => { if (s === ps || (b.att === s && Math.random() < 0.7)) return; (V.corps || []).filter(c => c.side === s && c.blks.length >= 4 && !b.sup[c.id]).slice(0, 1).forEach(c => { b.sup[c.id] = true; }); });
 };
 
 /* ===== PANEL DE INICIO: ambiente cinematográfico =====
@@ -14548,7 +14670,7 @@ const MANUAL = [
 </tbody></table>
 <p>Para las propuestas que debe aceptar la otra parte, pasa el ratón sobre el botón: verás la <b>probabilidad de aceptación</b> y sus motivos (relaciones, enemigo común, regímenes afines, infamia, rivalidades, fuerza relativa). Puedes <b>romper</b> un acuerdo en cualquier momento (−25 de relación y −2 de prestigio).</p>
 <h4>Propuestas de la IA</h4><p>Los países pueden proponerte acuerdos o que ingreses en su bloque. Aparecen en el icono ✉️ y en <b>Diplomacia → Acuerdos</b>, donde puedes aceptarlas o rechazarlas.</p>
-<h4>Realismo de combate</h4><p>El armamento (ánima lisa, fusil rayado, retrocarga, ametralladora) fija alcance y cadencia en la batalla y encarece el <b>ataque frontal</b> contra defensores bien armados; el flanqueo y la preparación artillera lo reducen. La artillería dispara <b>metralla</b> a quemarropa contra los asaltos. La caballería pierde fuerza de choque contra infantería formada con fusil rayado, pero sigue siendo letal contra tropas desordenadas. Los ejércitos que llegan por direcciones distintas obtienen un bono de <b>convergencia</b> (mayor con Estado Mayor). La artillería de acero abre brechas más rápido, los asedios causan enfermedad en el campamento y los focos de resistencia pueden emboscar convoyes e incendiar depósitos del ocupante.</p><h4>La línea de batalla y las maniobras</h4><p>Cada cuerpo es una <b>línea</b>: sus regimientos avanzan alineados, al paso del más lento, y los rezagados aceleran para recuperar su sitio. Una línea con huecos o con un extremo sobrepasado tiene el <b>flanco abierto</b> (marcado en rojo): sufre más bajas y pierde moral. En el panel de órdenes tienes maniobras que actúan sobre el cuerpo entero sin romper la formación: <b>Avanzar en línea</b>, <b>Carga en línea</b> (carga simultánea a ~100 pasos), <b>Envolver</b> (la línea gira como una puerta sobre el extremo opuesto), <b>Escalón</b> (un extremo ataca primero, el resto se incorpora), <b>Refusar flanco</b> (dobla un extremo atrás), <b>Realinear</b> y <b>Retirada ordenada</b>. Las órdenes de atacar, flanquear o retirar dadas al cuerpo entero se ejecutan también así. Si das órdenes distintas a varios cuerpos, cada uno mantiene su propia línea; al terminar, el ejército se reajusta sobre la línea de referencia. La IA también envuelve, escalona y rehúsa flancos.</p><h4>Mando en el campo de batalla</h4><p><b>Convergencia:</b> si tus ejércitos llegan al combate desde direcciones distintas, cada uno aparece por el margen norte o sur del campo del lado del que viene y se incorpora a la línea. <b>Comandantes:</b> cada cuerpo tiene un comandante (una bolita con estrella) que recorre sus regimientos, sube su moral y les da valentía (cargan con menos miedo y golpean algo más fuerte) en un radio cercano. Si cae por el fuego o el cuerpo a cuerpo, el cuerpo pierde moral y, con cierta probabilidad, <b>carga despiadado en venganza</b>. <b>Quedarse:</b> el botón 📍 de las órdenes fija los regimientos seleccionados donde están; solo se mueven si el enemigo llega a su alcance (para cargar o rechazarlo) y luego vuelven. Además, la línea defensiva en «Aguardar en los altos» ya no deriva con el avance de la batalla.</p><h4>Clima y terreno en batalla</h4><p>Cada batalla tiene tiempo atmosférico (despejado, lluvia, niebla, nevada, viento) según la estación y el bioma. La lluvia y la nieve frenan la marcha y reducen la cadencia de fuego; la niebla acorta el alcance. Bosques, colinas y acantilados <b>bloquean la línea de visión</b>: sin ella no se dispara (la artillería de tiro rápido puede hacer fuego indirecto). Las colinas dan +20% de alcance, los vados atascan al atacante, el terreno abierto es mortal frente a fusiles modernos y los pueblos bombardeados acaban ardiendo. El suelo guarda huellas del paso de las tropas y manchas de sangre.</p><h4>Infamia</h4><p>Cada guerra de agresión genera infamia (más con la conquista). Mientras es alta, todos los países te toleran peor. Se reduce lentamente con el tiempo.</p>`},
+<h4>Realismo de combate</h4><p>El armamento (ánima lisa, fusil rayado, retrocarga, ametralladora) fija alcance y cadencia en la batalla y encarece el <b>ataque frontal</b> contra defensores bien armados; el flanqueo y la preparación artillera lo reducen. La artillería dispara <b>metralla</b> a quemarropa contra los asaltos. La caballería pierde fuerza de choque contra infantería formada con fusil rayado, pero sigue siendo letal contra tropas desordenadas. Los ejércitos que llegan por direcciones distintas obtienen un bono de <b>convergencia</b> (mayor con Estado Mayor). La artillería de acero abre brechas más rápido, los asedios causan enfermedad en el campamento y los focos de resistencia pueden emboscar convoyes e incendiar depósitos del ocupante.</p><h4>La línea de batalla y las maniobras</h4><p>Cada cuerpo es una <b>línea</b>: sus regimientos avanzan alineados, al paso del más lento, y los rezagados aceleran para recuperar su sitio. Una línea con huecos o con un extremo sobrepasado tiene el <b>flanco abierto</b> (marcado en rojo): sufre más bajas y pierde moral. En el panel de órdenes tienes maniobras que actúan sobre el cuerpo entero sin romper la formación: <b>Avanzar en línea</b>, <b>Carga en línea</b> (carga simultánea a ~100 pasos), <b>Envolver</b> (la línea gira como una puerta sobre el extremo opuesto), <b>Escalón</b> (un extremo ataca primero, el resto se incorpora), <b>Refusar flanco</b> (dobla un extremo atrás), <b>Realinear</b> y <b>Retirada ordenada</b>. Las órdenes de atacar, flanquear o retirar dadas al cuerpo entero se ejecutan también así. Si das órdenes distintas a varios cuerpos, cada uno mantiene su propia línea; al terminar, el ejército se reajusta sobre la línea de referencia. La IA también envuelve, escalona y rehúsa flancos.</p><h4>Órdenes de ejército, segunda línea, persecución y fricción</h4><p><b>Órdenes de ejército</b> (botones bajo las maniobras): <i>Envolver por arriba/abajo</i> (un cuerpo envuelve, el centro fija al enemigo y el ala opuesta se rehúsa), <i>Doble envolvimiento</i>, <i>Orden oblicuo</i> (los cuerpos entran de uno en uno), <i>Línea defensiva</i> y <i>Realinear</i>. <b>Segunda línea</b>: los apoyos se sitúan unos 100 pasos detrás y relevan a los regimientos agotados o rotos. <b>Fricción</b>: las órdenes de maniobra tardan en llegar según la distancia al mando (menos con telégrafo y Estado Mayor; más con niebla o lluvia) y a veces se malinterpretan y el cuerpo se desvía. <b>Persecución</b>: al ganar, tu caballería sana persigue a los fugitivos y causa bajas adicionales y captura baterías (menos con barro o niebla, o si el enemigo conserva caballería).</p><h4>Mando en el campo de batalla</h4><p><b>Convergencia:</b> si tus ejércitos llegan al combate desde direcciones distintas, cada uno aparece por el margen norte o sur del campo del lado del que viene y se incorpora a la línea. <b>Comandantes:</b> cada cuerpo tiene un comandante (una bolita con estrella) que recorre sus regimientos, sube su moral y les da valentía (cargan con menos miedo y golpean algo más fuerte) en un radio cercano. Si cae por el fuego o el cuerpo a cuerpo, el cuerpo pierde moral y, con cierta probabilidad, <b>carga despiadado en venganza</b>. <b>Quedarse:</b> el botón 📍 de las órdenes fija los regimientos seleccionados donde están; solo se mueven si el enemigo llega a su alcance (para cargar o rechazarlo) y luego vuelven. Además, la línea defensiva en «Aguardar en los altos» ya no deriva con el avance de la batalla.</p><h4>Clima y terreno en batalla</h4><p>Cada batalla tiene tiempo atmosférico (despejado, lluvia, niebla, nevada, viento) según la estación y el bioma. La lluvia y la nieve frenan la marcha y reducen la cadencia de fuego; la niebla acorta el alcance. Bosques, colinas y acantilados <b>bloquean la línea de visión</b>: sin ella no se dispara (la artillería de tiro rápido puede hacer fuego indirecto). Las colinas dan +20% de alcance, los vados atascan al atacante, el terreno abierto es mortal frente a fusiles modernos y los pueblos bombardeados acaban ardiendo. El suelo guarda huellas del paso de las tropas y manchas de sangre.</p><h4>Infamia</h4><p>Cada guerra de agresión genera infamia (más con la conquista). Mientras es alta, todos los países te toleran peor. Se reduce lentamente con el tiempo.</p>`},
 
 {id: 'blocs', title: '14. Bloques', html: `
 <p>Los bloques agrupan a varios países bajo un líder. Para fundarlo necesitas <b>30 de prestigio y 60 de influencia</b>; el máximo de miembros es 3 + 1 por cada 40 de prestigio del líder. Un vasallo no puede liderar un bloque.</p>

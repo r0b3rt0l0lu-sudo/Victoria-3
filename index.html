@@ -10567,7 +10567,7 @@ function tacDrawForts(g, V, b) {
   });
 }
 function tacDrawPrepZone(g, V, b) {
-  if (!b.prep) return; const ps = playerSide(b); if (!ps) return; const lo = ps === 'A' ? 50 : BV_W / 2 + 30, hi = ps === 'A' ? BV_W / 2 - 30 : BV_W - 50;
+  if (!b.prep) return; const ps = playerSide(b); if (!ps) return; const lo = ps === 'A' ? 40 : BV_W / 2 + 8, hi = ps === 'A' ? BV_W / 2 - 8 : BV_W - 40;
   g.fillStyle = 'rgba(255,230,140,.07)'; g.fillRect(lo, 48, hi - lo, BV_H - 76); g.strokeStyle = 'rgba(255,230,140,.5)'; g.setLineDash([8, 6]); g.lineWidth = 1.4; g.strokeRect(lo, 48, hi - lo, BV_H - 76); g.setLineDash([]);
   if (V.tool && V.mouse) { const [wx, wy] = bvToWorld(V, V.mouse.x, V.mouse.y), K = FORT_KINDS[V.tool.k], ok = tacZoneOk(b, ps, wx, wy), pw = V.tool.k === 'trench' && V.rot ? K.h : K.w, ph = V.tool.k === 'trench' && V.rot ? K.w : K.h; g.globalAlpha = 0.6; g.fillStyle = ok ? '#8fd16a' : '#e8644f'; g.fillRect(wx - pw / 2, wy - ph / 2, pw, ph); g.globalAlpha = 1; g.strokeStyle = '#fff'; g.strokeRect(wx - pw / 2, wy - ph / 2, pw, ph); }
 }
@@ -10615,6 +10615,7 @@ function tacTerrAtExtra(tf, x, y, side, o) {
 /* ---------- ratón: arrastrar bloques, construir y dibujar planes ---------- */
 function tacMouseDown(V, b, e, p) {
   if (V.replay || b.ended) return false; const ps = playerSide(b); if (!ps) return false; const [wx, wy] = bvToWorld(V, p.x, p.y);
+  if (!b.prep && V.tool && V.tool.k === 'pontoon') { const r = tacBuildFort(b, ps, 'pontoon', wx, wy); if (!r.ok) toast('⚠️', r.msg); else V.tool = null; renderBattlePanel(); return true; }
   if (b.prep) {
     if (V.tool) { const r = tacBuildFort(b, ps, V.tool.k, wx, wy); if (!r.ok) toast('⚠️', r.msg); else { V.selFort = r.f.id; V.tool = null; } renderBattlePanel(); return true; }
     if (V.garr) { const f0 = tacFortAt(b, wx, wy); if (f0 && f0.side === ps) { if (!V.sel || V.sel.side !== ps) toast('⚠️', 'Primero selecciona uno de tus bloques.'); else { const r = tacGarrison(b, f0, V.sel); if (!r.ok) toast('⚠️', r.msg); else toast('🏰', `${V.sel.a.name} guarnece ${FORT_KINDS[f0.kind].n.toLowerCase()}.`); } renderBattlePanel(); return true; } }
@@ -10624,12 +10625,12 @@ function tacMouseDown(V, b, e, p) {
   }
   return false;
 }
-function tacMouseMove(V, b, p) { const k = V.dragBlk; if (!k || !b.prep) return false; const ps = playerSide(b), dir = ps === 'A' ? 1 : -1, [wx, wy] = bvToWorld(V, p.x, p.y), L = tacLineBase(b, ps); const lo = ps === 'A' ? 50 : BV_W / 2 + 30, hi = ps === 'A' ? BV_W / 2 - 30 : BV_W - 50; const x = clamp(wx, lo, hi), y = clamp(wy, 48, BV_H - 28);
+function tacMouseMove(V, b, p) { const k = V.dragBlk; if (!k || !b.prep) return false; const ps = playerSide(b), dir = ps === 'A' ? 1 : -1, [wx, wy] = bvToWorld(V, p.x, p.y), L = tacLineBase(b, ps); const lo = ps === 'A' ? 40 : BV_W / 2 + 8, hi = ps === 'A' ? BV_W / 2 - 8 : BV_W - 40; const x = clamp(wx, lo, hi), y = clamp(wy, 48, BV_H - 28); if (bvTerrAt(battleTerrain(b), x, y, ps).water) return true;
   const old = k.d.cust && k.d.cust.fort; k.d.cust = {dep: dir * (L - x) - k.dep / 2, y}; V.dragPos = [x, y]; if (old) { const f = (b.forts || []).find(q => q.id === old); if (f) tacLayoutFort(b, f); } return true; }
 function tacMouseUp(V) { if (V.dragBlk) { const k = V.dragBlk, b = G.battles.find(x => x.id === UI.battle); V.dragBlk = null; if (b && V.dragPos) { const f = tacFortAt(b, V.dragPos[0], V.dragPos[1]); if (f && f.side === k.side) { const r = tacGarrison(b, f, k); if (!r.ok) toast('⚠️', r.msg); } } renderBattlePanel(); return true; } return false; }
 /* ---------- acciones del panel ---------- */
 Object.assign(ACT, {
-  tacfort: d => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !b || !b.prep) return; V.tool = V.tool && V.tool.k === d.k ? null : {k: d.k}; V.draw = null; renderBattlePanel(); },
+  tacfort: d => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !b || (!b.prep && d.k !== 'pontoon')) return; V.tool = V.tool && V.tool.k === d.k ? null : {k: d.k}; V.draw = null; renderBattlePanel(); },
   tacgun: () => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !b || !b.prep) return; const f = (b.forts || []).find(x => x.id === V.selFort); if (!f) { toast('⚠️', 'Selecciona primero una obra (clic sobre ella).'); return; } const r = tacAddGun(b, f); if (!r.ok) toast('⚠️', r.msg); renderBattlePanel(); },
   tacgar: () => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !b || !b.prep) return; V.garr = !V.garr; V.tool = null; V.draw = null; if (V.garr) toast('🏰', 'Selecciona un bloque tuyo y haz clic en un fuerte para guarnecerlo.'); renderBattlePanel(); },
   tacdel: () => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !b || !b.prep) return; const f = (b.forts || []).find(x => x.id === V.selFort); if (!f) { toast('⚠️', 'Selecciona primero una obra.'); return; } const r = tacDelFort(b, f); if (!r.ok) toast('⚠️', r.msg); V.selFort = null; renderBattlePanel(); },
@@ -10674,7 +10675,7 @@ window.addEventListener('keydown', e => { if (e.key === 'Shift') window._tacShif
 window.addEventListener('keyup', e => { if (e.key === 'Shift') window._tacShift = false; });
 
 /* ---------- artillería: alcance real, elección de objetivo y contrabatería ---------- */
-function tacArtRange(V, b, blk) { return 300 + (G.date.y >= 1860 ? 60 : 0) + (G.date.y >= 1900 ? 100 : 0) + (blk.terr && blk.terr.hill ? 40 : 0); }
+function tacArtRange(V, b, blk) { return 300 + (G.date.y >= 1860 ? 60 : 0) + (G.date.y >= 1900 ? 100 : 0) + (blk.terr && blk.terr.hill ? 95 : 0); }
 function tacArtFire(V, b, blk, dt, all) {
   const alive = blk.figs.filter(f => f.alive && !f.flee), guns = alive.filter(f => f.kind === 'gun'), crew = alive.filter(f => f.kind === 'crew');
   const was = blk.sil; blk.sil = !guns.length || crew.length < 2; if (blk.sil) { if (!was && blk.figs.length) { /* silenciada */ } return; }
@@ -10691,7 +10692,7 @@ function tacArtFire(V, b, blk, dt, all) {
   blk.cd = (heavy ? rnd(0.9, 1.5) : rnd(3, 5)) * (ctr ? 0.65 : 1); blk.tgt = tgt;
   if (tgt.type !== 'art' && dist(tgt) < 130 && typeof tacCanister === 'function') { blk.cd = rnd(1.4, 2.4); blk.fireAt = performance.now(); tacCanister(V, b, blk, tgt, guns[Math.floor(Math.random() * guns.length)]); return; }
   const gn = guns[Math.floor(Math.random() * guns.length)], fg = pickFoeFig(tgt), tx = (fg ? fg.x : tgt.x) + rnd(-14, 14), ty = (fg ? fg.y : tgt.y) + rnd(-14, 14);
-  bvPart(V, {k: 'shell', x: gn.x, y: gn.y, x2: tx, y2: ty, life: 0.55 + dist(tgt) / 520, s: blk.side, vt: tgt.id, ctr, stag: blk.tag}); gn.recoil = 1; blk.fireAt = performance.now(); bvPart(V, {k: 'flash', x: gn.x + Math.cos(blk.hd) * 12, y: gn.y + Math.sin(blk.hd) * 12, life: 0.14, big: 1}); if (typeof SFX !== 'undefined') SFX.cannon(0.8);
+  bvPart(V, {k: 'shell', x: gn.x, y: gn.y, x2: tx, y2: ty, life: 0.55 + dist(tgt) / 520, s: blk.side, vt: tgt.id, ctr, stag: blk.tag, hi: !!(blk.terr && blk.terr.hill && !(tgt.terr && tgt.terr.hill))}); gn.recoil = 1; blk.fireAt = performance.now(); bvPart(V, {k: 'flash', x: gn.x + Math.cos(blk.hd) * 12, y: gn.y + Math.sin(blk.hd) * 12, life: 0.14, big: 1}); if (typeof SFX !== 'undefined') SFX.cannon(0.8);
   for (let n = 0; n < 3; n++) bvPart(V, {k: 'smoke', x: gn.x + Math.cos(blk.hd) * 12, y: gn.y + Math.sin(blk.hd) * 12, life: 2.2, r: 5, vx: dir * 8 + V.wind * 0.5 + rnd(-4, 4)});
 }
 // impacto de un proyectil sobre un bloque: daño real y, contra artillería, bajas de piezas y servidores
@@ -11512,7 +11513,7 @@ function tacRiverX(tf, y) { return tf.river.x + Math.sin(y / 90 + tf.river.ph) *
 const inEll = (x, y, e) => { const c = Math.cos(e.rot || 0), s = Math.sin(e.rot || 0), dx = x - e.x, dy = y - e.y, u = (dx * c + dy * s) / e.rx, v = (-dx * s + dy * c) / e.ry; return u * u + v * v < 1; };
 function battleTerrain(b) {
   if (b.tf && b.tf.v2) return b.tf;
-  const pv = MAP.provs[b.prov], bio = pv.biome, H = k => hash2(b.id * 31 + 7, b.prov, k), W = BV_W, Hh = BV_H, defSide = b.att === 'A' ? 'B' : 'A', dd = defSide === 'A' ? -1 : 1, P = T2[bio] || T2[1];
+  const pv = MAP.provs[b.prov], bio = pv.biome, H = k => hash2(4217, b.prov, k), W = BV_W, Hh = BV_H, defSide = b.att === 'A' ? 'B' : 'A', dd = defSide === 'A' ? -1 : 1, P = T2[bio] || T2[1];
   const cnt = (r, k) => r ? r[0] + Math.floor(H(k) * (r[1] - r[0] + 1)) : 0, pos = (k, mx) => [mx + H(k) * (W - 2 * mx), 70 + H(k + 500) * (Hh - 130)];
   const tf = {v2: 1, bio, hill: null, hills: [], river: null, stream: null, forests: [], orchards: [], villages: [], lakes: [], marsh: [], rocks: [], cliffs: [], dunes: [], snow: [], walls: [], roads: [], fields: [], blocks: [], pond: null, hill2: null};
   // colinas y lomas (según el relieve real de la provincia)
@@ -11522,6 +11523,8 @@ function battleTerrain(b) {
   if (tf.hills.length) { const h0 = tf.hills[0]; h0.x = W / 2 + dd * (150 + H(3) * 220); h0.side = defSide; tf.hill = h0; tf.hills.forEach((h, i) => { if (i) h.side = h.x > W / 2 ? 'B' : 'A'; }); tf.hill2 = tf.hills[1] || null; }
   // río principal con vados y puentes; arroyo secundario
   if (H(60) < P.river) { const r = {x: W / 2 + (H(61) - 0.5) * 520, amp: 40 + H(62) * 70, ph: H(63) * 6.28, w: 30, fords: []}, nf = 2 + (H(64) < 0.5 ? 1 : 0); for (let i = 0; i < nf; i++) r.fords.push({y: 110 + (i + 0.2 + H(65 + i) * 0.6) * ((Hh - 220) / nf), w: 84, br: i % 2 === 0}); tf.river = r; }
+  { const pr = {montaña: 0.7, colinas: 0.4, ondulado: 0.15, llanura: 0.03}[provElev(b.prov).cls] || 0.1;     // barrancos: infranqueables salvo por pasos
+    if (H(800) < pr) { let rx = W / 2 + (H(801) - 0.5) * 640; if (tf.river && Math.abs(rx - tf.river.x) < 150) rx += (rx > tf.river.x ? 1 : -1) * 190; const np = 1 + (H(804) < 0.5 ? 1 : 0), passes = []; for (let i = 0; i < np; i++) passes.push({y: 120 + (i + 0.3 + H(805 + i) * 0.5) / np * (Hh - 240), w: 36, nat: true}); tf.ravine = {x: clamp(rx, 220, W - 220), amp: 18 + H(802) * 32, ph: H(803) * 6.28, w: 26, fords: passes}; } }
   if (H(70) < 0.45) tf.stream = {x: W / 2 + (H(71) - 0.5) * 900, amp: 30 + H(72) * 50, ph: H(73) * 6.28, w: 10};
   // lagos, pantanos, rocas, acantilados, dunas, nieve
   const lk = P.lakes >= 1 ? Math.floor(P.lakes) : (H(80) < P.lakes ? 1 : 0); for (let i = 0; i < lk; i++) { const [x, y] = pos(81 + i, 220); tf.lakes.push({x, y, rx: 50 + H(90 + i) * 70, ry: 32 + H(95 + i) * 40, rot: (H(99 + i) - 0.5)}); }
@@ -11554,6 +11557,7 @@ function bvTerrAt(tf, x, y, side) {
   const o = {slow: 1, cover: false, water: false, hill: false, marsh: false, village: false, forest: false, cliff: false, road: false, steep: false};
   if (!tf || !tf.v2) return o;
   if (tf.river) { const rx = tacRiverX(tf, y); if (Math.abs(x - rx) < tf.river.w / 2 + 3 && !tf.river.fords.some(f => Math.abs(y - f.y) < f.w / 2)) { o.water = true; o.slow = 0.35; } }
+  if (tf.ravine) { const rv = tf.ravine, rvx = rv.x + Math.sin(y / 70 + rv.ph) * rv.amp; if (Math.abs(x - rvx) < rv.w / 2 + 2 && !rv.fords.some(f => Math.abs(y - f.y) < f.w / 2)) { o.water = true; o.ravine = true; o.slow = 0.3; } }
   if (tf.stream) { const sx = tf.stream.x + Math.sin(y / 70 + tf.stream.ph) * tf.stream.amp; if (Math.abs(x - sx) < tf.stream.w / 2 + 2) o.slow = Math.min(o.slow, 0.6); }
   for (let i = 0; i < tf.lakes.length; i++) if (inEll(x, y, tf.lakes[i])) { o.water = true; o.slow = 0.3; }
   for (let i = 0; i < tf.cliffs.length; i++) if (inEll(x, y, tf.cliffs[i])) { o.water = true; o.cliff = true; o.slow = 0.3; }
@@ -11630,7 +11634,7 @@ function bvBuildBg(V, b) {
 /* ---------- efectos y descripción ---------- */
 function terrMods(b, side) {
   const tf = battleTerrain(b), isAtt = b.att === side, st = (side === 'A' ? b.strA : b.strB) || 'frontal'; let att = 0, def = 0;
-  if (tf.hill) { if (tf.hill.side === side) def += 0.1 + (st === 'hold' ? 0.05 : 0); else att -= 0.12; }
+  /* las alturas ya no dan defensa plana: su valor es la artillería (alcance y fuego plongeante), la visión y las pendientes que frenan */
   if (tf.river && isAtt && b.day <= 3) att -= 0.07 * (st === 'flank' ? 0.4 : 1);
   if (tf.forests.length >= 6) { if (!isAtt) def += 0.03; if (st === 'charge') att -= 0.05; }
   if (tf.villages.length >= 3 && !isAtt) def += 0.03; if (tf.rocks.length >= 2 && !isAtt) def += 0.02; if (tf.cliffs.length && !isAtt) def += 0.02; if (tf.marsh.length && isAtt && b.day <= 3) att -= 0.02;
@@ -11639,7 +11643,9 @@ function terrMods(b, side) {
 function terrainInfo(b) {
   const tf = battleTerrain(b), nm = s => G.C[s === 'A' ? b.A0 : b.B0].name, out = [], n = (a) => a.length;
   if (tf.elev) out.push(['🗺️', `Relieve real: ${tf.elev.name} · ${tf.elev.h} m`, `Datos topográficos reales de la región (desnivel típico ±${tf.elev.rough} m). ${tf.elev.cls === 'montaña' ? 'Terreno de montaña: el defensor gana +3% y el atacante pierde 3%; a más de 2.300 m no hay arbolado.' : tf.elev.cls === 'colinas' ? 'Muchas colinas: el terreno elevado decide la batalla.' : tf.elev.cls === 'llanura' ? 'Llanura abierta: casi sin colinas, el fuego domina el campo.' : 'Terreno ondulado con alguna loma.'}`]);
-  if (tf.hill) out.push(['⛰️', `Colinas (${n(tf.hills)})`, `La principal es de ${nm(tf.hill.side)}: +10% defensa (+5% con «Aguardar en los altos»). Subir una cuesta ralentiza mucho (−45% de velocidad) y resta 12% de ataque.`]);
+  if (tf.hill) out.push(['⛰️', `Alturas (${n(tf.hills)})`, `La principal es de ${nm(tf.hill.side)}. NO dan defensa por sí mismas: su valor es colocar BATERÍAS arriba (alcance +30%, fuego plongeante más dañino y vista sobre bosques y aldeas). Subir una cuesta frena mucho (−45% de velocidad) y detrás de una altura no hay línea de visión.`]);
+  if (tf.ravine) out.push(['🕳️', 'Barranco', 'Infranqueable: solo se cruza por los pasos naturales (pocos) y por un puente de pontones si hay río. La artillería puede batir el otro lado.']);
+  if (tf.river) out.push(['🌉', 'Puentes de pontones', 'Los ingenieros pueden tender un puente de pontones en cualquier punto del río (cuesta recursos y tarda en estar listo).']);
   if (tf.river) out.push(['🌊', 'Río con vados y puentes', 'Solo se cruza por vados y puentes (los regimientos buscan el más cercano). El atacante sufre −7% de ataque los 3 primeros días.']);
   if (tf.stream) out.push(['〰️', 'Arroyo', 'Se cruza por cualquier punto pero frena (−40% de velocidad).']);
   if (n(tf.lakes)) out.push(['💧', `Lagos (${n(tf.lakes)})`, 'Infranqueables: hay que rodearlos.']);
@@ -11882,7 +11888,7 @@ const _bvBuildBgR = bvBuildBg;
 bvBuildBg = function (V, b) {
   const cv = _bvBuildBgR(V, b), S = cv.width / BV_W, g = cv.getContext('2d'), tf = battleTerrain(b), wx = battleWeather(b), bc = (typeof BIO_COL !== 'undefined' && BIO_COL[tf.bio]) || [118, 150, 74];
   const H = (i, k) => hash2(i, V.seed, 700 + k);
-  g.save(); g.scale(S, S);
+  g.save(); g.setTransform(S, 0, 0, S, 0, 0);
   // textura de hierba: tallos cortos de dos tonos
   const grass = tf.bio === 3 ? 0 : tf.bio === 8 ? 0.4 : 1;
   for (let i = 0; i < 3400 * grass; i++) { const x = H(i, 1) * BV_W, y = H(i, 2) * BV_H, l = 2 + H(i, 3) * 3.5, m = H(i, 4) < 0.5 ? 0.82 : 1.2; g.strokeStyle = `rgba(${Math.min(255, bc[0] * m) | 0},${Math.min(255, bc[1] * m) | 0},${Math.min(255, bc[2] * m) | 0},.38)`; g.lineWidth = 0.7; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (H(i, 5) - 0.5) * 2, y - l); g.stroke(); }
@@ -12068,6 +12074,7 @@ function fmAngle(pl, dir) { return (pl.sweep === 'top' ? 1 : -1) * dir * (pl.psi
 // posición del slot i de la formación según la guía y la maniobra
 function fmSlot(c, fm, pl, ls, i) {
   const dir = c.side === 'A' ? 1 : -1, th0 = dir > 0 ? 0 : Math.PI, k = ls[i], n = ls.length;
+  if (pl.k === 'fsec') { const [p1, p2] = pl.pts, t = (i + 0.5) / n; return [p1[0] + (p2[0] - p1[0]) * t, p1[1] + (p2[1] - p1[1]) * t]; }
   let lx = -(k.hdep + k.dep / 2), ly = (k.hy - fm.yc) * dir;
   if (pl.k === 'fech' && n > 1) { const r = pl.lead === 'top' ? i / (n - 1) : (n - 1 - i) / (n - 1); lx += (pl.sk || 0) * (1 - r); }
   if (pl.k === 'fref' && n > 2) {
@@ -12123,7 +12130,8 @@ function fmUpdate(V, b, c, pl, dt, all) {
   if (V.t - pl.t0 > 120 && !pl.done && pl.k !== 'frea') pl.done = true;
   const foeNear = ls.reduce((m, k) => Math.min(m, k.foe && k.foe.role !== 'reserve' ? Math.hypot(k.foe.x - k.x, k.foe.y - k.y) : 1e9), 1e9);
   const stepTo = (T, sp) => { const dx = T[0] - fm.x, dy = T[1] - fm.y, d = Math.hypot(dx, dy); if (d < 6) return true; const s = Math.min(sp * dt, d); fm.x += dx / d * s; fm.y += dy / d * s; return false; };
-  if (pl.k === 'fadv' || pl.k === 'fret' || pl.k === 'fech') {
+  if (pl.k === 'fsec') pl.done = lagMax < 10;
+  else if (pl.k === 'fadv' || pl.k === 'fret' || pl.k === 'fech') {
     if (!pl.done) {
       const T = pl.pts[pl.i] || pl.pts[pl.pts.length - 1]; let sp = vb * fm.coh * (pl.k === 'fret' ? 0.8 : 1); if (pl.k !== 'fret' && foeNear < 125) sp *= 0.25;
       if (stepTo(T, sp)) { pl.i++; if (pl.i >= pl.pts.length) pl.done = true; }
@@ -12157,7 +12165,8 @@ bvPlanStep = function (V, b, blk, dt, all, home) {
     if (moving) { k = lag > 14 ? 1.7 : lag > 6 ? 1.3 : 1.05; mode = pl.k === 'fret' ? 'retreat' : 'advance'; if (pl.k !== 'fret' && pl.k !== 'fenv' && fd < 125) { mode = 'fire'; k = 0.7; } }
     else { mode = fd < 175 ? 'fire' : 'hold'; k = lag > 10 ? 1.4 : 0.5; }
     const out = {mode, tx, ty, k, path: null};
-    if (pl.k === 'fenv' || (pl.k === 'fref' && false)) out.hd = (dir > 0 ? 0 : Math.PI) + fmAngle(pl, dir);
+    if (pl.k === 'fenv') out.hd = (dir > 0 ? 0 : Math.PI) + fmAngle(pl, dir);
+    else if (pl.k === 'fsec') { const [p1, p2] = pl.pts; let a = Math.atan2(p2[0] - p1[0], -(p2[1] - p1[1])); if (Math.cos(a) * dir < 0) a += Math.PI; out.hd = a; }
     return out;
   }
   return _bvPlanStepL(V, b, blk, dt, all, home);
@@ -12231,7 +12240,7 @@ tacSetPlan = function (V, plan) {
   const b = G.battles.find(x => x.id === UI.battle);
   if (V.sel && b) {
     const whole = V.selCorps && V.sel.corps && V.sel.corps.id === V.selCorps, c = V.sel.corps;
-    if (FORM[plan.k] && c) { const fr = fmFriction(V, b, c); bvFormSet(V, b, c, plan.k, plan.pts || [], false, fr.delay, fr.mis); return; }
+    if (FORM[plan.k] && c) { const fr = b.prep ? {delay: 0, mis: false} : fmFriction(V, b, c); bvFormSet(V, b, c, plan.k, plan.pts || [], false, fr.delay, fr.mis); return; }
     if (whole && FORM_MAP[plan.k] && c) { const pts = plan.k === 'flank' ? [plan.pts[plan.pts.length - 1]] : plan.k === 'retreat' ? [plan.pts[0]] : plan.pts; const fr = fmFriction(V, b, c); if (bvFormSet(V, b, c, FORM_MAP[plan.k], pts, false, fr.delay, fr.mis)) return; }
     if (!FORM[plan.k] && c && b.cplan && b.cplan[c.id] && !whole) { /* la orden individual saca al regimiento de la formación */ }
   }
@@ -12390,6 +12399,133 @@ fmAi = function (V, b, all, dt) {
   _fmAiE(V, b, all, dt); if (V.over || b.prep) return; V._sai = (V._sai || 0) + dt; if (V._sai < 9) return; V._sai = 0;
   const ps = playerSide(b); b.sup = b.sup || {};
   ['A', 'B'].forEach(s => { if (s === ps || (b.att === s && Math.random() < 0.7)) return; (V.corps || []).filter(c => c.side === s && c.blks.length >= 4 && !b.sup[c.id]).slice(0, 1).forEach(c => { b.sup[c.id] = true; }); });
+};
+
+/* ===== CAMPO 3: terreno jugable — barrancos, alturas para la artillería, puentes de pontones, sectores y línea general ===== */
+const tacRavX = (tf, y) => tf.ravine.x + Math.sin(y / 70 + tf.ravine.ph) * tf.ravine.amp;
+/* ---- rodear barrancos: ir al paso natural más cercano ---- */
+const _tacWaypointC = tacWaypoint;
+tacWaypoint = function (tf, blk, tx, ty) {
+  if (tf && tf.v2 && tf.ravine) {
+    const x = blk.x, y = blk.y; let hit = null;
+    for (let i = 1; i <= 14; i++) { const px = x + (tx - x) * i / 14, py = y + (ty - y) * i / 14, t = bvTerrAt(tf, px, py, blk.side); if (t.water) { hit = t.ravine ? [px, py] : null; break; } }
+    if (hit) {
+      const r = tf.ravine, sign = x < tacRavX(tf, y) ? 1 : -1; let best = null, bc = 1e9;
+      r.fords.forEach(f => { const c = Math.abs(y - f.y) + Math.abs(f.y - ty) + Math.abs(x - tacRavX(tf, f.y)) * 0.3; if (c < bc) { bc = c; best = f; } });
+      const rx = tacRavX(tf, best.y), ax = rx - sign * (r.w / 2 + 22), bx = rx + sign * (r.w / 2 + 22);
+      if (Math.abs(x - ax) < 30 && Math.abs(y - best.y) < best.w / 2 - 4) return [bx, best.y]; return [ax, best.y];
+    }
+  }
+  return _tacWaypointC(tf, blk, tx, ty);
+};
+/* ---- fondo: el barranco ---- */
+const _bvBuildBgC = bvBuildBg;
+bvBuildBg = function (V, b) {
+  const cv = _bvBuildBgC(V, b), tf = battleTerrain(b); if (!tf.ravine) return cv;
+  const S = cv.width / BV_W, g = cv.getContext('2d'), r = tf.ravine, Hh = BV_H; g.save(); g.setTransform(S, 0, 0, S, 0, 0); g.lineCap = 'round'; g.lineJoin = 'round';
+  const stroke = (w, col) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); for (let y = -12; y <= Hh + 12; y += 6) { const x = tacRavX(tf, y); y === -12 ? g.moveTo(x, y) : g.lineTo(x, y); } g.stroke(); };
+  stroke(r.w + 26, 'rgba(30,24,16,.25)'); stroke(r.w + 14, '#7a7064'); stroke(r.w + 6, '#4d453c'); stroke(r.w, '#15110d'); stroke(r.w * 0.45, '#050403');
+  for (let y = 0; y < Hh; y += 9) { const x = tacRavX(tf, y), h = hash2(Math.round(y), 91, b.prov); [-1, 1].forEach(s => { g.fillStyle = h < 0.5 ? 'rgba(160,150,132,.55)' : 'rgba(40,34,28,.6)'; g.beginPath(); g.ellipse(x + s * (r.w / 2 + 4 + h * 5), y, 3 + h * 3, 2 + h * 2, h * 3, 0, 6.3); g.fill(); }); }
+  r.fords.forEach(f => { const x = tacRavX(tf, f.y); g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(x - r.w / 2 - 12 + 2, f.y - f.w / 2 + 3, r.w + 24, f.w); g.fillStyle = '#7d7466'; g.fillRect(x - r.w / 2 - 12, f.y - f.w / 2, r.w + 24, f.w); g.strokeStyle = '#5a5248'; g.lineWidth = 1; for (let k = -r.w / 2 - 8; k < r.w / 2 + 8; k += 6) { g.beginPath(); g.moveTo(x + k, f.y - f.w / 2); g.lineTo(x + k, f.y + f.w / 2); g.stroke(); } });
+  g.restore(); return cv;
+};
+/* ---- puentes de pontones ---- */
+FORT_KINDS.pontoon = {n: 'Puente de pontones', ic: '🌉', w: 44, h: 38, cost: {wood: 2, mat: 2}, hp: 100, def: 0, need: 0, desc: 'Los ingenieros tienden un puente de barcas sobre el río. Tarda unos segundos en estar listo (menos con ingenieros) y lo pueden usar los dos bandos.'};
+function tacPontoon(b, side, x, y) {
+  const V = R.bviz, tf = battleTerrain(b); if (!tf.river) return {ok: false, msg: 'No hay un río que cruzar en este campo.'};
+  const rx = tacRiverX(tf, y); if (Math.abs(x - rx) > tf.river.w / 2 + 70) return {ok: false, msg: 'Haz clic sobre el río (o cerca) donde quieras tender el puente.'};
+  b.pont = b.pont || []; if (b.pont.filter(p => p.side === side).length >= 2) return {ok: false, msg: 'Solo puedes tender 2 puentes de pontones.'};
+  if (tf.river.fords.some(f => Math.abs(f.y - y) < 46) || b.pont.some(p => Math.abs(p.y - y) < 46)) return {ok: false, msg: 'Ya hay un paso demasiado cerca.'};
+  const K = FORT_KINDS.pontoon, ids = sideIds(b, side); if (!tacCan(ids, K.cost)) return {ok: false, msg: `Faltan reservas: ${fmtCost(K.cost)} por división.`};
+  spendSideRes(ids, K.cost); const eng = ids.map(armyById).filter(Boolean).reduce((n, a) => n + a.divs.filter(d => DIVS[d.t] && DIVS[d.t].fort).length, 0);
+  const p = {id: 'pt' + (b.pont.length + 1) + side, side, y: clamp(y, 70, BV_H - 50), left: 26 / (1 + 0.5 * eng), total: 26 / (1 + 0.5 * eng)}; b.pont.push(p);
+  if (V) bvBanner(V, `🌉 ${G.C[side === 'A' ? b.A0 : b.B0].name} comienza a tender un puente de pontones`, side, '');
+  return {ok: true, f: {id: p.id}};
+}
+const _tacBuildFortC = tacBuildFort;
+tacBuildFort = function (b, side, kind, x, y) { return kind === 'pontoon' ? tacPontoon(b, side, x, y) : _tacBuildFortC(b, side, kind, x, y); };
+function pontStep(V, b, dt) {
+  if (!b.pont || b.prep || V.replay) return; const tf = V.tf || battleTerrain(b);
+  b.pont.forEach(p => {
+    if (p.ready) return; p.left -= dt; if (p.left > 0) return; p.ready = true; if (tf.river) tf.river.fords.push({y: p.y, w: 34, br: true, pont: true, side: p.side});
+    bvBanner(V, `🌉 Puente de pontones listo (${G.C[p.side === 'A' ? b.A0 : b.B0].name})`, p.side, ''); (b.log = b.log || []).push({k: 'flank', d: b.day, t: `${G.C[p.side === 'A' ? b.A0 : b.B0].name} tiende un puente de pontones sobre el río.`}); if (b.log.length > 30) b.log.shift();
+  });
+}
+const _bvFxUnderC = bvFxUnder;
+bvFxUnder = function (g, V, b) {
+  _bvFxUnderC(g, V, b); const tf = V.tf; if (!tf || !tf.river) return;
+  (b.pont || []).forEach(p => {
+    const x = tacRiverX(tf, p.y), w = tf.river.w + 18, k = p.ready ? 1 : 1 - clamp(p.left / p.total, 0, 1);
+    for (let i = 0; i < 6 * k; i++) { const bx = x - w / 2 + (i + 0.5) / 6 * w; g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(bx + 1, p.y + 3, 6, 3.4, 0, 0, 6.3); g.fill(); g.fillStyle = '#6b4a2a'; g.beginPath(); g.ellipse(bx, p.y, 6, 3.4, 0, 0, 6.3); g.fill(); }
+    if (k > 0.2) { g.fillStyle = '#a8825a'; g.fillRect(x - w / 2, p.y - 6, w * k, 12); g.strokeStyle = '#6b4a2a'; g.lineWidth = 0.8; for (let q = 0; q < w * k; q += 5) { g.beginPath(); g.moveTo(x - w / 2 + q, p.y - 6); g.lineTo(x - w / 2 + q, p.y + 6); g.stroke(); } }
+    if (!p.ready) { g.fillStyle = 'rgba(8,12,16,.8)'; g.fillRect(x - 22, p.y - 22, 44, 8); g.fillStyle = '#ffd37a'; g.fillRect(x - 21, p.y - 21, 42 * k, 6); }
+  });
+};
+// panel de obras: botón del puente
+const _tacObrasHtmlC = tacObrasHtml;
+tacObrasHtml = function (b, V) {
+  const ps = playerSide(b), h = _tacObrasHtmlC(b, V), tf = battleTerrain(b); if (!ps || !tf.river) return h;
+  const n = (b.pont || []).filter(p => p.side === ps).length, K = FORT_KINDS.pontoon, ok = tacCan(sideIds(b, ps), K.cost);
+  return (h || '') + `<div class="prep-b"><button data-act="tacfort" data-k="pontoon" class="${V.tool && V.tool.k === 'pontoon' ? 'on' : ''} ${ok ? '' : 'nofunds'}" data-tip="<b>${K.n}</b><br>${K.desc}<br>Coste ${fmtCost(K.cost)} por división. Haz clic sobre el río. (${n}/2)">🌉 Puente de pontones</button></div>`;
+};
+/* ---- alturas: fuego plongeante y vista sobre el arbolado ---- */
+const _tacShellHitC = tacShellHit;
+tacShellHit = function (V, b, p, all) {
+  _tacShellHitC(V, b, p, all);
+  if (p.hi) { const v = all.find(x => x.id === p.vt); if (v && v.mode !== 'rout') { v.d.s = Math.max(0, v.d.s - 0.0025); v.d.o = Math.max(0, v.d.o - DIVS[v.d.t].org * 0.008); } }
+};
+const _tacLosC = tacLos;
+tacLos = function (tf, x1, y1, x2, y2) {
+  if (tf && tf.v2 && tf.hills.some(h => inEll(x1, y1, h)) && !tf.hills.some(h => inEll(x2, y2, h))) {         // observador en una altura: ve por encima de bosques y aldeas
+    const L = Math.hypot(x2 - x1, y2 - y1), n = Math.max(4, Math.round(L / 28));
+    for (let i = 1; i < n; i++) { const t = i / n, x = x1 + (x2 - x1) * t, y = y1 + (y2 - y1) * t; if (tf.cliffs.some(c => inEll(x, y, c) && !inEll(x2, y2, c))) return false; }
+    return true;
+  }
+  return _tacLosC(tf, x1, y1, x2, y2);
+};
+/* ---- sectores de frente y línea general ---- */
+FORM.fsec = {n: 'Sector de frente', ic: '📍', col: '#7fd1ff', hint: 'Haz 2 clics: los extremos del frente que debe cubrir ESTE cuerpo. Sus regimientos se reparten por el sector, lo ocupan y lo defienden.'};
+PLANS.fsec = {n: FORM.fsec.n, ic: FORM.fsec.ic, col: FORM.fsec.col, hint: FORM.fsec.hint, multi: 2};
+PLANS.fgen = {n: 'Línea general', ic: '🧭', col: '#7fd1ff', hint: 'Haz 2 clics: los extremos de la línea general. Todos tus cuerpos se reparten por ella, cada uno con un sector proporcional a su tamaño.', multi: 2};
+FORM_TIP.fsec = 'Reparte el cuerpo por un sector que tú marcas.';
+const _bvFormSetC = bvFormSet;
+bvFormSet = function (V, b, c, kind, pts, quiet, delay, mis) {
+  if (kind === 'fsec' && (!pts || pts.length < 2)) { const q = pts && pts[0] ? pts[0] : [BV_W / 2, BV_H / 2]; pts = [[q[0], clamp(q[1] - 70, 40, BV_H - 40)], [q[0], clamp(q[1] + 70, 40, BV_H - 40)]]; }
+  if (kind === 'fsec' && pts && pts.length >= 2) { pts = pts.slice(0, 2).sort((p, q) => p[1] - q[1]).map(p => [p[0], p[1]]); }
+  const ok = _bvFormSetC(V, b, c, kind, pts, quiet, delay, mis);
+  if (ok && kind === 'fsec' && b.prep) {                  // en la preparación se colocan ya en su sector
+    const ls = fmLs(c), [p1, p2] = pts; ls.forEach((k, i) => { const t = (i + 0.5) / ls.length; let x = p1[0] + (p2[0] - p1[0]) * t, y = p1[1] + (p2[1] - p1[1]) * t; k.d.cust = {abs: true, x, y}; });
+  }
+  return ok;
+};
+function armyLine(V, b, pts) {
+  const ps = playerSide(b), cs = (V.corps || []).filter(c => c.side === ps && fmLs(c).length >= 1).sort((p, q) => p.yc - q.yc); if (!cs.length || !pts || pts.length < 2) return;
+  const [p1, p2] = pts.slice(0, 2).sort((p, q) => p[1] - q[1]), tot = cs.reduce((n, c) => n + fmLs(c).length, 0); let acc = 0;
+  cs.forEach(c => { const n = fmLs(c).length, t0 = acc / tot, t1 = (acc + n) / tot; acc += n; const a = [p1[0] + (p2[0] - p1[0]) * t0, p1[1] + (p2[1] - p1[1]) * t0], e = [p1[0] + (p2[0] - p1[0]) * t1, p1[1] + (p2[1] - p1[1]) * t1], fr = b.prep ? {delay: 0, mis: false} : fmFriction(V, b, c); bvFormSet(V, b, c, 'fsec', [a, e], true, fr.delay, false); });
+  bvBanner(V, '🧭 Línea general: los cuerpos ocupan su sector', ps, '');
+}
+const _tacSetPlanC = tacSetPlan;
+tacSetPlan = function (V, plan) { if (plan.k === 'fgen') { const b = G.battles.find(x => x.id === UI.battle); if (b) armyLine(V, b, plan.pts); return; } _tacSetPlanC(V, plan); };
+ACT.tacgen = () => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !b || b.ended || V.replay) return; if (!V.sel) { const ps = playerSide(b), k = [...V.blocks.values()].find(x => x.side === ps && x.role === 'line'); if (k) V.sel = k; } V.draw = V.draw && V.draw.k === 'fgen' ? null : {k: 'fgen', pts: []}; if (V.draw) toast('🧭', PLANS.fgen.hint); renderBattlePanel(); };
+const _tacStayBtnC = tacStayBtn;
+tacStayBtn = function (V, sel, ac) {
+  let h = _tacStayBtnC(V, sel, ac); const b = R.bvB, ps = b && playerSide(b); if (!b || !ps) return h;
+  return h + `<div class="mform"><button data-act="tacgen" class="${V.draw && V.draw.k === 'fgen' ? 'on' : ''}" data-tip="<b>Línea general</b><br>${PLANS.fgen.hint}"><span>🧭</span>Línea general</button></div>`;
+};
+// el puente y la IA
+const _bvGroundC = bvGround;
+bvGround = function (V, b, all, dt) { _bvGroundC(V, b, all, dt); pontStep(V, b, dt); };
+const _fmAiC = fmAi;
+fmAi = function (V, b, all, dt) {
+  _fmAiC(V, b, all, dt); const tf = V.tf; if (!tf || !tf.river || V.over || b.prep || b.day < 1) return; V._pai = (V._pai || 0) + dt; if (V._pai < 10) return; V._pai = 0;
+  const ps = playerSide(b); ['A', 'B'].forEach(s => { if (s === ps || b.att !== s) return; const mine = (b.pont || []).filter(p => p.side === s).length + tf.river.fords.length; if (mine >= 3 || Math.random() > 0.3) return;
+    const foes = all.filter(k => k.side !== s && k.role === 'line'); if (!foes.length) return; const y = foes.reduce((n, k) => n + k.y, 0) / foes.length + (Math.random() - 0.5) * 160; tacPontoon(b, s, tacRiverX(tf, y), y); });
+};
+// vista previa del sector mientras se dibuja
+const _bvCorpsFlagsC = bvCorpsFlags;
+bvCorpsFlags = function (g, V, b) {
+  _bvCorpsFlagsC(g, V, b); const ps = playerSide(b); if (!ps) return;
+  (V.corps || []).forEach(c => { const pl = b.cplan && b.cplan[c.id]; if (!pl || pl.k !== 'fsec' || c.side !== ps) return; const [p1, p2] = pl.pts; g.strokeStyle = FORM.fsec.col; g.lineWidth = 2; g.setLineDash([9, 5]); g.globalAlpha = (V.selCorps === c.id) ? 0.9 : 0.4; g.beginPath(); g.moveTo(p1[0], p1[1]); g.lineTo(p2[0], p2[1]); g.stroke(); g.setLineDash([]); g.globalAlpha = 1; g.fillStyle = FORM.fsec.col; [p1, p2].forEach(p => { g.beginPath(); g.arc(p[0], p[1], 4, 0, 6.3); g.fill(); }); });
 };
 
 /* ===== PANEL DE INICIO: ambiente cinematográfico =====
@@ -14695,7 +14831,7 @@ const MANUAL = [
 </tbody></table>
 <p>Para las propuestas que debe aceptar la otra parte, pasa el ratón sobre el botón: verás la <b>probabilidad de aceptación</b> y sus motivos (relaciones, enemigo común, regímenes afines, infamia, rivalidades, fuerza relativa). Puedes <b>romper</b> un acuerdo en cualquier momento (−25 de relación y −2 de prestigio).</p>
 <h4>Propuestas de la IA</h4><p>Los países pueden proponerte acuerdos o que ingreses en su bloque. Aparecen en el icono ✉️ y en <b>Diplomacia → Acuerdos</b>, donde puedes aceptarlas o rechazarlas.</p>
-<h4>Realismo de combate</h4><p>El armamento (ánima lisa, fusil rayado, retrocarga, ametralladora) fija alcance y cadencia en la batalla y encarece el <b>ataque frontal</b> contra defensores bien armados; el flanqueo y la preparación artillera lo reducen. La artillería dispara <b>metralla</b> a quemarropa contra los asaltos. La caballería pierde fuerza de choque contra infantería formada con fusil rayado, pero sigue siendo letal contra tropas desordenadas. Los ejércitos que llegan por direcciones distintas obtienen un bono de <b>convergencia</b> (mayor con Estado Mayor). La artillería de acero abre brechas más rápido, los asedios causan enfermedad en el campamento y los focos de resistencia pueden emboscar convoyes e incendiar depósitos del ocupante.</p><h4>La línea de batalla y las maniobras</h4><p>Cada cuerpo es una <b>línea</b>: sus regimientos avanzan alineados, al paso del más lento, y los rezagados aceleran para recuperar su sitio. Una línea con huecos o con un extremo sobrepasado tiene el <b>flanco abierto</b> (marcado en rojo): sufre más bajas y pierde moral. En el panel de órdenes tienes maniobras que actúan sobre el cuerpo entero sin romper la formación: <b>Avanzar en línea</b>, <b>Carga en línea</b> (carga simultánea a ~100 pasos), <b>Envolver</b> (la línea gira como una puerta sobre el extremo opuesto), <b>Escalón</b> (un extremo ataca primero, el resto se incorpora), <b>Refusar flanco</b> (dobla un extremo atrás), <b>Realinear</b> y <b>Retirada ordenada</b>. Las órdenes de atacar, flanquear o retirar dadas al cuerpo entero se ejecutan también así. Si das órdenes distintas a varios cuerpos, cada uno mantiene su propia línea; al terminar, el ejército se reajusta sobre la línea de referencia. La IA también envuelve, escalona y rehúsa flancos.</p><h4>Órdenes de ejército, segunda línea, persecución y fricción</h4><p><b>Órdenes de ejército</b> (botones bajo las maniobras): <i>Envolver por arriba/abajo</i> (un cuerpo envuelve, el centro fija al enemigo y el ala opuesta se rehúsa), <i>Doble envolvimiento</i>, <i>Orden oblicuo</i> (los cuerpos entran de uno en uno), <i>Línea defensiva</i> y <i>Realinear</i>. <b>Segunda línea</b>: los apoyos se sitúan unos 100 pasos detrás y relevan a los regimientos agotados o rotos. <b>Fricción</b>: las órdenes de maniobra tardan en llegar según la distancia al mando (menos con telégrafo y Estado Mayor; más con niebla o lluvia) y a veces se malinterpretan y el cuerpo se desvía. <b>Persecución</b>: al ganar, tu caballería sana persigue a los fugitivos y causa bajas adicionales y captura baterías (menos con barro o niebla, o si el enemigo conserva caballería).</p><h4>Mando en el campo de batalla</h4><p><b>Convergencia:</b> si tus ejércitos llegan al combate desde direcciones distintas, cada uno aparece por el margen norte o sur del campo del lado del que viene y se incorpora a la línea. <b>Comandantes:</b> cada cuerpo tiene un comandante (una bolita con estrella) que recorre sus regimientos, sube su moral y les da valentía (cargan con menos miedo y golpean algo más fuerte) en un radio cercano. Si cae por el fuego o el cuerpo a cuerpo, el cuerpo pierde moral y, con cierta probabilidad, <b>carga despiadado en venganza</b>. <b>Quedarse:</b> el botón 📍 de las órdenes fija los regimientos seleccionados donde están; solo se mueven si el enemigo llega a su alcance (para cargar o rechazarlo) y luego vuelven. Además, la línea defensiva en «Aguardar en los altos» ya no deriva con el avance de la batalla.</p><h4>Relieve real</h4><p>El terreno de cada batalla depende de la <b>topografía real</b> de la provincia (datos de elevación SRTM/GEBCO incrustados en el juego): en llanuras casi no hay colinas y el fuego domina el campo; en terreno ondulado hay lomas; en colinas el relieve decide la batalla; en montaña hay muchas colinas, acantilados y rocas, el defensor gana +3% y el atacante pierde 3%, y por encima de unos 2.300 m no hay arbolado y hay nieve. La altitud y el desnivel de la provincia se muestran en la lista de terreno de la batalla.</p><h4>Clima y terreno en batalla</h4><p>Cada batalla tiene tiempo atmosférico (despejado, lluvia, niebla, nevada, viento) según la estación y el bioma. La lluvia y la nieve frenan la marcha y reducen la cadencia de fuego; la niebla acorta el alcance. Bosques, colinas y acantilados <b>bloquean la línea de visión</b>: sin ella no se dispara (la artillería de tiro rápido puede hacer fuego indirecto). Las colinas dan +20% de alcance, los vados atascan al atacante, el terreno abierto es mortal frente a fusiles modernos y los pueblos bombardeados acaban ardiendo. El suelo guarda huellas del paso de las tropas y manchas de sangre.</p><h4>Infamia</h4><p>Cada guerra de agresión genera infamia (más con la conquista). Mientras es alta, todos los países te toleran peor. Se reduce lentamente con el tiempo.</p>`},
+<h4>Realismo de combate</h4><p>El armamento (ánima lisa, fusil rayado, retrocarga, ametralladora) fija alcance y cadencia en la batalla y encarece el <b>ataque frontal</b> contra defensores bien armados; el flanqueo y la preparación artillera lo reducen. La artillería dispara <b>metralla</b> a quemarropa contra los asaltos. La caballería pierde fuerza de choque contra infantería formada con fusil rayado, pero sigue siendo letal contra tropas desordenadas. Los ejércitos que llegan por direcciones distintas obtienen un bono de <b>convergencia</b> (mayor con Estado Mayor). La artillería de acero abre brechas más rápido, los asedios causan enfermedad en el campamento y los focos de resistencia pueden emboscar convoyes e incendiar depósitos del ocupante.</p><h4>La línea de batalla y las maniobras</h4><p>Cada cuerpo es una <b>línea</b>: sus regimientos avanzan alineados, al paso del más lento, y los rezagados aceleran para recuperar su sitio. Una línea con huecos o con un extremo sobrepasado tiene el <b>flanco abierto</b> (marcado en rojo): sufre más bajas y pierde moral. En el panel de órdenes tienes maniobras que actúan sobre el cuerpo entero sin romper la formación: <b>Avanzar en línea</b>, <b>Carga en línea</b> (carga simultánea a ~100 pasos), <b>Envolver</b> (la línea gira como una puerta sobre el extremo opuesto), <b>Escalón</b> (un extremo ataca primero, el resto se incorpora), <b>Refusar flanco</b> (dobla un extremo atrás), <b>Realinear</b> y <b>Retirada ordenada</b>. Las órdenes de atacar, flanquear o retirar dadas al cuerpo entero se ejecutan también así. Si das órdenes distintas a varios cuerpos, cada uno mantiene su propia línea; al terminar, el ejército se reajusta sobre la línea de referencia. La IA también envuelve, escalona y rehúsa flancos.</p><h4>Órdenes de ejército, segunda línea, persecución y fricción</h4><p><b>Órdenes de ejército</b> (botones bajo las maniobras): <i>Envolver por arriba/abajo</i> (un cuerpo envuelve, el centro fija al enemigo y el ala opuesta se rehúsa), <i>Doble envolvimiento</i>, <i>Orden oblicuo</i> (los cuerpos entran de uno en uno), <i>Línea defensiva</i> y <i>Realinear</i>. <b>Segunda línea</b>: los apoyos se sitúan unos 100 pasos detrás y relevan a los regimientos agotados o rotos. <b>Fricción</b>: las órdenes de maniobra tardan en llegar según la distancia al mando (menos con telégrafo y Estado Mayor; más con niebla o lluvia) y a veces se malinterpretan y el cuerpo se desvía. <b>Persecución</b>: al ganar, tu caballería sana persigue a los fugitivos y causa bajas adicionales y captura baterías (menos con barro o niebla, o si el enemigo conserva caballería).</p><h4>Mando en el campo de batalla</h4><p><b>Convergencia:</b> si tus ejércitos llegan al combate desde direcciones distintas, cada uno aparece por el margen norte o sur del campo del lado del que viene y se incorpora a la línea. <b>Comandantes:</b> cada cuerpo tiene un comandante (una bolita con estrella) que recorre sus regimientos, sube su moral y les da valentía (cargan con menos miedo y golpean algo más fuerte) en un radio cercano. Si cae por el fuego o el cuerpo a cuerpo, el cuerpo pierde moral y, con cierta probabilidad, <b>carga despiadado en venganza</b>. <b>Quedarse:</b> el botón 📍 de las órdenes fija los regimientos seleccionados donde están; solo se mueven si el enemigo llega a su alcance (para cargar o rechazarlo) y luego vuelven. Además, la línea defensiva en «Aguardar en los altos» ya no deriva con el avance de la batalla.</p><h4>Terreno jugable: barrancos, alturas, pontones y sectores</h4><p>Cada provincia tiene su <b>propio campo de batalla</b> (siempre el mismo), generado con su relieve real. <b>Barrancos</b>: infranqueables, solo se cruzan por unos pasos naturales (los regimientos los buscan solos); la artillería puede batir el otro lado. <b>Alturas</b>: ya no dan defensa por sí mismas; su valor es poner <b>baterías</b> arriba (alcance +30%, fuego plongeante más dañino, vista sobre bosques y aldeas) y negar la línea de visión por detrás de la cresta. <b>Puentes de pontones</b>: en cualquier río, pulsa 🌉 en Obras y haz clic sobre el río; cuesta recursos, tarda en estar listo (menos con ingenieros) y lo usan los dos bandos (máx. 2 por bando). <b>Despliegue libre</b>: en la preparación coloca los regimientos donde quieras de tu mitad (no en agua). <b>Sector de frente</b> 📍: marca dos puntos y el cuerpo seleccionado se reparte por ese frente, lo ocupa y lo defiende. <b>Línea general</b> 🧭: marca dos puntos y todos los cuerpos se reparten por ella en sectores proporcionales a su tamaño.</p><h4>Relieve real</h4><p>El terreno de cada batalla depende de la <b>topografía real</b> de la provincia (datos de elevación SRTM/GEBCO incrustados en el juego): en llanuras casi no hay colinas y el fuego domina el campo; en terreno ondulado hay lomas; en colinas el relieve decide la batalla; en montaña hay muchas colinas, acantilados y rocas, el defensor gana +3% y el atacante pierde 3%, y por encima de unos 2.300 m no hay arbolado y hay nieve. La altitud y el desnivel de la provincia se muestran en la lista de terreno de la batalla.</p><h4>Clima y terreno en batalla</h4><p>Cada batalla tiene tiempo atmosférico (despejado, lluvia, niebla, nevada, viento) según la estación y el bioma. La lluvia y la nieve frenan la marcha y reducen la cadencia de fuego; la niebla acorta el alcance. Bosques, colinas y acantilados <b>bloquean la línea de visión</b>: sin ella no se dispara (la artillería de tiro rápido puede hacer fuego indirecto). Las colinas dan +20% de alcance, los vados atascan al atacante, el terreno abierto es mortal frente a fusiles modernos y los pueblos bombardeados acaban ardiendo. El suelo guarda huellas del paso de las tropas y manchas de sangre.</p><h4>Infamia</h4><p>Cada guerra de agresión genera infamia (más con la conquista). Mientras es alta, todos los países te toleran peor. Se reduce lentamente con el tiempo.</p>`},
 
 {id: 'blocs', title: '14. Bloques', html: `
 <p>Los bloques agrupan a varios países bajo un líder. Para fundarlo necesitas <b>30 de prestigio y 60 de influencia</b>; el máximo de miembros es 3 + 1 por cada 40 de prestigio del líder. Un vasallo no puede liderar un bloque.</p>

@@ -16,7 +16,7 @@ function tacRiverX(tf, y) { return tf.river.x + Math.sin(y / 90 + tf.river.ph) *
 const inEll = (x, y, e) => { const c = Math.cos(e.rot || 0), s = Math.sin(e.rot || 0), dx = x - e.x, dy = y - e.y, u = (dx * c + dy * s) / e.rx, v = (-dx * s + dy * c) / e.ry; return u * u + v * v < 1; };
 function battleTerrain(b) {
   if (b.tf && b.tf.v2) return b.tf;
-  const pv = MAP.provs[b.prov], bio = pv.biome, H = k => hash2(b.id * 31 + 7, b.prov, k), W = BV_W, Hh = BV_H, defSide = b.att === 'A' ? 'B' : 'A', dd = defSide === 'A' ? -1 : 1, P = T2[bio] || T2[1];
+  const pv = MAP.provs[b.prov], bio = pv.biome, H = k => hash2(4217, b.prov, k), W = BV_W, Hh = BV_H, defSide = b.att === 'A' ? 'B' : 'A', dd = defSide === 'A' ? -1 : 1, P = T2[bio] || T2[1];
   const cnt = (r, k) => r ? r[0] + Math.floor(H(k) * (r[1] - r[0] + 1)) : 0, pos = (k, mx) => [mx + H(k) * (W - 2 * mx), 70 + H(k + 500) * (Hh - 130)];
   const tf = {v2: 1, bio, hill: null, hills: [], river: null, stream: null, forests: [], orchards: [], villages: [], lakes: [], marsh: [], rocks: [], cliffs: [], dunes: [], snow: [], walls: [], roads: [], fields: [], blocks: [], pond: null, hill2: null};
   // colinas y lomas (según el relieve real de la provincia)
@@ -26,6 +26,8 @@ function battleTerrain(b) {
   if (tf.hills.length) { const h0 = tf.hills[0]; h0.x = W / 2 + dd * (150 + H(3) * 220); h0.side = defSide; tf.hill = h0; tf.hills.forEach((h, i) => { if (i) h.side = h.x > W / 2 ? 'B' : 'A'; }); tf.hill2 = tf.hills[1] || null; }
   // río principal con vados y puentes; arroyo secundario
   if (H(60) < P.river) { const r = {x: W / 2 + (H(61) - 0.5) * 520, amp: 40 + H(62) * 70, ph: H(63) * 6.28, w: 30, fords: []}, nf = 2 + (H(64) < 0.5 ? 1 : 0); for (let i = 0; i < nf; i++) r.fords.push({y: 110 + (i + 0.2 + H(65 + i) * 0.6) * ((Hh - 220) / nf), w: 84, br: i % 2 === 0}); tf.river = r; }
+  { const pr = {montaña: 0.7, colinas: 0.4, ondulado: 0.15, llanura: 0.03}[provElev(b.prov).cls] || 0.1;     // barrancos: infranqueables salvo por pasos
+    if (H(800) < pr) { let rx = W / 2 + (H(801) - 0.5) * 640; if (tf.river && Math.abs(rx - tf.river.x) < 150) rx += (rx > tf.river.x ? 1 : -1) * 190; const np = 1 + (H(804) < 0.5 ? 1 : 0), passes = []; for (let i = 0; i < np; i++) passes.push({y: 120 + (i + 0.3 + H(805 + i) * 0.5) / np * (Hh - 240), w: 36, nat: true}); tf.ravine = {x: clamp(rx, 220, W - 220), amp: 18 + H(802) * 32, ph: H(803) * 6.28, w: 26, fords: passes}; } }
   if (H(70) < 0.45) tf.stream = {x: W / 2 + (H(71) - 0.5) * 900, amp: 30 + H(72) * 50, ph: H(73) * 6.28, w: 10};
   // lagos, pantanos, rocas, acantilados, dunas, nieve
   const lk = P.lakes >= 1 ? Math.floor(P.lakes) : (H(80) < P.lakes ? 1 : 0); for (let i = 0; i < lk; i++) { const [x, y] = pos(81 + i, 220); tf.lakes.push({x, y, rx: 50 + H(90 + i) * 70, ry: 32 + H(95 + i) * 40, rot: (H(99 + i) - 0.5)}); }
@@ -58,6 +60,7 @@ function bvTerrAt(tf, x, y, side) {
   const o = {slow: 1, cover: false, water: false, hill: false, marsh: false, village: false, forest: false, cliff: false, road: false, steep: false};
   if (!tf || !tf.v2) return o;
   if (tf.river) { const rx = tacRiverX(tf, y); if (Math.abs(x - rx) < tf.river.w / 2 + 3 && !tf.river.fords.some(f => Math.abs(y - f.y) < f.w / 2)) { o.water = true; o.slow = 0.35; } }
+  if (tf.ravine) { const rv = tf.ravine, rvx = rv.x + Math.sin(y / 70 + rv.ph) * rv.amp; if (Math.abs(x - rvx) < rv.w / 2 + 2 && !rv.fords.some(f => Math.abs(y - f.y) < f.w / 2)) { o.water = true; o.ravine = true; o.slow = 0.3; } }
   if (tf.stream) { const sx = tf.stream.x + Math.sin(y / 70 + tf.stream.ph) * tf.stream.amp; if (Math.abs(x - sx) < tf.stream.w / 2 + 2) o.slow = Math.min(o.slow, 0.6); }
   for (let i = 0; i < tf.lakes.length; i++) if (inEll(x, y, tf.lakes[i])) { o.water = true; o.slow = 0.3; }
   for (let i = 0; i < tf.cliffs.length; i++) if (inEll(x, y, tf.cliffs[i])) { o.water = true; o.cliff = true; o.slow = 0.3; }
@@ -134,7 +137,7 @@ function bvBuildBg(V, b) {
 /* ---------- efectos y descripción ---------- */
 function terrMods(b, side) {
   const tf = battleTerrain(b), isAtt = b.att === side, st = (side === 'A' ? b.strA : b.strB) || 'frontal'; let att = 0, def = 0;
-  if (tf.hill) { if (tf.hill.side === side) def += 0.1 + (st === 'hold' ? 0.05 : 0); else att -= 0.12; }
+  /* las alturas ya no dan defensa plana: su valor es la artillería (alcance y fuego plongeante), la visión y las pendientes que frenan */
   if (tf.river && isAtt && b.day <= 3) att -= 0.07 * (st === 'flank' ? 0.4 : 1);
   if (tf.forests.length >= 6) { if (!isAtt) def += 0.03; if (st === 'charge') att -= 0.05; }
   if (tf.villages.length >= 3 && !isAtt) def += 0.03; if (tf.rocks.length >= 2 && !isAtt) def += 0.02; if (tf.cliffs.length && !isAtt) def += 0.02; if (tf.marsh.length && isAtt && b.day <= 3) att -= 0.02;
@@ -143,7 +146,9 @@ function terrMods(b, side) {
 function terrainInfo(b) {
   const tf = battleTerrain(b), nm = s => G.C[s === 'A' ? b.A0 : b.B0].name, out = [], n = (a) => a.length;
   if (tf.elev) out.push(['🗺️', `Relieve real: ${tf.elev.name} · ${tf.elev.h} m`, `Datos topográficos reales de la región (desnivel típico ±${tf.elev.rough} m). ${tf.elev.cls === 'montaña' ? 'Terreno de montaña: el defensor gana +3% y el atacante pierde 3%; a más de 2.300 m no hay arbolado.' : tf.elev.cls === 'colinas' ? 'Muchas colinas: el terreno elevado decide la batalla.' : tf.elev.cls === 'llanura' ? 'Llanura abierta: casi sin colinas, el fuego domina el campo.' : 'Terreno ondulado con alguna loma.'}`]);
-  if (tf.hill) out.push(['⛰️', `Colinas (${n(tf.hills)})`, `La principal es de ${nm(tf.hill.side)}: +10% defensa (+5% con «Aguardar en los altos»). Subir una cuesta ralentiza mucho (−45% de velocidad) y resta 12% de ataque.`]);
+  if (tf.hill) out.push(['⛰️', `Alturas (${n(tf.hills)})`, `La principal es de ${nm(tf.hill.side)}. NO dan defensa por sí mismas: su valor es colocar BATERÍAS arriba (alcance +30%, fuego plongeante más dañino y vista sobre bosques y aldeas). Subir una cuesta frena mucho (−45% de velocidad) y detrás de una altura no hay línea de visión.`]);
+  if (tf.ravine) out.push(['🕳️', 'Barranco', 'Infranqueable: solo se cruza por los pasos naturales (pocos) y por un puente de pontones si hay río. La artillería puede batir el otro lado.']);
+  if (tf.river) out.push(['🌉', 'Puentes de pontones', 'Los ingenieros pueden tender un puente de pontones en cualquier punto del río (cuesta recursos y tarda en estar listo).']);
   if (tf.river) out.push(['🌊', 'Río con vados y puentes', 'Solo se cruza por vados y puentes (los regimientos buscan el más cercano). El atacante sufre −7% de ataque los 3 primeros días.']);
   if (tf.stream) out.push(['〰️', 'Arroyo', 'Se cruza por cualquier punto pero frena (−40% de velocidad).']);
   if (n(tf.lakes)) out.push(['💧', `Lagos (${n(tf.lakes)})`, 'Infranqueables: hay que rodearlos.']);

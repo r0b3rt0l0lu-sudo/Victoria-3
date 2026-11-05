@@ -115,3 +115,7 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 
 ## Relieve real
 - `tools/elevacion.py` (teselas Terrarium de AWS) genera `src/elev_data.js` (malla 512x205: altitud x25 m, rugosidad x10 m); `src/relieve.js`: `elevAt`, `provElev`. `battleTerrain` escala colinas/acantilados/nieve/bosques segun el relieve; `terrMods` da bonos en montaña.
+
+## Terreno jugable (src/campo3.js)
+- Terreno por provincia (semilla = provincia), barrancos (`tf.ravine`, pasos), alturas sin defensa plana (artilleria +alcance, `p.hi`), puentes de pontones (`b.pont`, `tacPontoon`), sectores `fsec` y `armyLine` (linea general).
+- Arreglo: los wrappers de `bvBuildBg` usan `setTransform` (el original dejaba la escala aplicada).

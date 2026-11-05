@@ -254,7 +254,7 @@ function tacDrawForts(g, V, b) {
   });
 }
 function tacDrawPrepZone(g, V, b) {
-  if (!b.prep) return; const ps = playerSide(b); if (!ps) return; const lo = ps === 'A' ? 50 : BV_W / 2 + 30, hi = ps === 'A' ? BV_W / 2 - 30 : BV_W - 50;
+  if (!b.prep) return; const ps = playerSide(b); if (!ps) return; const lo = ps === 'A' ? 40 : BV_W / 2 + 8, hi = ps === 'A' ? BV_W / 2 - 8 : BV_W - 40;
   g.fillStyle = 'rgba(255,230,140,.07)'; g.fillRect(lo, 48, hi - lo, BV_H - 76); g.strokeStyle = 'rgba(255,230,140,.5)'; g.setLineDash([8, 6]); g.lineWidth = 1.4; g.strokeRect(lo, 48, hi - lo, BV_H - 76); g.setLineDash([]);
   if (V.tool && V.mouse) { const [wx, wy] = bvToWorld(V, V.mouse.x, V.mouse.y), K = FORT_KINDS[V.tool.k], ok = tacZoneOk(b, ps, wx, wy), pw = V.tool.k === 'trench' && V.rot ? K.h : K.w, ph = V.tool.k === 'trench' && V.rot ? K.w : K.h; g.globalAlpha = 0.6; g.fillStyle = ok ? '#8fd16a' : '#e8644f'; g.fillRect(wx - pw / 2, wy - ph / 2, pw, ph); g.globalAlpha = 1; g.strokeStyle = '#fff'; g.strokeRect(wx - pw / 2, wy - ph / 2, pw, ph); }
 }
@@ -302,6 +302,7 @@ function tacTerrAtExtra(tf, x, y, side, o) {
 /* ---------- ratón: arrastrar bloques, construir y dibujar planes ---------- */
 function tacMouseDown(V, b, e, p) {
   if (V.replay || b.ended) return false; const ps = playerSide(b); if (!ps) return false; const [wx, wy] = bvToWorld(V, p.x, p.y);
+  if (!b.prep && V.tool && V.tool.k === 'pontoon') { const r = tacBuildFort(b, ps, 'pontoon', wx, wy); if (!r.ok) toast('⚠️', r.msg); else V.tool = null; renderBattlePanel(); return true; }
   if (b.prep) {
     if (V.tool) { const r = tacBuildFort(b, ps, V.tool.k, wx, wy); if (!r.ok) toast('⚠️', r.msg); else { V.selFort = r.f.id; V.tool = null; } renderBattlePanel(); return true; }
     if (V.garr) { const f0 = tacFortAt(b, wx, wy); if (f0 && f0.side === ps) { if (!V.sel || V.sel.side !== ps) toast('⚠️', 'Primero selecciona uno de tus bloques.'); else { const r = tacGarrison(b, f0, V.sel); if (!r.ok) toast('⚠️', r.msg); else toast('🏰', `${V.sel.a.name} guarnece ${FORT_KINDS[f0.kind].n.toLowerCase()}.`); } renderBattlePanel(); return true; } }
@@ -311,12 +312,12 @@ function tacMouseDown(V, b, e, p) {
   }
   return false;
 }
-function tacMouseMove(V, b, p) { const k = V.dragBlk; if (!k || !b.prep) return false; const ps = playerSide(b), dir = ps === 'A' ? 1 : -1, [wx, wy] = bvToWorld(V, p.x, p.y), L = tacLineBase(b, ps); const lo = ps === 'A' ? 50 : BV_W / 2 + 30, hi = ps === 'A' ? BV_W / 2 - 30 : BV_W - 50; const x = clamp(wx, lo, hi), y = clamp(wy, 48, BV_H - 28);
+function tacMouseMove(V, b, p) { const k = V.dragBlk; if (!k || !b.prep) return false; const ps = playerSide(b), dir = ps === 'A' ? 1 : -1, [wx, wy] = bvToWorld(V, p.x, p.y), L = tacLineBase(b, ps); const lo = ps === 'A' ? 40 : BV_W / 2 + 8, hi = ps === 'A' ? BV_W / 2 - 8 : BV_W - 40; const x = clamp(wx, lo, hi), y = clamp(wy, 48, BV_H - 28); if (bvTerrAt(battleTerrain(b), x, y, ps).water) return true;
   const old = k.d.cust && k.d.cust.fort; k.d.cust = {dep: dir * (L - x) - k.dep / 2, y}; V.dragPos = [x, y]; if (old) { const f = (b.forts || []).find(q => q.id === old); if (f) tacLayoutFort(b, f); } return true; }
 function tacMouseUp(V) { if (V.dragBlk) { const k = V.dragBlk, b = G.battles.find(x => x.id === UI.battle); V.dragBlk = null; if (b && V.dragPos) { const f = tacFortAt(b, V.dragPos[0], V.dragPos[1]); if (f && f.side === k.side) { const r = tacGarrison(b, f, k); if (!r.ok) toast('⚠️', r.msg); } } renderBattlePanel(); return true; } return false; }
 /* ---------- acciones del panel ---------- */
 Object.assign(ACT, {
-  tacfort: d => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !b || !b.prep) return; V.tool = V.tool && V.tool.k === d.k ? null : {k: d.k}; V.draw = null; renderBattlePanel(); },
+  tacfort: d => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !b || (!b.prep && d.k !== 'pontoon')) return; V.tool = V.tool && V.tool.k === d.k ? null : {k: d.k}; V.draw = null; renderBattlePanel(); },
   tacgun: () => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !b || !b.prep) return; const f = (b.forts || []).find(x => x.id === V.selFort); if (!f) { toast('⚠️', 'Selecciona primero una obra (clic sobre ella).'); return; } const r = tacAddGun(b, f); if (!r.ok) toast('⚠️', r.msg); renderBattlePanel(); },
   tacgar: () => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !b || !b.prep) return; V.garr = !V.garr; V.tool = null; V.draw = null; if (V.garr) toast('🏰', 'Selecciona un bloque tuyo y haz clic en un fuerte para guarnecerlo.'); renderBattlePanel(); },
   tacdel: () => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !b || !b.prep) return; const f = (b.forts || []).find(x => x.id === V.selFort); if (!f) { toast('⚠️', 'Selecciona primero una obra.'); return; } const r = tacDelFort(b, f); if (!r.ok) toast('⚠️', r.msg); V.selFort = null; renderBattlePanel(); },
@@ -361,7 +362,7 @@ window.addEventListener('keydown', e => { if (e.key === 'Shift') window._tacShif
 window.addEventListener('keyup', e => { if (e.key === 'Shift') window._tacShift = false; });
 
 /* ---------- artillería: alcance real, elección de objetivo y contrabatería ---------- */
-function tacArtRange(V, b, blk) { return 300 + (G.date.y >= 1860 ? 60 : 0) + (G.date.y >= 1900 ? 100 : 0) + (blk.terr && blk.terr.hill ? 40 : 0); }
+function tacArtRange(V, b, blk) { return 300 + (G.date.y >= 1860 ? 60 : 0) + (G.date.y >= 1900 ? 100 : 0) + (blk.terr && blk.terr.hill ? 95 : 0); }
 function tacArtFire(V, b, blk, dt, all) {
   const alive = blk.figs.filter(f => f.alive && !f.flee), guns = alive.filter(f => f.kind === 'gun'), crew = alive.filter(f => f.kind === 'crew');
   const was = blk.sil; blk.sil = !guns.length || crew.length < 2; if (blk.sil) { if (!was && blk.figs.length) { /* silenciada */ } return; }
@@ -378,7 +379,7 @@ function tacArtFire(V, b, blk, dt, all) {
   blk.cd = (heavy ? rnd(0.9, 1.5) : rnd(3, 5)) * (ctr ? 0.65 : 1); blk.tgt = tgt;
   if (tgt.type !== 'art' && dist(tgt) < 130 && typeof tacCanister === 'function') { blk.cd = rnd(1.4, 2.4); blk.fireAt = performance.now(); tacCanister(V, b, blk, tgt, guns[Math.floor(Math.random() * guns.length)]); return; }
   const gn = guns[Math.floor(Math.random() * guns.length)], fg = pickFoeFig(tgt), tx = (fg ? fg.x : tgt.x) + rnd(-14, 14), ty = (fg ? fg.y : tgt.y) + rnd(-14, 14);
-  bvPart(V, {k: 'shell', x: gn.x, y: gn.y, x2: tx, y2: ty, life: 0.55 + dist(tgt) / 520, s: blk.side, vt: tgt.id, ctr, stag: blk.tag}); gn.recoil = 1; blk.fireAt = performance.now(); bvPart(V, {k: 'flash', x: gn.x + Math.cos(blk.hd) * 12, y: gn.y + Math.sin(blk.hd) * 12, life: 0.14, big: 1}); if (typeof SFX !== 'undefined') SFX.cannon(0.8);
+  bvPart(V, {k: 'shell', x: gn.x, y: gn.y, x2: tx, y2: ty, life: 0.55 + dist(tgt) / 520, s: blk.side, vt: tgt.id, ctr, stag: blk.tag, hi: !!(blk.terr && blk.terr.hill && !(tgt.terr && tgt.terr.hill))}); gn.recoil = 1; blk.fireAt = performance.now(); bvPart(V, {k: 'flash', x: gn.x + Math.cos(blk.hd) * 12, y: gn.y + Math.sin(blk.hd) * 12, life: 0.14, big: 1}); if (typeof SFX !== 'undefined') SFX.cannon(0.8);
   for (let n = 0; n < 3; n++) bvPart(V, {k: 'smoke', x: gn.x + Math.cos(blk.hd) * 12, y: gn.y + Math.sin(blk.hd) * 12, life: 2.2, r: 5, vx: dir * 8 + V.wind * 0.5 + rnd(-4, 4)});
 }
 // impacto de un proyectil sobre un bloque: daño real y, contra artillería, bajas de piezas y servidores

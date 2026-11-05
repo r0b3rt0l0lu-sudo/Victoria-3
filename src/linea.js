@@ -26,6 +26,7 @@ function fmAngle(pl, dir) { return (pl.sweep === 'top' ? 1 : -1) * dir * (pl.psi
 // posición del slot i de la formación según la guía y la maniobra
 function fmSlot(c, fm, pl, ls, i) {
   const dir = c.side === 'A' ? 1 : -1, th0 = dir > 0 ? 0 : Math.PI, k = ls[i], n = ls.length;
+  if (pl.k === 'fsec') { const [p1, p2] = pl.pts, t = (i + 0.5) / n; return [p1[0] + (p2[0] - p1[0]) * t, p1[1] + (p2[1] - p1[1]) * t]; }
   let lx = -(k.hdep + k.dep / 2), ly = (k.hy - fm.yc) * dir;
   if (pl.k === 'fech' && n > 1) { const r = pl.lead === 'top' ? i / (n - 1) : (n - 1 - i) / (n - 1); lx += (pl.sk || 0) * (1 - r); }
   if (pl.k === 'fref' && n > 2) {
@@ -81,7 +82,8 @@ function fmUpdate(V, b, c, pl, dt, all) {
   if (V.t - pl.t0 > 120 && !pl.done && pl.k !== 'frea') pl.done = true;
   const foeNear = ls.reduce((m, k) => Math.min(m, k.foe && k.foe.role !== 'reserve' ? Math.hypot(k.foe.x - k.x, k.foe.y - k.y) : 1e9), 1e9);
   const stepTo = (T, sp) => { const dx = T[0] - fm.x, dy = T[1] - fm.y, d = Math.hypot(dx, dy); if (d < 6) return true; const s = Math.min(sp * dt, d); fm.x += dx / d * s; fm.y += dy / d * s; return false; };
-  if (pl.k === 'fadv' || pl.k === 'fret' || pl.k === 'fech') {
+  if (pl.k === 'fsec') pl.done = lagMax < 10;
+  else if (pl.k === 'fadv' || pl.k === 'fret' || pl.k === 'fech') {
     if (!pl.done) {
       const T = pl.pts[pl.i] || pl.pts[pl.pts.length - 1]; let sp = vb * fm.coh * (pl.k === 'fret' ? 0.8 : 1); if (pl.k !== 'fret' && foeNear < 125) sp *= 0.25;
       if (stepTo(T, sp)) { pl.i++; if (pl.i >= pl.pts.length) pl.done = true; }
@@ -115,7 +117,8 @@ bvPlanStep = function (V, b, blk, dt, all, home) {
     if (moving) { k = lag > 14 ? 1.7 : lag > 6 ? 1.3 : 1.05; mode = pl.k === 'fret' ? 'retreat' : 'advance'; if (pl.k !== 'fret' && pl.k !== 'fenv' && fd < 125) { mode = 'fire'; k = 0.7; } }
     else { mode = fd < 175 ? 'fire' : 'hold'; k = lag > 10 ? 1.4 : 0.5; }
     const out = {mode, tx, ty, k, path: null};
-    if (pl.k === 'fenv' || (pl.k === 'fref' && false)) out.hd = (dir > 0 ? 0 : Math.PI) + fmAngle(pl, dir);
+    if (pl.k === 'fenv') out.hd = (dir > 0 ? 0 : Math.PI) + fmAngle(pl, dir);
+    else if (pl.k === 'fsec') { const [p1, p2] = pl.pts; let a = Math.atan2(p2[0] - p1[0], -(p2[1] - p1[1])); if (Math.cos(a) * dir < 0) a += Math.PI; out.hd = a; }
     return out;
   }
   return _bvPlanStepL(V, b, blk, dt, all, home);
@@ -189,7 +192,7 @@ tacSetPlan = function (V, plan) {
   const b = G.battles.find(x => x.id === UI.battle);
   if (V.sel && b) {
     const whole = V.selCorps && V.sel.corps && V.sel.corps.id === V.selCorps, c = V.sel.corps;
-    if (FORM[plan.k] && c) { const fr = fmFriction(V, b, c); bvFormSet(V, b, c, plan.k, plan.pts || [], false, fr.delay, fr.mis); return; }
+    if (FORM[plan.k] && c) { const fr = b.prep ? {delay: 0, mis: false} : fmFriction(V, b, c); bvFormSet(V, b, c, plan.k, plan.pts || [], false, fr.delay, fr.mis); return; }
     if (whole && FORM_MAP[plan.k] && c) { const pts = plan.k === 'flank' ? [plan.pts[plan.pts.length - 1]] : plan.k === 'retreat' ? [plan.pts[0]] : plan.pts; const fr = fmFriction(V, b, c); if (bvFormSet(V, b, c, FORM_MAP[plan.k], pts, false, fr.delay, fr.mis)) return; }
     if (!FORM[plan.k] && c && b.cplan && b.cplan[c.id] && !whole) { /* la orden individual saca al regimiento de la formación */ }
   }

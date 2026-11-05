@@ -127,7 +127,7 @@ const _bvBuildBgR = bvBuildBg;
 bvBuildBg = function (V, b) {
   const cv = _bvBuildBgR(V, b), S = cv.width / BV_W, g = cv.getContext('2d'), tf = battleTerrain(b), wx = battleWeather(b), bc = (typeof BIO_COL !== 'undefined' && BIO_COL[tf.bio]) || [118, 150, 74];
   const H = (i, k) => hash2(i, V.seed, 700 + k);
-  g.save(); g.scale(S, S);
+  g.save(); g.setTransform(S, 0, 0, S, 0, 0);
   // textura de hierba: tallos cortos de dos tonos
   const grass = tf.bio === 3 ? 0 : tf.bio === 8 ? 0.4 : 1;
   for (let i = 0; i < 3400 * grass; i++) { const x = H(i, 1) * BV_W, y = H(i, 2) * BV_H, l = 2 + H(i, 3) * 3.5, m = H(i, 4) < 0.5 ? 0.82 : 1.2; g.strokeStyle = `rgba(${Math.min(255, bc[0] * m) | 0},${Math.min(255, bc[1] * m) | 0},${Math.min(255, bc[2] * m) | 0},.38)`; g.lineWidth = 0.7; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (H(i, 5) - 0.5) * 2, y - l); g.stroke(); }

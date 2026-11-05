@@ -197,7 +197,10 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
   blk.path = path;
   // ---- movimiento (el terreno frena: vado, bosque, cuesta) ----
   if (blk.enter) { if ((blk.edge ? Math.hypot(blk.x - home.x, blk.y - home.y) : Math.abs(blk.x - home.x)) > 90) { spd *= 2.8; if (mode === 'hold' || mode === 'reserve' || mode === 'artfire') { mode = 'advance'; tx = home.x; ty = home.y; } } else blk.enter = false; }       // los refuerzos entran por el margen
-  if (blk.corps && blk.corps.nl > 1 && blk.role === 'line' && (mode === 'advance' || mode === 'fire')) { const lead = (blk.x - blk.corps.cx) * dir; if (lead > 10) spd *= 0.35; else if (lead < -10) spd *= 1.35; }       // avance en línea
+  if (blk.corps && blk.corps.nl > 1 && blk.role === 'line' && !blk.d.plan && !(b.cplan && b.cplan[blk.corps.id])) {       // la línea avanza unida: nadie se adelanta ni se rezaga
+    const chg = mode === 'charge' && dist > 95 && blk.type === 'inf';
+    if (mode === 'advance' || mode === 'fire' || chg) { const ref = V.sideCx && V.sideCx[side] !== undefined ? V.sideCx[side] : blk.corps.cx, lead = (blk.x - ref) * dir, th = chg ? 6 : 10; if (lead > th) spd *= chg ? 0.22 : 0.35; else if (lead < -th) spd *= chg ? 1.4 : 1.35; }
+  }       // avance en línea
   blk.terr = bvTerrAt(V.tf, blk.x, blk.y, side); if (b.forts && typeof tacFortAt === 'function' && tacFortAt(b, blk.x, blk.y)) blk.terr.cover = true; spd *= blk.terr.slow;
   if (blk.terr.water && (blk.sp || 0) > 5 && Math.random() < dt * 14) bvPart(V, {k: 'splash', x: blk.x + rnd(-blk.dep / 2, blk.dep / 2), y: blk.y + rnd(-blk.wid / 2, blk.wid / 2), life: 0.6});
   if (typeof tacWaypoint === 'function') { const wp = tacWaypoint(V.tf, blk, tx, ty); if (wp) { tx = wp[0]; ty = wp[1]; } }
@@ -214,6 +217,7 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
   else if (blk.foe && dist < 220 && blk.role !== 'reserve') wantH = Math.atan2(blk.foe.y - blk.y, blk.foe.x - blk.x);
   else if (mode === 'retreat' && blk.role !== 'line') wantH = dir > 0 ? 0 : Math.PI;
   else if (mode === 'retreat' || mode === 'recoil') wantH = dir > 0 ? 0 : Math.PI;      // se repliegan de cara al enemigo
+  if (pp && pp.hd !== undefined && mode !== 'melee' && mode !== 'charge') wantH = pp.hd;
   blk.hd += clamp(bvAng(blk.hd, wantH), -2.2 * dt, 2.2 * dt);
   // el bloque atacado por un flanco se vuelve hacia el agresor
   if (mode === 'melee' && blk.foe && blk.foe.fs === 2 && blk.foe.foe === blk) blk.hd += clamp(bvAng(blk.hd, Math.atan2(blk.foe.y - blk.y, blk.foe.x - blk.x)), -1.4 * dt, 1.4 * dt);

@@ -106,3 +106,6 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 
 ## Mando en el campo (src/mando.js)
 - `bvEdgeFor`: entrada por flanco segun `a.from`; comandantes de cuerpo (`bvCmdStep`, `bvCmdKill`, venganza con `blk.venge`); `ACT.tacstay` (mantener posicion, `d.stay`); version abstracta de la muerte del comandante en `battleDay` sin visor.
+
+## Linea y maniobras (src/linea.js, ESTUDIO_LINEA.md)
+- Guia por cuerpo + slots (`fmSlot`, `fmUpdate`), ordenes `FORM` (fadv, fchg, fenv, fech, fref, frea, fret) en `b.cplan`; `fmIntegrity` (huecos/flancos abiertos -> `b.coh` en `sideStats`), IA `fmAi`, regla de linea unida por bando (`V.sideCx`).

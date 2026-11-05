@@ -59,7 +59,7 @@ function bvSync(V, b) {
   V.corps = corps;
   corps.forEach(c => {
     c.blks = []; c.ablks = [];
-    const mk = r => { if (r.s <= 0.02 || r.out) return null; seen.add(r); let blk = V.blocks.get(r); if (!blk) { blk = bvMakeBlock(V, {d: r, a: c.a}, c.side); blk.enter = V.t > 1 && !b.prep && b.day > 0; V.blocks.set(r, blk); } blk.a = c.a; blk.corps = c; return blk; };
+    const mk = r => { if (r.s <= 0.02 || r.out) return null; seen.add(r); let blk = V.blocks.get(r); if (!blk) { blk = bvMakeBlock(V, {d: r, a: c.a}, c.side); blk.enter = V.t > 1 && !b.prep && b.day > 0; blk.edge = typeof bvEdgeFor === 'function' ? bvEdgeFor(b, c.a) : null; if (blk.edge) { blk.enter = true; bvEdgeNotice(V, b, c.a, blk); } V.blocks.set(r, blk); } blk.a = c.a; blk.corps = c; return blk; };
     c.regs.forEach(r => { const k = mk(r); if (k) c.blks.push(k); }); c.arts.forEach(r => { const k = mk(r); if (k) c.ablks.push(k); });
   });
   ['A', 'B'].forEach(side => {
@@ -85,7 +85,7 @@ function bvSync(V, b) {
 /* ---------- estrategia y línea por cuerpo ---------- */
 function bvStratC(V, b, blk) { const c = blk.corps, k = c && b.cstr && b.cstr[c.id]; return k || bvStrat(b, blk.side); }
 function bvLineSt(V, b, side, st) {
-  const x0 = BV_W / 2 + V.adv * 200, att = b.att === side, dir = side === 'A' ? 1 : -1, frac = clamp((performance.now() - V.dayT) / Math.max(400, dayMs()), 0, 1), dday = b.day - 1 + frac; let gap = 34;
+  const x0 = BV_W / 2 + V.adv * 200 * (st === 'hold' && b.att !== side ? 0.25 : 1), att = b.att === side, dir = side === 'A' ? 1 : -1, frac = clamp((performance.now() - V.dayT) / Math.max(400, dayMs()), 0, 1), dday = b.day - 1 + frac; let gap = 34;
   if (b.prep) return x0 - dir * (36 * BV_K + ((V.shift && V.shift[side]) || 0));
   if (st === 'frontal') gap = att ? 24 + 11 * Math.sin(V.t * 1.2) : 36; else if (st === 'hold') gap = att ? 52 : 74; else if (st === 'skirmish') gap = 62 + 8 * Math.sin(V.t * 1.4);
   else if (st === 'charge') gap = clamp(60 - dday * 20, 12, 60); else if (st === 'barrage') gap = b.day <= 3 ? 88 : 36; else if (st === 'flank') gap = 42;
@@ -237,7 +237,7 @@ function tacMandoHtml(b, V, sel) {
   const who = ac && V.selCorps ? `${corpsName(ac)} entero (${ac.blks.length} regimientos)` : sel ? `${DIVS[sel.d.t].icon} ${BV_KIND[sel.type]} de ${sel.corps ? corpsName(sel.corps) : sel.a.name}` : 'Nada seleccionado';
   const mm = sel && sel.mm !== undefined ? ` · moral ${Math.round(sel.mm * 100)}%` : '';
   h += `<div class="msel"><div class="msel-h"><b>${who}</b>${sel && !V.selCorps ? `<small>fuerza ${Math.round(sel.d.s * 100)}% · org. ${Math.round(sel.d.o / DIVS[sel.d.t].org * 100)}%${mm}</small>` : ''}${sel && sel.corps && !V.selCorps ? `<button class="mini" data-act="corpssel" data-c="${sel.corps.id}" data-tip="Que las órdenes las sigan todos los regimientos del cuerpo, en línea.">👥 Todo el cuerpo</button>` : ''}</div>
-  <div class="mord">${MANDO_ORD.map(([k, ic, nm]) => `<button data-act="tacplan" data-k="${k}" class="${V.draw && V.draw.k === k ? 'on' : ''}" ${sel ? '' : 'disabled'} data-tip="<b>${PLANS[k].n}</b><br>${PLANS[k].hint}"><span>${ic}</span>${nm}</button>`).join('')}${V.draw && V.draw.pts.length ? '<button data-act="tacplan" data-k="fix" class="fix"><span>✔</span>Fijar</button>' : ''}${sel && sel.d.plan ? '<button data-act="tacplan" data-k="clear"><span>✖</span>Cancelar orden</button>' : ''}</div>${sel && sel.type === 'art' ? '<div class="mord"><button data-act="tacctr" data-tip="Apunta a la batería enemiga más cercana."><span>🔇</span>Contrabatería</button></div>' : ''}</div>`;
+  <div class="mord">${MANDO_ORD.map(([k, ic, nm]) => `<button data-act="tacplan" data-k="${k}" class="${V.draw && V.draw.k === k ? 'on' : ''}" ${sel ? '' : 'disabled'} data-tip="<b>${PLANS[k].n}</b><br>${PLANS[k].hint}"><span>${ic}</span>${nm}</button>`).join('')}${typeof tacStayBtn === 'function' ? tacStayBtn(V, sel, ac) : ''}${V.draw && V.draw.pts.length ? '<button data-act="tacplan" data-k="fix" class="fix"><span>✔</span>Fijar</button>' : ''}${sel && sel.d.plan ? '<button data-act="tacplan" data-k="clear"><span>✖</span>Cancelar orden</button>' : ''}</div>${sel && sel.type === 'art' ? '<div class="mord"><button data-act="tacctr" data-tip="Apunta a la batería enemiga más cercana."><span>🔇</span>Contrabatería</button></div>' : ''}</div>`;
   // 3) secciones plegables
   const cs = (V.corps || []).filter(c => c.side === ps), icons = {'': '🤖', frontal: '⚔️', flank: '↪️', hold: '⛰️', barrage: '💣', skirmish: '🏹', charge: '🔥'};
   const corpsBody = cs.map(c => { const cur = (b.cstr || {})[c.id] || '', open = act === c.id, res = c.regs.filter(r => r.out).length;
@@ -269,7 +269,7 @@ const _tacreg0 = ACT.tacreg; ACT.tacreg = function (d) { const V = R.bviz, c = V
 function bvWantsAssault(V, b, blk, st, att, foe, dt) {
   if (!foe || blk.type === 'art' || foe.role === 'reserve' || foe.garr || blk.garr) return false; blk.fireT = (blk.fireT || 0) + dt;
   if (blk.fireDur === undefined) blk.fireDur = (att ? 6 : 11) + Math.random() * 8; if (st === 'skirmish' || (st === 'hold' && !att)) return false;
-  const orgF = blk.d.o / DIVS[blk.d.t].org, mm = blk.mm === undefined ? 0.8 : blk.mm; if (orgF < 0.32 || mm < 0.3 || blk.brk > 0) return false;
+  const orgF = blk.d.o / DIVS[blk.d.t].org, mm = blk.mm === undefined ? 0.8 : blk.mm; if (orgF < 0.32 || mm < (blk.cmdN !== undefined && V.t - blk.cmdN < 0.6 ? 0.18 : 0.3) || blk.brk > 0) return false;
   if (st === 'charge') return blk.fireT > 1.5; return blk.fireT > blk.fireDur * (blk.type === 'cav' ? 0.45 : 1);
 }
 // el combate cuerpo a cuerpo hace daño real a ambos bandos (más por flanco y espalda, menos si el enemigo tiene cobertura)
@@ -278,8 +278,8 @@ function tacMelee(V, b, all, step) {
     if (blk.mode !== 'melee' && blk.mode !== 'charge') return; const f = blk.foe; if (!f || f.mode === 'rout' || f.side === blk.side) return;
     const near = Math.abs(f.x - blk.x) < (blk.dep + f.dep) / 2 + 12 && Math.abs(f.y - blk.y) < (blk.wid + f.wid) / 2 + 6; if (!near) return;
     let ty; const ang = Math.abs(bvAng(f.hd, Math.atan2(blk.y - f.y, blk.x - f.x))), mult = ang > 1.9 ? 1.8 : ang > 1.1 ? 1.35 : 1, cov = (f.terr && f.terr.cover) || f.garr ? 0.75 : 1, wl = typeof bvWeap === 'function' ? bvWeap(f) : 0;
-    ty = blk.type === 'cav' ? 1.4 : 1;
-    if (blk.type === 'cav' && f.type === 'inf' && wl > 0 && ang < 1.1 && (f.mm === undefined ? 0.8 : f.mm) > 0.4 && f.d.o / DIVS[f.d.t].org > 0.35) { ty = 1.4 / (1 + 0.45 * wl); blk.d.s = Math.max(0, blk.d.s - 0.004 * step * wl); blk.d.o = Math.max(0, blk.d.o - DIVS[blk.d.t].org * 0.006 * step * wl); }
+    ty = (blk.type === 'cav' ? 1.4 : 1) * (blk.venge > V.t ? 1.35 : 1) * (blk.cmdN !== undefined && V.t - blk.cmdN < 0.6 ? 1.08 : 1);
+    if (blk.type === 'cav' && f.type === 'inf' && wl > 0 && ang < 1.1 && (f.mm === undefined ? 0.8 : f.mm) > 0.4 && f.d.o / DIVS[f.d.t].org > 0.35) { ty = ty / (1 + 0.45 * wl); blk.d.s = Math.max(0, blk.d.s - 0.004 * step * wl); blk.d.o = Math.max(0, blk.d.o - DIVS[blk.d.t].org * 0.006 * step * wl); }
     const dmg = 0.012 * step * mult * cov * ty * (0.6 + 0.8 * clamp(blk.d.o / DIVS[blk.d.t].org, 0, 1)) * ((blk.mm === undefined ? 0.8 : blk.mm) + 0.4) / 1.2;
     f.d.s = Math.max(0, f.d.s - dmg); f.d.o = Math.max(0, f.d.o - DIVS[f.d.t].org * dmg * 1.4); f.flanked = ang > 1.1 ? V.t : f.flanked;
     for (let i = 0; i < 2; i++) bvPart(V, {k: 'spark', x: (blk.x + f.x) / 2 + rnd(-8, 8), y: (blk.y + f.y) / 2 + rnd(-8, 8), life: 0.35, hot: 1}); if (typeof SFX !== 'undefined' && Math.random() < 0.3) SFX.volley(0.6);

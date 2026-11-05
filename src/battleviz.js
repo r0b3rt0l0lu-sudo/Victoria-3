@@ -138,7 +138,7 @@ function bvFoe(blk, all) {
 }
 function bvOrder(blk) { const o = blk.d.ord; return o && G.date.t <= o.until && ORDERS[o.k] ? o : null; }
 function bvStepBlock(V, b, blk, dt, lines, all) {
-  const od = bvOrder(blk), side = blk.side, dir = side === 'A' ? 1 : -1, opp = side === 'A' ? 'B' : 'A', st = od && od.k === 'charge' ? 'charge' : od && od.k === 'hold' ? 'hold' : bvStratC(V, b, blk), att = b.att === side, L = bvLineFor(V, b, blk, lines), LE = lines[opp];
+  const od = bvOrder(blk), side = blk.side, dir = side === 'A' ? 1 : -1, opp = side === 'A' ? 'B' : 'A', st = blk.venge > V.t ? 'charge' : od && od.k === 'charge' ? 'charge' : od && od.k === 'hold' ? 'hold' : bvStratC(V, b, blk), att = b.att === side, L = bvLineFor(V, b, blk, lines), LE = lines[opp];
   const skey = st + '|' + blk.role; if (blk.skey !== skey) { blk.skey = skey; blk.fs = 0; blk.path = null; }
   blk.defLine = !!(blk.d.plan && blk.d.plan.k === 'defend');
   const compT = ((st === 'hold' && !att) || (od && od.k === 'hold') || blk.defLine) && blk.role === 'line' ? 0.8 : 1; blk.comp += (compT - blk.comp) * Math.min(1, dt * 1.5); bvDims(blk);
@@ -189,10 +189,14 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
     else if (engaged && blk.asl && mode !== 'retreat' && mode !== 'recoil') { mode = 'melee'; tx = blk.x; ty = blk.y; }
     else if (engaged && foe && foe.foe === blk && (foe.mode === 'melee' || foe.mode === 'charge' || foe.mode === 'gallop') && mode !== 'retreat' && mode !== 'recoil') { mode = 'melee'; tx = blk.x; ty = blk.y; }      // quien recibe la carga responde cuerpo a cuerpo
   }
+  if (blk.d.stay && blk.role === 'line' && !V.over && !b.prep && !(blk.venge > V.t) && mode !== 'retreat' && mode !== 'rout') {       // «mantener posición»: solo se mueve ante una necesidad ofensiva
+    const s0 = blk.d.stay, near = foe && foe.role !== 'reserve' && dist < 110;
+    if (!near) { if (['advance', 'charge', 'flank', 'gallop', 'skirmish', 'fixing', 'melee', 'recoil'].includes(mode) || mode === 'hold' || mode === 'fire') { mode = foe && dist < 170 ? 'fire' : 'hold'; tx = s0.x; ty = s0.y; path = null; spd = F.spd * 1.2; } }
+  }
   if (mode !== 'charge' && mode !== 'melee') blk.asl = false; if (mode !== 'fire') blk.fireT = 0;
   blk.path = path;
   // ---- movimiento (el terreno frena: vado, bosque, cuesta) ----
-  if (blk.enter) { if (Math.abs(blk.x - home.x) > 90) { spd *= 2.8; if (mode === 'hold' || mode === 'reserve' || mode === 'artfire') { mode = 'advance'; tx = home.x; ty = home.y; } } else blk.enter = false; }       // los refuerzos entran por el margen
+  if (blk.enter) { if ((blk.edge ? Math.hypot(blk.x - home.x, blk.y - home.y) : Math.abs(blk.x - home.x)) > 90) { spd *= 2.8; if (mode === 'hold' || mode === 'reserve' || mode === 'artfire') { mode = 'advance'; tx = home.x; ty = home.y; } } else blk.enter = false; }       // los refuerzos entran por el margen
   if (blk.corps && blk.corps.nl > 1 && blk.role === 'line' && (mode === 'advance' || mode === 'fire')) { const lead = (blk.x - blk.corps.cx) * dir; if (lead > 10) spd *= 0.35; else if (lead < -10) spd *= 1.35; }       // avance en línea
   blk.terr = bvTerrAt(V.tf, blk.x, blk.y, side); if (b.forts && typeof tacFortAt === 'function' && tacFortAt(b, blk.x, blk.y)) blk.terr.cover = true; spd *= blk.terr.slow;
   if (blk.terr.water && (blk.sp || 0) > 5 && Math.random() < dt * 14) bvPart(V, {k: 'splash', x: blk.x + rnd(-blk.dep / 2, blk.dep / 2), y: blk.y + rnd(-blk.wid / 2, blk.wid / 2), life: 0.6});
@@ -200,7 +204,7 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
   const wasW = blk.terr && blk.terr.water;
   const dx = tx - blk.x, dy = ty - blk.y, d = Math.hypot(dx, dy) || 1, want = Math.min(spd, d * 2.4);
   blk.vx += (dx / d * want - blk.vx) * Math.min(1, dt * 2.6); blk.vy += (dy / d * want - blk.vy) * Math.min(1, dt * 2.6);
-  if (!blk.init) { blk.init = true; const off = b.day > 1 ? 0 : 260; if (blk.enter) { blk.x = dir > 0 ? 6 : BV_W - 6; blk.y = home.y + rnd(-8, 8); } else { blk.x = home.x - dir * off + rnd(-8, 8); blk.y = home.y + rnd(-10, 10); } blk.figs.forEach(f => { const s = bvSlot(blk, f); f.x = s[0] + rnd(-3, 3); f.y = s[1] + rnd(-3, 3); }); }
+  if (!blk.init) { blk.init = true; const off = b.day > 1 ? 0 : 260; if (blk.enter) { if (blk.edge) { blk.x = clamp(home.x - dir * 20 + rnd(-40, 40), 20, BV_W - 20); blk.y = blk.edge === 'top' ? 36 : BV_H - 24; } else { blk.x = dir > 0 ? 6 : BV_W - 6; blk.y = home.y + rnd(-8, 8); } } else { blk.x = home.x - dir * off + rnd(-8, 8); blk.y = home.y + rnd(-10, 10); } blk.figs.forEach(f => { const s = bvSlot(blk, f); f.x = s[0] + rnd(-3, 3); f.y = s[1] + rnd(-3, 3); }); }
   blk.x += blk.vx * dt; blk.y += blk.vy * dt; blk.y = clamp(blk.y, 30, BV_H - 22);
   if (!wasW && V.tf && bvTerrAt(V.tf, blk.x, blk.y, side).water) { blk.x -= blk.vx * dt; blk.y -= blk.vy * dt; blk.vx *= 0.15; blk.vy *= 0.15; }       // no se cruza el agua fuera de los vados
   const sp = Math.hypot(blk.vx, blk.vy); blk.sp = sp;

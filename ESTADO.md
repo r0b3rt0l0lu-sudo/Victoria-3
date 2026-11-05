@@ -103,3 +103,6 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 ## Campo de batalla 2
 - `src/campo2.js`: `battleWeather`, `wxMods`, `terrMods` ampliado, `tacLos` (linea de vision), huellas/manchas/aldeas ardiendo, capa de clima en `bvPost`, fondo con hierba, orillas, relieve iluminado y estaciones. Arnes de pruebas: ver scratchpad `stress.js` (24 batallas aleatorias sin errores).
 - Corregido: `ty` era `const` en `tacMelee` y rompia el melee de caballeria en eras con fusil rayado.
+
+## Mando en el campo (src/mando.js)
+- `bvEdgeFor`: entrada por flanco segun `a.from`; comandantes de cuerpo (`bvCmdStep`, `bvCmdKill`, venganza con `blk.venge`); `ACT.tacstay` (mantener posicion, `d.stay`); version abstracta de la muerte del comandante en `battleDay` sin visor.

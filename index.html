@@ -7661,7 +7661,7 @@ function bvFoe(blk, all) {
 }
 function bvOrder(blk) { const o = blk.d.ord; return o && G.date.t <= o.until && ORDERS[o.k] ? o : null; }
 function bvStepBlock(V, b, blk, dt, lines, all) {
-  const od = bvOrder(blk), side = blk.side, dir = side === 'A' ? 1 : -1, opp = side === 'A' ? 'B' : 'A', st = od && od.k === 'charge' ? 'charge' : od && od.k === 'hold' ? 'hold' : bvStratC(V, b, blk), att = b.att === side, L = bvLineFor(V, b, blk, lines), LE = lines[opp];
+  const od = bvOrder(blk), side = blk.side, dir = side === 'A' ? 1 : -1, opp = side === 'A' ? 'B' : 'A', st = blk.venge > V.t ? 'charge' : od && od.k === 'charge' ? 'charge' : od && od.k === 'hold' ? 'hold' : bvStratC(V, b, blk), att = b.att === side, L = bvLineFor(V, b, blk, lines), LE = lines[opp];
   const skey = st + '|' + blk.role; if (blk.skey !== skey) { blk.skey = skey; blk.fs = 0; blk.path = null; }
   blk.defLine = !!(blk.d.plan && blk.d.plan.k === 'defend');
   const compT = ((st === 'hold' && !att) || (od && od.k === 'hold') || blk.defLine) && blk.role === 'line' ? 0.8 : 1; blk.comp += (compT - blk.comp) * Math.min(1, dt * 1.5); bvDims(blk);
@@ -7712,10 +7712,14 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
     else if (engaged && blk.asl && mode !== 'retreat' && mode !== 'recoil') { mode = 'melee'; tx = blk.x; ty = blk.y; }
     else if (engaged && foe && foe.foe === blk && (foe.mode === 'melee' || foe.mode === 'charge' || foe.mode === 'gallop') && mode !== 'retreat' && mode !== 'recoil') { mode = 'melee'; tx = blk.x; ty = blk.y; }      // quien recibe la carga responde cuerpo a cuerpo
   }
+  if (blk.d.stay && blk.role === 'line' && !V.over && !b.prep && !(blk.venge > V.t) && mode !== 'retreat' && mode !== 'rout') {       // «mantener posición»: solo se mueve ante una necesidad ofensiva
+    const s0 = blk.d.stay, near = foe && foe.role !== 'reserve' && dist < 110;
+    if (!near) { if (['advance', 'charge', 'flank', 'gallop', 'skirmish', 'fixing', 'melee', 'recoil'].includes(mode) || mode === 'hold' || mode === 'fire') { mode = foe && dist < 170 ? 'fire' : 'hold'; tx = s0.x; ty = s0.y; path = null; spd = F.spd * 1.2; } }
+  }
   if (mode !== 'charge' && mode !== 'melee') blk.asl = false; if (mode !== 'fire') blk.fireT = 0;
   blk.path = path;
   // ---- movimiento (el terreno frena: vado, bosque, cuesta) ----
-  if (blk.enter) { if (Math.abs(blk.x - home.x) > 90) { spd *= 2.8; if (mode === 'hold' || mode === 'reserve' || mode === 'artfire') { mode = 'advance'; tx = home.x; ty = home.y; } } else blk.enter = false; }       // los refuerzos entran por el margen
+  if (blk.enter) { if ((blk.edge ? Math.hypot(blk.x - home.x, blk.y - home.y) : Math.abs(blk.x - home.x)) > 90) { spd *= 2.8; if (mode === 'hold' || mode === 'reserve' || mode === 'artfire') { mode = 'advance'; tx = home.x; ty = home.y; } } else blk.enter = false; }       // los refuerzos entran por el margen
   if (blk.corps && blk.corps.nl > 1 && blk.role === 'line' && (mode === 'advance' || mode === 'fire')) { const lead = (blk.x - blk.corps.cx) * dir; if (lead > 10) spd *= 0.35; else if (lead < -10) spd *= 1.35; }       // avance en línea
   blk.terr = bvTerrAt(V.tf, blk.x, blk.y, side); if (b.forts && typeof tacFortAt === 'function' && tacFortAt(b, blk.x, blk.y)) blk.terr.cover = true; spd *= blk.terr.slow;
   if (blk.terr.water && (blk.sp || 0) > 5 && Math.random() < dt * 14) bvPart(V, {k: 'splash', x: blk.x + rnd(-blk.dep / 2, blk.dep / 2), y: blk.y + rnd(-blk.wid / 2, blk.wid / 2), life: 0.6});
@@ -7723,7 +7727,7 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
   const wasW = blk.terr && blk.terr.water;
   const dx = tx - blk.x, dy = ty - blk.y, d = Math.hypot(dx, dy) || 1, want = Math.min(spd, d * 2.4);
   blk.vx += (dx / d * want - blk.vx) * Math.min(1, dt * 2.6); blk.vy += (dy / d * want - blk.vy) * Math.min(1, dt * 2.6);
-  if (!blk.init) { blk.init = true; const off = b.day > 1 ? 0 : 260; if (blk.enter) { blk.x = dir > 0 ? 6 : BV_W - 6; blk.y = home.y + rnd(-8, 8); } else { blk.x = home.x - dir * off + rnd(-8, 8); blk.y = home.y + rnd(-10, 10); } blk.figs.forEach(f => { const s = bvSlot(blk, f); f.x = s[0] + rnd(-3, 3); f.y = s[1] + rnd(-3, 3); }); }
+  if (!blk.init) { blk.init = true; const off = b.day > 1 ? 0 : 260; if (blk.enter) { if (blk.edge) { blk.x = clamp(home.x - dir * 20 + rnd(-40, 40), 20, BV_W - 20); blk.y = blk.edge === 'top' ? 36 : BV_H - 24; } else { blk.x = dir > 0 ? 6 : BV_W - 6; blk.y = home.y + rnd(-8, 8); } } else { blk.x = home.x - dir * off + rnd(-8, 8); blk.y = home.y + rnd(-10, 10); } blk.figs.forEach(f => { const s = bvSlot(blk, f); f.x = s[0] + rnd(-3, 3); f.y = s[1] + rnd(-3, 3); }); }
   blk.x += blk.vx * dt; blk.y += blk.vy * dt; blk.y = clamp(blk.y, 30, BV_H - 22);
   if (!wasW && V.tf && bvTerrAt(V.tf, blk.x, blk.y, side).water) { blk.x -= blk.vx * dt; blk.y -= blk.vy * dt; blk.vx *= 0.15; blk.vy *= 0.15; }       // no se cruza el agua fuera de los vados
   const sp = Math.hypot(blk.vx, blk.vy); blk.sp = sp;
@@ -11256,7 +11260,7 @@ function bvSync(V, b) {
   V.corps = corps;
   corps.forEach(c => {
     c.blks = []; c.ablks = [];
-    const mk = r => { if (r.s <= 0.02 || r.out) return null; seen.add(r); let blk = V.blocks.get(r); if (!blk) { blk = bvMakeBlock(V, {d: r, a: c.a}, c.side); blk.enter = V.t > 1 && !b.prep && b.day > 0; V.blocks.set(r, blk); } blk.a = c.a; blk.corps = c; return blk; };
+    const mk = r => { if (r.s <= 0.02 || r.out) return null; seen.add(r); let blk = V.blocks.get(r); if (!blk) { blk = bvMakeBlock(V, {d: r, a: c.a}, c.side); blk.enter = V.t > 1 && !b.prep && b.day > 0; blk.edge = typeof bvEdgeFor === 'function' ? bvEdgeFor(b, c.a) : null; if (blk.edge) { blk.enter = true; bvEdgeNotice(V, b, c.a, blk); } V.blocks.set(r, blk); } blk.a = c.a; blk.corps = c; return blk; };
     c.regs.forEach(r => { const k = mk(r); if (k) c.blks.push(k); }); c.arts.forEach(r => { const k = mk(r); if (k) c.ablks.push(k); });
   });
   ['A', 'B'].forEach(side => {
@@ -11282,7 +11286,7 @@ function bvSync(V, b) {
 /* ---------- estrategia y línea por cuerpo ---------- */
 function bvStratC(V, b, blk) { const c = blk.corps, k = c && b.cstr && b.cstr[c.id]; return k || bvStrat(b, blk.side); }
 function bvLineSt(V, b, side, st) {
-  const x0 = BV_W / 2 + V.adv * 200, att = b.att === side, dir = side === 'A' ? 1 : -1, frac = clamp((performance.now() - V.dayT) / Math.max(400, dayMs()), 0, 1), dday = b.day - 1 + frac; let gap = 34;
+  const x0 = BV_W / 2 + V.adv * 200 * (st === 'hold' && b.att !== side ? 0.25 : 1), att = b.att === side, dir = side === 'A' ? 1 : -1, frac = clamp((performance.now() - V.dayT) / Math.max(400, dayMs()), 0, 1), dday = b.day - 1 + frac; let gap = 34;
   if (b.prep) return x0 - dir * (36 * BV_K + ((V.shift && V.shift[side]) || 0));
   if (st === 'frontal') gap = att ? 24 + 11 * Math.sin(V.t * 1.2) : 36; else if (st === 'hold') gap = att ? 52 : 74; else if (st === 'skirmish') gap = 62 + 8 * Math.sin(V.t * 1.4);
   else if (st === 'charge') gap = clamp(60 - dday * 20, 12, 60); else if (st === 'barrage') gap = b.day <= 3 ? 88 : 36; else if (st === 'flank') gap = 42;
@@ -11434,7 +11438,7 @@ function tacMandoHtml(b, V, sel) {
   const who = ac && V.selCorps ? `${corpsName(ac)} entero (${ac.blks.length} regimientos)` : sel ? `${DIVS[sel.d.t].icon} ${BV_KIND[sel.type]} de ${sel.corps ? corpsName(sel.corps) : sel.a.name}` : 'Nada seleccionado';
   const mm = sel && sel.mm !== undefined ? ` · moral ${Math.round(sel.mm * 100)}%` : '';
   h += `<div class="msel"><div class="msel-h"><b>${who}</b>${sel && !V.selCorps ? `<small>fuerza ${Math.round(sel.d.s * 100)}% · org. ${Math.round(sel.d.o / DIVS[sel.d.t].org * 100)}%${mm}</small>` : ''}${sel && sel.corps && !V.selCorps ? `<button class="mini" data-act="corpssel" data-c="${sel.corps.id}" data-tip="Que las órdenes las sigan todos los regimientos del cuerpo, en línea.">👥 Todo el cuerpo</button>` : ''}</div>
-  <div class="mord">${MANDO_ORD.map(([k, ic, nm]) => `<button data-act="tacplan" data-k="${k}" class="${V.draw && V.draw.k === k ? 'on' : ''}" ${sel ? '' : 'disabled'} data-tip="<b>${PLANS[k].n}</b><br>${PLANS[k].hint}"><span>${ic}</span>${nm}</button>`).join('')}${V.draw && V.draw.pts.length ? '<button data-act="tacplan" data-k="fix" class="fix"><span>✔</span>Fijar</button>' : ''}${sel && sel.d.plan ? '<button data-act="tacplan" data-k="clear"><span>✖</span>Cancelar orden</button>' : ''}</div>${sel && sel.type === 'art' ? '<div class="mord"><button data-act="tacctr" data-tip="Apunta a la batería enemiga más cercana."><span>🔇</span>Contrabatería</button></div>' : ''}</div>`;
+  <div class="mord">${MANDO_ORD.map(([k, ic, nm]) => `<button data-act="tacplan" data-k="${k}" class="${V.draw && V.draw.k === k ? 'on' : ''}" ${sel ? '' : 'disabled'} data-tip="<b>${PLANS[k].n}</b><br>${PLANS[k].hint}"><span>${ic}</span>${nm}</button>`).join('')}${typeof tacStayBtn === 'function' ? tacStayBtn(V, sel, ac) : ''}${V.draw && V.draw.pts.length ? '<button data-act="tacplan" data-k="fix" class="fix"><span>✔</span>Fijar</button>' : ''}${sel && sel.d.plan ? '<button data-act="tacplan" data-k="clear"><span>✖</span>Cancelar orden</button>' : ''}</div>${sel && sel.type === 'art' ? '<div class="mord"><button data-act="tacctr" data-tip="Apunta a la batería enemiga más cercana."><span>🔇</span>Contrabatería</button></div>' : ''}</div>`;
   // 3) secciones plegables
   const cs = (V.corps || []).filter(c => c.side === ps), icons = {'': '🤖', frontal: '⚔️', flank: '↪️', hold: '⛰️', barrage: '💣', skirmish: '🏹', charge: '🔥'};
   const corpsBody = cs.map(c => { const cur = (b.cstr || {})[c.id] || '', open = act === c.id, res = c.regs.filter(r => r.out).length;
@@ -11466,7 +11470,7 @@ const _tacreg0 = ACT.tacreg; ACT.tacreg = function (d) { const V = R.bviz, c = V
 function bvWantsAssault(V, b, blk, st, att, foe, dt) {
   if (!foe || blk.type === 'art' || foe.role === 'reserve' || foe.garr || blk.garr) return false; blk.fireT = (blk.fireT || 0) + dt;
   if (blk.fireDur === undefined) blk.fireDur = (att ? 6 : 11) + Math.random() * 8; if (st === 'skirmish' || (st === 'hold' && !att)) return false;
-  const orgF = blk.d.o / DIVS[blk.d.t].org, mm = blk.mm === undefined ? 0.8 : blk.mm; if (orgF < 0.32 || mm < 0.3 || blk.brk > 0) return false;
+  const orgF = blk.d.o / DIVS[blk.d.t].org, mm = blk.mm === undefined ? 0.8 : blk.mm; if (orgF < 0.32 || mm < (blk.cmdN !== undefined && V.t - blk.cmdN < 0.6 ? 0.18 : 0.3) || blk.brk > 0) return false;
   if (st === 'charge') return blk.fireT > 1.5; return blk.fireT > blk.fireDur * (blk.type === 'cav' ? 0.45 : 1);
 }
 // el combate cuerpo a cuerpo hace daño real a ambos bandos (más por flanco y espalda, menos si el enemigo tiene cobertura)
@@ -11475,8 +11479,8 @@ function tacMelee(V, b, all, step) {
     if (blk.mode !== 'melee' && blk.mode !== 'charge') return; const f = blk.foe; if (!f || f.mode === 'rout' || f.side === blk.side) return;
     const near = Math.abs(f.x - blk.x) < (blk.dep + f.dep) / 2 + 12 && Math.abs(f.y - blk.y) < (blk.wid + f.wid) / 2 + 6; if (!near) return;
     let ty; const ang = Math.abs(bvAng(f.hd, Math.atan2(blk.y - f.y, blk.x - f.x))), mult = ang > 1.9 ? 1.8 : ang > 1.1 ? 1.35 : 1, cov = (f.terr && f.terr.cover) || f.garr ? 0.75 : 1, wl = typeof bvWeap === 'function' ? bvWeap(f) : 0;
-    ty = blk.type === 'cav' ? 1.4 : 1;
-    if (blk.type === 'cav' && f.type === 'inf' && wl > 0 && ang < 1.1 && (f.mm === undefined ? 0.8 : f.mm) > 0.4 && f.d.o / DIVS[f.d.t].org > 0.35) { ty = 1.4 / (1 + 0.45 * wl); blk.d.s = Math.max(0, blk.d.s - 0.004 * step * wl); blk.d.o = Math.max(0, blk.d.o - DIVS[blk.d.t].org * 0.006 * step * wl); }
+    ty = (blk.type === 'cav' ? 1.4 : 1) * (blk.venge > V.t ? 1.35 : 1) * (blk.cmdN !== undefined && V.t - blk.cmdN < 0.6 ? 1.08 : 1);
+    if (blk.type === 'cav' && f.type === 'inf' && wl > 0 && ang < 1.1 && (f.mm === undefined ? 0.8 : f.mm) > 0.4 && f.d.o / DIVS[f.d.t].org > 0.35) { ty = ty / (1 + 0.45 * wl); blk.d.s = Math.max(0, blk.d.s - 0.004 * step * wl); blk.d.o = Math.max(0, blk.d.o - DIVS[blk.d.t].org * 0.006 * step * wl); }
     const dmg = 0.012 * step * mult * cov * ty * (0.6 + 0.8 * clamp(blk.d.o / DIVS[blk.d.t].org, 0, 1)) * ((blk.mm === undefined ? 0.8 : blk.mm) + 0.4) / 1.2;
     f.d.s = Math.max(0, f.d.s - dmg); f.d.o = Math.max(0, f.d.o - DIVS[f.d.t].org * dmg * 1.4); f.flanked = ang > 1.1 ? V.t : f.flanked;
     for (let i = 0; i < 2; i++) bvPart(V, {k: 'spark', x: (blk.x + f.x) / 2 + rnd(-8, 8), y: (blk.y + f.y) / 2 + rnd(-8, 8), life: 0.35, hot: 1}); if (typeof SFX !== 'undefined' && Math.random() < 0.3) SFX.volley(0.6);
@@ -11873,6 +11877,133 @@ bvFire = function (V, b, blk, dt, foes) {
   }
   _bvFireR(V, b, blk, dt, foes);
 };
+
+/* ===== MANDO EN EL CAMPO: llegada por flancos, comandantes de cuerpo y «mantener posición» ===== */
+/* ---- 1) los ejércitos que convergen desde otro lado entran por ese margen del campo ---- */
+function bvEdgeFor(b, a) {
+  b.edges = b.edges || {}; if (a.id in b.edges) return b.edges[a.id];
+  let e = null; const side = (b.A || []).includes(a.id) ? 'A' : 'B', ids = (side === 'A' ? b.A : b.B).map(armyById).filter(Boolean);
+  const vec = x => {
+    if (x.from === undefined || x.from === null || x.from === x.loc || G.date.t - (x.arrived === undefined ? -99 : x.arrived) > 6) return null;
+    const F = MAP.provs[x.from], L = MAP.provs[x.loc]; if (!F || !L) return null;
+    const dx = F.lon - L.lon, dy = -(F.lat - L.lat), n = Math.hypot(dx, dy); return n ? [dx / n, dy / n] : null;
+  };
+  const main = ids.filter(x => vec(x)).sort((p, q) => q.divs.length - p.divs.length)[0];
+  if (main && main !== a && vec(a)) {
+    const m = vec(main), v = vec(a), cos = m[0] * v[0] + m[1] * v[1], cr = m[0] * v[1] - m[1] * v[0];
+    if (cos < 0.57 && cos > -0.7) e = cr > 0 ? (side === 'A' ? 'top' : 'bottom') : (side === 'A' ? 'bottom' : 'top');
+  }
+  b.edges[a.id] = e; return e;
+}
+function bvEdgeNotice(V, b, a, blk) {
+  V._edgeMsg = V._edgeMsg || {}; if (V._edgeMsg[a.id]) return; V._edgeMsg[a.id] = 1;
+  const txt = `${a.name} converge por el flanco ${blk.edge === 'top' ? 'norte' : 'sur'}`;
+  bvBanner(V, '🧭 ' + txt, blk.side, ''); (b.log = b.log || []).push({k: 'flank', d: b.day, t: txt + '.'}); if (b.log.length > 30) b.log.shift();
+}
+/* ---- 2) comandante de cada cuerpo: una bolita que recorre sus regimientos ---- */
+const CMD_R = 85;
+function bvCmdName(b, c) { return GEN_SURNAMES[Math.floor(hash2(b.id, c.a.id.length + c.idx, 31) * GEN_SURNAMES.length)]; }
+function bvCmdStep(V, b, all, dt) {
+  if (V.replay || V.over || b.prep) return;
+  V.cmd = V.cmd || {}; b.cmd = b.cmd || {A: {dead: 0, venge: 0, vday: 0}, B: {dead: 0, venge: 0, vday: 0}}; b.cmdDead = b.cmdDead || {};
+  (V.corps || []).forEach(c => {
+    const ls = c.blks.filter(k => k.mode !== 'rout' && k.role !== 'reserve' && !k.d.out); if (!ls.length) return;
+    let cm = V.cmd[c.id]; const dir = c.side === 'A' ? 1 : -1;
+    if (!cm) {
+      if (b.cmdDead[c.id]) return;
+      const cx = ls.reduce((n, k) => n + k.x, 0) / ls.length - dir * 40, cy = ls.reduce((n, k) => n + k.y, 0) / ls.length;
+      cm = V.cmd[c.id] = {id: c.id, side: c.side, name: bvCmdName(b, c), corps: c.idx + 1, x: cx, y: cy, alive: true, T: 0, tgt: null, tag: c.tag};
+    }
+    if (!cm.alive) return;
+    cm.T -= dt;
+    if (cm.T <= 0 || !cm.tgt || !ls.includes(cm.tgt)) {          // visita primero a quien más lo necesita
+      const w = ls.map(k => 1 + (1 - (k.mm === undefined ? 0.8 : k.mm)) * 4 + (k.mode === 'melee' || k.mode === 'fire' ? 0.8 : 0) + (k.brk > 0 ? 1.5 : 0)); let r = Math.random() * w.reduce((p, v) => p + v, 0), i = 0;
+      for (; i < ls.length - 1; i++) { r -= w[i]; if (r <= 0) break; } cm.tgt = ls[i]; cm.T = rnd(5, 9);
+    }
+    const t = cm.tgt, tx = t.x - dir * ((t.dep || 20) / 2 + 9), ty = t.y, dx = tx - cm.x, dy = ty - cm.y, d = Math.hypot(dx, dy) || 1, sp = Math.min(d * 2, 62);
+    cm.x += dx / d * sp * dt; cm.y += dy / d * sp * dt; cm.y = clamp(cm.y, 34, BV_H - 18);
+    // moral y valentía de quienes lo rodean
+    ls.forEach(k => {
+      if (Math.hypot(k.x - cm.x, k.y - cm.y) > CMD_R) return; k.cmdN = V.t;
+      if (k.mm === undefined) return; k.mm = Math.min(1, k.mm + 0.035 * dt); if (k.mm < 0.12) k.mm = 0.12; k.fat = Math.max(0, (k.fat || 0) - 0.006 * dt);
+    });
+    // riesgo: fuego y cuerpo a cuerpo cerca de él
+    let risk = 0; const wl = weapLvl(c.side === 'A' ? b.B0 : b.A0);
+    all.forEach(o => { if (o.side === c.side || o.mode === 'rout') return; const d2 = Math.hypot(o.x - cm.x, o.y - cm.y); if (o.mode === 'melee' && d2 < 60) risk += 0.008; else if ((o.mode === 'fire' || o.mode === 'artfire') && d2 < 160) risk += 0.001 * (1 + wl * 0.3); });
+    if (risk > 0 && Math.random() < risk * dt) bvCmdKill(V, b, cm, c, ls, 'cae en combate');
+  });
+}
+function bvCmdKill(V, b, cm, c, ls, how) {
+  if (!cm.alive) return; cm.alive = false; cm.diedAt = V.t; b.cmdDead[c.id] = true;
+  const side = cm.side, st = b.cmd[side]; st.dead++;
+  const org = ls.reduce((n, k) => n + k.d.o / DIVS[k.d.t].org, 0) / ls.length, mor = ls.reduce((n, k) => n + (k.mm === undefined ? 0.8 : k.mm), 0) / ls.length;
+  const venge = org > 0.35 && mor > 0.3 && Math.random() < 0.4 + (ls.some(k => k.type === 'cav') ? 0.1 : 0);
+  c.blks.forEach(k => { if (k.mode === 'rout' || k.role === 'reserve') return; const near = Math.hypot(k.x - cm.x, k.y - cm.y) < 140; if (k.mm !== undefined) k.mm = Math.max(0.02, k.mm - (near ? 0.26 : 0.14)); if (venge) k.venge = V.t + 16; });
+  const nm = G.C[cm.tag].name, rank = 'general';
+  if (venge) { st.venge++; st.vday = b.day + 2; bvBanner(V, `⚔️ ¡Cae el ${rank} ${cm.name}! El ${cm.corps}.º Cuerpo de ${nm} se lanza a la carga por venganza`, side, '☠️'); (b.log = b.log || []).push({k: 'charge', d: b.day, t: `Cae el ${rank} ${cm.name} (${cm.corps}.º Cuerpo de ${nm}) y sus hombres cargan despiadadamente en venganza.`}); }
+  else { bvBanner(V, `☠️ Cae el ${rank} ${cm.name}, comandante del ${cm.corps}.º Cuerpo de ${nm}: la moral se resiente`, side, ''); (b.log = b.log || []).push({k: 'panic', d: b.day, t: `Cae el ${rank} ${cm.name} (${cm.corps}.º Cuerpo de ${nm}); la moral del cuerpo se hunde.`}); }
+  if (b.log.length > 30) b.log.shift(); V.shake = Math.min(5, (V.shake || 0) + 2); if (typeof SFX !== 'undefined' && SFX.boom) SFX.boom(0.5);
+}
+// los proyectiles que caen sobre el comandante
+const _tacShellHitM = tacShellHit;
+tacShellHit = function (V, b, p, all) {
+  _tacShellHitM(V, b, p, all);
+  if (!V.cmd || V.replay) return;
+  Object.values(V.cmd).forEach(cm => { if (!cm.alive || cm.side === (p.s || (cm.side === 'A' ? 'B' : 'A'))) return; if (Math.hypot(cm.x - p.x2, cm.y - p.y2) < 18 && Math.random() < 0.2) { const c = (V.corps || []).find(q => q.id === cm.id); if (c) bvCmdKill(V, b, cm, c, c.blks.filter(k => k.mode !== 'rout' && k.role !== 'reserve'), 'metralla'); } });
+};
+const _bvGroundM = bvGround;
+bvGround = function (V, b, all, dt) { _bvGroundM(V, b, all, dt); bvCmdStep(V, b, all, dt); };
+// dibujo: la bolita, su aura y el recuerdo del caído
+const _bvCorpsFlagsM = bvCorpsFlags;
+bvCorpsFlags = function (g, V, b) {
+  _bvCorpsFlagsM(g, V, b);
+  Object.values(V.cmd || {}).forEach(cm => {
+    const col = G.C[cm.tag] ? G.C[cm.tag].color : '#fff';
+    if (!cm.alive) { const k = (V.t - cm.diedAt) / 14; if (k > 1) return; g.globalAlpha = 1 - k; g.fillStyle = '#e8e2cc'; g.font = 'bold 13px sans-serif'; g.textAlign = 'center'; g.fillText('✝', cm.x, cm.y + 4); g.globalAlpha = 1; return; }
+    if (V.selCorps === cm.id) { g.strokeStyle = 'rgba(255,226,138,.45)'; g.setLineDash([4, 5]); g.lineWidth = 1; g.beginPath(); g.arc(cm.x, cm.y, CMD_R, 0, 6.3); g.stroke(); g.setLineDash([]); }
+    g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(cm.x + 2, cm.y + 4, 6, 3, 0, 0, 6.3); g.fill();
+    g.fillStyle = col; g.beginPath(); g.arc(cm.x, cm.y, 5.6, 0, 6.3); g.fill(); g.strokeStyle = '#f5d76e'; g.lineWidth = 1.8; g.stroke();
+    g.fillStyle = '#fff'; g.font = 'bold 7px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('★', cm.x, cm.y + 0.5);
+    if (V.selCorps === cm.id || (V.sel && V.sel.corps && V.sel.corps.id === cm.id)) { g.font = 'bold 9px sans-serif'; const w = g.measureText(cm.name).width + 8; g.fillStyle = 'rgba(8,12,16,.8)'; g.fillRect(cm.x - w / 2, cm.y - 20, w, 12); g.fillStyle = '#ffe28a'; g.fillText(cm.name, cm.x, cm.y - 14); }
+    g.textBaseline = 'alphabetic';
+  });
+};
+// versión abstracta (sin visor abierto): el comandante también puede caer en el cálculo diario
+const _battleDayM = battleDay;
+battleDay = function (b) {
+  _battleDayM(b);
+  if (b.ended || (typeof R !== 'undefined' && R.bviz && R.bviz.id === b.id && !R.bviz.replay)) return;
+  b.cmd = b.cmd || {A: {dead: 0, venge: 0, vday: 0}, B: {dead: 0, venge: 0, vday: 0}};
+  ['A', 'B'].forEach(s => {
+    const st = b.cmd[s], armies = (s === 'A' ? b.A : b.B).map(armyById).filter(Boolean); if (!armies.length || st.dead >= 3) return;
+    const n = armies.reduce((m, a) => m + Math.ceil(a.divs.length / 5), 0), risk = 0.012 * n * (typeof weapLvl === 'function' ? 1 + weapLvl(s === 'A' ? b.B0 : b.A0) * 0.3 : 1);
+    if (Math.random() < Math.min(0.2, risk)) { st.dead++; armies.forEach(a => { if (typeof armyMor === 'function') a.mor = Math.max(0, armyMor(a) - 0.04); });
+      const venge = Math.random() < 0.4; if (venge) { st.venge++; st.vday = b.day + 2; }
+      const nm = G.C[s === 'A' ? b.A0 : b.B0].name; (b.log = b.log || []).push({k: venge ? 'charge' : 'panic', d: b.day, t: venge ? `Cae un comandante de cuerpo de ${nm}; sus hombres cargan en venganza.` : `Cae un comandante de cuerpo de ${nm}; la moral se resiente.`}); if (b.log.length > 30) b.log.shift(); }
+  });
+};
+// efecto de los comandantes caídos y de la venganza en el cálculo diario
+const _sideStatsM = sideStats;
+sideStats = function (b, ids, isAttacker) {
+  const r = _sideStatsM(b, ids, isAttacker), key = ids === b.A ? 'A' : ids === b.B ? 'B' : null, st = key && b.cmd && b.cmd[key];
+  if (st) { if (st.dead) r.F *= 1 - 0.025 * Math.min(3, st.dead); if (st.venge && b.day <= st.vday) r.F *= 1.06; }
+  return r;
+};
+/* ---- 3) «Mantener posición»: el regimiento no se mueve salvo necesidad ofensiva ---- */
+function tacStayBtn(V, sel, ac) {
+  if (!sel && !ac) return '';
+  const grp = V.selCorps && ac ? ac.blks : sel ? [sel] : [], on = grp.length && grp.every(k => k.d.stay);
+  return `<button data-act="tacstay" class="${on ? 'on' : ''}" ${sel || ac ? '' : 'disabled'} data-tip="<b>Mantener posición</b><br>Los regimientos seleccionados se quedan donde están: solo se mueven si el enemigo llega a su alcance (para cargar o rechazarlo) y después vuelven. Púlsalo otra vez para soltarlos."><span>📍</span>Quedarse</button>`;
+}
+ACT.tacstay = () => {
+  const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !V.sel || !b || b.ended || V.replay || V.sel.side !== playerSide(b)) return;
+  const grp = (V.selCorps && V.sel.corps && V.sel.corps.id === V.selCorps ? V.sel.corps.blks : [V.sel]).filter(k => k.mode !== 'rout'), on = grp.every(k => k.d.stay);
+  grp.forEach(k => { if (on) delete k.d.stay; else { k.d.stay = {x: k.x, y: k.y}; delete k.d.plan; } k.skey = ''; });
+  toast(on ? '🚶' : '📍', on ? 'Tropas liberadas: vuelven a obedecer la estrategia.' : `${grp.length} regimiento(s) mantienen la posición.`); renderBattlePanel();
+};
+// al acabar la batalla se sueltan
+const _endBattleM = endBattle;
+endBattle = function (b, winner) { _endBattleM(b, winner); [...(b.A || []), ...(b.B || [])].map(armyById).filter(Boolean).forEach(a => a.divs.forEach(d => { if (d.rg) d.rg.forEach(r => { delete r.stay; }); delete d.stay; })); };
 
 /* ===== PANEL DE INICIO: ambiente cinematográfico =====
    Capa de partículas (ascuas doradas, polvo y bandas de niebla), rayos de luz, viñeta, y un lento giro de la cámara sobre el mapa mientras eliges
@@ -14177,7 +14308,7 @@ const MANUAL = [
 </tbody></table>
 <p>Para las propuestas que debe aceptar la otra parte, pasa el ratón sobre el botón: verás la <b>probabilidad de aceptación</b> y sus motivos (relaciones, enemigo común, regímenes afines, infamia, rivalidades, fuerza relativa). Puedes <b>romper</b> un acuerdo en cualquier momento (−25 de relación y −2 de prestigio).</p>
 <h4>Propuestas de la IA</h4><p>Los países pueden proponerte acuerdos o que ingreses en su bloque. Aparecen en el icono ✉️ y en <b>Diplomacia → Acuerdos</b>, donde puedes aceptarlas o rechazarlas.</p>
-<h4>Realismo de combate</h4><p>El armamento (ánima lisa, fusil rayado, retrocarga, ametralladora) fija alcance y cadencia en la batalla y encarece el <b>ataque frontal</b> contra defensores bien armados; el flanqueo y la preparación artillera lo reducen. La artillería dispara <b>metralla</b> a quemarropa contra los asaltos. La caballería pierde fuerza de choque contra infantería formada con fusil rayado, pero sigue siendo letal contra tropas desordenadas. Los ejércitos que llegan por direcciones distintas obtienen un bono de <b>convergencia</b> (mayor con Estado Mayor). La artillería de acero abre brechas más rápido, los asedios causan enfermedad en el campamento y los focos de resistencia pueden emboscar convoyes e incendiar depósitos del ocupante.</p><h4>Clima y terreno en batalla</h4><p>Cada batalla tiene tiempo atmosférico (despejado, lluvia, niebla, nevada, viento) según la estación y el bioma. La lluvia y la nieve frenan la marcha y reducen la cadencia de fuego; la niebla acorta el alcance. Bosques, colinas y acantilados <b>bloquean la línea de visión</b>: sin ella no se dispara (la artillería de tiro rápido puede hacer fuego indirecto). Las colinas dan +20% de alcance, los vados atascan al atacante, el terreno abierto es mortal frente a fusiles modernos y los pueblos bombardeados acaban ardiendo. El suelo guarda huellas del paso de las tropas y manchas de sangre.</p><h4>Infamia</h4><p>Cada guerra de agresión genera infamia (más con la conquista). Mientras es alta, todos los países te toleran peor. Se reduce lentamente con el tiempo.</p>`},
+<h4>Realismo de combate</h4><p>El armamento (ánima lisa, fusil rayado, retrocarga, ametralladora) fija alcance y cadencia en la batalla y encarece el <b>ataque frontal</b> contra defensores bien armados; el flanqueo y la preparación artillera lo reducen. La artillería dispara <b>metralla</b> a quemarropa contra los asaltos. La caballería pierde fuerza de choque contra infantería formada con fusil rayado, pero sigue siendo letal contra tropas desordenadas. Los ejércitos que llegan por direcciones distintas obtienen un bono de <b>convergencia</b> (mayor con Estado Mayor). La artillería de acero abre brechas más rápido, los asedios causan enfermedad en el campamento y los focos de resistencia pueden emboscar convoyes e incendiar depósitos del ocupante.</p><h4>Mando en el campo de batalla</h4><p><b>Convergencia:</b> si tus ejércitos llegan al combate desde direcciones distintas, cada uno aparece por el margen norte o sur del campo del lado del que viene y se incorpora a la línea. <b>Comandantes:</b> cada cuerpo tiene un comandante (una bolita con estrella) que recorre sus regimientos, sube su moral y les da valentía (cargan con menos miedo y golpean algo más fuerte) en un radio cercano. Si cae por el fuego o el cuerpo a cuerpo, el cuerpo pierde moral y, con cierta probabilidad, <b>carga despiadado en venganza</b>. <b>Quedarse:</b> el botón 📍 de las órdenes fija los regimientos seleccionados donde están; solo se mueven si el enemigo llega a su alcance (para cargar o rechazarlo) y luego vuelven. Además, la línea defensiva en «Aguardar en los altos» ya no deriva con el avance de la batalla.</p><h4>Clima y terreno en batalla</h4><p>Cada batalla tiene tiempo atmosférico (despejado, lluvia, niebla, nevada, viento) según la estación y el bioma. La lluvia y la nieve frenan la marcha y reducen la cadencia de fuego; la niebla acorta el alcance. Bosques, colinas y acantilados <b>bloquean la línea de visión</b>: sin ella no se dispara (la artillería de tiro rápido puede hacer fuego indirecto). Las colinas dan +20% de alcance, los vados atascan al atacante, el terreno abierto es mortal frente a fusiles modernos y los pueblos bombardeados acaban ardiendo. El suelo guarda huellas del paso de las tropas y manchas de sangre.</p><h4>Infamia</h4><p>Cada guerra de agresión genera infamia (más con la conquista). Mientras es alta, todos los países te toleran peor. Se reduce lentamente con el tiempo.</p>`},
 
 {id: 'blocs', title: '14. Bloques', html: `
 <p>Los bloques agrupan a varios países bajo un líder. Para fundarlo necesitas <b>30 de prestigio y 60 de influencia</b>; el máximo de miembros es 3 + 1 por cada 40 de prestigio del líder. Un vasallo no puede liderar un bloque.</p>

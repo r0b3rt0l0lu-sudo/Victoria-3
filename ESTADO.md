@@ -112,3 +112,6 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 
 ## Ejercito (src/ejercito.js)
 - `armyOrder` (ordenes de ejercito coordinadas), segunda linea (`b.sup`, `r.sup`, `supFeed`), persecucion en `endBattle` + viewer, friccion de ordenes (`fmFriction` en linea.js: `pl.t0` con retraso, `pl.mis`).
+
+## Relieve real
+- `tools/elevacion.py` (teselas Terrarium de AWS) genera `src/elev_data.js` (malla 512x205: altitud x25 m, rugosidad x10 m); `src/relieve.js`: `elevAt`, `provElev`. `battleTerrain` escala colinas/acantilados/nieve/bosques segun el relieve; `terrMods` da bonos en montaña.

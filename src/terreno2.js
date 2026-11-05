@@ -19,8 +19,10 @@ function battleTerrain(b) {
   const pv = MAP.provs[b.prov], bio = pv.biome, H = k => hash2(b.id * 31 + 7, b.prov, k), W = BV_W, Hh = BV_H, defSide = b.att === 'A' ? 'B' : 'A', dd = defSide === 'A' ? -1 : 1, P = T2[bio] || T2[1];
   const cnt = (r, k) => r ? r[0] + Math.floor(H(k) * (r[1] - r[0] + 1)) : 0, pos = (k, mx) => [mx + H(k) * (W - 2 * mx), 70 + H(k + 500) * (Hh - 130)];
   const tf = {v2: 1, bio, hill: null, hills: [], river: null, stream: null, forests: [], orchards: [], villages: [], lakes: [], marsh: [], rocks: [], cliffs: [], dunes: [], snow: [], walls: [], roads: [], fields: [], blocks: [], pond: null, hill2: null};
-  // colinas y lomas
-  for (let i = 0, n = cnt(P.hills, 1); i < n; i++) { const [x, y] = pos(10 + i, 150), big = bio === 7 || i === 0; tf.hills.push({x, y, rx: (big ? 140 : 80) + H(30 + i) * (big ? 150 : 90), ry: (big ? 90 : 55) + H(40 + i) * (big ? 110 : 60), rot: (H(50 + i) - 0.5) * 1.4}); }
+  // colinas y lomas (según el relieve real de la provincia)
+  const EL = provElev(b.prov), hk = clamp(0.25 + EL.rough / 150, 0, 2.6), hsz = 1 + clamp(EL.rough / 420, 0, 0.9); tf.elev = EL;
+  const nHill = EL.cls === 'llanura' ? (H(2) < 0.7 ? 0 : 1) : Math.max(EL.rough >= 60 ? 1 : 0, Math.min(9, Math.round(cnt(P.hills, 1) * hk)));
+  for (let i = 0, n = nHill; i < n; i++) { const [x, y] = pos(10 + i, 150), big = bio === 7 || i === 0; tf.hills.push({x, y, rx: ((big ? 140 : 80) + H(30 + i) * (big ? 150 : 90)) * hsz, ry: ((big ? 90 : 55) + H(40 + i) * (big ? 110 : 60)) * hsz, rot: (H(50 + i) - 0.5) * 1.4}); }
   if (tf.hills.length) { const h0 = tf.hills[0]; h0.x = W / 2 + dd * (150 + H(3) * 220); h0.side = defSide; tf.hill = h0; tf.hills.forEach((h, i) => { if (i) h.side = h.x > W / 2 ? 'B' : 'A'; }); tf.hill2 = tf.hills[1] || null; }
   // río principal con vados y puentes; arroyo secundario
   if (H(60) < P.river) { const r = {x: W / 2 + (H(61) - 0.5) * 520, amp: 40 + H(62) * 70, ph: H(63) * 6.28, w: 30, fords: []}, nf = 2 + (H(64) < 0.5 ? 1 : 0); for (let i = 0; i < nf; i++) r.fords.push({y: 110 + (i + 0.2 + H(65 + i) * 0.6) * ((Hh - 220) / nf), w: 84, br: i % 2 === 0}); tf.river = r; }
@@ -32,9 +34,12 @@ function battleTerrain(b) {
   for (let i = 0, n = cnt(P.cliffs, 150); i < n; i++) { const [x, y] = pos(151 + i, 200); tf.cliffs.push({x, y, rx: 26 + H(160 + i) * 36, ry: 16 + H(165 + i) * 22, rot: (H(170 + i) - 0.5) * 2}); }
   for (let i = 0, n = cnt(P.dunes, 180); i < n; i++) { const [x, y] = pos(181 + i, 140); tf.dunes.push({x, y, rx: 80 + H(195 + i) * 90, ry: 40 + H(210 + i) * 40, rot: (H(225 + i) - 0.5) * 0.8}); }
   for (let i = 0, n = cnt(P.snow, 240); i < n; i++) { const [x, y] = pos(241 + i, 140); tf.snow.push({x, y, rx: 70 + H(260 + i) * 90, ry: 38 + H(275 + i) * 40, rot: 0}); }
+  if (EL.cls === 'montaña') { for (let i = 0; i < 2; i++) { const [x, y] = pos(700 + i, 200); tf.cliffs.push({x, y, rx: 24 + H(710 + i) * 30, ry: 15 + H(715 + i) * 18, rot: (H(720 + i) - 0.5) * 2}); } for (let i = 0; i < 3; i++) { const [x, y] = pos(730 + i, 160); tf.rocks.push({x, y, r: 24 + H(740 + i) * 30}); } }
+  if (EL.h > 2300) for (let i = 0; i < 4; i++) { const [x, y] = pos(750 + i, 140); tf.snow.push({x, y, rx: 70 + H(760 + i) * 90, ry: 38 + H(770 + i) * 40, rot: 0}); }
   tf.pond = tf.lakes[0] || null; tf.blocks = tf.lakes.concat(tf.cliffs);
   // bosques y arboledas
   for (let i = 0, n = cnt(P.forests, 300); i < n; i++) { const [x, y] = pos(301 + i, 90), big = bio === 2 || bio === 6; tf.forests.push({x, y, r: (big ? 55 : 34) + H(330 + i) * (big ? 80 : 46)}); }
+  if (EL.h > 2300) tf.forests.length = Math.min(tf.forests.length, 1);          // por encima del límite del arbolado
   for (let i = 0, n = cnt(P.orchards, 360); i < n; i++) { const [x, y] = pos(361 + i, 120); tf.orchards.push({x, y, r: 26 + H(370 + i) * 20}); }
   // aldeas y pueblos (objetivos del combate), separados entre sí
   const nv = cnt(P.villages, 400); for (let i = 0, t = 0; i < nv && t < 80; t++) { const [x, y] = pos(401 + t * 2, 130); if (tf.villages.some(v => Math.hypot(v.x - x, v.y - y) < 150)) continue; if (tf.lakes.concat(tf.cliffs).some(e => inEll(x, y, e)) || (tf.river && Math.abs(x - tacRiverX(tf, y)) < 40)) continue; tf.villages.push({id: i, x, y, r: 34 + H(450 + i) * 16, n: 7 + Math.floor(H(470 + i) * 8), church: H(490 + i) < 0.55, big: false}); i++; }
@@ -137,6 +142,7 @@ function terrMods(b, side) {
 }
 function terrainInfo(b) {
   const tf = battleTerrain(b), nm = s => G.C[s === 'A' ? b.A0 : b.B0].name, out = [], n = (a) => a.length;
+  if (tf.elev) out.push(['🗺️', `Relieve real: ${tf.elev.name} · ${tf.elev.h} m`, `Datos topográficos reales de la región (desnivel típico ±${tf.elev.rough} m). ${tf.elev.cls === 'montaña' ? 'Terreno de montaña: el defensor gana +3% y el atacante pierde 3%; a más de 2.300 m no hay arbolado.' : tf.elev.cls === 'colinas' ? 'Muchas colinas: el terreno elevado decide la batalla.' : tf.elev.cls === 'llanura' ? 'Llanura abierta: casi sin colinas, el fuego domina el campo.' : 'Terreno ondulado con alguna loma.'}`]);
   if (tf.hill) out.push(['⛰️', `Colinas (${n(tf.hills)})`, `La principal es de ${nm(tf.hill.side)}: +10% defensa (+5% con «Aguardar en los altos»). Subir una cuesta ralentiza mucho (−45% de velocidad) y resta 12% de ataque.`]);
   if (tf.river) out.push(['🌊', 'Río con vados y puentes', 'Solo se cruza por vados y puentes (los regimientos buscan el más cercano). El atacante sufre −7% de ataque los 3 primeros días.']);
   if (tf.stream) out.push(['〰️', 'Arroyo', 'Se cruza por cualquier punto pero frena (−40% de velocidad).']);

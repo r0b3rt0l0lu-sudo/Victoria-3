@@ -23,6 +23,7 @@ function wxMods(b) {      // velocidad de marcha, cadencia de fuego, alcance
 const _terrModsR = terrMods;
 terrMods = function (b, side) {
   const r = _terrModsR(b, side), tf = battleTerrain(b), wx = battleWeather(b), isAtt = b.att === side, st = (side === 'A' ? b.strA : b.strB) || 'frontal';
+  if (tf.elev && tf.elev.cls === 'montaña') { if (isAtt) r.att -= 0.03 + (tf.elev.h > 2500 ? 0.02 : 0); else r.def += 0.03; }
   if (isAtt) {
     if (wx.k === 'rain') r.att -= st === 'charge' ? 0.06 : 0.035;
     if (wx.k === 'snow') r.att -= 0.03;

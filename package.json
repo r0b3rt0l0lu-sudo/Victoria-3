@@ -1,0 +1,6 @@
+{
+  "name": "victoria-web",
+  "private": true,
+  "description": "Herramientas de compilación (opcionales): esbuild minifica el JS/CSS de build.py. Sin esbuild el juego compila igual, solo que sin minificar.",
+  "devDependencies": {"esbuild": "0.25.0"}
+}

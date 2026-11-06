@@ -173,3 +173,8 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 
 ## Formato por carpetas + PWA
 - `build.py` produce `docs/` (index.html + js/ + css/, caché por contenido, service worker versionado) y el `index.html` de un solo archivo en la raíz (pruebas). Probado con servidor HTTP y con `file://`: 0 errores, 12 peticiones, SW registrado.
+
+## Sesión: datos binarios, minificado y WebAssembly
+- `build.py` reescrito: minifica con esbuild (`package.json`), datos binarios (`docs/data/*.bin`, carga lazy de la época 1910, respaldo base64 para `file://`), cargador `js/boot.js`, WebAssembly instanciado antes del juego (`window.__WK_EX`).
+- `wasm/kernels.c` + `src/wasmk.js`: `k_height`, `k_biomes`, `k_terrain`. **Verificado idéntico bit a bit** al JS (alturas, biomas y colores). Medido (headless, SwiftShader): altura 152 ms vs 221 ms JS, biomas 85 vs 160 ms, terreno ≈ igual (domina `addRivers`, que sigue en JS) → ahorro total ≈ 0,15 s en un arranque de ≈ 6 s. Sin la caché de retícula el wasm era *más lento* que el JS: la ganancia viene del algoritmo, no del lenguaje; la misma caché aplicada al JS daría una mejora parecida.
+- Hallazgo del perfil de arranque: lo que más pesa no es la generación del mapa (~1 s) sino la economía de calentamiento (`econA`, `econB`, `weeklyTick` ≈ 2 s) y `rasterLand` (canvas).

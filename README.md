@@ -87,8 +87,12 @@ la IA y las guerras están muy simplificadas respecto al juego original.
 - Ajustes de ChromeOS que ayudan: aceleración por hardware activada en `chrome://settings/system`, comprobar en `chrome://gpu` que WebGL está acelerado, cerrar otras pestañas, desactivar el ahorro de memoria para el juego y jugar enchufado.
 
 
-## Formato del juego: web por carpetas + PWA
-`python3 build.py` genera ahora **dos formatos**:
-- **`docs/` (principal, por carpetas):** `index.html` de ~1 KB + `js/three.min.js`, `js/elevacion.js`, `js/escenarios.js`, `js/game.js`, `css/style.css`, manifiesto, iconos y `sw.js`. Cada archivo lleva su versión por contenido (`?v=…`) y el service worker mantiene una caché versionada, así que las actualizaciones solo descargan lo que cambia y los datos pesados (relieve, escenarios) no se vuelven a bajar. Se puede abrir con doble clic (`docs/index.html`, sin instalación) o servir con `cd docs && python3 -m http.server 8000` (entonces es instalable como app y funciona sin conexión). Publicable tal cual en GitHub Pages.
-- **`index.html` (raíz, un solo archivo):** todo incrustado; lo usan las pruebas de `tools/` y sirve para compartir un único fichero. Opciones: `--no-single` (solo carpetas), `--only-single` (solo el archivo único), `--light` (`juego-ligero.html` con three por CDN).
-El código del juego (`js/game.js`) no se trocea porque los módulos comparten funciones hoisted en un ámbito global; sí se separan three, relieve y escenarios.
+## Formato del juego: web por carpetas + PWA (+ datos binarios, minificado y WebAssembly)
+`python3 build.py` genera **dos formatos**:
+- **`docs/` (principal, por carpetas):** `index.html` (~1 KB) + `js/boot.js` (arranque), `js/game.js` (juego minificado), `js/three.min.js`, `css/style.css`, `data/elevacion.bin` y `data/1910.bin` (**datos en binario**: ~25 % menos que en base64; la época 1910 solo se descarga al elegirla), `wasm/kernels.wasm`, manifiesto, iconos y `sw.js`. Cada archivo lleva su versión por contenido (`?v=…`) y el service worker mantiene una caché versionada. Se abre con doble clic en `docs/index.html` (sin servidor `fetch` está bloqueado, así que usa el respaldo `js/datos-b64.js`) o se sirve con `cd docs && python3 -m http.server 8000` (instalable y sin conexión). Publicable tal cual en GitHub Pages.
+- **`index.html` (raíz, un solo archivo):** todo incrustado (three, datos en base64 y WebAssembly); lo usan las pruebas de `tools/`.
+Opciones: `--no-single`, `--only-single`, `--light` (three por CDN), `--no-min` (sin minificar).
+
+**Minificado (esbuild).** `npm install` instala esbuild (opcional; sin él el juego compila igual, sin minificar). El JS baja de 1,50 a 1,12 MB y el HTML único de 3,25 a 2,90 MB. No se renombran los nombres globales (los módulos comparten ámbito global).
+
+**WebAssembly.** `wasm/kernels.c` contiene los bucles pesados de `src/mapgen.js` (altura final, biomas, color del terreno) con ruido en caché de retícula; se compila con `tools/compilar_wasm.sh` (clang + wasm-ld, sin libc). **Reproduce el JS bit a bit** (mismas operaciones en f64, sin FMA): el mundo generado es idéntico con o sin él (`?nowasm` fuerza el JS). Si WebAssembly no está disponible el juego usa el JS de siempre.

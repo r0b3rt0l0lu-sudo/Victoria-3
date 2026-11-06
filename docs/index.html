@@ -7,7 +7,8 @@
 <title>Victoria — Una era de revolución (réplica web)</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
-<link rel="stylesheet" href="css/style.css?v=a1b7c0fc">
+<link rel="stylesheet" href="css/style.css?v=c47db325">
+<link rel="preload" href="js/game.js?v=24f205d0" as="script">
 </head>
 <body>
 <canvas id="gl"></canvas>
@@ -23,10 +24,7 @@
 <div id="search"></div>
 <div id="start"></div>
 <div id="loading"><h1>VICTORIA</h1><div class="lb"><i></i></div><p id="loadtxt">Cargando…</p></div>
-<script src="js/three.min.js?v=b53d85dd"></script>
-<script src="js/elevacion.js?v=2bff9083"></script>
-<script src="js/escenarios.js?v=95690147"></script>
-<script src="js/game.js?v=a38b02ca"></script>
+<script src="js/boot.js?v=4f416859"></script>
 <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(function(){});</script>
 </body>
 </html>

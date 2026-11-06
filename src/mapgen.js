@@ -96,6 +96,7 @@ function buildHeight(land) {
       const i = y * W + x; if (v > mount[i]) mount[i] = v;
     }
   });
+  if (wkOn()) h.set(wkHeight(land, dLand, dSea, mount)); else      // WebAssembly (wasm/kernels.c) o, si no está, el mismo cálculo en JS
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const i = y * W + x;
     if (land[i]) {
@@ -122,6 +123,7 @@ function inEllipse(list, lon, lat, wob) {
 
 function buildBiomes(land, h) {
   const W = MAP_W, H = MAP_H, N = W * H;
+  if (wkOn()) return wkBiomes(land, h);
   const biome = new Uint8Array(N);
   for (let y = 0; y < H; y++) {
     const lat = yToLat(y);
@@ -154,8 +156,8 @@ function buildBiomes(land, h) {
 
 function buildTerrainColors(land, h, biome) {
   const W = MAP_W, H = MAP_H;
-  const tc = new Uint8ClampedArray(W * H * 4);
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+  const tc = wkOn() ? wkTerrain(land, h, biome, MAP.dSea) : new Uint8ClampedArray(W * H * 4);
+  if (!wkOn()) for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const i = y * W + x;
     const xm = x > 0 ? x - 1 : x, xp = x < W - 1 ? x + 1 : x, ym = y > 0 ? y - 1 : y, yp = y < H - 1 ? y + 1 : y;
     let r, g, b;

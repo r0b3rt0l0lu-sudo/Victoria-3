@@ -1,6 +1,6 @@
 /* ===== RELIEVE REAL: altitud y rugosidad de cada provincia (malla ELEV, ver tools/elevacion.py) ===== */
-const ELEV_M = (() => { const a = atob(ELEV.m), u = new Uint8Array(a.length); for (let i = 0; i < a.length; i++) u[i] = a.charCodeAt(i); return u; })();
-const ELEV_R = (() => { const a = atob(ELEV.r), u = new Uint8Array(a.length); for (let i = 0; i < a.length; i++) u[i] = a.charCodeAt(i); return u; })();
+const _elevU8 = v => { if (v instanceof Uint8Array) return v; const a = atob(v), u = new Uint8Array(a.length); for (let i = 0; i < a.length; i++) u[i] = a.charCodeAt(i); return u; };      // base64 (archivo único) o binario (web por carpetas)
+const ELEV_M = _elevU8(ELEV.m), ELEV_R = _elevU8(ELEV.r);
 function elevAt(lon, lat) {         // interpolación bilineal: {h: metros, rough: desviación típica en metros}
   const fx = (lon + 180) / 360 * ELEV.w - 0.5, fy = (LAT_TOP - lat) / (LAT_TOP - LAT_BOT) * ELEV.h - 0.5, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
   const g = (arr, i, j) => arr[clamp(j, 0, ELEV.h - 1) * ELEV.w + (((i % ELEV.w) + ELEV.w) % ELEV.w)];

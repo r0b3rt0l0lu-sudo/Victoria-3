@@ -7,8 +7,10 @@ const SCEN_LIST = [
   [1836, '1836', 'Clásica', 'El mundo al empezar la era industrial: imperios coloniales, monarquías absolutas y mucho por construir.'],
   [1910, '1910', 'La víspera de la Gran Guerra', 'Imperios coloniales en su apogeo, Alemania e Italia unidas, dos bloques de alianzas en Europa y aviones, acorazados y ametralladoras en el horizonte.']
 ].filter(e => e[0] === 1836 || SCEN_DATA[e[0]]);
-async function scenUnzip(b64) {
-  const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+async function scenUnzip(src) {
+  // src: base64 (archivo único), Uint8Array o «bin:ruta» (web por carpetas: se descarga solo al elegir la época)
+  let bin;
+  if (src instanceof Uint8Array) bin = src; else if (typeof src === 'string' && src.slice(0, 4) === 'bin:') { const r = await fetch(src.slice(4)); if (!r.ok) throw new Error('No se pudo descargar la época.'); bin = new Uint8Array(await r.arrayBuffer()); } else bin = Uint8Array.from(atob(src), c => c.charCodeAt(0));
   const stream = new Blob([bin]).stream().pipeThrough(new DecompressionStream('gzip'));
   return await new Response(stream).text();
 }

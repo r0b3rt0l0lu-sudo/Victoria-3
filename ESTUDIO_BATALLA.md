@@ -16,8 +16,14 @@ Complementa `ESTUDIO_LINEA.md`. Fuentes: reglas de wargames napoleónicos (Lexne
 9. **Cuadro de infantería.** La infantería que ve venir una carga de caballería a <190 px se cierra en cuadro durante unos segundos: se detiene, aguanta mejor la carga (−30 % de probabilidad de romperse) pero es un blanco para la artillería (`bvSquares`, `tacShellHit`).
 10. Tapias más visibles en el mapa pintado y radio de partículas acotado (evita un error de dibujo).
 
-## Pendiente / ideas (no implementadas)
-- Fatiga y munición por regimiento más finas, municiones de artillería limitadas.
-- Persecución con bajas diferenciadas según caballería disponible.
+## Fase 3 (`src/batalla3.js`)
+11. **Munición por regimiento.** Cada uno lleva cartuchos (`blk.ammo`); disparar los gasta, por debajo del 25 % baja la cadencia y a cero solo queda la bayoneta (y la moral se resiente). Se reponen a retaguardia o en reserva si el ejército tiene pólvora (`suministros.js`). Aviso 🚫/••• en tus regimientos.
+12. **Fatiga fina.** El cansancio frena la marcha (hasta −30 %) y baja la cadencia de fuego (hasta −25 %).
+13. **Persecución diferenciada.** La caballería agotada persigue menos; una retirada en orden se defiende; bosques, pantanos, rocas y barrancos la frenan; puente y vado la agravan (cuello de botella). Factor `b.pursMul` aplicado en `ejercito.js`.
+14. **Niebla de guerra.** Del enemigo solo ves lo que alcanzan a ver tus regimientos (340 px; 270 con lluvia/nieve; 190 con niebla; ×1,3 desde una altura; ×1,35 la caballería; línea de visión). El que dispara o está en melé se delata. Lo ya visto queda como un «?» que se desvanece.
+15. **Objetivos por sede.** Pueblo (peso según tipo), puente, vado, altura o los dos bosques: quien tiene más regimientos dentro los controla, gana +2 % de ataque y defensa por peso (máx. 8 %) y recupera moral allí. Marcadores en el campo y ficha en la lista de terreno.
 
-Fuentes: [reglas Lexnet](https://www.dbai.tuwien.ac.at/user/mst/games/lbn/nlcrules120.pdf), [1st Empire](https://deepfriedhappymice.com/html/rd_1st_empire_2.html), [MTW Morale](https://forums.totalwar.org/wiki/index.php/MTW_Morale), [Total Generalship: Morale and Cohesion](https://acoup.blog/2022/07/01/collections-total-generalship-commanding-pre-modern-armies-part-iiic-morale-and-cohesion/).
+## Pendiente / ideas (no implementadas)
+- Munición limitada de artillería y carros de munición visibles.
+- Cuadro con transición real (animación de formación).
+- Equilibrar con muchas simulaciones largas el consumo de munición y el alcance de visión.

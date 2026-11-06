@@ -65,7 +65,7 @@ endBattle = function (b, winner) {
   _endBattleX(b, winner);
   [...win, ...lose].forEach(a => a.divs.forEach(d => { if (d.rg) d.rg.forEach(r => { delete r.sup; }); }));
   if (!cavN || !lose.length) return;
-  const wk = typeof battleWeather === 'function' ? battleWeather(b).k : 'clear', f = wk === 'fog' ? 0.6 : wk === 'rain' || wk === 'snow' ? 0.75 : 1, p = clamp(0.045 * cavN * f * (1 - Math.min(0.6, lcav * 0.15)), 0, 0.28);
+  const wk = typeof battleWeather === 'function' ? battleWeather(b).k : 'clear', f = wk === 'fog' ? 0.6 : wk === 'rain' || wk === 'snow' ? 0.75 : 1, p = clamp(0.045 * cavN * f * (1 - Math.min(0.6, lcav * 0.15)) * (b.pursMul || 1), 0, 0.34);
   if (p < 0.01) return; let men = 0, guns = 0;
   lose.forEach(a => {
     if (!G.armies.includes(a)) return;

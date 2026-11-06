@@ -460,7 +460,7 @@ function bvDraw(V, b, g, lines, all) {
   V.parts.forEach(p => { if (p.k === 'gas') { const k = p.age / p.life; g.globalAlpha = 0.5 * Math.sin(Math.min(1, k) * 3.14); g.fillStyle = '#b6d13a'; g.beginPath(); g.arc(p.x, p.y, p.r * (1 + k * 1.6), 0, 6.3); g.fill(); g.globalAlpha = 1; return; }
     if (p.k !== 'smoke' && p.k !== 'dust') return; const k = p.age / p.life; g.globalAlpha = (p.k === 'smoke' ? 0.34 : 0.26) * (1 - k); g.fillStyle = p.k === 'smoke' ? '#c9c6be' : '#b09a76'; g.beginPath(); g.arc(p.x, p.y, Math.max(0.5, (p.r || 3) * (1 + clamp(k, 0, 1.5) * 2.2)), 0, 6.3); g.fill(); }); g.globalAlpha = 1;
   // casillas de los bloques y órdenes en curso
-  const blocks = all.filter(k => !(typeof tacHidden === 'function' && tacHidden(b, k))).sort((a, c) => a.y - c.y);
+  const blocks = all.filter(k => !(typeof tacHidden === 'function' && tacHidden(b, k)) && (typeof bvSeen !== 'function' || bvSeen(V, b, k))).sort((a, c) => a.y - c.y);
   blocks.forEach(blk => { bvPlate(g, blk, V.hover === blk); });
   if (V.sel && V.blocks.has(V.sel.d)) { const s = V.sel, pulse = 0.6 + 0.4 * Math.sin(V.t * 5), c = Math.cos(s.hd), sn = Math.sin(s.hd), hw = s.dep / 2 + 7, hh2 = s.wid / 2 + 7, pr = (x, y) => [s.x + c * x - sn * y, s.y + sn * x + c * y];
     g.strokeStyle = `rgba(255,240,150,${pulse})`; g.lineWidth = 2; g.setLineDash([7, 4]); g.beginPath(); [pr(-hw, -hh2), pr(hw, -hh2), pr(hw, hh2), pr(-hw, hh2)].forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.closePath(); g.stroke(); g.setLineDash([]); }

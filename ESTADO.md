@@ -164,3 +164,9 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - Ciudades visibles por debajo de distancia 36. Árboles algo más pequeños de cerca para no tapar las casas; en invierno, ramas pardas.
 - Coste relativo frente a la fase 3 (SwiftShader, mismas vistas, ciudades bien ocultas al alejarse): medio +0–7 %, alto +0–13 % (vista de ciudad); bajo dentro del ruido salvo la vista regional (+10–18 %).
 - Herramienta de medida: las capturas llaman ya a `updateCityVisibility()` tras mover la cámara (antes las ciudades se quedaban visibles en la vista continental de la medición).
+
+## Mapa 3D, fase 6: rótulos, fichas y panel gráfico (src/rotulos.js)
+- `updateLabels` reescrito: países, ciudades y estados se colocan juntos por prioridad (países 2000+, grandes ciudades 900, capitales +200, estados 500, ciudades menores 300–620) y el que choca con uno ya colocado no se pinta; una ciudad prueba antes a poner el nombre encima del punto. Anclados a la altura real del suelo (`terrainY`) y con fundido de opacidad según la distancia. `updateCityLabels` queda vacío (lo hace `updateLabels`).
+- Fichas: los ejércitos del mismo país en el mismo sitio se agrupan en una ficha («×n», suma de divisiones) cuando hay más de 3 fichas allí, salvo el seleccionado, los que combaten o se mueven. Las flotas extranjeras sin guerra solo se ven de cerca. `declutterTokens` reparte en rejilla de dos columnas y esquiva los nombres de países y grandes ciudades (`R.labelRects`).
+- Panel gráfico (botón ☀ junto a Q, `ACT.gfxpanel`): calidad, intensidad del relieve 0–100 %, dirección de la luz, bosques, caminos y ferrocarril, nombres de estados. Se guarda en `victoria-map-prefs` (`relief`, `lightAz`, `veg`, `roads`, `sl`).
+- Coste: solo CPU al mover la cámara; sin cambios medibles en el render.

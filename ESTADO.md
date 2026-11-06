@@ -147,3 +147,10 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - Plataforma continental: aguas turquesa junto a la costa y degradado de profundidad hasta 70 px de mar, en la textura del terreno (se ve también con la animación apagada).
 - Ríos como cintas (`buildRiverRibbons`): `addRivers` guarda ahora `MAP.riverPaths` (solo dibujo; la jugabilidad no cambia). Trazados suavizados (Chaikin), más anchos río abajo y con afluentes, con ancho mínimo en pantalla (≈1,4 px, `R.riverU.pxW`) y corriente animada (desactivada en calidad baja). Una llamada de dibujo. Los ríos pintados en la textura quedan tenues (minimapa).
 - Coste relativo frente a la fase 1 (SwiftShader): dentro del ruido de medida (±5 %).
+
+## Mapa 3D, fase 3: vegetación y suelo (src/vegetacion.js)
+- Árboles instanciados (4 `InstancedMesh`: frondoso, conífera, palmera, matorral) colocados al cargar por bioma, altitud real (límite del bosque `treeLineAt`: ≈1900 m en los Alpes) y pendiente; palmeras en oasis y riberas del desierto y en el trópico. ≈140 000 candidatos (≈140 ms de carga).
+- Solo se dibujan los cercanos a la cámara (`R.cam.dist < VEG_DIST = 72`), rellenando las instancias al moverse (`refreshVegetation`), con tope por calidad `VEG_CAP` (bajo 0, medio 5000, alto 14000) y aclarado progresivo al llegar al límite. En los modos que no son Terreno, 40 % de densidad.
+- Color por estación: copas ocres y rojizas en otoño (fuera de los trópicos), ramas desnudas y escarcha en invierno.
+- Shader del terreno: dunas en los desiertos (máscara en el canal A de `R.reliefTex`, se apagan a lo lejos), nieve azulada en laderas fuertes y hielo marino polar (permanente desde ~78°, en invierno desde ~66°). Desactivado en calidad baja salvo el hielo y la nieve.
+- Coste relativo frente a la fase 2 (SwiftShader, modo político): bajo sin cambios; medio +10 % (regional) y +18 % (ciudad); alto +10 %/+9 %.

@@ -51,7 +51,8 @@ function buildReliefTextures() {
     const sx = Math.max(0, hr[xr]) - Math.max(0, hr[xl]), sz = Math.max(0, hr[yd]) - Math.max(0, hr[yu]);
     let nx = -sx / ((xr - xl) * dx || dx) * SX, nz = -sz / (((yd - yu) / HR_W) * dz || dz) * SX, ny = 1; const l = Math.hypot(nx, ny, nz); nx /= l; nz /= l;
     const o = ((HR_H - 1 - j) * HR_W + i) * 4;                               // filas invertidas: v = 0 abajo, como la textura del mapa
-    data[o] = (nx * 0.5 + 0.5) * 255; data[o + 1] = (nz * 0.5 + 0.5) * 255; data[o + 2] = Math.min(255, mt[k] / 6400 * 255); data[o + 3] = 255;
+    const bi = MAP.biome[Math.min(MAP_H - 1, ((j + 0.5) * MAP_H / HR_H) | 0) * MAP_W + Math.min(MAP_W - 1, ((i + 0.5) * MAP_W / HR_W) | 0)];
+    data[o] = (nx * 0.5 + 0.5) * 255; data[o + 1] = (nz * 0.5 + 0.5) * 255; data[o + 2] = Math.min(255, mt[k] / 6400 * 255); data[o + 3] = bi === BIOME.DESERT ? 255 : 0;   // A: máscara de desierto (dunas)
   }
   const rt = new THREE.DataTexture(data, HR_W, HR_H, THREE.RGBAFormat); rt.magFilter = THREE.LinearFilter; rt.minFilter = THREE.LinearMipmapLinearFilter; rt.generateMipmaps = true; rt.wrapS = THREE.RepeatWrapping; rt.needsUpdate = true;
   // costa: distancia con signo (+ tierra, − mar) en píxeles del mapa, 32 niveles por píxel
@@ -132,6 +133,17 @@ vec3 rlfN; float rlfM; float rlfLand;`)
 #endif
  diffuseColor *= sampledDiffuseColor;
  diffuseColor.rgb *= 1.0 + detailK * ((dt - 0.5) * (0.12 + 0.14 * terrK) + (dt2 - 0.5) * 0.12);
+#ifndef RELIEF_LOW
+ // dunas: crestas paralelas al viento dominante, onduladas por el ruido; se apagan a lo lejos (sin submuestreo)
+ float des = rlf.a * rlfLand;
+ if (des > 0.01) {
+   vec2 dq = vW.xz; float dfw = length(fwidth(dq));
+   float ph = dot(dq, vec2(0.82, 0.57)) * 7.0 + (dt2 - 0.5) * 7.0 + sin(dq.y * 1.3 + dq.x * 0.4) * 1.6;
+   float dune = cos(ph) * (1.0 - smoothstep(0.03, 0.12, dfw)) * (0.6 + 0.4 * dsel);
+   rlfN = normalize(vec3(rlfN.x + 0.82 * dune * 0.24 * des, rlfN.y, rlfN.z + 0.57 * dune * 0.24 * des));
+   diffuseColor.rgb *= 1.0 + dune * 0.05 * des;
+ }
+#endif
  // roca en las pendientes fuertes y altitud (sobre todo en el modo terreno)
  float slope = 1.0 - rlfN.y;
  float rock = smoothstep(0.18, 0.5, slope) * smoothstep(500.0, 1600.0, rlfM) * rlfLand;
@@ -142,7 +154,11 @@ vec3 rlfN; float rlfM; float rlfLand;`)
  float sn = smoothstep(snowLine - 300.0, snowLine + 300.0, rlfM + (dt - 0.5) * 500.0) * (1.0 - 0.45 * smoothstep(0.45, 0.8, slope));
  sn = max(sn, snowK * 0.62 * smoothstep(46.0, 66.0, la)) + smoothstep(68.0, 80.0, la) * 0.45;
  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * seasonTint, rlfLand);
- diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.94, 0.96, 1.0), clamp(sn, 0.0, 1.0) * (0.35 + 0.45 * terrK) * rlfLand);
+ vec3 snowC = mix(vec3(0.94, 0.96, 1.0), vec3(0.78, 0.86, 0.96), smoothstep(0.3, 0.7, slope) * 0.6);   // nieve azulada en las laderas fuertes (hielo)
+ diffuseColor.rgb = mix(diffuseColor.rgb, snowC, clamp(sn, 0.0, 1.0) * (0.35 + 0.45 * terrK) * rlfLand);
+ // hielo marino polar: permanente por encima de ~78°, y en invierno hasta ~66°
+ float ice = clamp(smoothstep(76.0, 82.0, la + (dt2 - 0.5) * 4.0) + snowK * smoothstep(64.0, 74.0, la + (dt2 - 0.5) * 6.0), 0.0, 1.0) * (1.0 - rlfLand);
+ diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.84, 0.90, 0.96) * (0.92 + 0.12 * dt), ice * (0.45 + 0.4 * terrK));
  // sombreado del relieve: realza el contraste respecto a la llanura (que conserva su color exacto)
  vec3 nR = normalize(mix(vec3(0.0, 1.0, 0.0), rlfN, reliefK * rlfLand));
  diffuseColor.rgb *= clamp(1.0 + reliefK * (0.45 + 0.55 * terrK) * (dot(nR, lightW) - lightW.y) * 2.0, 0.4, 1.55);`)

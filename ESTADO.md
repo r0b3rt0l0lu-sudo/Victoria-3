@@ -122,3 +122,6 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 
 ## Pintura (src/pintura.js, ESTUDIO_MAPA.md)
 - `bvBuildBg` final: fondo pintado por bioma (`PAL`), capas base (desenfoque) y objetos (bosques/aldeas), rotulos de aldeas/rio (`NAME_POOLS`), rios w=13, arroyo w=5, barranco w=18, aldeas x0.74, unidades x0.7 (`BV_FORM`), `cap=34` por columna.
+
+## Paletas y fuentes (assets/)
+- `assets/paletas_biomas.json` -> `PAL` y `PAL_LAB` en `src/pintura.js` (colores, estilo de arbol por bioma, rotulos); `assets/fuentes.md`: Lora para rotulos del mapa (Google Fonts), Cinzel/Lato para la interfaz.

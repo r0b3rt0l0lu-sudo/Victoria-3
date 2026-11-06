@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Lato:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Lato:wght@400;700&family=Lora:ital,wght@0,400;0,600;1,500&display=swap');
 :root{
   --bg:#12181d; --panel:#222b33; --panel2:#2b3640; --edge:#0a0e11; --gold:#c9a657; --gold2:#ecd697; --goldd:#7d6733;
   --text:#ebe3cf; --dim:#98a3ab; --good:#8cc47a; --bad:#e07a68; --warn:#e0b45a; --blue:#6fa8d6;

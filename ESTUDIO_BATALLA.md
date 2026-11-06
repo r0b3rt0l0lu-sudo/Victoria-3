@@ -27,6 +27,18 @@ Complementa `ESTUDIO_LINEA.md`. Fuentes: reglas de wargames napoleónicos (Lexne
 16. **Ciudades y fuertes anclan la línea.** Un regimiento pegado a un pueblo o fuerte propio (o a un pueblo sin dueño) queda «anclado» (⚓): el golpe de flanco no le hace efecto (solo la espalda), gana moral con el tiempo, la línea apoyada en él no cuenta como flanco abierto ni suma a la amenaza de pánico, y el ejército recibe hasta +6 % de defensa (×peso: fuerte 1,2 · ciudad 1 · aldea 0,7).
 17. **Atacarlos compensa.** Cuando un ancla cae (pueblo o fuerte): +14 % de moral para el vencedor, −24 % (−10 % lejos) para el vencido y daño a sus defensores; el flanco que se apoyaba en ella queda al aire (pánico posible); el vencedor se queda con 1,2–3 unidades de comida y pólvora del enemigo. La IA defiende sus anclajes con dos regimientos que se plantan en el borde delantero y, si ataca o tiene ventaja, lanza tres a la carga contra el ancla enemiga.
 
+## Plan «más realismo» en tres partes
+- **Parte 1 — Combate y tropas** (hecha, `src/batalla5.js`): enfilada, tiradores, calidad de tropas, munición de artillería y proyectiles.
+- **Parte 2 — Mando** (pendiente): mensajeros visibles, reserva del general, muerte del mariscal, humo de pólvora que tapa la visión.
+- **Parte 3 — Terreno, clima y secuelas** (pendiente): barro e incendios, pendiente real, hora del día, heridos y enfermedad.
+
+### Parte 1 (hecha)
+18. **Enfilada.** Un tirador en el eje de la línea (a más del doble de distancia en y que en x) hace daño extra, baja organización y moral (artillería ×1,7) y aumenta las bajas del bando enfiladado (`b.enf`); flechas rojas «ENFILADA» en el campo. Los regimientos anclados ⚓ la sufren menos.
+19. **Tiradores.** Cada cuerpo de infantería despliega una cadena que hostiga al enemigo a <260 px, absorbe hasta −3 % de daño y se repliega ante la línea (<115 px) o la caballería (que la arrolla si la pilla fuera). Botón 🏹 Tiradores por cuerpo.
+20. **Calidad de las tropas.** Leva / recluta / regular / veterano según el entrenamiento (`d.tr`, `d.lv`) más un pequeño perfil por ejército (`NAT_Q`): cadencia, moral inicial y recuperación, retraso de las órdenes y gasto de munición. Se ve en el panel del regimiento.
+21. **Munición de artillería y carros.** Cada batería gasta munición según el proyectil, se queda muda a 0 y la repone un carro (visible) si hay pólvora: rápido cerca de su borde del campo, lento lejos.
+22. **Proyectiles.** Bala maciza (rasante contra columnas compactas), granada (desde 1850; daña fuertes, guarniciones y pueblos y puede incendiarlos), metralla (desde 1860; baja moral y organización a tropas en campo abierto) y bote a corta distancia.
+
 ## Pendiente / ideas (no implementadas)
 - Munición limitada de artillería y carros de munición visibles.
 - Cuadro con transición real (animación de formación).

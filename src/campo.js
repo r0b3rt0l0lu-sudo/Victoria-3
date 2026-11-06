@@ -226,33 +226,9 @@ function bvPlate(g, blk, hover) {
   if (hover) { g.strokeStyle = '#fff7d0'; g.lineWidth = 1.6; g.strokeRect(-h / 2 - 3, -w / 2 - 3, h + 6, w + 6); }
   g.restore();
 }
-/* ---------- MANDO DE BATALLA simplificado: una guía, la selección y sus órdenes, y secciones plegables ---------- */
-const MANDO_ORD = [['attack', '➡️', 'Atacar'], ['flank', '↪️', 'Flanquear'], ['defend', '🛡️', 'Mantener'], ['retreat', '↩️', 'Retirar'], ['target', '🎯', 'Objetivo']];
+/* El panel de mando unificado vive en mando2.js (tacMandoHtml). */
+const MANDO_ORD = [];
 const secOpen = (V, k, def) => V.ui && V.ui[k] !== undefined ? V.ui[k] : def;
-function tacMandoHtml(b, V, sel) {
-  const ps = playerSide(b); if (!ps || !V) return ''; const prep = !!b.prep;
-  const act = V.selCorps || (sel && sel.corps && sel.corps.id), ac = act ? (V.corps || []).find(c => c.id === act) : null, sec = (k, title, badge, body, def) => { const o = secOpen(V, k, def); return `<div class="msec ${o ? 'open' : ''}"><button class="msec-h" data-act="mandosec" data-k="${k}">${o ? '▾' : '▸'} ${title}${badge ? `<span class="mbadge">${badge}</span>` : ''}</button>${o ? `<div class="msec-b">${body}</div>` : ''}</div>`; };
-  // 1) guía
-  let h = `<div class="mando"><div class="mguide">${prep ? '<b>Preparación</b> · ① Arrastra tus regimientos por tu mitad del campo · ② Levanta obras si las necesitas · ③ Pulsa <b>¡Comenzar!</b>' : V.draw ? `<b>${PLANS[V.draw.k].ic} ${PLANS[V.draw.k].n}</b> · ${PLANS[V.draw.k].hint}` : sel ? '<b>Elige una orden</b> y luego haz clic en el campo donde quieres aplicarla.' : '<b>Selecciona</b> un cuerpo (lista de abajo o su bandera) o un regimiento (clic en el campo).'}</div>`;
-  if (prep) h += '<button class="primary prep-go" data-act="tacstart">▶ ¡Comenzar la batalla!</button>';
-  // 2) selección y órdenes
-  const who = ac && V.selCorps ? `${corpsName(ac)} entero (${ac.blks.length} regimientos)` : sel ? `${DIVS[sel.d.t].icon} ${BV_KIND[sel.type]} de ${sel.corps ? corpsName(sel.corps) : sel.a.name}` : 'Nada seleccionado';
-  const mm = sel && sel.mm !== undefined ? ` · moral ${Math.round(sel.mm * 100)}%` : '';
-  h += `<div class="msel"><div class="msel-h"><b>${who}</b>${sel && !V.selCorps ? `<small>fuerza ${Math.round(sel.d.s * 100)}% · org. ${Math.round(sel.d.o / DIVS[sel.d.t].org * 100)}%${mm}</small>` : ''}${sel && sel.corps && !V.selCorps ? `<button class="mini" data-act="corpssel" data-c="${sel.corps.id}" data-tip="Que las órdenes las sigan todos los regimientos del cuerpo, en línea.">👥 Todo el cuerpo</button>` : ''}</div>
-  <div class="mord">${MANDO_ORD.map(([k, ic, nm]) => `<button data-act="tacplan" data-k="${k}" class="${V.draw && V.draw.k === k ? 'on' : ''}" ${sel ? '' : 'disabled'} data-tip="<b>${PLANS[k].n}</b><br>${PLANS[k].hint}"><span>${ic}</span>${nm}</button>`).join('')}${typeof tacStayBtn === 'function' ? tacStayBtn(V, sel, ac) : ''}${V.draw && V.draw.pts.length ? '<button data-act="tacplan" data-k="fix" class="fix"><span>✔</span>Fijar</button>' : ''}${sel && sel.d.plan ? '<button data-act="tacplan" data-k="clear"><span>✖</span>Cancelar orden</button>' : ''}</div>${sel && sel.type === 'art' ? '<div class="mord"><button data-act="tacctr" data-tip="Apunta a la batería enemiga más cercana."><span>🔇</span>Contrabatería</button></div>' : ''}</div>`;
-  // 3) secciones plegables
-  const cs = (V.corps || []).filter(c => c.side === ps), icons = {'': '🤖', frontal: '⚔️', flank: '↪️', hold: '⛰️', barrage: '💣', skirmish: '🏹', charge: '🔥'};
-  const corpsBody = cs.map(c => { const cur = (b.cstr || {})[c.id] || '', open = act === c.id, res = c.regs.filter(r => r.out).length;
-    return `<div class="crow ${open ? 'sel' : ''}"><button class="crow-h" data-act="corpssel" data-c="${c.id}" data-tip="Clic: selecciona el cuerpo entero para darle órdenes."><b>${corpsName(c)}</b><span>${icons[cur]} ${cur ? STRATS[cur].name : 'Auto'}</span><small>${fmtN(corpsMen(c), 0)} h. · ${corpsGuns(c)} cañ.${res ? ` · ${res} en reserva` : ''}</small></button>
-    ${open ? `<div class="crow-b"><div class="strpick">${Object.keys(icons).map(k => `<button class="${cur === k ? 'on' : ''}" data-act="corpsstrat" data-c="${c.id}" data-s="${k}" data-tip="<b>${k ? STRATS[k].name : 'Automática'}</b><br>${k ? STRATS[k].desc : 'La estrategia la elige el ordenador según el terreno.'}">${icons[k]}</button>`).join('')}</div>
-      <div class="cm-army">${c.regs.map((r, i) => `<button class="dvchip ${r.out ? 'off' : 'on'}" ${prep || r.out ? `data-act="tacreg" data-c="${c.id}" data-i="${i}"` : 'disabled'} data-tip="<b>Regimiento ${i + 1}</b><br>Fuerza ${Math.round(r.s * 100)}%<br>${r.out ? 'En RESERVA (fuera del campo): clic para que entre por el margen' : prep ? 'En combate (clic: dejar en reserva)' : 'En combate'}">${DIVS[r.t].icon}<small>${Math.round(r.s * 100)}%</small></button>`).join('')}${c.arts.length ? `<span class="gunsel"><small>💣</small><button class="${((b.cgun || {})[c.id] || 'att') === 'att' ? 'on' : ''}" data-act="corpsgun" data-c="${c.id}" data-m="att" data-tip="Los cañones acompañan a los regimientos.">Acompañan</button><button class="${((b.cgun || {})[c.id] || 'att') === 'bat' ? 'on' : ''}" data-act="corpsgun" data-c="${c.id}" data-m="bat" data-tip="Los cañones forman una batería.">Batería</button></span>` : ''}</div></div>` : ''}</div>`; }).join('');
-  h += sec('corps', '🧭 Cuerpos, estrategias y reservas', cs.length + ' cuerpos', corpsBody || '<small class="dim">Sin cuerpos.</small>', true);
-  if (typeof tacObrasHtml === 'function') { const ob = tacObrasHtml(b, V); if (ob) h += sec('obras', '🏰 Obras y fuertes', (b.forts || []).filter(f => f.side === ps).length, ob, prep); }
-  if (!prep && typeof tacAbilHtml === 'function') { const n = Object.keys(GEN_ABIL).filter(k => abilOk(b, k) && !((V.cd && V.cd[ps] && V.cd[ps][k]) > V.t)).length; h += sec('gen', '🎖️ Habilidades del general', n + ' listas', tacAbilHtml(b, V).replace(/<div class="abil-h">[\s\S]*?<\/div>/, ''), false); }
-  if (!prep && typeof hasTech === 'function' && hasTech(me(), 'chemical_weapons')) h += sec('gas', '☣️ Armas especiales', '', '<button class="mini" data-act="bvgas" data-tip="<b>Ataque con gas</b><br>Castiga la organización y las bajas del enemigo durante 3 días. +6 infamia y −3 prestigio.">☣️ Ataque con gas</button>', false);
-  const sf = (b.forts || []).find(f => f.id === V.selFort); if (sf) h += typeof tacFortHtml === 'function' ? tacFortHtml(b, V) : '';
-  return h + '</div>';
-}
 // obras (solo contenido): recursos, construcción, cañones, guarnición
 function tacObrasHtml(b, V) {
   const ps = playerSide(b); if (!ps) return ''; const ids = sideIds(b, ps), prep = !!b.prep; if (!prep && !(b.forts || []).some(f => f.side === ps)) return '';

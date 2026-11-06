@@ -90,15 +90,6 @@ bvGround = function (V, b, all, dt) {
     all.forEach(k => { if (k.side !== win || k.type !== 'cav' || k.mode !== 'gallop') return; all.forEach(o => { if (o.side === win || o.mode === 'rout' && !o.figs.some(f => f.alive)) return; if (Math.hypot(o.x - k.x, o.y - k.y) < 34 && Math.random() < dt * 3) { const al = o.figs.filter(f => f.alive && !f.flee).concat(o.figs.filter(f => f.alive)); if (al.length) { bvKill(V, o, al[Math.floor(Math.random() * al.length)]); bvPart(V, {k: 'spark', x: o.x + rnd(-8, 8), y: o.y + rnd(-8, 8), life: 0.4, hot: 1}); } } }); });
   }
 };
-// panel: órdenes de ejército y segunda línea
-const _tacStayBtnE = tacStayBtn;
-tacStayBtn = function (V, sel, ac) {
-  let h = _tacStayBtnE(V, sel, ac); const b = R.bvB, ps = b && playerSide(b); if (!b || !ps) return h;
-  const cs = (V.corps || []).filter(c => c.side === ps);
-  if (sel && sel.corps) { const on = b.sup && b.sup[sel.corps.id]; h += `<div class="mform"><button data-act="corpsup" class="${on ? 'on' : ''}" data-tip="<b>Segunda línea</b><br>Los apoyos se colocan unos 100 pasos detrás y relevan a los regimientos agotados o rotos de este cuerpo."><span>🧱</span>Segunda línea</button></div>`; }
-  if (cs.length >= 2 && !b.prep) h += '<div class="mform"><small>Órdenes de EJÉRCITO (todos los cuerpos coordinados):</small>' + Object.keys(ARMY_ORD).map(k => `<button data-act="armyord" data-k="${k}" data-tip="<b>${ARMY_ORD[k].n}</b><br>${ARMY_ORD[k].tip}"><span>${ARMY_ORD[k].ic}</span>${ARMY_ORD[k].n}</button>`).join('') + '</div>';
-  return h;
-};
 // la IA despliega segunda línea al defender
 const _fmAiE = fmAi;
 fmAi = function (V, b, all, dt) {

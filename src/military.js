@@ -398,7 +398,7 @@ function endBattle(b, winner) {
   if (typeof battleSummary === 'function') battleSummary(b, winner, win, lose);
   const wt = win[0] ? win[0].tag : null, lt = lose[0] ? lose[0].tag : null;
   if (wt && lt) G.wars.forEach(w => { const wa = w.attAll.includes(wt) && w.defAll.includes(lt), wd = w.defAll.includes(wt) && w.attAll.includes(lt); if (wa || wd) { w.bw = w.bw || {att: 0, def: 0}; if (wa) w.bw.att++; else w.bw.def++; if (typeof warBattleStat === 'function') warBattleStat(w, wa, b); } });
-  if (win[0] && (win[0].tag === G.player || (lose[0] && lose[0].tag === G.player))) notify('war', `Batalla de ${provName(b.prov)}: victoria de ${G.C[wt].name}.`, b.state);
+  if (win[0] && (win[0].tag === G.player || (lose[0] && lose[0].tag === G.player))) notify('war', `Batalla de ${battleTitle(b)}: victoria de ${G.C[wt].name}.`, b.state);
 }
 // experiencia militar nacional (para doctrinas)
 function gainXp(tag, n) { const c = G.C[tag]; if (c) c.mxp = (c.mxp || 0) + n; }

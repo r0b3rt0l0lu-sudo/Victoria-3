@@ -125,7 +125,7 @@ battleDay = function (b) {
     if (ps) {
       b.prep = true; b.prepT = G.date.t;
       if (!UI.battle) { UI.battle = b.id; if (typeof renderBattlePanel === 'function') renderBattlePanel(); }
-      notify('war', `Preparación de la batalla de ${provName(b.prov)}: despliega tus tropas y levanta fuertes antes de comenzar.`, b.state);
+      notify('war', `Preparación de la batalla de ${battleTitle(b)}: despliega tus tropas y levanta fuertes antes de comenzar.`, b.state);
     } else { tacApplyPrep(b); }
   }
   if (b.prep) { if (UI.battle !== b.id && G.date.t - (b.prepT || 0) > 3) tacApplyPrep(b); else return; }

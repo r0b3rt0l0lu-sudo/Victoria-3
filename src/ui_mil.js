@@ -223,7 +223,7 @@ function renderBattlePanel() {
     if (!R.skip3d) { R.skip3d = true; R.bvPrevPause = G.paused; G.paused = true; }
   }
   const pb = $('.bvplay'); if (pb) pb.textContent = G.paused ? '▶ Continuar la batalla' : '⏸ Pausar';
-  $('#bt-title').textContent = 'Batalla de ' + provName(b.prov);
+  $('#bt-title').textContent = 'Batalla de ' + battleTitle(b);
   { const ti = (typeof terrainInfo === 'function' ? terrainInfo(b) : []).concat(typeof trenchInfo === 'function' && trenchInfo(b) ? [trenchInfo(b)] : []), ma = typeof terrMods === 'function' ? terrMods(b, 'A') : {att: 0, def: 0}, mb2 = typeof terrMods === 'function' ? terrMods(b, 'B') : {att: 0, def: 0}, pc = v => (v >= 0 ? '+' : '') + Math.round(v * 100) + '%';
     $('#bt-terr').innerHTML = '<small class="dim">Terreno:</small>' + ti.map(([ic, t, d]) => `<span class="terrchip" data-tip="${d}">${ic} ${t}</span>`).join('') + `<span class="terreff" data-tip="Efecto neto del terreno sobre cada bando">${G.C[b.A0].name}: ataque ${pc(ma.att)} · defensa ${pc(ma.def)} &nbsp;|&nbsp; ${G.C[b.B0].name}: ataque ${pc(mb2.att)} · defensa ${pc(mb2.def)}</span>`; }
   $('#bt-sub').textContent = `${done ? 'Batalla finalizada' : 'Día ' + b.day} · ${BIOME_NAMES[pv.biome] || ''} · defensa ×${terr.def.toFixed(2)} · movilidad ×${terr.move.toFixed(2)}`;

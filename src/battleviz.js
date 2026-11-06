@@ -138,7 +138,10 @@ function bvFoe(blk, all) {
 }
 function bvOrder(blk) { const o = blk.d.ord; return o && G.date.t <= o.until && ORDERS[o.k] ? o : null; }
 function bvStepBlock(V, b, blk, dt, lines, all) {
-  const od = bvOrder(blk), side = blk.side, dir = side === 'A' ? 1 : -1, opp = side === 'A' ? 'B' : 'A', st = blk.venge > V.t ? 'charge' : od && od.k === 'charge' ? 'charge' : od && od.k === 'hold' ? 'hold' : bvStratC(V, b, blk), att = b.att === side, L = bvLineFor(V, b, blk, lines), LE = lines[opp];
+  const od = bvOrder(blk), side = blk.side, dir = side === 'A' ? 1 : -1, opp = side === 'A' ? 'B' : 'A', att = b.att === side, LE = lines[opp], boosting0 = V.boost[side] > 0;
+  let st = blk.venge > V.t ? 'charge' : od && od.k === 'charge' ? 'charge' : od && od.k === 'hold' ? 'hold' : bvStratC(V, b, blk), L = bvLineFor(V, b, blk, lines);
+  // carga: solo una oleada de asalto carga; el resto avanza detrás, apoya con fuego y mantiene la línea
+  blk.inWave = true; if (st === 'charge' && !boosting0 && !blk.venge && !(od && od.k === 'charge') && blk.role === 'line' && typeof bvChargeWave === 'function' && !bvChargeWave(V, b, blk)) { blk.inWave = false; st = 'frontal'; L -= dir * 80; }
   const skey = st + '|' + blk.role; if (blk.skey !== skey) { blk.skey = skey; blk.fs = 0; blk.path = null; }
   blk.defLine = !!(blk.d.plan && blk.d.plan.k === 'defend');
   const compT = ((st === 'hold' && !att) || (od && od.k === 'hold') || blk.defLine) && blk.role === 'line' ? 0.8 : 1; blk.comp += (compT - blk.comp) * Math.min(1, dt * 1.5); bvDims(blk);
@@ -164,7 +167,7 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
     mode = 'artfire'; if (st === 'barrage') tx += dir * 36; if (st === 'hold' && !att) tx -= dir * 6;
   } else {
     // ---- bloque de línea: su estrategia se traduce en una orden propia para cada uno ----
-    const flankers = (() => { if (st !== 'flank' && !(man && man.kind === 'flank') && !(od && od.k === 'flank')) return false; if (od && od.k === 'flank') return true; const hasCav = all.some(o => o.side === side && o.role === 'line' && o.type === 'cav'); return blk.type === 'cav' || blk.type === 'tank' || (!hasCav && st === 'flank' && blk.nLane >= 3 && (blk.lane === 0 || blk.lane === blk.nLane - 1)); })();
+    const flankers = blk.isFlk = (() => { if (st !== 'flank' && !(man && man.kind === 'flank') && !(od && od.k === 'flank')) return false; if (od && od.k === 'flank') return true; const hasCav = all.some(o => o.side === side && o.role === 'line' && o.type === 'cav'); return blk.type === 'cav' || blk.type === 'tank' || (!hasCav && st === 'flank' && blk.nLane >= 3 && (blk.lane === 0 || blk.lane === blk.nLane - 1)); })();
     if (od && od.k === 'withdraw') { mode = 'retreat'; tx = home.x - dir * 140; spd = F.spd * 1.2; }
     else if (V.gas && V.gas.side !== side && V.gas.t < 5 && Math.sin(blk.ph * 5 + blk.id) > 0.1) { mode = 'recoil'; tx = L - dir * 70; spd = F.spd * 1.5; if (Math.random() < dt * 3) { const fs = blk.figs.filter(f => f.alive && !f.flee); if (fs.length) bvFlee(V, blk, fs[Math.floor(Math.random() * fs.length)], 0.6); } }
     else if (V.panic[side] > 0 && Math.sin(blk.ph * 7 + blk.id) > 0.45) { mode = 'recoil'; tx = L - dir * 120; spd = F.spd * 3; }
@@ -176,7 +179,7 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
       if (blk.fs === 0) { tx = xm; ty = ey; mode = 'flank'; if (Math.hypot(blk.x - xm, blk.y - ey) < 26) blk.fs = 1; path = [[blk.x, blk.y], [xm, ey], [f2.x + dir * (f2.dep / 2 + 6), f2.y + (edgeTop ? -1 : 1) * (f2.wid / 2 + 2)]]; }
       else if (blk.fs === 1) { tx = f2.x + dir * (f2.dep / 2 + 6); ty = f2.y + (edgeTop ? -1 : 1) * (f2.wid / 2 + 2); mode = 'flank'; if (Math.hypot(blk.x - tx, blk.y - ty) < 30) blk.fs = 2; path = [[blk.x, blk.y], [tx, ty]]; }
       else { mode = 'melee'; tx = blk.x; ty = blk.y; blk.foe = f2; }
-    } else if (st === 'flank' && !flankers) { mode = engaged ? 'melee' : 'fixing'; tx = home.x; if (dist < 140) mode = 'fire'; }
+    } else if (st === 'flank' && !flankers) { mode = engaged ? 'melee' : dist < 150 ? 'fire' : 'advance'; tx = home.x + dir * 70; if (typeof bvFillY === 'function') ty = bvFillY(V, b, blk, all, home.y); }       // los demás fijan al enemigo: avanzan y cierran huecos para mantener la línea
     else if (man && man.kind === 'gallop' && blk.type === 'cav' && foe) { const p = man.t / man.dur; spd = F.spd * 3.4; if (p < 0.55) { [tx, ty] = contact(foe); mode = 'gallop'; path = [[blk.x, blk.y], [tx, ty]]; } else { mode = 'advance'; } }
     else if (st === 'charge' || boosting) {
       mode = 'charge'; spd = F.spd * (blk.type === 'cav' ? 2.6 : 3.4); if (foe && foe.role !== 'reserve') { [tx, ty] = contact(foe); path = [[blk.x, blk.y], [tx, ty]]; } else tx = LE;
@@ -192,6 +195,7 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
     else if (engaged && blk.asl && mode !== 'retreat' && mode !== 'recoil') { mode = 'melee'; tx = blk.x; ty = blk.y; }
     else if (engaged && foe && foe.foe === blk && (foe.mode === 'melee' || foe.mode === 'charge' || foe.mode === 'gallop') && mode !== 'retreat' && mode !== 'recoil') { mode = 'melee'; tx = blk.x; ty = blk.y; }      // quien recibe la carga responde cuerpo a cuerpo
   }
+  if (!V.over && !b.prep && blk.role === 'line' && !blk.garr && blk.type !== 'art' && mode !== 'retreat' && mode !== 'recoil' && mode !== 'rout' && !(blk.d.plan && blk.d.plan.k === 'retreat') && typeof tacFortPush === 'function') { const fp = tacFortPush(V, b, blk, all, mode, dist, dir, spd); if (fp) { mode = fp.mode; tx = fp.tx; ty = fp.ty; spd = fp.spd; path = fp.path || null; } }       // un fuerte enemigo no se rodea: se asalta
   if (blk.d.stay && blk.role === 'line' && !V.over && !b.prep && !(blk.venge > V.t) && mode !== 'retreat' && mode !== 'rout') {       // «mantener posición»: solo se mueve ante una necesidad ofensiva
     const s0 = blk.d.stay, near = foe && foe.role !== 'reserve' && dist < 110;
     if (!near) { if (['advance', 'charge', 'flank', 'gallop', 'skirmish', 'fixing', 'melee', 'recoil'].includes(mode) || mode === 'hold' || mode === 'fire') { mode = foe && dist < 170 ? 'fire' : 'hold'; tx = s0.x; ty = s0.y; path = null; spd = F.spd * 1.2; } }

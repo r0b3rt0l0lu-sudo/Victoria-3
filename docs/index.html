@@ -695,6 +695,10 @@ svg.orders text.sdepot{font-size:16px;text-anchor:middle;dominant-baseline:centr
 .msec-b{padding:2px 10px 9px}.crow{border-top:1px solid rgba(201,166,87,.15)}.crow:first-child{border-top:0}.crow.sel{background:rgba(236,200,110,.07);border-radius:6px}
 .crow-h{width:100%;display:flex;gap:10px;align-items:baseline;background:none;border:0;color:#e8e2d0;padding:5px 2px;cursor:pointer;text-align:left}.crow-h small{color:var(--dim);margin-left:auto}.crow-h span{font-size:12px;color:#cdbf8a}.crow-b{padding:2px 2px 7px}
 .msec .strpick{display:flex;gap:4px;margin:2px 0 5px}.msec .strpick button{background:linear-gradient(#2d333b,#20252b);color:#e8e2d0;border:1px solid #4a4f58;border-radius:10px;padding:2px 9px;font-size:15px;cursor:pointer}.msec .strpick button.on{background:linear-gradient(#8a6f2f,#5b4818);border-color:var(--gold2)}
+
+.mmode{display:block;margin:-2px 0 5px;color:#9fb3c2;font-size:11.5px}.mord2{margin-top:5px}.mord2 button{min-width:0;padding:3px 9px;flex-direction:row;gap:5px}
+.mbadge.warn{background:#7a2a20;color:#ffd9d0;border-radius:8px;padding:1px 7px;font-size:11px}
+.msec .strpick{flex-wrap:wrap}.msec .strpick button{white-space:nowrap}
 </style>
 </head>
 <body>
@@ -4514,7 +4518,7 @@ function endBattle(b, winner) {
   if (typeof battleSummary === 'function') battleSummary(b, winner, win, lose);
   const wt = win[0] ? win[0].tag : null, lt = lose[0] ? lose[0].tag : null;
   if (wt && lt) G.wars.forEach(w => { const wa = w.attAll.includes(wt) && w.defAll.includes(lt), wd = w.defAll.includes(wt) && w.attAll.includes(lt); if (wa || wd) { w.bw = w.bw || {att: 0, def: 0}; if (wa) w.bw.att++; else w.bw.def++; if (typeof warBattleStat === 'function') warBattleStat(w, wa, b); } });
-  if (win[0] && (win[0].tag === G.player || (lose[0] && lose[0].tag === G.player))) notify('war', `Batalla de ${provName(b.prov)}: victoria de ${G.C[wt].name}.`, b.state);
+  if (win[0] && (win[0].tag === G.player || (lose[0] && lose[0].tag === G.player))) notify('war', `Batalla de ${battleTitle(b)}: victoria de ${G.C[wt].name}.`, b.state);
 }
 // experiencia militar nacional (para doctrinas)
 function gainXp(tag, n) { const c = G.C[tag]; if (c) c.mxp = (c.mxp || 0) + n; }
@@ -7400,7 +7404,7 @@ function renderBattlePanel() {
     if (!R.skip3d) { R.skip3d = true; R.bvPrevPause = G.paused; G.paused = true; }
   }
   const pb = $('.bvplay'); if (pb) pb.textContent = G.paused ? '▶ Continuar la batalla' : '⏸ Pausar';
-  $('#bt-title').textContent = 'Batalla de ' + provName(b.prov);
+  $('#bt-title').textContent = 'Batalla de ' + battleTitle(b);
   { const ti = (typeof terrainInfo === 'function' ? terrainInfo(b) : []).concat(typeof trenchInfo === 'function' && trenchInfo(b) ? [trenchInfo(b)] : []), ma = typeof terrMods === 'function' ? terrMods(b, 'A') : {att: 0, def: 0}, mb2 = typeof terrMods === 'function' ? terrMods(b, 'B') : {att: 0, def: 0}, pc = v => (v >= 0 ? '+' : '') + Math.round(v * 100) + '%';
     $('#bt-terr').innerHTML = '<small class="dim">Terreno:</small>' + ti.map(([ic, t, d]) => `<span class="terrchip" data-tip="${d}">${ic} ${t}</span>`).join('') + `<span class="terreff" data-tip="Efecto neto del terreno sobre cada bando">${G.C[b.A0].name}: ataque ${pc(ma.att)} · defensa ${pc(ma.def)} &nbsp;|&nbsp; ${G.C[b.B0].name}: ataque ${pc(mb2.att)} · defensa ${pc(mb2.def)}</span>`; }
   $('#bt-sub').textContent = `${done ? 'Batalla finalizada' : 'Día ' + b.day} · ${BIOME_NAMES[pv.biome] || ''} · defensa ×${terr.def.toFixed(2)} · movilidad ×${terr.move.toFixed(2)}`;
@@ -7664,7 +7668,10 @@ function bvFoe(blk, all) {
 }
 function bvOrder(blk) { const o = blk.d.ord; return o && G.date.t <= o.until && ORDERS[o.k] ? o : null; }
 function bvStepBlock(V, b, blk, dt, lines, all) {
-  const od = bvOrder(blk), side = blk.side, dir = side === 'A' ? 1 : -1, opp = side === 'A' ? 'B' : 'A', st = blk.venge > V.t ? 'charge' : od && od.k === 'charge' ? 'charge' : od && od.k === 'hold' ? 'hold' : bvStratC(V, b, blk), att = b.att === side, L = bvLineFor(V, b, blk, lines), LE = lines[opp];
+  const od = bvOrder(blk), side = blk.side, dir = side === 'A' ? 1 : -1, opp = side === 'A' ? 'B' : 'A', att = b.att === side, LE = lines[opp], boosting0 = V.boost[side] > 0;
+  let st = blk.venge > V.t ? 'charge' : od && od.k === 'charge' ? 'charge' : od && od.k === 'hold' ? 'hold' : bvStratC(V, b, blk), L = bvLineFor(V, b, blk, lines);
+  // carga: solo una oleada de asalto carga; el resto avanza detrás, apoya con fuego y mantiene la línea
+  blk.inWave = true; if (st === 'charge' && !boosting0 && !blk.venge && !(od && od.k === 'charge') && blk.role === 'line' && typeof bvChargeWave === 'function' && !bvChargeWave(V, b, blk)) { blk.inWave = false; st = 'frontal'; L -= dir * 80; }
   const skey = st + '|' + blk.role; if (blk.skey !== skey) { blk.skey = skey; blk.fs = 0; blk.path = null; }
   blk.defLine = !!(blk.d.plan && blk.d.plan.k === 'defend');
   const compT = ((st === 'hold' && !att) || (od && od.k === 'hold') || blk.defLine) && blk.role === 'line' ? 0.8 : 1; blk.comp += (compT - blk.comp) * Math.min(1, dt * 1.5); bvDims(blk);
@@ -7690,7 +7697,7 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
     mode = 'artfire'; if (st === 'barrage') tx += dir * 36; if (st === 'hold' && !att) tx -= dir * 6;
   } else {
     // ---- bloque de línea: su estrategia se traduce en una orden propia para cada uno ----
-    const flankers = (() => { if (st !== 'flank' && !(man && man.kind === 'flank') && !(od && od.k === 'flank')) return false; if (od && od.k === 'flank') return true; const hasCav = all.some(o => o.side === side && o.role === 'line' && o.type === 'cav'); return blk.type === 'cav' || blk.type === 'tank' || (!hasCav && st === 'flank' && blk.nLane >= 3 && (blk.lane === 0 || blk.lane === blk.nLane - 1)); })();
+    const flankers = blk.isFlk = (() => { if (st !== 'flank' && !(man && man.kind === 'flank') && !(od && od.k === 'flank')) return false; if (od && od.k === 'flank') return true; const hasCav = all.some(o => o.side === side && o.role === 'line' && o.type === 'cav'); return blk.type === 'cav' || blk.type === 'tank' || (!hasCav && st === 'flank' && blk.nLane >= 3 && (blk.lane === 0 || blk.lane === blk.nLane - 1)); })();
     if (od && od.k === 'withdraw') { mode = 'retreat'; tx = home.x - dir * 140; spd = F.spd * 1.2; }
     else if (V.gas && V.gas.side !== side && V.gas.t < 5 && Math.sin(blk.ph * 5 + blk.id) > 0.1) { mode = 'recoil'; tx = L - dir * 70; spd = F.spd * 1.5; if (Math.random() < dt * 3) { const fs = blk.figs.filter(f => f.alive && !f.flee); if (fs.length) bvFlee(V, blk, fs[Math.floor(Math.random() * fs.length)], 0.6); } }
     else if (V.panic[side] > 0 && Math.sin(blk.ph * 7 + blk.id) > 0.45) { mode = 'recoil'; tx = L - dir * 120; spd = F.spd * 3; }
@@ -7702,7 +7709,7 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
       if (blk.fs === 0) { tx = xm; ty = ey; mode = 'flank'; if (Math.hypot(blk.x - xm, blk.y - ey) < 26) blk.fs = 1; path = [[blk.x, blk.y], [xm, ey], [f2.x + dir * (f2.dep / 2 + 6), f2.y + (edgeTop ? -1 : 1) * (f2.wid / 2 + 2)]]; }
       else if (blk.fs === 1) { tx = f2.x + dir * (f2.dep / 2 + 6); ty = f2.y + (edgeTop ? -1 : 1) * (f2.wid / 2 + 2); mode = 'flank'; if (Math.hypot(blk.x - tx, blk.y - ty) < 30) blk.fs = 2; path = [[blk.x, blk.y], [tx, ty]]; }
       else { mode = 'melee'; tx = blk.x; ty = blk.y; blk.foe = f2; }
-    } else if (st === 'flank' && !flankers) { mode = engaged ? 'melee' : 'fixing'; tx = home.x; if (dist < 140) mode = 'fire'; }
+    } else if (st === 'flank' && !flankers) { mode = engaged ? 'melee' : dist < 150 ? 'fire' : 'advance'; tx = home.x + dir * 70; if (typeof bvFillY === 'function') ty = bvFillY(V, b, blk, all, home.y); }       // los demás fijan al enemigo: avanzan y cierran huecos para mantener la línea
     else if (man && man.kind === 'gallop' && blk.type === 'cav' && foe) { const p = man.t / man.dur; spd = F.spd * 3.4; if (p < 0.55) { [tx, ty] = contact(foe); mode = 'gallop'; path = [[blk.x, blk.y], [tx, ty]]; } else { mode = 'advance'; } }
     else if (st === 'charge' || boosting) {
       mode = 'charge'; spd = F.spd * (blk.type === 'cav' ? 2.6 : 3.4); if (foe && foe.role !== 'reserve') { [tx, ty] = contact(foe); path = [[blk.x, blk.y], [tx, ty]]; } else tx = LE;
@@ -7718,6 +7725,7 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
     else if (engaged && blk.asl && mode !== 'retreat' && mode !== 'recoil') { mode = 'melee'; tx = blk.x; ty = blk.y; }
     else if (engaged && foe && foe.foe === blk && (foe.mode === 'melee' || foe.mode === 'charge' || foe.mode === 'gallop') && mode !== 'retreat' && mode !== 'recoil') { mode = 'melee'; tx = blk.x; ty = blk.y; }      // quien recibe la carga responde cuerpo a cuerpo
   }
+  if (!V.over && !b.prep && blk.role === 'line' && !blk.garr && blk.type !== 'art' && mode !== 'retreat' && mode !== 'recoil' && mode !== 'rout' && !(blk.d.plan && blk.d.plan.k === 'retreat') && typeof tacFortPush === 'function') { const fp = tacFortPush(V, b, blk, all, mode, dist, dir, spd); if (fp) { mode = fp.mode; tx = fp.tx; ty = fp.ty; spd = fp.spd; path = fp.path || null; } }       // un fuerte enemigo no se rodea: se asalta
   if (blk.d.stay && blk.role === 'line' && !V.over && !b.prep && !(blk.venge > V.t) && mode !== 'retreat' && mode !== 'rout') {       // «mantener posición»: solo se mueve ante una necesidad ofensiva
     const s0 = blk.d.stay, near = foe && foe.role !== 'reserve' && dist < 110;
     if (!near) { if (['advance', 'charge', 'flank', 'gallop', 'skirmish', 'fixing', 'melee', 'recoil'].includes(mode) || mode === 'hold' || mode === 'fire') { mode = foe && dist < 170 ? 'fire' : 'hold'; tx = s0.x; ty = s0.y; path = null; spd = F.spd * 1.2; } }
@@ -10441,7 +10449,7 @@ battleDay = function (b) {
     if (ps) {
       b.prep = true; b.prepT = G.date.t;
       if (!UI.battle) { UI.battle = b.id; if (typeof renderBattlePanel === 'function') renderBattlePanel(); }
-      notify('war', `Preparación de la batalla de ${provName(b.prov)}: despliega tus tropas y levanta fuertes antes de comenzar.`, b.state);
+      notify('war', `Preparación de la batalla de ${battleTitle(b)}: despliega tus tropas y levanta fuertes antes de comenzar.`, b.state);
     } else { tacApplyPrep(b); }
   }
   if (b.prep) { if (UI.battle !== b.id && G.date.t - (b.prepT || 0) > 3) tacApplyPrep(b); else return; }
@@ -11438,33 +11446,9 @@ function bvPlate(g, blk, hover) {
   if (hover) { g.strokeStyle = '#fff7d0'; g.lineWidth = 1.6; g.strokeRect(-h / 2 - 3, -w / 2 - 3, h + 6, w + 6); }
   g.restore();
 }
-/* ---------- MANDO DE BATALLA simplificado: una guía, la selección y sus órdenes, y secciones plegables ---------- */
-const MANDO_ORD = [['attack', '➡️', 'Atacar'], ['flank', '↪️', 'Flanquear'], ['defend', '🛡️', 'Mantener'], ['retreat', '↩️', 'Retirar'], ['target', '🎯', 'Objetivo']];
+/* El panel de mando unificado vive en mando2.js (tacMandoHtml). */
+const MANDO_ORD = [];
 const secOpen = (V, k, def) => V.ui && V.ui[k] !== undefined ? V.ui[k] : def;
-function tacMandoHtml(b, V, sel) {
-  const ps = playerSide(b); if (!ps || !V) return ''; const prep = !!b.prep;
-  const act = V.selCorps || (sel && sel.corps && sel.corps.id), ac = act ? (V.corps || []).find(c => c.id === act) : null, sec = (k, title, badge, body, def) => { const o = secOpen(V, k, def); return `<div class="msec ${o ? 'open' : ''}"><button class="msec-h" data-act="mandosec" data-k="${k}">${o ? '▾' : '▸'} ${title}${badge ? `<span class="mbadge">${badge}</span>` : ''}</button>${o ? `<div class="msec-b">${body}</div>` : ''}</div>`; };
-  // 1) guía
-  let h = `<div class="mando"><div class="mguide">${prep ? '<b>Preparación</b> · ① Arrastra tus regimientos por tu mitad del campo · ② Levanta obras si las necesitas · ③ Pulsa <b>¡Comenzar!</b>' : V.draw ? `<b>${PLANS[V.draw.k].ic} ${PLANS[V.draw.k].n}</b> · ${PLANS[V.draw.k].hint}` : sel ? '<b>Elige una orden</b> y luego haz clic en el campo donde quieres aplicarla.' : '<b>Selecciona</b> un cuerpo (lista de abajo o su bandera) o un regimiento (clic en el campo).'}</div>`;
-  if (prep) h += '<button class="primary prep-go" data-act="tacstart">▶ ¡Comenzar la batalla!</button>';
-  // 2) selección y órdenes
-  const who = ac && V.selCorps ? `${corpsName(ac)} entero (${ac.blks.length} regimientos)` : sel ? `${DIVS[sel.d.t].icon} ${BV_KIND[sel.type]} de ${sel.corps ? corpsName(sel.corps) : sel.a.name}` : 'Nada seleccionado';
-  const mm = sel && sel.mm !== undefined ? ` · moral ${Math.round(sel.mm * 100)}%` : '';
-  h += `<div class="msel"><div class="msel-h"><b>${who}</b>${sel && !V.selCorps ? `<small>fuerza ${Math.round(sel.d.s * 100)}% · org. ${Math.round(sel.d.o / DIVS[sel.d.t].org * 100)}%${mm}</small>` : ''}${sel && sel.corps && !V.selCorps ? `<button class="mini" data-act="corpssel" data-c="${sel.corps.id}" data-tip="Que las órdenes las sigan todos los regimientos del cuerpo, en línea.">👥 Todo el cuerpo</button>` : ''}</div>
-  <div class="mord">${MANDO_ORD.map(([k, ic, nm]) => `<button data-act="tacplan" data-k="${k}" class="${V.draw && V.draw.k === k ? 'on' : ''}" ${sel ? '' : 'disabled'} data-tip="<b>${PLANS[k].n}</b><br>${PLANS[k].hint}"><span>${ic}</span>${nm}</button>`).join('')}${typeof tacStayBtn === 'function' ? tacStayBtn(V, sel, ac) : ''}${V.draw && V.draw.pts.length ? '<button data-act="tacplan" data-k="fix" class="fix"><span>✔</span>Fijar</button>' : ''}${sel && sel.d.plan ? '<button data-act="tacplan" data-k="clear"><span>✖</span>Cancelar orden</button>' : ''}</div>${sel && sel.type === 'art' ? '<div class="mord"><button data-act="tacctr" data-tip="Apunta a la batería enemiga más cercana."><span>🔇</span>Contrabatería</button></div>' : ''}</div>`;
-  // 3) secciones plegables
-  const cs = (V.corps || []).filter(c => c.side === ps), icons = {'': '🤖', frontal: '⚔️', flank: '↪️', hold: '⛰️', barrage: '💣', skirmish: '🏹', charge: '🔥'};
-  const corpsBody = cs.map(c => { const cur = (b.cstr || {})[c.id] || '', open = act === c.id, res = c.regs.filter(r => r.out).length;
-    return `<div class="crow ${open ? 'sel' : ''}"><button class="crow-h" data-act="corpssel" data-c="${c.id}" data-tip="Clic: selecciona el cuerpo entero para darle órdenes."><b>${corpsName(c)}</b><span>${icons[cur]} ${cur ? STRATS[cur].name : 'Auto'}</span><small>${fmtN(corpsMen(c), 0)} h. · ${corpsGuns(c)} cañ.${res ? ` · ${res} en reserva` : ''}</small></button>
-    ${open ? `<div class="crow-b"><div class="strpick">${Object.keys(icons).map(k => `<button class="${cur === k ? 'on' : ''}" data-act="corpsstrat" data-c="${c.id}" data-s="${k}" data-tip="<b>${k ? STRATS[k].name : 'Automática'}</b><br>${k ? STRATS[k].desc : 'La estrategia la elige el ordenador según el terreno.'}">${icons[k]}</button>`).join('')}</div>
-      <div class="cm-army">${c.regs.map((r, i) => `<button class="dvchip ${r.out ? 'off' : 'on'}" ${prep || r.out ? `data-act="tacreg" data-c="${c.id}" data-i="${i}"` : 'disabled'} data-tip="<b>Regimiento ${i + 1}</b><br>Fuerza ${Math.round(r.s * 100)}%<br>${r.out ? 'En RESERVA (fuera del campo): clic para que entre por el margen' : prep ? 'En combate (clic: dejar en reserva)' : 'En combate'}">${DIVS[r.t].icon}<small>${Math.round(r.s * 100)}%</small></button>`).join('')}${c.arts.length ? `<span class="gunsel"><small>💣</small><button class="${((b.cgun || {})[c.id] || 'att') === 'att' ? 'on' : ''}" data-act="corpsgun" data-c="${c.id}" data-m="att" data-tip="Los cañones acompañan a los regimientos.">Acompañan</button><button class="${((b.cgun || {})[c.id] || 'att') === 'bat' ? 'on' : ''}" data-act="corpsgun" data-c="${c.id}" data-m="bat" data-tip="Los cañones forman una batería.">Batería</button></span>` : ''}</div></div>` : ''}</div>`; }).join('');
-  h += sec('corps', '🧭 Cuerpos, estrategias y reservas', cs.length + ' cuerpos', corpsBody || '<small class="dim">Sin cuerpos.</small>', true);
-  if (typeof tacObrasHtml === 'function') { const ob = tacObrasHtml(b, V); if (ob) h += sec('obras', '🏰 Obras y fuertes', (b.forts || []).filter(f => f.side === ps).length, ob, prep); }
-  if (!prep && typeof tacAbilHtml === 'function') { const n = Object.keys(GEN_ABIL).filter(k => abilOk(b, k) && !((V.cd && V.cd[ps] && V.cd[ps][k]) > V.t)).length; h += sec('gen', '🎖️ Habilidades del general', n + ' listas', tacAbilHtml(b, V).replace(/<div class="abil-h">[\s\S]*?<\/div>/, ''), false); }
-  if (!prep && typeof hasTech === 'function' && hasTech(me(), 'chemical_weapons')) h += sec('gas', '☣️ Armas especiales', '', '<button class="mini" data-act="bvgas" data-tip="<b>Ataque con gas</b><br>Castiga la organización y las bajas del enemigo durante 3 días. +6 infamia y −3 prestigio.">☣️ Ataque con gas</button>', false);
-  const sf = (b.forts || []).find(f => f.id === V.selFort); if (sf) h += typeof tacFortHtml === 'function' ? tacFortHtml(b, V) : '';
-  return h + '</div>';
-}
 // obras (solo contenido): recursos, construcción, cañones, guarnición
 function tacObrasHtml(b, V) {
   const ps = playerSide(b); if (!ps) return ''; const ids = sideIds(b, ps), prep = !!b.prep; if (!prep && !(b.forts || []).some(f => f.side === ps)) return '';
@@ -11500,6 +11484,106 @@ function tacMelee(V, b, all, step) {
   });
 }
 
+/* ===== PUEBLOS DE CADA PROVINCIA: sedes de batalla con nombre propio =====
+   Cada provincia tiene 3 pueblos con nombre (siempre los mismos). Cada batalla se libra en uno de ellos, y cada pueblo impone su propio escenario
+   (cruce de caminos, puente, altura, bosque, villa amurallada o vado), así que dos batallas en la misma provincia casi nunca se parecen.
+   Los nombres salen de una lista por lengua/región (ver nameLang); las listas son de topónimos comunes de la época, no de lugares exactos. */
+const TOWN_NAMES = {
+  es: ['Villanueva del Campo', 'Santa Eulalia', 'Torrecilla', 'Valdemoro', 'San Millán', 'Peñafiel', 'Fuentelcarro', 'Castrojeriz', 'Villaverde', 'Navalcarnero', 'Puentecesures', 'Alcalá de Henares', 'Cantalapiedra', 'Mombeltrán', 'Almendral', 'Los Arcos', 'Monteagudo', 'La Bañeza', 'Hontanar', 'Torreblanca', 'Sotillo', 'Aldeanueva', 'Cerro Gordo', 'Valverde', 'Riofrío', 'Piedrahíta', 'San Roque', 'Carrascal', 'Mirabel', 'Bailén'],
+  pt: ['Vila Nova', 'Santa Comba', 'Ponte da Barca', 'Montemor', 'São Pedro', 'Alcobaça', 'Torres Novas', 'Vila Real', 'Castelo Branco', 'Ourique', 'Ribeira', 'Penedono', 'Vimioso', 'Salvaterra', 'Fontelo', 'Aldeia Velha'],
+  fr: ['Saint-Aubin', 'Villeneuve', 'Montfort', 'Beaumont', 'Châteauneuf', 'La Ferté', 'Sainte-Colombe', 'Bellevue', 'Pont-de-Vaux', 'Montmirail', 'Valmy', 'Neuville', 'Vieux-Moulin', 'Saint-Privat', 'Mouzon', 'Champaubert', 'Rocroi', 'Vaucouleurs', 'Fleury', 'Lignières', 'Saint-Cloud', 'Bourg-la-Reine', 'Marcilly', 'Étoges', 'Brienne'],
+  en: ['Whitby', 'Oakham', 'Netherby', 'Ashford', 'Kingsbridge', 'Little Marsh', 'Redcliffe', 'Stonehaven', 'Hartley', 'Wetherby', 'Thornbury', 'Millbrook', 'Eastwick', 'Brampton', 'Coldstream', 'Marlow', 'Cranleigh', 'Fairford', 'Elmstead', 'Ravenscar', 'Abbotsford', 'Wickham', 'Dunmore', 'Glenrock', 'Hollin Cross'],
+  us: ['Spring Creek', 'Cedar Hollow', 'Fort Harmon', 'Mill Run', 'Oak Grove', 'Rock Ford', 'New Salem', 'Pleasant Hill', 'Bull Run Crossing', 'Cross Keys', 'Antioch', 'Shiloh Church', 'Cold Harbor', 'Sharpsburg', 'Black Creek', 'Gum Springs', 'Dry Fork', 'Harper\'s Mill', 'Lone Pine', 'Bear Valley'],
+  de: ['Neustadt', 'Oberdorf', 'Rosenau', 'Waldheim', 'Königshofen', 'Altenburg', 'Bad Brunn', 'Kirchhain', 'Steinau', 'Hohenfeld', 'Grünberg', 'Lindenau', 'Mühlhausen', 'Schönwald', 'Burgstädt', 'Weißenfels', 'Rothenbach', 'Eichstätt', 'Nordheim', 'Sankt Georgen', 'Hainichen', 'Dornach', 'Wartenberg', 'Zornhof', 'Lützen'],
+  it: ['San Martino', 'Solferino', 'Castelfidardo', 'Villafranca', 'Monteleone', 'Ponte Vecchio', 'Santa Lucia', 'Custoza', 'Montebello', 'Borgo Nuovo', 'Casteggio', 'Rivoli', 'Montenotte', 'Calatafimi', 'Marengo', 'Pieve di Cadore', 'Torre del Greco', 'Velletri'],
+  sl: ['Borodino', 'Novaya Slobodá', 'Krasnoye', 'Malo Yaroslávets', 'Bielá Tserkov', 'Gorky', 'Pokrovskoye', 'Stary Oskol', 'Zelená Hora', 'Kamenets', 'Vyazma', 'Trnovo', 'Plevna', 'Shipka', 'Gródek', 'Wola', 'Ostrolęka', 'Smolany', 'Nové Zámky', 'Sadová', 'Chlum', 'Ligny Nové', 'Dubno', 'Berezina', 'Lesnaya', 'Mogilev Pos.'],
+  nd: ['Hammarby', 'Skogstorp', 'Nyborg', 'Fredrikshald', 'Storvik', 'Lundby', 'Holmgård', 'Bjørnstad', 'Dybbøl', 'Idstedt', 'Kolding', 'Vestby', 'Åkerby', 'Torsvik', 'Lillehammer', 'Sundsvall Nord'],
+  tr: ['Yeni Köy', 'Karagöz', 'Hisarlık', 'Kasaba', 'Çiftlik', 'Dere Köy', 'Taşköprü', 'Kızılağaç', 'Ak Dağ', 'Bayramlı', 'Plevne Köy', 'Karaağaç', 'Pazarcık', 'Eski Hisar', 'Kayalı', 'Çayırlı', 'Nezib', 'Konya Han', 'Başköy', 'Sarıkamış'],
+  gr: ['Ágios Nikólaos', 'Kastrí', 'Melissa', 'Palaiókastro', 'Chaironeia', 'Missolonghi Nord', 'Navarino', 'Skála', 'Vrysi', 'Kalavryta', 'Pirgos', 'Ioánnina Alta'],
+  ar: ['Tell el-Kebir', 'Beit Zeitun', 'Qasr el-Nur', 'Ain Salim', 'Dar el-Hamra', 'Kafr Yusuf', 'Wadi Halef', 'Bab el-Sultan', 'Hisn Rumi', 'Deir Mar Elias', 'Sidi Brahim', 'Oued Zenati', 'Bir Hakeim', 'Ain Taya', 'Taza', 'Mazagran', 'Isly', 'Mers el-Kebir', 'El Alamein', 'Tanta Vieja'],
+  af: ['Kwandebele', 'Mbombela', 'Ndola', 'Ulundi', 'Isandlwana', 'Rorke\'s Drift', 'Bagamoyo', 'Kasama', 'Nkandla', 'Gingindlovu', 'Majuba', 'Colenso', 'Magersfontein', 'Omdurman Sur', 'Magdala', 'Adwa', 'Kumasi', 'Sokoto Viejo', 'Ibadan', 'Abeokuta', 'Boma', 'Kuruman'],
+  in: ['Ramnagar', 'Sherpur', 'Devgarh', 'Kalyanpur', 'Mirganj', 'Harihar', 'Chillianwala', 'Sobraon', 'Aliwal', 'Plassey', 'Buxar', 'Panipat', 'Gujrat', 'Nurpur', 'Bhagwanpur', 'Khanpur', 'Jhansi Sur', 'Gwalior Pet', 'Wadgaon', 'Karnal', 'Ferozeshah', 'Kotli'],
+  cn: ['Wei Cun', 'Chang Ping', 'Huashan Zhen', 'Tai Zhuang', 'Jiangnan Gang', 'Shan Wan', 'Lin Xian', 'Hua Cheng', 'Dongting', 'Baili Ao', 'Shuangqiao', 'Zhenhai', 'Liaoyang Cun', 'Pyongtaek', 'Phu Bang', 'Ban Sri', 'Kam Tin', 'Hanyang Pu', 'Yunnan Zhai', 'Nanjing Men', 'Tianjin Wei'],
+  jp: ['Sekigahara', 'Fushimi', 'Ueno', 'Shiroyama', 'Takase', 'Hakodate Mura', 'Aizu Mura', 'Toba', 'Kawanakajima', 'Nagashino', 'Kumamoto Bashi', 'Hara', 'Edo-gawa', 'Shimonoseki Hama'],
+  la: ['San Marcos', 'Santa Rosa', 'Villa Hermosa', 'Los Álamos', 'Puente Alto', 'Chacabuco', 'Maipú', 'Ayacucho', 'Carabobo', 'Boyacá', 'Pichincha', 'Cerro Corá', 'Tuyutí', 'Curupaytí', 'Caseros', 'Pavón', 'Rancagua', 'Junín', 'San Lorenzo', 'Monte Caseros'],
+  oc: ['Waitara', 'Moa Creek', 'Kauri Flat', 'Rosewood', 'Green Hills', 'Eureka Stockade', 'Gate Pa', 'Rangiriri', 'Ohaeawai', 'Bay Point', 'Lake Vale', 'Mount Hope']
+};
+// lengua/región a partir de la posición de la provincia
+function nameLang(lon, lat) {
+  if (lon < -30) return lat > 24 && lon > -130 && lon < -50 ? 'us' : lat > 40 ? 'us' : 'la';
+  if (lon > 112 && lat < -8) return 'oc'; if (lon > 128 && lat > 30 && lat < 46) return 'jp';
+  if (lon > 60 && lon < 95 && lat < 36) return 'in'; if (lon >= 95 || (lon > 70 && lat >= 36)) return 'cn';
+  if (lat < 14 && lon > -20 && lon < 52) return 'af'; if (lat < 29 && lon > -20 && lon < 45) return 'af';
+  if (lat < 38 && lon > -12 && lon < 45) return 'ar';
+  if (lon < -7.5 && lat > 36 && lat < 43) return 'pt'; if (lon < 4 && lat < 44.2 && lat > 35) return 'es';
+  if (lon < 3 && lat > 44.2 && lat < 49 && lon > -5.5) return 'fr';
+  if (lon < 2 && lat >= 49 && lon > -11) return 'en'; if (lon < -4 && lat > 50) return 'en';
+  if (lat > 55 && lon < 32) return 'nd'; if (lon < 8 && lat >= 42 && lat < 51.5) return 'fr';
+  if (lon >= 8 && lon < 24 && lat >= 46 && lat < 55) return 'de'; if (lon >= 6 && lon < 19 && lat < 46.5 && lat >= 36) return 'it';
+  if (lon >= 19 && lon < 30 && lat < 42) return 'gr'; if (lon >= 26 && lon < 46 && lat < 42) return 'tr'; if (lon >= 19 && lon < 26 && lat >= 40 && lat < 46) return 'tr';
+  if (lon >= 24 || lat >= 46) return 'sl'; return 'de';
+}
+const SITE_KINDS = {
+  cruce: {n: 'cruce de caminos', ic: '🛤️', d: 'Pueblo en un cruce de caminos: todo el campo es transitable y se pelea por el casco urbano del centro.'},
+  puente: {n: 'puente', ic: '🌉', d: 'Un río parte el campo y el pueblo guarda el único puente fijo: quien lo tenga manda el paso.'},
+  altura: {n: 'altura', ic: '⛰️', d: 'Pueblo al pie de una loma dominante: la artillería de la altura ve y alcanza más lejos.'},
+  bosque: {n: 'bosque', ic: '🌲', d: 'Pueblo encajado entre dos grandes bosques: buen terreno para emboscadas y para fijar al enemigo.'},
+  amurallado: {n: 'villa amurallada', ic: '🧱', d: 'Pueblo rodeado de tapias y setos: gran cobertura para quien lo guarnezca.'},
+  vado: {n: 'vado', ic: '〰️', d: 'Pueblo junto a un ancho vado con marismas en las orillas: cruzarlo es lento y peligroso.'}
+};
+const SITE_ORDER = ['cruce', 'puente', 'altura', 'bosque', 'amurallado', 'vado'];
+const _townCache = {};
+// los 3 pueblos de una provincia (siempre los mismos): nombre, tipo de escenario y tamaño
+function provTowns(pid) {
+  if (_townCache[pid]) return _townCache[pid];
+  const pv = MAP.provs[pid], lang = nameLang(pv.lon, pv.lat), pool = TOWN_NAMES[lang], out = [], used = new Set();
+  const h0 = Math.floor(hash2(pid, 3301, 17) * 1e6), k0 = Math.floor(hash2(pid, 3302, 19) * SITE_ORDER.length);
+  for (let i = 0; i < 3; i++) {
+    let ni = (h0 + i * 7 + Math.floor(hash2(pid, i, 3303) * pool.length)) % pool.length, g = 0; while (used.has(ni) && g++ < pool.length) ni = (ni + 1) % pool.length; used.add(ni);
+    let kind = SITE_ORDER[(k0 + i * 2 + 1) % SITE_ORDER.length]; if (pv.biome === 7 && i === 0) kind = 'altura'; if (pv.biome === 3 && (kind === 'bosque' || kind === 'vado')) kind = 'cruce';
+    out.push({i, name: pool[ni], kind, lang});
+  }
+  return (_townCache[pid] = out);
+}
+// pueblo donde se libra una batalla concreta (se fija al empezar y se guarda en la batalla)
+function battleSite(b) {
+  const T = provTowns(b.prov); if (b.site === undefined) b.site = Math.floor(hash2(b.id * 31 + 7, b.prov, 3310) * T.length) % T.length;
+  return T[b.site];
+}
+const battleTitle = b => { const s = battleSite(b); return `${s.name} · ${provName(b.prov)}`; };
+// el escenario propio del pueblo: moldea el terreno ya generado alrededor del pueblo central
+function applySite(b, tf, H, bio) {
+  const s = battleSite(b), W = BV_W, Hh = BV_H, cx = W / 2 + (H(900) - 0.5) * 180, cy = Hh / 2 + (H(901) - 0.5) * 140, defSide = b.att === 'A' ? 'B' : 'A', dd = defSide === 'A' ? -1 : 1;
+  tf.site = s;
+  // el casco urbano del centro es siempre el pueblo principal (con nombre propio); se retiran aldeas pegadas al centro
+  tf.villages = tf.villages.filter(v => Math.hypot(v.x - cx, v.y - cy) > 190); tf.villages.forEach(v => { v.big = false; });
+  const town = {id: 99, x: cx, y: cy, r: 52, n: 15, church: true, big: true, name: s.name, main: true}; tf.villages.unshift(town); tf.villages.forEach((v, i) => { v.id = i; }); tf.town = town;
+  const clearAround = (arr, x, y, r) => arr.filter(e => Math.hypot(e.x - x, e.y - y) > r + (e.r || e.rx || 30) * 0.5);
+  tf.lakes = clearAround(tf.lakes, cx, cy, 140); tf.cliffs = clearAround(tf.cliffs, cx, cy, 120); tf.marsh = clearAround(tf.marsh, cx, cy, 110); tf.forests = clearAround(tf.forests, cx, cy, 100);
+  const k = s.kind;
+  if (k === 'puente' || k === 'vado') {
+    const rx = cx + (k === 'puente' ? 80 : 95) * (H(902) < 0.5 ? -1 : 1);
+    tf.river = {x: rx, amp: k === 'puente' ? 22 : 34, ph: H(903) * 6.28, w: k === 'puente' ? 13 : 17, fords: []};
+    if (k === 'puente') { tf.river.fords.push({y: clamp(cy + (H(904) - 0.5) * 30, 130, Hh - 130), w: 56, br: true, town: true}); if (H(905) < 0.6) tf.river.fords.push({y: cy < Hh / 2 ? Hh - 120 : 120, w: 70, br: false}); }
+    else { tf.river.fords.push({y: clamp(cy, 150, Hh - 150), w: 130, br: false, town: true}); tf.marsh.push({x: rx - 70, y: cy - 150, rx: 62, ry: 34, rot: 0}, {x: rx + 70, y: cy + 150, rx: 62, ry: 34, rot: 0}); }
+    tf.stream = null; tf.villages = tf.villages.filter(v => v === town || !(Math.abs(v.x - tacRiverX(tf, v.y)) < 50));
+  } else if (k === 'altura') {
+    tf.hills = tf.hills.filter(h => Math.hypot(h.x - cx, h.y - cy) > 160); const hx = clamp(cx + dd * 170, 160, W - 160), h0 = {x: hx, y: cy + (H(906) - 0.5) * 60, rx: 190, ry: 120, rot: (H(907) - 0.5) * 0.5, side: defSide};
+    tf.hills.unshift(h0); tf.hill = h0; tf.hills.forEach((h, i) => { if (i) h.side = h.x > W / 2 ? 'B' : 'A'; }); tf.hill2 = tf.hills[1] || null;
+  } else if (k === 'bosque') {
+    tf.forests.push({x: cx - 20, y: cy - 175, r: 110}, {x: cx + 10, y: cy + 175, r: 110}, {x: cx + 190, y: cy - 90, r: 62}, {x: cx - 200, y: cy + 90, r: 62});
+  } else if (k === 'amurallado') {
+    const R = 74; tf.walls = tf.walls.filter(w => Math.hypot((w.x1 + w.x2) / 2 - cx, (w.y1 + w.y2) / 2 - cy) > 180);
+    [[-R, -R, R, -R], [-R, R, R, R], [-R, -R, -R, -R * 0.25], [-R, R * 0.25, -R, R], [R, -R, R, -R * 0.25], [R, R * 0.25, R, R]].forEach(([a, c, d, e]) => tf.walls.push({x1: cx + a, y1: cy + c, x2: cx + d, y2: cy + e})); town.r = 60;
+  } else if (k === 'cruce') {
+    tf.roads.push({pts: [[-20, cy], [cx - 120, cy + 10], [cx, cy], [cx + 120, cy - 10], [W + 20, cy]]}, {pts: [[cx, -10], [cx + 8, cy - 150], [cx, cy], [cx - 6, cy + 150], [cx, Hh + 10]]});
+  }
+  tf.blocks = tf.lakes.concat(tf.cliffs); tf.pond = tf.lakes[0] || null; tf.farm = town; tf.siteKind = k;
+  // los demás pueblos de la provincia que no son la sede se nombran como aldeas vecinas
+  const used = new Set([s.name]), pool = TOWN_NAMES[s.lang], others = provTowns(b.prov).filter(t => t.i !== s.i).map(t => t.name); others.forEach(n => used.add(n)); let oi = 0, pi = Math.floor(hash2(b.prov, 7, 3320) * pool.length);
+  tf.villages.forEach(v => { if (v === town) return; if (oi < others.length) { v.name = others[oi++]; return; } let g = 0; while (used.has(pool[pi % pool.length]) && g++ < pool.length) pi++; v.name = pool[pi % pool.length]; used.add(v.name); pi += 3; });
+}
+
 /* ===== TERRENO DEL CAMPO DE BATALLA (versión amplia) =====
    El campo es el doble de grande y los regimientos son pequeños: el terreno manda. Cada batalla genera, según el bioma, colinas y lomas, bosques y
    arboledas, ríos con vados y puentes, arroyos, lagos, pantanos, aldeas con iglesia, caminos, campos de cultivo, muros y setos, rocas, acantilados,
@@ -11518,7 +11602,7 @@ function tacRiverX(tf, y) { return tf.river.x + Math.sin(y / 90 + tf.river.ph) *
 const inEll = (x, y, e) => { const c = Math.cos(e.rot || 0), s = Math.sin(e.rot || 0), dx = x - e.x, dy = y - e.y, u = (dx * c + dy * s) / e.rx, v = (-dx * s + dy * c) / e.ry; return u * u + v * v < 1; };
 function battleTerrain(b) {
   if (b.tf && b.tf.v2) return b.tf;
-  const pv = MAP.provs[b.prov], bio = pv.biome, H = k => hash2(4217, b.prov, k), W = BV_W, Hh = BV_H, defSide = b.att === 'A' ? 'B' : 'A', dd = defSide === 'A' ? -1 : 1, P = T2[bio] || T2[1];
+  const pv = MAP.provs[b.prov], bio = pv.biome, H = k => hash2(4217, b.prov + battleSite(b).i * 977, k), W = BV_W, Hh = BV_H, defSide = b.att === 'A' ? 'B' : 'A', dd = defSide === 'A' ? -1 : 1, P = T2[bio] || T2[1];
   const cnt = (r, k) => r ? r[0] + Math.floor(H(k) * (r[1] - r[0] + 1)) : 0, pos = (k, mx) => [mx + H(k) * (W - 2 * mx), 70 + H(k + 500) * (Hh - 130)];
   const tf = {v2: 1, bio, hill: null, hills: [], river: null, stream: null, forests: [], orchards: [], villages: [], lakes: [], marsh: [], rocks: [], cliffs: [], dunes: [], snow: [], walls: [], roads: [], fields: [], blocks: [], pond: null, hill2: null};
   // colinas y lomas (según el relieve real de la provincia)
@@ -11549,6 +11633,7 @@ function battleTerrain(b) {
   const nv = cnt(P.villages, 400); for (let i = 0, t = 0; i < nv && t < 80; t++) { const [x, y] = pos(401 + t * 2, 130); if (tf.villages.some(v => Math.hypot(v.x - x, v.y - y) < 150)) continue; if (tf.lakes.concat(tf.cliffs).some(e => inEll(x, y, e)) || (tf.river && Math.abs(x - tacRiverX(tf, y)) < 40)) continue; tf.villages.push({id: i, x, y, r: 34 + H(450 + i) * 16, n: 7 + Math.floor(H(470 + i) * 8), church: H(490 + i) < 0.55, big: false}); i++; }
   if (tf.villages.length) { tf.villages.slice().sort((p, q) => Math.hypot(p.x - W / 2, p.y - Hh / 2) - Math.hypot(q.x - W / 2, q.y - Hh / 2))[0].big = true; tf.villages.forEach(v => { if (v.big) { v.r += 14; v.n += 6; v.church = true; } }); }
   tf.villages.forEach(v => { v.r *= 0.74; });
+  applySite(b, tf, H, bio);        // el pueblo sede de esta batalla (pueblos.js) moldea el escenario
   // caminos que unen las aldeas (de oeste a este) y salen del mapa
   const vs = tf.villages.slice().sort((p, q) => p.x - q.x); if (vs.length >= 2) { const pts = [[-20, vs[0].y + (H(500) - 0.5) * 120]].concat(vs.map(v => [v.x, v.y]), [[W + 20, vs[vs.length - 1].y + (H(501) - 0.5) * 120]]);
     const out = []; for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], c = pts[i + 1], mx = (a[0] + c[0]) / 2, my = (a[1] + c[1]) / 2 + (H(510 + i) - 0.5) * 70; for (let t = 0; t <= 1; t += 0.08) { const u = 1 - t; out.push([u * u * a[0] + 2 * u * t * mx + t * t * c[0], u * u * a[1] + 2 * u * t * my + t * t * c[1]]); } } tf.roads.push({pts: out}); }
@@ -12058,7 +12143,7 @@ endBattle = function (b, winner) { _endBattleM(b, winner); [...(b.A || []), ...(
    pivote) y los regimientos conservan siempre su alineación. */
 const FORM = {
   fadv: {n: 'Avanzar en línea', ic: '➡️', col: '#ff6a52', hint: 'Haz UN clic donde debe llegar la línea (Mayús+clic añade puntos). El cuerpo avanza alineado, al paso de su regimiento más lento, y se detiene a disparar al llegar a alcance.'},
-  fchg: {n: 'Carga en línea', ic: '🔥', col: '#ff3a3a', hint: 'Haz clic en el punto del enemigo. El cuerpo avanza alineado y carga TODO A LA VEZ al llegar a unos 100 pasos.'},
+  fchg: {n: 'Carga en línea', ic: '🔥', col: '#ff3a3a', hint: 'Haz clic en el punto del enemigo. El cuerpo avanza alineado; al llegar a unos 100 pasos carga SOLO su oleada de asalto (los regimientos más frescos y la caballería) y el resto apoya con fuego y mantiene la línea.'},
   fenv: {n: 'Envolver', ic: '🌀', col: '#ffb43c', hint: 'Haz clic MÁS ALLÁ del extremo enemigo por donde envolver. La línea gira como una puerta sobre el extremo opuesto sin romperse.'},
   fech: {n: 'Escalón', ic: '📐', col: '#ffd24a', hint: 'Haz clic en el objetivo. El ala más cercana ataca primero y las demás se escalonan detrás; se incorporan cuando la primera traba combate.'},
   fref: {n: 'Refusar flanco', ic: '🔙', col: '#5aa8ff', hint: 'Haz clic en el lado (arriba/abajo) cuyo extremo debe doblarse atrás en ángulo para proteger el flanco.'},
@@ -12147,7 +12232,7 @@ function fmUpdate(V, b, c, pl, dt, all) {
     if (pl.st < 2) {
       const T = pl.pts[pl.pts.length - 1]; let sp = vb * fm.coh * 1.15; if (foeNear < 135) sp *= 0.85; stepTo(T, sp);
       if (foeNear <= 118 && fm.coh >= 0.55) { pl.st = 2; pl.tc = V.t; }
-    } else if (V.t - pl.tc > 16) pl.done = true;
+    } else { stepTo(pl.pts[pl.pts.length - 1], vb * 0.55); if (V.t - pl.tc > 16) pl.done = true; }          // la oleada carga; el resto de la línea sigue avanzando detrás
   } else if (pl.k === 'fenv') {
     if (!pl.done) { if (pl.gx !== undefined && Math.abs(fm.x - pl.gx) > 3) fm.x += clamp(pl.gx - fm.x, -vb * 0.45 * fm.coh * dt, vb * 0.45 * fm.coh * dt); const rmax = Math.max(60, (n - 1) * (ls.length > 1 ? Math.abs(ls[n - 1].hy - ls[0].hy) / (n - 1) : 40)); pl.psi = Math.min(pl.psiEnd, (pl.psi || 0) + vb * 0.95 / rmax * fm.coh * dt); if (pl.psi >= pl.psiEnd - 1e-3) pl.done = true; }
   } else if (pl.k === 'fref') {
@@ -12164,7 +12249,7 @@ bvPlanStep = function (V, b, blk, dt, all, home) {
   if (c && blk.role === 'line' && !blk.d.plan && b.cplan && b.cplan[c.id] && V.fm && V.fm[c.id] && blk._sx !== undefined && !V.over && !b.prep) {
     const pl = b.cplan[c.id], dir = blk.side === 'A' ? 1 : -1, foe = blk.foe, fd = foe && foe.role !== 'reserve' ? Math.hypot(foe.x - blk.x, foe.y - blk.y) : 1e9;
     let tx = blk._sx, ty = blk._sy, mode = 'advance', k = 1.05; const lag = blk._lag || 0;
-    if (pl.k === 'fchg' && pl.st === 2 && foe && foe.role !== 'reserve') { tx = foe.x - dir * ((blk.dep + foe.dep) / 2 + 7); ty = foe.y; return {mode: 'charge', tx, ty, k: 3.2, path: [[blk.x, blk.y], [tx, ty]]}; }
+    if (pl.k === 'fchg' && pl.st === 2 && foe && foe.role !== 'reserve' && (blk.type !== 'inf' || bvChargeWave(V, b, blk))) { tx = foe.x - dir * ((blk.dep + foe.dep) / 2 + 7); ty = foe.y; return {mode: 'charge', tx, ty, k: 3.2, path: [[blk.x, blk.y], [tx, ty]]}; }
     const eng = foe && foe.role !== 'reserve' && Math.abs(foe.x - blk.x) < (blk.dep + foe.dep) / 2 + 10 && Math.abs(foe.y - blk.y) < (blk.wid + foe.wid) / 2 * 0.95;
     if (eng && pl.k !== 'fret' && pl.k !== 'frea') return {mode: 'melee', tx: blk.x, ty: blk.y, k: 0, path: null};
     const moving = !pl.done && pl.k !== 'fref';
@@ -12261,14 +12346,6 @@ ACT.tacplan = d => {
 };
 const _ACTtacstayL = ACT.tacstay;
 ACT.tacstay = () => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (V && V.sel && V.sel.corps && b && b.cplan && b.cplan[V.sel.corps.id]) { delete b.cplan[V.sel.corps.id]; delete V.fm[V.sel.corps.id]; } _ACTtacstayL(); };
-// botones de maniobra en el panel
-const _tacStayBtnL = tacStayBtn;
-tacStayBtn = function (V, sel, ac) {
-  let h = _tacStayBtnL(V, sel, ac); if (!sel && !ac) return h;
-  const cur = V.selCorps && ac ? ac : sel && sel.corps ? sel.corps : null, pl = cur && R.bvB && R.bvB.cplan ? R.bvB.cplan[cur.id] : null;
-  h += '<div class="mform"><small>Maniobras de línea (actúan sobre el cuerpo entero):</small>' + Object.keys(FORM).map(k => `<button data-act="tacplan" data-k="${k}" class="${V.draw && V.draw.k === k || (pl && pl.k === k) ? 'on' : ''}" ${sel ? '' : 'disabled'} data-tip="<b>${FORM[k].n}</b><br>${FORM[k].hint}"><span>${FORM[k].ic}</span>${FORM[k].n}</button>`).join('') + '</div>';
-  return h;
-};
 /* ---- dibujo: conectores de la línea, huecos, flancos abiertos y vista previa de la maniobra ---- */
 const _bvCorpsFlagsL = bvCorpsFlags;
 bvCorpsFlags = function (g, V, b) {
@@ -12390,15 +12467,6 @@ bvGround = function (V, b, all, dt) {
     all.forEach(k => { if (k.side !== win || k.type !== 'cav' || k.mode !== 'gallop') return; all.forEach(o => { if (o.side === win || o.mode === 'rout' && !o.figs.some(f => f.alive)) return; if (Math.hypot(o.x - k.x, o.y - k.y) < 34 && Math.random() < dt * 3) { const al = o.figs.filter(f => f.alive && !f.flee).concat(o.figs.filter(f => f.alive)); if (al.length) { bvKill(V, o, al[Math.floor(Math.random() * al.length)]); bvPart(V, {k: 'spark', x: o.x + rnd(-8, 8), y: o.y + rnd(-8, 8), life: 0.4, hot: 1}); } } }); });
   }
 };
-// panel: órdenes de ejército y segunda línea
-const _tacStayBtnE = tacStayBtn;
-tacStayBtn = function (V, sel, ac) {
-  let h = _tacStayBtnE(V, sel, ac); const b = R.bvB, ps = b && playerSide(b); if (!b || !ps) return h;
-  const cs = (V.corps || []).filter(c => c.side === ps);
-  if (sel && sel.corps) { const on = b.sup && b.sup[sel.corps.id]; h += `<div class="mform"><button data-act="corpsup" class="${on ? 'on' : ''}" data-tip="<b>Segunda línea</b><br>Los apoyos se colocan unos 100 pasos detrás y relevan a los regimientos agotados o rotos de este cuerpo."><span>🧱</span>Segunda línea</button></div>`; }
-  if (cs.length >= 2 && !b.prep) h += '<div class="mform"><small>Órdenes de EJÉRCITO (todos los cuerpos coordinados):</small>' + Object.keys(ARMY_ORD).map(k => `<button data-act="armyord" data-k="${k}" data-tip="<b>${ARMY_ORD[k].n}</b><br>${ARMY_ORD[k].tip}"><span>${ARMY_ORD[k].ic}</span>${ARMY_ORD[k].n}</button>`).join('') + '</div>';
-  return h;
-};
 // la IA despliega segunda línea al defender
 const _fmAiE = fmAi;
 fmAi = function (V, b, all, dt) {
@@ -12513,11 +12581,6 @@ function armyLine(V, b, pts) {
 const _tacSetPlanC = tacSetPlan;
 tacSetPlan = function (V, plan) { if (plan.k === 'fgen') { const b = G.battles.find(x => x.id === UI.battle); if (b) armyLine(V, b, plan.pts); return; } _tacSetPlanC(V, plan); };
 ACT.tacgen = () => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !b || b.ended || V.replay) return; if (!V.sel) { const ps = playerSide(b), k = [...V.blocks.values()].find(x => x.side === ps && x.role === 'line'); if (k) V.sel = k; } V.draw = V.draw && V.draw.k === 'fgen' ? null : {k: 'fgen', pts: []}; if (V.draw) toast('🧭', PLANS.fgen.hint); renderBattlePanel(); };
-const _tacStayBtnC = tacStayBtn;
-tacStayBtn = function (V, sel, ac) {
-  let h = _tacStayBtnC(V, sel, ac); const b = R.bvB, ps = b && playerSide(b); if (!b || !ps) return h;
-  return h + `<div class="mform"><button data-act="tacgen" class="${V.draw && V.draw.k === 'fgen' ? 'on' : ''}" data-tip="<b>Línea general</b><br>${PLANS.fgen.hint}"><span>🧭</span>Línea general</button></div>`;
-};
 // el puente y la IA
 const _bvGroundC = bvGround;
 bvGround = function (V, b, all, dt) { _bvGroundC(V, b, all, dt); pontStep(V, b, dt); };
@@ -12533,6 +12596,155 @@ bvCorpsFlags = function (g, V, b) {
   _bvCorpsFlagsC(g, V, b); const ps = playerSide(b); if (!ps) return;
   (V.corps || []).forEach(c => { const pl = b.cplan && b.cplan[c.id]; if (!pl || pl.k !== 'fsec' || c.side !== ps) return; const [p1, p2] = pl.pts; g.strokeStyle = FORM.fsec.col; g.lineWidth = 2; g.setLineDash([9, 5]); g.globalAlpha = (V.selCorps === c.id) ? 0.9 : 0.4; g.beginPath(); g.moveTo(p1[0], p1[1]); g.lineTo(p2[0], p2[1]); g.stroke(); g.setLineDash([]); g.globalAlpha = 1; g.fillStyle = FORM.fsec.col; [p1, p2].forEach(p => { g.beginPath(); g.arc(p[0], p[1], 4, 0, 6.3); g.fill(); }); });
 };
+
+/* ===== BATALLA 2: tácticas más realistas (ver ESTUDIO_BATALLA.md) =====
+   · CARGA: solo una oleada de asalto (la caballería y los regimientos más frescos, juntos) carga; el resto avanza detrás, apoya con fuego y mantiene la línea.
+   · FLANQUEO: los regimientos que no maniobran avanzan, fijan al enemigo y cierran los huecos que dejan los flanqueadores.
+   · PÁNICO: un cuerpo flanqueado, rodeado o con su ala abierta puede quebrarse entero; el pánico contagia a los cuerpos vecinos.
+   · FUERTES: no se rodean. Las tropas atacan la guarnición o, si el fuerte está vacío, lo ocupan antes de seguir.
+   · ÓRDENES: una sola familia de órdenes (Avanzar, Cargar, Flanquear, Mantener, Retirar, Objetivo) que se traduce a maniobra de línea si mandas a un cuerpo entero. */
+/* ---------- oleada de asalto ---------- */
+function bvReady(k) { return clamp(k.d.o / DIVS[k.d.t].org, 0, 1) * (k.mm === undefined ? 0.8 : k.mm + 0.2) * (0.45 + 0.55 * clamp(k.d.s, 0, 1)) * (1 - 0.4 * (k.fat || 0)); }
+function bvChargeWave(V, b, blk) {
+  const c = blk.corps; if (!c || blk.type === 'cav' || blk.type === 'tank') return true;
+  let W = c._wave; if (W && V.t - W.t < 4) return W.ids.has(blk.id);
+  const ls = (c.blks || []).filter(k => k.role === 'line' && k.type === 'inf' && !k.garr && k.mode !== 'rout' && !k.d.out); if (!ls.length) return true;
+  const want = Math.max(1, Math.round(ls.length * 0.4)), prev = W ? W.ids : new Set(), keep = ls.filter(k => prev.has(k.id) && bvReady(k) > 0.3), ids = new Set(keep.map(k => k.id));
+  if (ids.size < want) {                       // se completa con los más frescos y contiguos entre sí (la oleada es un bloque, no regimientos sueltos)
+    const ctr = keep[0] || ls.slice().sort((p, q) => bvReady(q) - bvReady(p))[0];
+    ls.filter(k => !ids.has(k.id)).sort((p, q) => (Math.abs(p.lane - ctr.lane) * 0.5 - bvReady(p) * 1.5) - (Math.abs(q.lane - ctr.lane) * 0.5 - bvReady(q) * 1.5)).slice(0, want - ids.size).forEach(k => ids.add(k.id));
+  }
+  if (!W || ids.size !== prev.size) { if (!W && ls.length > 1 && !V.replay) bvBanner(V, `🔥 ${ids.size} regimiento(s) del ${corpsName(c)} cargan; el resto los apoya`, c.side, ''); }
+  c._wave = {ids, t: V.t}; return ids.has(blk.id);
+}
+/* ---------- flanqueo: los demás cierran huecos y mantienen la línea ---------- */
+function bvFillY(V, b, blk, all, y0) {
+  V._fill = V._fill || {}; let F = V._fill[blk.side];
+  if (!F || V.t - F.t > 0.6) {
+    const ls = all.filter(k => k.side === blk.side && k.role === 'line' && k.mode !== 'rout' && !k.garr && !k.isFlk && k.type !== 'art' && k.type !== 'cav' && !k.d.plan && !k.d.out).sort((p, q) => p.hy - q.hy);
+    const top = 62, bot = BV_H - 46, m = new Map(); ls.forEach((k, i) => { const slot = top + (i + 0.5) * (bot - top) / ls.length; m.set(k.id, k.hy + (slot - k.hy) * 0.8); });
+    F = V._fill[blk.side] = {t: V.t, m};
+  }
+  const y = F.m.get(blk.id); return y === undefined ? y0 : y;
+}
+/* ---------- fuertes: se asaltan, no se rodean ---------- */
+function tacFortObjective(b, blk) {
+  const dir = blk.side === 'A' ? 1 : -1; let best = null, bd = 1e9;
+  (b.forts || []).forEach(f => { if (f.hp <= 0 || f.side === blk.side) return; if ((f.x - blk.x) * dir < -f.w / 2 - 12) return; const d = Math.hypot(f.x - blk.x, f.y - blk.y); if (d < 360 && d < bd) { bd = d; best = f; } });
+  return best;
+}
+const _bvFoeB = bvFoe;
+bvFoe = function (blk, all) {
+  const b = R.bvB || G.battles.find(x => x.id === UI.battle); const f = b && blk.type !== 'art' && blk.role !== 'reserve' ? tacFortObjective(b, blk) : null;
+  if (f) { let best = null, bc = 1e9; all.forEach(o => { if (o.side === blk.side || o.mode === 'rout') return; const gar = o.d.cust && o.d.cust.fort === f.id, d = Math.hypot(o.x - blk.x, o.y - blk.y); if (!gar && d > 60) return; const c = d - (gar ? 80 : 0); if (c < bc) { bc = c; best = o; } }); if (best) return best; }
+  return _bvFoeB(blk, all);
+};
+// fuerte sin guarnición: los dos regimientos de infantería más cercanos lo ocupan antes de seguir adelante
+function tacFortPush(V, b, blk, all, mode, dist, dir, spd) {
+  if (blk.type === 'cav' || blk.type === 'tank' || blk.d.plan || blk.d.stay) return null;
+  const f = tacFortObjective(b, blk); if (!f || (b.forts || []).indexOf(f) < 0) return null; if (tacGarrisonOf(b, f).length) return null;
+  const T = V.t; if (!f._capAt || T - f._capAt > 2) { f._capAt = T; f._cap = all.filter(o => o.side !== f.side && o.type === 'inf' && o.role === 'line' && o.mode !== 'rout' && !o.garr && !o.d.plan).sort((p, q) => Math.hypot(p.x - f.x, p.y - f.y) - Math.hypot(q.x - f.x, q.y - f.y)).slice(0, 2).map(o => o.id); }
+  if (!f._cap || f._cap.indexOf(blk.id) < 0) return null;
+  const d = Math.hypot(f.x - blk.x, f.y - blk.y);
+  return {mode: d < 70 ? 'charge' : 'advance', tx: f.x, ty: f.y, spd: spd * (d < 70 ? 1.4 : 1.1), path: [[blk.x, blk.y], [f.x, f.y]]};
+}
+// la infantería pegada a un fuerte lo desgasta (fuego, hachas, escalas) además del cañoneo diario
+function tacFortSiege(V, b, all, step) {
+  (b.forts || []).forEach(f => { if (f.hp <= 0) return; const n = all.filter(o => o.side !== f.side && o.mode !== 'rout' && o.type !== 'art' && Math.abs(o.x - f.x) < f.w / 2 + 40 && Math.abs(o.y - f.y) < f.h / 2 + 40).length; if (!n) return;
+    const was = f.hp; f.hp = Math.max(0, f.hp - n * 1.1 * step * (f.kind === 'trench' ? 0.8 : f.kind === 'fort' ? 0.45 : 1)); if (was > 0 && f.hp <= 0) { tacRelease(b, f); (b.log = b.log || []).push({k: 'panic', d: b.day, t: `${FORT_KINDS[f.kind].ic} ¡Cae ${FORT_KINDS[f.kind].n.toLowerCase()} de ${G.C[f.side === 'A' ? b.A0 : b.B0].name} tras el asalto!`}); if (b.log.length > 30) b.log.shift(); } });
+}
+/* ---------- pánico de cuerpo ---------- */
+function bvCorpsPanic(V, b, all, step) {
+  if (V.over || b.prep || V.replay) return;
+  (V.corps || []).forEach(c => {
+    const ls = (c.blks || []).filter(k => k.role === 'line' && k.type !== 'art' && !k.garr && k.mode !== 'rout' && !k.d.out); if (ls.length < 2 || V.t < (c.panicUntil || 0)) return;
+    if (buffOn(V, c.side, 'endure') || buffOn(V, c.side, 'inspire')) return;
+    const fl = ls.filter(k => V.t - (k.flanked || -99) < 4).length, ex = ls.filter(k => k.expo).length, rear = ls.filter(k => V.t - (k.flanked || -99) < 4 && k.foe && Math.abs(bvAng(k.hd, Math.atan2(k.foe.y - k.y, k.foe.x - k.x))) > 1.9).length;
+    const score = (fl + 0.7 * ex + 0.8 * rear) / ls.length; c.threat = score; if (score < 0.4) return;
+    const mm = ls.reduce((n, k) => n + (k.mm === undefined ? 0.8 : k.mm), 0) / ls.length, org = ls.reduce((n, k) => n + k.d.o / DIVS[k.d.t].org, 0) / ls.length, cm = V.cmd && V.cmd[c.id], lead = cm && cm.alive ? 0.7 : 1.15;
+    const p = clamp((score - 0.3) * (0.5 + 0.9 * (1 - mm) + 0.5 * (1 - org)) * 0.16 * lead, 0, 0.5) * step;
+    if (Math.random() >= p) return;
+    c.panicUntil = V.t + 30; const cn = G.C[c.tag].name;
+    ls.forEach(k => { if (k.type === 'tank') return; k.mm = Math.min(k.mm === undefined ? 0.8 : k.mm, 0.14); k.brk = Math.max(k.brk || 0, 5 + Math.random() * 4); k.d.o = Math.max(0, k.d.o - DIVS[k.d.t].org * 0.14); k.fat = Math.min(1, (k.fat || 0) + 0.25); k.figs.forEach(f => { if (f.alive && !f.flee && Math.random() < 0.55) bvFlee(V, k, f, 1.2); }); });
+    (V.corps || []).forEach(o => { if (o === c || o.side !== c.side) return; (o.blks || []).forEach(k => { if (k.mode === 'rout' || k.garr) return; const d = Math.hypot(k.x - c.cx, k.y - ls[0].y); if (d < 260) k.mm = Math.max(0, (k.mm === undefined ? 0.8 : k.mm) - 0.16); }); });          // el pánico salta a los cuerpos vecinos
+    bvBanner(V, `😱 ¡El ${corpsName(c)} de ${cn} es flanqueado y entra en pánico!`, c.side === 'A' ? 'B' : 'A', '');
+    (b.log = b.log || []).push({k: 'panic', d: b.day, t: `El ${corpsName(c)} de ${cn} queda flanqueado y se quiebra entero: los regimientos huyen y los cuerpos vecinos vacilan.`}); if (b.log.length > 30) b.log.shift();
+    if (typeof SFX !== 'undefined' && SFX.horn) SFX.horn(0.8);
+  });
+}
+const _tacThinkB = tacThink;
+tacThink = function (V, b, all, dt) {
+  const run = !(V.over || b.prep || b.ended || V.replay || dt <= 0); _tacThinkB(V, b, all, dt);
+  if (!run) return; V._bt = (V._bt || 0) + dt; if (V._bt < 1) return; const step = V._bt; V._bt = 0;
+  tacFortSiege(V, b, all, step); bvCorpsPanic(V, b, all, step);
+};
+/* ---------- órdenes unificadas: «Cargar» para un regimiento y traducciones a maniobra de línea ---------- */
+PLANS.charge = {n: 'Cargar', ic: '🔥', col: '#ff3a3a', hint: 'Haz clic en el punto del enemigo. Avanza y, al llegar a unos 130 pasos, CARGA a la bayoneta. Con un cuerpo entero seleccionado, solo carga su oleada de asalto y el resto lo apoya.', multi: true, n1: 1};
+PLANS.attack.n = 'Avanzar'; PLANS.attack.hint = 'Haz UN clic donde debe llegar. Avanza, dispara al entrar en alcance y mantiene la posición (Mayús+clic añade puntos de paso). Con un cuerpo entero, avanza en línea.';
+PLANS.flank.n = 'Flanquear'; PLANS.flank.hint = 'Con un regimiento: 2 clics (punto de rodeo y flanco enemigo). Con un cuerpo entero: UN clic más allá del extremo enemigo y el cuerpo envuelve sin romper la línea, mientras el resto del ejército avanza y fija al enemigo.';
+PLANS.defend.n = 'Mantener'; PLANS.defend.hint = 'Haz 2 clics: los extremos del tramo de frente que debe mantener. Los regimientos se reparten por él, lo ocupan y lo defienden.';
+PLANS.retreat.n = 'Retirar'; PLANS.target.n = 'Objetivo';
+FORM_MAP.charge = 'fchg'; FORM_MAP.defend = 'fsec'; FORM_MAP.target = undefined;
+const _bvPlanStepB = bvPlanStep;
+bvPlanStep = function (V, b, blk, dt, all, home) {
+  const pl = blk.d.plan;
+  if (pl && pl.k === 'charge' && !V.over && !b.ended && blk.type !== 'art') {
+    const dir = blk.side === 'A' ? 1 : -1, foes = all.filter(o => o.side !== blk.side && o.mode !== 'rout' && o.role !== 'reserve'), near = foes.reduce((m, o) => { const d = Math.hypot(o.x - blk.x, o.y - blk.y); return !m || d < m.d ? {o, d} : m; }, null);
+    const [px, py] = pl.pts[0] || [blk.x, blk.y], dp = Math.hypot(px - blk.x, py - blk.y); blk.foe = near ? near.o : blk.foe;
+    const eng = near && Math.abs(near.o.x - blk.x) < (blk.dep + near.o.dep) / 2 + 10 && Math.abs(near.o.y - blk.y) < (blk.wid + near.o.wid) / 2 * 0.95;
+    if (eng) return {mode: 'melee', tx: blk.x, ty: blk.y, k: 0, path: null};
+    if (near && near.d < 130) { const f = near.o; return {mode: blk.type === 'cav' ? 'gallop' : 'charge', tx: f.x - dir * ((blk.dep + f.dep) / 2 + 7), ty: f.y, k: blk.type === 'cav' ? 2.6 : 3.2, path: null}; }
+    if (dp > 14) return {mode: 'advance', tx: px, ty: py, k: 1.25, path: [[blk.x, blk.y], [px, py]]};
+    return {mode: 'hold', tx: blk.x, ty: blk.y, k: 0, path: null};
+  }
+  return _bvPlanStepB(V, b, blk, dt, all, home);
+};
+
+/* ===== PANEL DE MANDO UNIFICADO =====
+   Antes había cuatro familias de órdenes que se pisaban (planes por unidad, maniobras de línea, órdenes de ejército y estrategias). Ahora:
+   ① ¿A quién? → un cuerpo entero (lista) o un regimiento (clic en el campo).
+   ② ¿Qué? → SEIS órdenes: Avanzar · Cargar · Flanquear · Mantener · Retirar · Objetivo (+ Quedarse y Cancelar). Si mandas a un cuerpo entero,
+      la orden se ejecuta como maniobra de línea (avanza alineado, envuelve, carga por oleadas...); si mandas a un regimiento, como plan individual.
+   ③ Postura del cuerpo (cómo se comporta mientras no le des órdenes) y, aparte, el plan de batalla de TODO el ejército. */
+const POSTURES = [['', '🤖', 'Auto'], ['frontal', '⚔️', 'Asalto'], ['hold', '⛰️', 'Defensa'], ['flank', '↪️', 'Flanqueo'], ['barrage', '💣', 'Cañoneo'], ['skirmish', '🏹', 'Hostigar'], ['charge', '🔥', 'Carga']];
+const CMD_ORD = [['attack', '➡️', 'Avanzar'], ['charge', '🔥', 'Cargar'], ['flank', '↪️', 'Flanquear'], ['defend', '🛡️', 'Mantener'], ['retreat', '↩️', 'Retirar'], ['target', '🎯', 'Objetivo']];
+// plan de batalla del ejército: sin duplicados con las órdenes de cuerpo (envolver, oblicuo, defensa elástica, frente común, segunda línea)
+const ARMY_PLAN = [['aenvT', '🌀', 'Envolver ↑'], ['aenvB', '🌀', 'Envolver ↓'], ['adbl', '🦀', 'Doble envolvimiento'], ['aesc', '📐', 'Orden oblicuo'], ['adef', '🧱', 'Defensa elástica'], ['a2l', '🥞', 'Segunda línea'], ['area', '📏', 'Realinear todo']];
+function tacMandoHtml(b, V, sel) {
+  const ps = playerSide(b); if (!ps || !V) return ''; const prep = !!b.prep;
+  const act = V.selCorps || (sel && sel.corps && sel.corps.id), ac = act ? (V.corps || []).find(c => c.id === act) : null;
+  const sec = (k, title, badge, body, def) => { const o = secOpen(V, k, def); return `<div class="msec ${o ? 'open' : ''}"><button class="msec-h" data-act="mandosec" data-k="${k}">${o ? '▾' : '▸'} ${title}${badge ? `<span class="mbadge">${badge}</span>` : ''}</button>${o ? `<div class="msec-b">${body}</div>` : ''}</div>`; };
+  const whole = !!(V.selCorps && ac), cs = (V.corps || []).filter(c => c.side === ps), pl = ac && b.cplan ? b.cplan[ac.id] : (sel && sel.corps && b.cplan ? b.cplan[sel.corps.id] : null);
+  // ① guía de un vistazo
+  let h = `<div class="mando"><div class="mguide">${prep ? '<b>Preparación</b> · ① Arrastra tus regimientos por tu mitad del campo · ② Levanta obras si las necesitas · ③ Pulsa <b>¡Comenzar!</b>' : V.draw ? `<b>${PLANS[V.draw.k].ic} ${PLANS[V.draw.k].n}</b> · ${PLANS[V.draw.k].hint}` : sel || ac ? '<b>② Elige una orden</b> y luego haz clic en el campo donde quieres aplicarla.' : '<b>① Selecciona</b> un cuerpo (lista de abajo o su bandera) o un regimiento (clic en el campo).'}</div>`;
+  if (prep) h += '<button class="primary prep-go" data-act="tacstart">▶ ¡Comenzar la batalla!</button>';
+  // ② a quién y qué
+  const who = whole ? `${corpsName(ac)} entero (${ac.blks.length} regimientos)` : sel ? `${DIVS[sel.d.t].icon} ${BV_KIND[sel.type]} de ${sel.corps ? corpsName(sel.corps) : sel.a.name}` : 'Nada seleccionado';
+  const mm = sel && sel.mm !== undefined ? ` · moral ${Math.round(sel.mm * 100)}%` : '', thr = ac && ac.threat ? ac.threat : (sel && sel.corps && sel.corps.threat) || 0;
+  const mode = whole ? '<small class="mmode">Las órdenes se ejecutan como maniobra de línea.</small>' : sel ? '<small class="mmode">Las órdenes afectan solo a este regimiento.</small>' : '';
+  const stay = sel || ac ? (() => { const grp = whole ? ac.blks : sel ? [sel] : [], on = grp.length && grp.every(k => k.d.stay); return `<button data-act="tacstay" class="${on ? 'on' : ''}" data-tip="<b>Quedarse</b><br>Se queda donde está: solo se mueve si el enemigo llega a su alcance y después vuelve. Púlsalo otra vez para soltarlo."><span>📍</span>Quedarse</button>`; })() : '';
+  h += `<div class="msel"><div class="msel-h"><b>${who}</b>${sel && !whole ? `<small>fuerza ${Math.round(sel.d.s * 100)}% · org. ${Math.round(sel.d.o / DIVS[sel.d.t].org * 100)}%${mm}</small>` : ''}${sel && sel.corps && !whole ? `<button class="mini" data-act="corpssel" data-c="${sel.corps.id}" data-tip="Que la orden la sigan todos los regimientos del cuerpo, en línea.">👥 Todo el cuerpo</button>` : ''}${thr >= 0.4 ? '<span class="mbadge warn" data-tip="El cuerpo está siendo flanqueado: riesgo de pánico.">⚠️ flanqueado</span>' : ''}</div>${mode}
+  <div class="mord">${CMD_ORD.map(([k, ic, nm]) => `<button data-act="tacplan" data-k="${k}" class="${V.draw && V.draw.k === k || (pl && FORM_MAP[k] === pl.k) ? 'on' : ''}" ${sel || ac ? '' : 'disabled'} data-tip="<b>${PLANS[k].n}</b><br>${PLANS[k].hint}"><span>${ic}</span>${nm}</button>`).join('')}${stay}</div>
+  <div class="mord mord2">${V.draw && V.draw.pts.length ? '<button data-act="tacplan" data-k="fix" class="fix"><span>✔</span>Fijar</button>' : ''}${sel && sel.d.plan || pl ? '<button data-act="tacplan" data-k="clear"><span>✖</span>Cancelar orden</button>' : ''}${(sel || ac) && !prep && (sel && sel.corps || ac) ? '<button data-act="tacplan" data-k="frea" data-tip="<b>Realinear</b><br>El cuerpo se detiene y reajusta su línea."><span>📏</span>Realinear</button>' : ''}${sel && sel.type === 'art' ? '<button data-act="tacctr" data-tip="Apunta a la batería enemiga más cercana."><span>🔇</span>Contrabatería</button>' : ''}</div></div>`;
+  // ③ cuerpos: postura, reservas y artillería
+  const corpsBody = cs.map(c => { const cur = (b.cstr || {})[c.id] || '', open = act === c.id, res = c.regs.filter(r => r.out).length, pst = POSTURES.find(p => p[0] === cur) || POSTURES[0];
+    return `<div class="crow ${open ? 'sel' : ''}"><button class="crow-h" data-act="corpssel" data-c="${c.id}" data-tip="Clic: selecciona el cuerpo entero para darle órdenes."><b>${corpsName(c)}</b><span>${pst[1]} ${pst[2]}</span><small>${fmtN(corpsMen(c), 0)} h. · ${corpsGuns(c)} cañ.${res ? ` · ${res} en reserva` : ''}${c.threat >= 0.4 ? ' · ⚠️' : ''}</small></button>
+    ${open ? `<div class="crow-b"><small class="dim">Postura (qué hace mientras no le des órdenes):</small><div class="strpick">${POSTURES.map(([k, ic, nm]) => `<button class="${cur === k ? 'on' : ''}" data-act="corpsstrat" data-c="${c.id}" data-s="${k}" data-tip="<b>${k ? STRATS[k].name : 'Automática'}</b><br>${k ? STRATS[k].desc : 'La postura la elige el ordenador según el terreno.'}">${ic} ${nm}</button>`).join('')}</div>
+      <div class="cm-army">${c.regs.map((r, i) => `<button class="dvchip ${r.out ? 'off' : 'on'}" ${prep || r.out ? `data-act="tacreg" data-c="${c.id}" data-i="${i}"` : 'disabled'} data-tip="<b>Regimiento ${i + 1}</b><br>Fuerza ${Math.round(r.s * 100)}%<br>${r.out ? 'En RESERVA (fuera del campo): clic para que entre por el margen' : prep ? 'En combate (clic: dejar en reserva)' : 'En combate'}">${DIVS[r.t].icon}<small>${Math.round(r.s * 100)}%</small></button>`).join('')}
+      <button data-act="corpsup" class="${b.sup && b.sup[c.id] ? 'on' : ''}" data-tip="<b>Segunda línea</b><br>Los apoyos se colocan unos 100 pasos detrás y relevan a los regimientos agotados o rotos.">🥞 2.ª línea</button>
+      ${c.arts.length ? `<span class="gunsel"><small>💣</small><button class="${((b.cgun || {})[c.id] || 'att') === 'att' ? 'on' : ''}" data-act="corpsgun" data-c="${c.id}" data-m="att" data-tip="Los cañones acompañan a los regimientos.">Acompañan</button><button class="${((b.cgun || {})[c.id] || 'att') === 'bat' ? 'on' : ''}" data-act="corpsgun" data-c="${c.id}" data-m="bat" data-tip="Los cañones forman una batería.">Batería</button></span>` : ''}</div></div>` : ''}</div>`; }).join('');
+  h += sec('corps', '🧭 Cuerpos: postura y reservas', cs.length + ' cuerpos', corpsBody || '<small class="dim">Sin cuerpos.</small>', true);
+  // ④ ejército entero (solo con 2 o más cuerpos)
+  if (!prep && cs.length >= 2) {
+    const body = '<small class="dim">Coordina TODOS los cuerpos a la vez (los extremos maniobran, el centro fija al enemigo).</small><div class="mord">' + ARMY_PLAN.map(([k, ic, nm]) => `<button data-act="armyord" data-k="${k}" class="${k === 'a2l' && cs.every(c => b.sup && b.sup[c.id]) ? 'on' : ''}" data-tip="<b>${ARMY_ORD[k].n}</b><br>${ARMY_ORD[k].tip}"><span>${ic}</span>${nm}</button>`).join('') + `<button data-act="tacgen" class="${V.draw && V.draw.k === 'fgen' ? 'on' : ''}" data-tip="<b>Frente común</b><br>${PLANS.fgen.hint}"><span>🧭</span>Frente común</button></div>`;
+    h += sec('army', '⚔️ Plan de batalla del ejército', '', body, false);
+  }
+  if (typeof tacObrasHtml === 'function') { const ob = tacObrasHtml(b, V); if (ob) h += sec('obras', '🏰 Obras y fuertes', (b.forts || []).filter(f => f.side === ps).length, ob, prep); }
+  if (!prep && typeof tacAbilHtml === 'function') { const n = Object.keys(GEN_ABIL).filter(k => abilOk(b, k) && !((V.cd && V.cd[ps] && V.cd[ps][k]) > V.t)).length; h += sec('gen', '🎖️ Habilidades del general', n + ' listas', tacAbilHtml(b, V).replace(/<div class="abil-h">[\s\S]*?<\/div>/, ''), false); }
+  if (!prep && typeof hasTech === 'function' && hasTech(me(), 'chemical_weapons')) h += sec('gas', '☣️ Armas especiales', '', '<button class="mini" data-act="bvgas" data-tip="<b>Ataque con gas</b><br>Castiga la organización y las bajas del enemigo durante 3 días. +6 infamia y −3 prestigio.">☣️ Ataque con gas</button>', false);
+  const sf = (b.forts || []).find(f => f.id === V.selFort); if (sf) h += typeof tacFortHtml === 'function' ? tacFortHtml(b, V) : '';
+  return h + '</div>';
+}
 
 /* ===== PINTURA: el campo de batalla dibujado como un mapa pintado (ver ESTUDIO_MAPA.md) ===== */
 // paletas por bioma: base, claro, oscuro, alturas, alturas claras, bosque, bosque claro, agua, camino, aldea
@@ -12560,8 +12772,8 @@ function pintName(pool, h1, h2) { const [a, b] = NAME_POOLS[pool], p = a[Math.fl
 bvBuildBg = function (V, b) {
   const S = 2, cv = document.createElement('canvas'), cvB = document.createElement('canvas'); cv.width = cvB.width = BV_W * S; cv.height = cvB.height = BV_H * S; let g = cv.getContext('2d'); const gB = cvB.getContext('2d'); g.setTransform(S, 0, 0, S, 0, 0); gB.setTransform(S, 0, 0, S, 0, 0);
   const tf = battleTerrain(b), bio = tf.bio, P = PAL[bio] || PAL[1], wx = typeof battleWeather === 'function' ? battleWeather(b) : {}, W = BV_W, Hh = BV_H;
-  let seed = (b.prov * 7919 + 12345) >>> 0; const rn = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
-  const H = (i, k) => hash2(i, 5011, b.prov * 13 + k), pv = MAP.provs[b.prov], pool = nameRegion(pv.lon, pv.lat), EL = tf.elev || {cls: 'ondulado', h: 300};
+  let seed = (b.prov * 7919 + 12345 + battleSite(b).i * 104729) >>> 0; const rn = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  const H = (i, k) => hash2(i, 5011, b.prov * 13 + k + battleSite(b).i * 311), pv = MAP.provs[b.prov], pool = nameRegion(pv.lon, pv.lat), EL = tf.elev || {cls: 'ondulado', h: 300};
   // 1) base, manchas suaves y mosaico de parcelas
   g.fillStyle = _rgba(P.b, 1); g.fillRect(0, 0, W, Hh);
   for (let i = 0; i < 420; i++) { const x = rn() * W, y = rn() * Hh, r = 36 + rn() * 150, c = rn() < 0.5 ? P.l : P.d, rg = g.createRadialGradient(x, y, 0, x, y, r); rg.addColorStop(0, _rgba(c, 0.30)); rg.addColorStop(1, _rgba(c, 0)); g.fillStyle = rg; g.fillRect(x - r, y - r, r * 2, r * 2); }
@@ -13436,7 +13648,7 @@ function battleSummaryHtml(b) {
   const w = G.wars.find(x => (x.attAll.includes(s.tagW) && x.defAll.includes(s.tagL)) || (x.defAll.includes(s.tagW) && x.attAll.includes(s.tagL)));
   const pr = s.pris[s.winner];
   const cell = (lab, v, cls) => `<div class="bsum-c"><small>${lab}</small><b class="${cls || ''}">${v}</b></div>`;
-  return `<div class="bsum ${res}"><div class="bsum-head"><span class="bsum-ic">${icon}</span><div><b>${title}</b><small>Batalla de ${provName(b.prov)} · ${s.date} · duró ${fmtDays(s.days)}</small></div></div>
+  return `<div class="bsum ${res}"><div class="bsum-head"><span class="bsum-ic">${icon}</span><div><b>${title}</b><small>Batalla de ${battleTitle(b)} · ${s.date} · duró ${fmtDays(s.days)}</small></div></div>
     <div class="bsum-grid">
       ${cell(`Bajas de ${nm(s.tagW)}`, men(lostW), lostW > lostL ? 'bad' : '')}${cell(`Bajas de ${nm(s.tagL)}`, men(lostL), 'bad')}
       ${cell('Divisiones destruidas', `${nm(s.tagW)} ${Math.max(0, dW)} · ${nm(s.tagL)} ${Math.max(0, dL)}`)}${cell('Prisioneros capturados', pr ? `${men(pr)} por ${nm(s.tagW)}` : '—')}

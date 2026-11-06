@@ -125,3 +125,8 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 
 ## Paletas y fuentes (assets/)
 - `assets/paletas_biomas.json` -> `PAL` y `PAL_LAB` en `src/pintura.js` (colores, estilo de arbol por bioma, rotulos); `assets/fuentes.md`: Lora para rotulos del mapa (Google Fonts), Cinzel/Lato para la interfaz.
+
+## Sesión: pueblos con nombre, mando unificado y tácticas realistas
+- `src/pueblos.js`: 3 pueblos con nombre por provincia (listas por lengua); cada batalla se libra en uno (`battleSite`, `b.site`) y su tipo (cruce, puente, altura, bosque, amurallado, vado) moldea el terreno (`applySite`). El título muestra «Batalla de <pueblo> · <provincia>».
+- `src/mando2.js`: panel de mando unificado (6 órdenes + Quedarse; cuerpo entero = maniobra de línea; plan de ejército aparte). Eliminados los envoltorios duplicados de `tacStayBtn` y `tacMandoHtml` antiguo.
+- `src/batalla2.js`: carga por oleadas, flanqueo con línea que avanza y cierra huecos (`bvFillY`), pánico de cuerpo, asalto a fuertes. Ver `ESTUDIO_BATALLA.md`.

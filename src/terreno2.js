@@ -16,7 +16,7 @@ function tacRiverX(tf, y) { return tf.river.x + Math.sin(y / 90 + tf.river.ph) *
 const inEll = (x, y, e) => { const c = Math.cos(e.rot || 0), s = Math.sin(e.rot || 0), dx = x - e.x, dy = y - e.y, u = (dx * c + dy * s) / e.rx, v = (-dx * s + dy * c) / e.ry; return u * u + v * v < 1; };
 function battleTerrain(b) {
   if (b.tf && b.tf.v2) return b.tf;
-  const pv = MAP.provs[b.prov], bio = pv.biome, H = k => hash2(4217, b.prov, k), W = BV_W, Hh = BV_H, defSide = b.att === 'A' ? 'B' : 'A', dd = defSide === 'A' ? -1 : 1, P = T2[bio] || T2[1];
+  const pv = MAP.provs[b.prov], bio = pv.biome, H = k => hash2(4217, b.prov + battleSite(b).i * 977, k), W = BV_W, Hh = BV_H, defSide = b.att === 'A' ? 'B' : 'A', dd = defSide === 'A' ? -1 : 1, P = T2[bio] || T2[1];
   const cnt = (r, k) => r ? r[0] + Math.floor(H(k) * (r[1] - r[0] + 1)) : 0, pos = (k, mx) => [mx + H(k) * (W - 2 * mx), 70 + H(k + 500) * (Hh - 130)];
   const tf = {v2: 1, bio, hill: null, hills: [], river: null, stream: null, forests: [], orchards: [], villages: [], lakes: [], marsh: [], rocks: [], cliffs: [], dunes: [], snow: [], walls: [], roads: [], fields: [], blocks: [], pond: null, hill2: null};
   // colinas y lomas (según el relieve real de la provincia)
@@ -47,6 +47,7 @@ function battleTerrain(b) {
   const nv = cnt(P.villages, 400); for (let i = 0, t = 0; i < nv && t < 80; t++) { const [x, y] = pos(401 + t * 2, 130); if (tf.villages.some(v => Math.hypot(v.x - x, v.y - y) < 150)) continue; if (tf.lakes.concat(tf.cliffs).some(e => inEll(x, y, e)) || (tf.river && Math.abs(x - tacRiverX(tf, y)) < 40)) continue; tf.villages.push({id: i, x, y, r: 34 + H(450 + i) * 16, n: 7 + Math.floor(H(470 + i) * 8), church: H(490 + i) < 0.55, big: false}); i++; }
   if (tf.villages.length) { tf.villages.slice().sort((p, q) => Math.hypot(p.x - W / 2, p.y - Hh / 2) - Math.hypot(q.x - W / 2, q.y - Hh / 2))[0].big = true; tf.villages.forEach(v => { if (v.big) { v.r += 14; v.n += 6; v.church = true; } }); }
   tf.villages.forEach(v => { v.r *= 0.74; });
+  applySite(b, tf, H, bio);        // el pueblo sede de esta batalla (pueblos.js) moldea el escenario
   // caminos que unen las aldeas (de oeste a este) y salen del mapa
   const vs = tf.villages.slice().sort((p, q) => p.x - q.x); if (vs.length >= 2) { const pts = [[-20, vs[0].y + (H(500) - 0.5) * 120]].concat(vs.map(v => [v.x, v.y]), [[W + 20, vs[vs.length - 1].y + (H(501) - 0.5) * 120]]);
     const out = []; for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], c = pts[i + 1], mx = (a[0] + c[0]) / 2, my = (a[1] + c[1]) / 2 + (H(510 + i) - 0.5) * 70; for (let t = 0; t <= 1; t += 0.08) { const u = 1 - t; out.push([u * u * a[0] + 2 * u * t * mx + t * t * c[0], u * u * a[1] + 2 * u * t * my + t * t * c[1]]); } } tf.roads.push({pts: out}); }

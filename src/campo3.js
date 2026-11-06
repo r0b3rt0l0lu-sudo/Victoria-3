@@ -104,11 +104,6 @@ function armyLine(V, b, pts) {
 const _tacSetPlanC = tacSetPlan;
 tacSetPlan = function (V, plan) { if (plan.k === 'fgen') { const b = G.battles.find(x => x.id === UI.battle); if (b) armyLine(V, b, plan.pts); return; } _tacSetPlanC(V, plan); };
 ACT.tacgen = () => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !b || b.ended || V.replay) return; if (!V.sel) { const ps = playerSide(b), k = [...V.blocks.values()].find(x => x.side === ps && x.role === 'line'); if (k) V.sel = k; } V.draw = V.draw && V.draw.k === 'fgen' ? null : {k: 'fgen', pts: []}; if (V.draw) toast('🧭', PLANS.fgen.hint); renderBattlePanel(); };
-const _tacStayBtnC = tacStayBtn;
-tacStayBtn = function (V, sel, ac) {
-  let h = _tacStayBtnC(V, sel, ac); const b = R.bvB, ps = b && playerSide(b); if (!b || !ps) return h;
-  return h + `<div class="mform"><button data-act="tacgen" class="${V.draw && V.draw.k === 'fgen' ? 'on' : ''}" data-tip="<b>Línea general</b><br>${PLANS.fgen.hint}"><span>🧭</span>Línea general</button></div>`;
-};
 // el puente y la IA
 const _bvGroundC = bvGround;
 bvGround = function (V, b, all, dt) { _bvGroundC(V, b, all, dt); pontStep(V, b, dt); };

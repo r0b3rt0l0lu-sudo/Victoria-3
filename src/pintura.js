@@ -24,8 +24,8 @@ function pintName(pool, h1, h2) { const [a, b] = NAME_POOLS[pool], p = a[Math.fl
 bvBuildBg = function (V, b) {
   const S = 2, cv = document.createElement('canvas'), cvB = document.createElement('canvas'); cv.width = cvB.width = BV_W * S; cv.height = cvB.height = BV_H * S; let g = cv.getContext('2d'); const gB = cvB.getContext('2d'); g.setTransform(S, 0, 0, S, 0, 0); gB.setTransform(S, 0, 0, S, 0, 0);
   const tf = battleTerrain(b), bio = tf.bio, P = PAL[bio] || PAL[1], wx = typeof battleWeather === 'function' ? battleWeather(b) : {}, W = BV_W, Hh = BV_H;
-  let seed = (b.prov * 7919 + 12345) >>> 0; const rn = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
-  const H = (i, k) => hash2(i, 5011, b.prov * 13 + k), pv = MAP.provs[b.prov], pool = nameRegion(pv.lon, pv.lat), EL = tf.elev || {cls: 'ondulado', h: 300};
+  let seed = (b.prov * 7919 + 12345 + battleSite(b).i * 104729) >>> 0; const rn = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  const H = (i, k) => hash2(i, 5011, b.prov * 13 + k + battleSite(b).i * 311), pv = MAP.provs[b.prov], pool = nameRegion(pv.lon, pv.lat), EL = tf.elev || {cls: 'ondulado', h: 300};
   // 1) base, manchas suaves y mosaico de parcelas
   g.fillStyle = _rgba(P.b, 1); g.fillRect(0, 0, W, Hh);
   for (let i = 0; i < 420; i++) { const x = rn() * W, y = rn() * Hh, r = 36 + rn() * 150, c = rn() < 0.5 ? P.l : P.d, rg = g.createRadialGradient(x, y, 0, x, y, r); rg.addColorStop(0, _rgba(c, 0.30)); rg.addColorStop(1, _rgba(c, 0)); g.fillStyle = rg; g.fillRect(x - r, y - r, r * 2, r * 2); }

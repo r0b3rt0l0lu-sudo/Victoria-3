@@ -30,7 +30,7 @@ function battleSummaryHtml(b) {
   const w = G.wars.find(x => (x.attAll.includes(s.tagW) && x.defAll.includes(s.tagL)) || (x.defAll.includes(s.tagW) && x.attAll.includes(s.tagL)));
   const pr = s.pris[s.winner];
   const cell = (lab, v, cls) => `<div class="bsum-c"><small>${lab}</small><b class="${cls || ''}">${v}</b></div>`;
-  return `<div class="bsum ${res}"><div class="bsum-head"><span class="bsum-ic">${icon}</span><div><b>${title}</b><small>Batalla de ${provName(b.prov)} · ${s.date} · duró ${fmtDays(s.days)}</small></div></div>
+  return `<div class="bsum ${res}"><div class="bsum-head"><span class="bsum-ic">${icon}</span><div><b>${title}</b><small>Batalla de ${battleTitle(b)} · ${s.date} · duró ${fmtDays(s.days)}</small></div></div>
     <div class="bsum-grid">
       ${cell(`Bajas de ${nm(s.tagW)}`, men(lostW), lostW > lostL ? 'bad' : '')}${cell(`Bajas de ${nm(s.tagL)}`, men(lostL), 'bad')}
       ${cell('Divisiones destruidas', `${nm(s.tagW)} ${Math.max(0, dW)} · ${nm(s.tagL)} ${Math.max(0, dL)}`)}${cell('Prisioneros capturados', pr ? `${men(pr)} por ${nm(s.tagW)}` : '—')}

@@ -4,7 +4,7 @@
    pivote) y los regimientos conservan siempre su alineación. */
 const FORM = {
   fadv: {n: 'Avanzar en línea', ic: '➡️', col: '#ff6a52', hint: 'Haz UN clic donde debe llegar la línea (Mayús+clic añade puntos). El cuerpo avanza alineado, al paso de su regimiento más lento, y se detiene a disparar al llegar a alcance.'},
-  fchg: {n: 'Carga en línea', ic: '🔥', col: '#ff3a3a', hint: 'Haz clic en el punto del enemigo. El cuerpo avanza alineado y carga TODO A LA VEZ al llegar a unos 100 pasos.'},
+  fchg: {n: 'Carga en línea', ic: '🔥', col: '#ff3a3a', hint: 'Haz clic en el punto del enemigo. El cuerpo avanza alineado; al llegar a unos 100 pasos carga SOLO su oleada de asalto (los regimientos más frescos y la caballería) y el resto apoya con fuego y mantiene la línea.'},
   fenv: {n: 'Envolver', ic: '🌀', col: '#ffb43c', hint: 'Haz clic MÁS ALLÁ del extremo enemigo por donde envolver. La línea gira como una puerta sobre el extremo opuesto sin romperse.'},
   fech: {n: 'Escalón', ic: '📐', col: '#ffd24a', hint: 'Haz clic en el objetivo. El ala más cercana ataca primero y las demás se escalonan detrás; se incorporan cuando la primera traba combate.'},
   fref: {n: 'Refusar flanco', ic: '🔙', col: '#5aa8ff', hint: 'Haz clic en el lado (arriba/abajo) cuyo extremo debe doblarse atrás en ángulo para proteger el flanco.'},
@@ -93,7 +93,7 @@ function fmUpdate(V, b, c, pl, dt, all) {
     if (pl.st < 2) {
       const T = pl.pts[pl.pts.length - 1]; let sp = vb * fm.coh * 1.15; if (foeNear < 135) sp *= 0.85; stepTo(T, sp);
       if (foeNear <= 118 && fm.coh >= 0.55) { pl.st = 2; pl.tc = V.t; }
-    } else if (V.t - pl.tc > 16) pl.done = true;
+    } else { stepTo(pl.pts[pl.pts.length - 1], vb * 0.55); if (V.t - pl.tc > 16) pl.done = true; }          // la oleada carga; el resto de la línea sigue avanzando detrás
   } else if (pl.k === 'fenv') {
     if (!pl.done) { if (pl.gx !== undefined && Math.abs(fm.x - pl.gx) > 3) fm.x += clamp(pl.gx - fm.x, -vb * 0.45 * fm.coh * dt, vb * 0.45 * fm.coh * dt); const rmax = Math.max(60, (n - 1) * (ls.length > 1 ? Math.abs(ls[n - 1].hy - ls[0].hy) / (n - 1) : 40)); pl.psi = Math.min(pl.psiEnd, (pl.psi || 0) + vb * 0.95 / rmax * fm.coh * dt); if (pl.psi >= pl.psiEnd - 1e-3) pl.done = true; }
   } else if (pl.k === 'fref') {
@@ -110,7 +110,7 @@ bvPlanStep = function (V, b, blk, dt, all, home) {
   if (c && blk.role === 'line' && !blk.d.plan && b.cplan && b.cplan[c.id] && V.fm && V.fm[c.id] && blk._sx !== undefined && !V.over && !b.prep) {
     const pl = b.cplan[c.id], dir = blk.side === 'A' ? 1 : -1, foe = blk.foe, fd = foe && foe.role !== 'reserve' ? Math.hypot(foe.x - blk.x, foe.y - blk.y) : 1e9;
     let tx = blk._sx, ty = blk._sy, mode = 'advance', k = 1.05; const lag = blk._lag || 0;
-    if (pl.k === 'fchg' && pl.st === 2 && foe && foe.role !== 'reserve') { tx = foe.x - dir * ((blk.dep + foe.dep) / 2 + 7); ty = foe.y; return {mode: 'charge', tx, ty, k: 3.2, path: [[blk.x, blk.y], [tx, ty]]}; }
+    if (pl.k === 'fchg' && pl.st === 2 && foe && foe.role !== 'reserve' && (blk.type !== 'inf' || bvChargeWave(V, b, blk))) { tx = foe.x - dir * ((blk.dep + foe.dep) / 2 + 7); ty = foe.y; return {mode: 'charge', tx, ty, k: 3.2, path: [[blk.x, blk.y], [tx, ty]]}; }
     const eng = foe && foe.role !== 'reserve' && Math.abs(foe.x - blk.x) < (blk.dep + foe.dep) / 2 + 10 && Math.abs(foe.y - blk.y) < (blk.wid + foe.wid) / 2 * 0.95;
     if (eng && pl.k !== 'fret' && pl.k !== 'frea') return {mode: 'melee', tx: blk.x, ty: blk.y, k: 0, path: null};
     const moving = !pl.done && pl.k !== 'fref';
@@ -207,14 +207,6 @@ ACT.tacplan = d => {
 };
 const _ACTtacstayL = ACT.tacstay;
 ACT.tacstay = () => { const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (V && V.sel && V.sel.corps && b && b.cplan && b.cplan[V.sel.corps.id]) { delete b.cplan[V.sel.corps.id]; delete V.fm[V.sel.corps.id]; } _ACTtacstayL(); };
-// botones de maniobra en el panel
-const _tacStayBtnL = tacStayBtn;
-tacStayBtn = function (V, sel, ac) {
-  let h = _tacStayBtnL(V, sel, ac); if (!sel && !ac) return h;
-  const cur = V.selCorps && ac ? ac : sel && sel.corps ? sel.corps : null, pl = cur && R.bvB && R.bvB.cplan ? R.bvB.cplan[cur.id] : null;
-  h += '<div class="mform"><small>Maniobras de línea (actúan sobre el cuerpo entero):</small>' + Object.keys(FORM).map(k => `<button data-act="tacplan" data-k="${k}" class="${V.draw && V.draw.k === k || (pl && pl.k === k) ? 'on' : ''}" ${sel ? '' : 'disabled'} data-tip="<b>${FORM[k].n}</b><br>${FORM[k].hint}"><span>${FORM[k].ic}</span>${FORM[k].n}</button>`).join('') + '</div>';
-  return h;
-};
 /* ---- dibujo: conectores de la línea, huecos, flancos abiertos y vista previa de la maniobra ---- */
 const _bvCorpsFlagsL = bvCorpsFlags;
 bvCorpsFlags = function (g, V, b) {

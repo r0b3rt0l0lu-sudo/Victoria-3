@@ -178,10 +178,11 @@ buildTerrainColors = function (land, h, biome) {
           r += (ROCK[0] - r) * q; g += (ROCK[1] - g) * q; b += (ROCK[2] - b) * q;
         }
       } else {
-        const d = MAP.dSea[i], t = smooth(0, 55, d);
-        r = 70 + (22 - 70) * t; g = 128 + (52 - 128) * t; b = 150 + (84 - 150) * t;
+        const d = MAP.dSea[i], t = smooth(0, 70, d), shelf = 1 - smooth(5, 18, d + (fbm(x / 14, y / 14, 67, 2) - 0.5) * 8);
+        r = 70 + (20 - 70) * t; g = 128 + (50 - 128) * t; b = 150 + (86 - 150) * t;
+        r += 4 * shelf; g += 15 * shelf; b += 9 * shelf;                         // plataforma continental: aguas turquesa junto a la costa
         const nz = (fbm(x / 20, y / 20, 61, 3) - 0.5) * 10; r += nz; g += nz; b += nz;
-        r += 22 * (1 - smooth(0, 4, d)); g += 22 * (1 - smooth(0, 4, d)); b += 16 * (1 - smooth(0, 4, d));   // aguas someras (la espuma la pone el agua)
+        r += 12 * (1 - smooth(0, 4, d)); g += 14 * (1 - smooth(0, 4, d)); b += 10 * (1 - smooth(0, 4, d));   // aguas someras (la espuma la pone el agua)
       }
       const o = i * 4; tc[o] = r; tc[o + 1] = g; tc[o + 2] = b; tc[o + 3] = 255;
     }

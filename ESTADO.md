@@ -140,3 +140,10 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - Calidad baja (`RELIEF_LOW`): sin costa suave, sin bordes orgánicos y una sola escala de detalle.
 - Agua: corregido el fallo que pintaba rayas (el shader leía `position.xz` de un plano local, siempre z = 0); el oleaje fino se desvanece con la distancia (`fwidth`).
 - Coste relativo medido con SwiftShader (render de un fotograma, vistas continental/regional/ciudad): bajo +9/+20/+12 %, medio +21/+27/+21 %, alto +13/+17/+27 %. Carga: +~0,5 s.
+
+## Mapa 3D, fase 2: agua, costa y ríos (src/agua.js)
+- Agua animada nueva (`upgradeWater`): espuma de orilla y rompientes a partir de la distancia suavizada a la costa (`R.coastTex`), sin escalones; reflejo del cielo por Fresnel según la inclinación de la cámara; brillo del sol en la dirección de `R.lightAz`/`R.lightAlt`. El oleaje fino se desvanece con la distancia.
+- Uniformes nuevos en `R.waterU`: `waterQ` (0 en calidad baja: sin reflejo ni brillo), `coastMap`, `sunW`, `skyZ`/`skyH` (colores del cielo). `foamK` sigue a `R.lowEnd`.
+- Plataforma continental: aguas turquesa junto a la costa y degradado de profundidad hasta 70 px de mar, en la textura del terreno (se ve también con la animación apagada).
+- Ríos como cintas (`buildRiverRibbons`): `addRivers` guarda ahora `MAP.riverPaths` (solo dibujo; la jugabilidad no cambia). Trazados suavizados (Chaikin), más anchos río abajo y con afluentes, con ancho mínimo en pantalla (≈1,4 px, `R.riverU.pxW`) y corriente animada (desactivada en calidad baja). Una llamada de dibujo. Los ríos pintados en la textura quedan tenues (minimapa).
+- Coste relativo frente a la fase 1 (SwiftShader): dentro del ruido de medida (±5 %).

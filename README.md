@@ -85,3 +85,10 @@ la IA y las guerras están muy simplificadas respecto al juego original.
 - El juego detecta el hardware al arrancar y elige solo la calidad gráfica (botón **Q** para cambiarla a mano). Perfil «bajo»: menos resolución, sin antialiasing, sin espuma de costa, humo de chimeneas ni aviones.
 - **Versión instalable (PWA)**: `python3 build.py` genera `docs/` (index.html, manifiesto, service worker e iconos). Para alojarla gratis: GitHub → Settings → Pages → «Deploy from a branch» → rama con `docs/` → carpeta `/docs`. Abre la URL en Chrome (ChromeOS incluido) y pulsa **Instalar**; después funciona sin conexión y a pantalla completa.
 - Ajustes de ChromeOS que ayudan: aceleración por hardware activada en `chrome://settings/system`, comprobar en `chrome://gpu` que WebGL está acelerado, cerrar otras pestañas, desactivar el ahorro de memoria para el juego y jugar enchufado.
+
+
+## Formato del juego: web por carpetas + PWA
+`python3 build.py` genera ahora **dos formatos**:
+- **`docs/` (principal, por carpetas):** `index.html` de ~1 KB + `js/three.min.js`, `js/elevacion.js`, `js/escenarios.js`, `js/game.js`, `css/style.css`, manifiesto, iconos y `sw.js`. Cada archivo lleva su versión por contenido (`?v=…`) y el service worker mantiene una caché versionada, así que las actualizaciones solo descargan lo que cambia y los datos pesados (relieve, escenarios) no se vuelven a bajar. Se puede abrir con doble clic (`docs/index.html`, sin instalación) o servir con `cd docs && python3 -m http.server 8000` (entonces es instalable como app y funciona sin conexión). Publicable tal cual en GitHub Pages.
+- **`index.html` (raíz, un solo archivo):** todo incrustado; lo usan las pruebas de `tools/` y sirve para compartir un único fichero. Opciones: `--no-single` (solo carpetas), `--only-single` (solo el archivo único), `--light` (`juego-ligero.html` con three por CDN).
+El código del juego (`js/game.js`) no se trocea porque los módulos comparten funciones hoisted en un ámbito global; sí se separan three, relieve y escenarios.

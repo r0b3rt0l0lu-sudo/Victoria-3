@@ -170,3 +170,6 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - Fichas: los ejércitos del mismo país en el mismo sitio se agrupan en una ficha («×n», suma de divisiones) cuando hay más de 3 fichas allí, salvo el seleccionado, los que combaten o se mueven. Las flotas extranjeras sin guerra solo se ven de cerca. `declutterTokens` reparte en rejilla de dos columnas y esquiva los nombres de países y grandes ciudades (`R.labelRects`).
 - Panel gráfico (botón ☀ junto a Q, `ACT.gfxpanel`): calidad, intensidad del relieve 0–100 %, dirección de la luz, bosques, caminos y ferrocarril, nombres de estados. Se guarda en `victoria-map-prefs` (`relief`, `lightAz`, `veg`, `roads`, `sl`).
 - Coste: solo CPU al mover la cámara; sin cambios medibles en el render.
+
+## Formato por carpetas + PWA
+- `build.py` produce `docs/` (index.html + js/ + css/, caché por contenido, service worker versionado) y el `index.html` de un solo archivo en la raíz (pruebas). Probado con servidor HTTP y con `file://`: 0 errores, 12 peticiones, SW registrado.

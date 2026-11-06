@@ -66,7 +66,7 @@ function bvSync(V, b) {
     const cs = corps.filter(c => c.side === side), ord = [], cavs = [];
     cs.forEach(c => c.blks.forEach(k => { k.reserve = !!k.d.out; if (k.reserve) return; if (k.type === 'cav') cavs.push(k); else ord.push(k); }));
     cavs.forEach((k, i) => { if (i % 2) ord.push(k); else ord.unshift(k); });                    // la caballería, a las alas
-    const n = ord.length, cap = 26, R = Math.max(1, Math.ceil(n / cap)), lanes = Math.ceil(n / R), top = 58, bot = BV_H - 42, sp = (bot - top) / Math.max(1, lanes);
+    const n = ord.length, cap = 34, R = Math.max(1, Math.ceil(n / cap)), lanes = Math.ceil(n / R), top = 58, bot = BV_H - 42, sp = (bot - top) / Math.max(1, lanes);
     ord.forEach((k, i) => { k.role = 'line'; k.rank = i % R; k.lane = Math.floor(i / R); k.nLane = lanes; k.hy = top + (k.lane + 0.5) * sp; k.hdep = k.rank * 30; });
     cs.forEach(c => {
       const ln = c.blks.filter(k => !k.reserve), rs = c.blks.filter(k => k.reserve), ys = ln.map(k => k.hy), yc = ys.length ? ys.reduce((p, v) => p + v, 0) / ys.length : BV_H / 2;
@@ -201,7 +201,9 @@ function bvPlate(g, blk, hover) {
   if (blk.type === 'art') {
     const n = clamp(Math.round(sF * 3), 1, 3);
     g.fillStyle = 'rgba(20,16,10,.35)'; g.fillRect(-w / 2, -h / 2, w, h); g.strokeStyle = bvShade(col, -0.3); g.lineWidth = 0.7; g.strokeRect(-w / 2, -h / 2, w, h);
+    g.save(); g.scale(0.72, 0.72);
     for (let i = 0; i < n; i++) { const cx = (i - (n - 1) / 2) * 8; g.strokeStyle = '#1c1c20'; g.lineWidth = 2.6; g.lineCap = 'round'; g.beginPath(); g.moveTo(cx - 3, 0); g.lineTo(cx + 4.5, -2); g.stroke(); g.strokeStyle = col; g.lineWidth = 1.2; g.beginPath(); g.moveTo(cx - 3, 0); g.lineTo(cx + 4.5, -2); g.stroke(); g.fillStyle = '#2a2018'; g.beginPath(); g.arc(cx - 2, 2.3, 2.1, 0, 6.3); g.fill(); g.strokeStyle = '#9a8a6a'; g.lineWidth = 0.5; g.beginPath(); g.moveTo(cx - 4, 2.3); g.lineTo(cx, 2.3); g.moveTo(cx - 2, 0.3); g.lineTo(cx - 2, 4.3); g.stroke(); }
+    g.restore();
     g.lineCap = 'butt'; if (blk.sil) { g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(-w / 2, -h / 2, w, h); }
   } else {
     const face = Math.cos(blk.hd) >= 0 ? 1 : -1, gap = 2.4, cw = (h - gap) / 2, ch = (w - gap) / 2, wear = 1 - sF, tF = clamp(wear / 0.5, 0, 1) * 0.86, tB = clamp((wear - 0.5) / 0.5, 0, 1) * 0.86;

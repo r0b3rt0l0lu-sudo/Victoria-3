@@ -5,10 +5,10 @@
    Pasa el ratón por un bloque para ver su general, fuerza, organización, moral y orden actual. */
 const BV_W = 1920, BV_H = 840, BV_K = 2.4;
 const BV_FORM = {
-  inf: {n: 6, cols: 3, rows: 2, sx: 6, sy: 7, spd: 32, w: 26, h: 22},
-  cav: {n: 4, cols: 4, rows: 1, sx: 5.5, sy: 7, spd: 70, w: 26, h: 22},
-  art: {n: 3, cols: 3, rows: 1, sx: 7, sy: 7, spd: 18, w: 24, h: 18},
-  tank: {n: 3, cols: 3, rows: 1, sx: 8, sy: 8, spd: 44, w: 26, h: 22}
+  inf: {n: 6, cols: 3, rows: 2, sx: 6, sy: 7, spd: 32, w: 18, h: 15},
+  cav: {n: 4, cols: 4, rows: 1, sx: 5.5, sy: 7, spd: 70, w: 18, h: 15},
+  art: {n: 3, cols: 3, rows: 1, sx: 7, sy: 7, spd: 18, w: 17, h: 13},
+  tank: {n: 3, cols: 3, rows: 1, sx: 8, sy: 8, spd: 44, w: 18, h: 15}
 };
 const BV_KIND = {inf: 'Infantería', cav: 'Caballería', art: 'Artillería', tank: 'Carros de combate'};
 const BV_STATUS = {deploy: 'Desplegándose', advance: 'Avanzando', hold: 'Manteniendo la línea', fire: 'Fuego de fusilería', melee: 'Cuerpo a cuerpo', charge: '¡A la carga!', flank: 'Flanqueando', fixing: 'Fijando al enemigo',

@@ -119,3 +119,6 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 ## Terreno jugable (src/campo3.js)
 - Terreno por provincia (semilla = provincia), barrancos (`tf.ravine`, pasos), alturas sin defensa plana (artilleria +alcance, `p.hi`), puentes de pontones (`b.pont`, `tacPontoon`), sectores `fsec` y `armyLine` (linea general).
 - Arreglo: los wrappers de `bvBuildBg` usan `setTransform` (el original dejaba la escala aplicada).
+
+## Pintura (src/pintura.js, ESTUDIO_MAPA.md)
+- `bvBuildBg` final: fondo pintado por bioma (`PAL`), capas base (desenfoque) y objetos (bosques/aldeas), rotulos de aldeas/rio (`NAME_POOLS`), rios w=13, arroyo w=5, barranco w=18, aldeas x0.74, unidades x0.7 (`BV_FORM`), `cap=34` por columna.

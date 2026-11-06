@@ -131,7 +131,7 @@ function fmIntegrity(V, b, all, dt) {
     let exp = 0;
     ln.forEach((k, i) => {
       let up = null, dn = null; for (let j = i - 1; j >= 0; j--) if (Math.abs(ln[j].x - k.x) < 95) { up = ln[j]; break; } for (let j = i + 1; j < ln.length; j++) if (Math.abs(ln[j].x - k.x) < 95) { dn = ln[j]; break; }
-      const gU = up ? (k.y - up.y) - (k.wid + up.wid) / 2 : 99, gD = dn ? (dn.y - k.y) - (k.wid + dn.wid) / 2 : 99, lim = fmInt(k) * 1.6;
+      const gU = up ? (k.y - up.y) - (k.wid + up.wid) / 2 : 99, gD = dn ? (dn.y - k.y) - (k.wid + dn.wid) / 2 : 99, lim = Math.max(fmInt(k) * 1.6, (BV_H - 100) / Math.max(1, k.nLane || 1) * 1.55 - (k.wid || 18));
       k.openU = gU > lim; k.openD = gD > lim; let ex = 0, near = 1e9;
       foes.forEach(e => {
         const dx = Math.abs(e.x - k.x); if (dx > 175) return;
@@ -222,7 +222,7 @@ bvCorpsFlags = function (g, V, b) {
   const ps = playerSide(b), all = [...V.blocks.values()];
   ['A', 'B'].forEach(s => {
     const ln = all.filter(k => k.side === s && k.role === 'line' && k.mode !== 'rout' && k.type !== 'art' && !k.garr && !k.d.out).sort((p, q) => p.y - q.y), own = s === ps;
-    for (let i = 1; i < ln.length; i++) { const a = ln[i - 1], k = ln[i]; if (Math.abs(a.x - k.x) > 95) continue; const gap = (k.y - a.y) - (k.wid + a.wid) / 2, bad = gap > fmInt(k) * 1.6;
+    for (let i = 1; i < ln.length; i++) { const a = ln[i - 1], k = ln[i]; if (Math.abs(a.x - k.x) > 95) continue; const gap = (k.y - a.y) - (k.wid + a.wid) / 2, bad = gap > Math.max(fmInt(k) * 1.6, (BV_H - 100) / Math.max(1, k.nLane || 1) * 1.55 - (k.wid || 18));
       g.strokeStyle = bad ? 'rgba(255,90,70,.75)' : own ? 'rgba(150,235,150,.4)' : 'rgba(200,215,255,.2)'; g.lineWidth = bad ? 1.6 : 1.1; g.setLineDash(bad ? [4, 4] : []); g.beginPath(); g.moveTo(a.x, a.y + a.wid / 2 - 2); g.lineTo(k.x, k.y - k.wid / 2 + 2); g.stroke(); }
     g.setLineDash([]);
     ln.forEach(k => { if (!k.expo) return; g.strokeStyle = 'rgba(255,80,60,.85)'; g.lineWidth = 2; g.beginPath(); if (k.openU) { g.moveTo(k.x - k.dep / 2, k.y - k.wid / 2 - 2); g.lineTo(k.x + k.dep / 2, k.y - k.wid / 2 - 2); } if (k.openD) { g.moveTo(k.x - k.dep / 2, k.y + k.wid / 2 + 2); g.lineTo(k.x + k.dep / 2, k.y + k.wid / 2 + 2); } g.stroke(); });

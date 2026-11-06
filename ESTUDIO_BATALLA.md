@@ -23,6 +23,10 @@ Complementa `ESTUDIO_LINEA.md`. Fuentes: reglas de wargames napoleónicos (Lexne
 14. **Niebla de guerra.** Del enemigo solo ves lo que alcanzan a ver tus regimientos (340 px; 270 con lluvia/nieve; 190 con niebla; ×1,3 desde una altura; ×1,35 la caballería; línea de visión). El que dispara o está en melé se delata. Lo ya visto queda como un «?» que se desvanece.
 15. **Objetivos por sede.** Pueblo (peso según tipo), puente, vado, altura o los dos bosques: quien tiene más regimientos dentro los controla, gana +2 % de ataque y defensa por peso (máx. 8 %) y recupera moral allí. Marcadores en el campo y ficha en la lista de terreno.
 
+## Fase 4 (`src/batalla4.js`): anclajes
+16. **Ciudades y fuertes anclan la línea.** Un regimiento pegado a un pueblo o fuerte propio (o a un pueblo sin dueño) queda «anclado» (⚓): el golpe de flanco no le hace efecto (solo la espalda), gana moral con el tiempo, la línea apoyada en él no cuenta como flanco abierto ni suma a la amenaza de pánico, y el ejército recibe hasta +6 % de defensa (×peso: fuerte 1,2 · ciudad 1 · aldea 0,7).
+17. **Atacarlos compensa.** Cuando un ancla cae (pueblo o fuerte): +14 % de moral para el vencedor, −24 % (−10 % lejos) para el vencido y daño a sus defensores; el flanco que se apoyaba en ella queda al aire (pánico posible); el vencedor se queda con 1,2–3 unidades de comida y pólvora del enemigo. La IA defiende sus anclajes con dos regimientos que se plantan en el borde delantero y, si ataca o tiene ventaja, lanza tres a la carga contra el ancla enemiga.
+
 ## Pendiente / ideas (no implementadas)
 - Munición limitada de artillería y carros de munición visibles.
 - Cuadro con transición real (animación de formación).

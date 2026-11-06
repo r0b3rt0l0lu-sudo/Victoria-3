@@ -88,7 +88,7 @@ function bvObjectives(V, b, all, step) {
   const tf = V.tf; if (!tf) return; const objs = siteObjectives(tf); b.objSc = b.objSc || {A: 0, B: 0};
   objs.forEach(ob => {
     let a = 0, c = 0; all.forEach(k => { if (k.type === 'art' || k.mode === 'rout' || k.role === 'reserve') return; if (Math.hypot(k.x - ob.x, k.y - ob.y) < ob.r + k.wid * 0.3) { if (k.side === 'A') a++; else c++; } });
-    const ctl = a > c ? 'A' : c > a ? 'B' : ob.ctl; if (ctl && ctl !== ob.ctl) { const first = !ob.ctl; ob.ctl = ctl; if (!V.replay && !(first && !all.some(k => k.mode === 'melee'))) { const nm = G.C[ctl === 'A' ? b.A0 : b.B0].name; bvBanner(V, `${ob.ic} ${nm} toma ${ob.name}`, ctl, ''); (b.log = b.log || []).push({k: 'flank', d: b.day, t: `${nm} toma ${ob.name}.`}); if (b.log.length > 30) b.log.shift(); } }
+    const ctl = a > c ? 'A' : c > a ? 'B' : ob.ctl; if (ctl && ctl !== ob.ctl) { const first = !ob.ctl, prev = ob.ctl; ob.ctl = ctl; if (prev && typeof bvAnchorFalls === 'function' && (ob.id === 'town' || ob.id === 'hill' || ob.id === 'bridge')) bvAnchorFalls(V, b, {kind: ob.id === 'town' ? 'town' : 'village', x: ob.x, y: ob.y, r: ob.r, id: 'v' + (V.tf.town ? V.tf.town.id : 0)}, ctl, ob.name); if (!V.replay && !(first && !all.some(k => k.mode === 'melee'))) { const nm = G.C[ctl === 'A' ? b.A0 : b.B0].name; bvBanner(V, `${ob.ic} ${nm} toma ${ob.name}`, ctl, ''); (b.log = b.log || []).push({k: 'flank', d: b.day, t: `${nm} toma ${ob.name}.`}); if (b.log.length > 30) b.log.shift(); } }
     if (ob.ctl) { b.objSc[ob.ctl] += ob.w * step; all.forEach(k => { if (k.side === ob.ctl && k.mm !== undefined && k.mode !== 'rout' && Math.hypot(k.x - ob.x, k.y - ob.y) < ob.r + 20) k.mm = Math.min(1, k.mm + 0.012 * step); }); }
   });
 }

@@ -60,7 +60,7 @@ function bvCorpsPanic(V, b, all, step) {
   (V.corps || []).forEach(c => {
     const ls = (c.blks || []).filter(k => k.role === 'line' && k.type !== 'art' && !k.garr && k.mode !== 'rout' && !k.d.out); if (ls.length < 2 || V.t < (c.panicUntil || 0)) return;
     if (buffOn(V, c.side, 'endure') || buffOn(V, c.side, 'inspire')) return;
-    const fl = ls.filter(k => V.t - (k.flanked || -99) < 4).length, ex = ls.filter(k => k.expo).length, rear = ls.filter(k => V.t - (k.flanked || -99) < 4 && k.foe && Math.abs(bvAng(k.hd, Math.atan2(k.foe.y - k.y, k.foe.x - k.x))) > 1.9).length;
+    const fl = ls.filter(k => V.t - (k.flanked || -99) < 4 && !k.anc).length, ex = ls.filter(k => k.expo && !k.anc).length, rear = ls.filter(k => V.t - (k.flanked || -99) < 4 && k.foe && Math.abs(bvAng(k.hd, Math.atan2(k.foe.y - k.y, k.foe.x - k.x))) > 1.9).length;
     const score = (fl + 0.7 * ex + 0.8 * rear) / ls.length; c.threat = score; if (score < 0.4) return;
     const mm = ls.reduce((n, k) => n + (k.mm === undefined ? 0.8 : k.mm), 0) / ls.length, org = ls.reduce((n, k) => n + k.d.o / DIVS[k.d.t].org, 0) / ls.length, cm = V.cmd && V.cmd[c.id], lead = cm && cm.alive ? 0.7 : 1.15;
     const p = clamp((score - 0.3) * (0.5 + 0.9 * (1 - mm) + 0.5 * (1 - org)) * 0.16 * lead, 0, 0.5) * step;

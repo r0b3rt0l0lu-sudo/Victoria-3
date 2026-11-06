@@ -57,7 +57,7 @@ function bvFogUpdate(V, b, all) {
   const now = performance.now();
   all.forEach(e => {
     if (e.side === ps) return; let vis = (now - (e.fireAt || -1e9)) < 2500 || e.mode === 'melee';
-    if (!vis) for (let i = 0; i < mine.length && !vis; i++) { const o = mine[i], d = Math.hypot(o.x - e.x, o.y - e.y), hi = tf && tf.hills.some(h => inEll(o.x, o.y, h)), r = R0 * (o.type === 'cav' ? 1.35 : 1) * (hi ? 1.3 : 1); if (d < r && (d < 110 || bvLosCached(V, b, o, e))) vis = true; }
+    if (!vis) for (let i = 0; i < mine.length && !vis; i++) { const o = mine[i], d = Math.hypot(o.x - e.x, o.y - e.y), hi = tf && tf.hills.some(h => inEll(o.x, o.y, h)), r = R0 * (o.type === 'cav' ? 1.35 : 1) * (hi ? 1.3 : 1); if (d < r && (d < 110 || (bvLosCached(V, b, o, e) && !(typeof bvSmokeBlock === 'function' && bvSmokeBlock(V, o, e))))) vis = true; }
     if (vis) { seen.add(e.id); e.last = {x: e.x, y: e.y, t: V.t, hd: e.hd}; }
   });
   V.seen = seen;

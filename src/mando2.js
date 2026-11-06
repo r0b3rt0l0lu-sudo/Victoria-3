@@ -15,6 +15,7 @@ function tacMandoHtml(b, V, sel) {
   const whole = !!(V.selCorps && ac), cs = (V.corps || []).filter(c => c.side === ps), pl = ac && b.cplan ? b.cplan[ac.id] : (sel && sel.corps && b.cplan ? b.cplan[sel.corps.id] : null);
   // ① guía de un vistazo
   let h = `<div class="mando"><div class="mguide">${prep ? '<b>Preparación</b> · ① Arrastra tus regimientos por tu mitad del campo · ② Levanta obras si las necesitas · ③ Pulsa <b>¡Comenzar!</b>' : V.draw ? `<b>${PLANS[V.draw.k].ic} ${PLANS[V.draw.k].n}</b> · ${PLANS[V.draw.k].hint}` : sel || ac ? '<b>② Elige una orden</b> y luego haz clic en el campo donde quieres aplicarla.' : '<b>① Selecciona</b> un cuerpo (lista de abajo o su bandera) o un regimiento (clic en el campo).'}</div>`;
+  if (typeof bvMarHtml === 'function' && !prep) h += bvMarHtml(b, V, ps);
   if (prep) h += '<button class="primary prep-go" data-act="tacstart">▶ ¡Comenzar la batalla!</button>';
   // ② a quién y qué
   const who = whole ? `${corpsName(ac)} entero (${ac.blks.length} regimientos)` : sel ? `${DIVS[sel.d.t].icon} ${BV_KIND[sel.type]} de ${sel.corps ? corpsName(sel.corps) : sel.a.name}` : 'Nada seleccionado';

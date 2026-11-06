@@ -29,7 +29,7 @@ Complementa `ESTUDIO_LINEA.md`. Fuentes: reglas de wargames napoleónicos (Lexne
 
 ## Plan «más realismo» en tres partes
 - **Parte 1 — Combate y tropas** (hecha, `src/batalla5.js`): enfilada, tiradores, calidad de tropas, munición de artillería y proyectiles.
-- **Parte 2 — Mando** (pendiente): mensajeros visibles, reserva del general, muerte del mariscal, humo de pólvora que tapa la visión.
+- **Parte 2 — Mando** (hecha, `src/batalla6.js`): mensajeros visibles, reserva del general, muerte del mariscal, humo de pólvora que tapa la visión.
 - **Parte 3 — Terreno, clima y secuelas** (pendiente): barro e incendios, pendiente real, hora del día, heridos y enfermedad.
 
 ### Parte 1 (hecha)
@@ -38,6 +38,12 @@ Complementa `ESTUDIO_LINEA.md`. Fuentes: reglas de wargames napoleónicos (Lexne
 20. **Calidad de las tropas.** Leva / recluta / regular / veterano según el entrenamiento (`d.tr`, `d.lv`) más un pequeño perfil por ejército (`NAT_Q`): cadencia, moral inicial y recuperación, retraso de las órdenes y gasto de munición. Se ve en el panel del regimiento.
 21. **Munición de artillería y carros.** Cada batería gasta munición según el proyectil, se queda muda a 0 y la repone un carro (visible) si hay pólvora: rápido cerca de su borde del campo, lento lejos.
 22. **Proyectiles.** Bala maciza (rasante contra columnas compactas), granada (desde 1850; daña fuertes, guarniciones y pueblos y puede incendiarlos), metralla (desde 1860; baja moral y organización a tropas en campo abierto) y bote a corta distancia.
+
+### Parte 2 (hecha)
+23. **Mensajeros.** Toda orden de cuerpo con retraso sale con un jinete que cruza el campo del mariscal al comandante del cuerpo; la caballería enemiga lo intercepta (la orden se pierde y el cuerpo sigue con lo anterior) y el fuego cercano puede abatirlo.
+24. **Reserva del general.** Botón «🎖️ Lanzar la reserva»: un mensajero lleva la orden y, al llegar, los regimientos en reserva entran en línea. Los refuerzos frescos (también los de la IA) suben la moral y la organización.
+25. **Mariscal.** Cada ejército tiene su mariscal tras la línea (nombre del general del ejército). Si cae (caballería encima, melé, cañoneo): −12 % de moral al ejército (−20 % cerca), −3 % de ataque, órdenes ×2,4 más lentas y mensajeros en ruta perdidos; a los 25 s asume un sucesor (órdenes ×1,3 más lentas el resto de la batalla).
+26. **Humo.** El humo de pólvora acumulado a lo largo de la línea de visión (más allá de 110 px) tapa al enemigo en la niebla de guerra y baja hasta un 35 % la cadencia de quien dispara a través de él; el viento lo desplaza.
 
 ## Pendiente / ideas (no implementadas)
 - Munición limitada de artillería y carros de munición visibles.

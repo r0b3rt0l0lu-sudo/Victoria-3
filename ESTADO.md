@@ -130,3 +130,13 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - `src/pueblos.js`: 3 pueblos con nombre por provincia (listas por lengua); cada batalla se libra en uno (`battleSite`, `b.site`) y su tipo (cruce, puente, altura, bosque, amurallado, vado) moldea el terreno (`applySite`). El título muestra «Batalla de <pueblo> · <provincia>».
 - `src/mando2.js`: panel de mando unificado (6 órdenes + Quedarse; cuerpo entero = maniobra de línea; plan de ejército aparte). Eliminados los envoltorios duplicados de `tacStayBtn` y `tacMandoHtml` antiguo.
 - `src/batalla2.js`: carga por oleadas, flanqueo con línea que avanza y cierra huecos (`bvFillY`), pánico de cuerpo, asalto a fuertes. Ver `ESTUDIO_BATALLA.md`.
+
+## Mapa 3D, fase 1: relieve y color (src/relieve3d.js)
+- Altura de dibujo `R.hr` (1024×410) desde la altitud real SRTM/GEBCO (`elevAt`) con detalle procedural según la rugosidad; `metersToY` (exageración suave). `MAP.height` (juego) no cambia. Costa bajada con `MAP.dLand`, fondo marino con `MAP.dSea`.
+- `terrainY(lon, lat)` / `terrainYPx(px, py)`: altura del suelo dibujado; la usan ciudades, chimeneas, humo, fuego y figuras.
+- Texturas del shader: `R.reliefTex` (normales + altitud en metros) y `R.coastTex` (distancia con signo a la costa, suavizada, + dirección hacia tierra). El shader Lambert del terreno (`reliefShaderPatch`) usa normales por píxel, sombreado con luz configurable, roca en pendientes, línea de nieve real por latitud y estación (≈2600 m en los Alpes en verano), costa suave y bordes de bioma orgánicos en el modo Terreno, y detalle a dos escalas sin repetición visible.
+- `buildTerrainColors` reescrito: colores por bioma (`BIOME_COL` + `PAL`) y altitud real, sin sombreado horneado; la montaña/nieve procedural del juego ya no pinta manchas blancas.
+- Parámetros: `R.reliefK` (0–1, por defecto 0,75; los modos no-terreno usan el 60 %; guardado en `victoria-map-prefs.relief`, `setReliefStrength(k)`), `R.lightAz`/`R.lightAlt` (315°/48°, `setReliefLight(az, alt)`; el sol baja 12° en invierno).
+- Calidad baja (`RELIEF_LOW`): sin costa suave, sin bordes orgánicos y una sola escala de detalle.
+- Agua: corregido el fallo que pintaba rayas (el shader leía `position.xz` de un plano local, siempre z = 0); el oleaje fino se desvanece con la distancia (`fwidth`).
+- Coste relativo medido con SwiftShader (render de un fotograma, vistas continental/regional/ciudad): bajo +9/+20/+12 %, medio +21/+27/+21 %, alto +13/+17/+27 %. Carga: +~0,5 s.

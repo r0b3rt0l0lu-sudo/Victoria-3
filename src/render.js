@@ -78,12 +78,9 @@ function initRenderer(canvas) {
   R.tex.magFilter = THREE.LinearFilter;
   // geometría con relieve
   const nx = 720, nz = 288;
-  const hgt = MAP.height;
-  const hs = (px, py) => {
-    px = clamp(px, 0, W - 1.001); py = clamp(py, 0, H - 1.001);
-    const x0 = px | 0, y0 = py | 0, fx = px - x0, fy = py - y0, i = y0 * W + x0;
-    return (hgt[i] * (1 - fx) + hgt[i + 1] * fx) * (1 - fy) + (hgt[i + W] * (1 - fx) + hgt[i + W + 1] * fx) * fy;
-  };
+  // altura de dibujo a partir del relieve real (relieve3d.js); la altura de juego MAP.height no cambia
+  buildRenderHeight(); buildReliefTextures();
+  const hs = (px, py) => renderHeightPx(px + 0.5, py + 0.5);
   // rejilla completa (para calcular normales continuas) y troceado en bloques con niveles de detalle (LOD) y recorte por cámara
   const full = new THREE.BufferGeometry();
   const pos = new Float32Array((nx + 1) * (nz + 1) * 3), uv = new Float32Array((nx + 1) * (nz + 1) * 2);
@@ -92,7 +89,7 @@ function initRenderer(canvas) {
     const fx = i / nx, fy = j / nz;
     const lon = -180 + fx * 360, lat = LAT_TOP - fy * (LAT_TOP - LAT_BOT);
     const h = hs(fx * (W - 1), fy * (H - 1));
-    pos[k++] = lon; pos[k++] = (h > 0 ? h * R.exag : h * 0.35); pos[k++] = -lat; if (h * R.exag > (R.hMax || 0)) R.hMax = h * R.exag;
+    pos[k++] = lon; pos[k++] = h; pos[k++] = -lat; if (h > (R.hMax || 0)) R.hMax = h;
     uv[u++] = fx; uv[u++] = 1 - fy;
   }
   const idx = new Uint32Array(nx * nz * 6); let q = 0;
@@ -119,18 +116,17 @@ function initRenderer(canvas) {
     R.chunks.push({geo}); const m = new THREE.Mesh(geo, mat0); group.add(m);
   }
   R.lod = 0;
-  // textura de detalle que se repite: oculta el aspecto pixelado al acercar la cámara
+  // textura de detalle (se mezcla a dos escalas en el shader para que no se note la repetición)
   const dc = document.createElement('canvas'); dc.width = dc.height = 128; const dg = dc.getContext('2d'), di = dg.createImageData(128, 128);
   for (let y = 0; y < 128; y++) for (let x = 0; x < 128; x++) { const v = 0.5 * hash2(x, y, 41) + 0.5 * vnoise(x / 6, y / 6, 43); const o = (y * 128 + x) * 4; di.data[o] = di.data[o + 1] = di.data[o + 2] = v * 255; di.data[o + 3] = 255; }
   dg.putImageData(di, 0, 0); R.detail = new THREE.CanvasTexture(dc); R.detail.wrapS = R.detail.wrapT = THREE.RepeatWrapping;
   const mat = mat0;
   mat.onBeforeCompile = sh => {
     sh.uniforms.detailMap = {value: R.detail}; R.detailU = sh.uniforms;
-    sh.uniforms.detailK = {value: 1}; sh.uniforms.snowK = {value: 0}; sh.uniforms.seasonTint = {value: new THREE.Vector3(1, 1, 1)}; sh.uniforms.hMax = {value: Math.max(0.5, R.hMax || 1)};
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vW;').replace('#include <begin_vertex>', '#include <begin_vertex>\n vW = position;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <map_pars_fragment>', '#include <map_pars_fragment>\nuniform sampler2D detailMap; uniform float detailK; varying vec3 vW; uniform float snowK; uniform vec3 seasonTint; uniform float hMax;')
-      .replace('#include <map_fragment>', '#include <map_fragment>\n float dt = texture2D(detailMap, vMapUv * vec2(130.0, 52.0)).r; float dt2 = texture2D(detailMap, vMapUv * vec2(21.0, 8.4)).r; diffuseColor.rgb *= 1.0 + detailK * ((dt - 0.5) * 0.28 + (dt2 - 0.5) * 0.18);\n float lnd = step(0.004, vW.y); float la = abs(vW.z); float sn = snowK * 0.62 * smoothstep(46.0, 66.0, la) + 0.85 * smoothstep(0.8 * hMax, 0.97 * hMax, vW.y) * (0.3 + 0.7 * snowK) + snowK * 0.3 * smoothstep(0.55 * hMax, 0.8 * hMax, vW.y) + smoothstep(68.0, 80.0, la) * 0.45; diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * seasonTint, lnd); diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.94, 0.96, 1.0), clamp(sn, 0.0, 1.0) * 0.72 * lnd);');
+    sh.uniforms.detailK = {value: 1}; sh.uniforms.snowK = {value: 0}; sh.uniforms.seasonTint = {value: new THREE.Vector3(1, 1, 1)};
+    reliefShaderPatch(sh);
   };
+  mat.extensions = {derivatives: true}; if (R.quality === 'bajo') mat.defines = {RELIEF_LOW: ''};
   R.mesh = group;
   R.scene.add(R.mesh);
   R.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
@@ -157,8 +153,9 @@ function buildWaterAndClouds() {
   R.waterU = {t: {value: 0}};
   const wm = new THREE.ShaderMaterial({
     uniforms: R.waterU, transparent: true, depthWrite: false,
-    vertexShader: 'varying vec2 vP; void main(){ vP = position.xz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-    fragmentShader: 'uniform float t; varying vec2 vP; void main(){ float a = sin(vP.x*1.7 + t*0.9 + sin(vP.y*0.8 + t*0.4)*1.6) * sin(vP.y*2.1 - t*0.7 + sin(vP.x*0.6 - t*0.3)*1.3); float s = smoothstep(0.55, 1.0, a); float g = sin(vP.x*0.35 + t*0.15)*0.5+0.5; gl_FragColor = vec4(0.75,0.9,1.0, s*0.22 + g*0.04); }'
+    vertexShader: 'varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+    extensions: {derivatives: true},
+    fragmentShader: 'uniform float t; varying vec2 vP; void main(){ float near = 1.0 - smoothstep(0.04, 0.16, length(fwidth(vP))); float a = sin(vP.x*1.7 + t*0.9 + sin(vP.y*0.8 + t*0.4)*1.6) * sin(vP.y*2.1 - t*0.7 + sin(vP.x*0.6 - t*0.3)*1.3); float s = smoothstep(0.55, 1.0, a) * near; float g = sin(vP.x*0.35 + t*0.15)*0.5+0.5; gl_FragColor = vec4(0.75,0.9,1.0, s*0.22 + g*0.04); }'
   });
   const wp = new THREE.Mesh(new THREE.PlaneGeometry(w, d), wm); wp.rotation.x = -Math.PI / 2; wp.position.set(0, 0.012, -(LAT_TOP + LAT_BOT) / 2); wp.renderOrder = 1; R.scene.add(wp); R.waterMesh = wp;
   // nubes: textura procedural

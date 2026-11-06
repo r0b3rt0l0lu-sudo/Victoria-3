@@ -187,7 +187,7 @@ function buildTerrainColors(land, h, biome) {
 // Ríos: nacen en zonas altas y siguen la máxima pendiente hasta el mar
 function addRivers(tc, land, h) {
   const W = MAP_W, H = MAP_H, N8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
-  const seen = new Uint8Array(W * H); let made = 0;
+  const seen = new Uint8Array(W * H); let made = 0; MAP.riverPaths = [];   // trazados (píxeles de tierra) para dibujar los ríos como cintas
   for (let y = 8; y < H - 8; y += 7) for (let x = 8; x < W - 8; x += 7) {
     const i0 = y * W + x; if (!land[i0] || h[i0] < 0.85 || hash2(x, y, 91) > 0.16) continue;
     const path = []; let cx = x, cy = y, ok = false, last = -1;
@@ -206,10 +206,10 @@ function addRivers(tc, land, h) {
       last = ci; cx += N8[bi][0]; cy += N8[bi][1];
     }
     if (!ok || path.length < 40) continue;
-    made++;
+    made++; MAP.riverPaths.push(path.filter(ci => land[ci]));
     path.forEach((ci, k) => {
       if (!land[ci]) return; seen[ci] = 2;
-      const w = k > path.length * 0.55 ? 2 : 1, t = Math.min(1, 0.45 + k / path.length * 0.5);
+      const w = k > path.length * 0.55 ? 2 : 1, t = Math.min(1, 0.45 + k / path.length * 0.5) * 0.25;   // tenue: el río se dibuja como cinta (agua.js)
       for (let dy = 0; dy < w; dy++) for (let dx = 0; dx < w; dx++) {
         const j = ci + dy * W + dx; if (!land[j]) continue; const o = j * 4;
         tc[o] += (62 - tc[o]) * t; tc[o + 1] += (118 - tc[o + 1]) * t; tc[o + 2] += (170 - tc[o + 2]) * t;

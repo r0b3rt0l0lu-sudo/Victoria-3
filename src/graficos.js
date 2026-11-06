@@ -31,17 +31,18 @@ function upgradeWater() {
   const foam = buildFoamTexture(), w = 360, d = LAT_TOP - LAT_BOT;
   R.waterU.foamK = {value: R.lowEnd ? 0 : 1}; R.waterU.foam = {value: foam}; R.waterU.ext = {value: new THREE.Vector2(w, d)};
   const wm = new THREE.ShaderMaterial({
-    uniforms: R.waterU, transparent: true, depthWrite: false,
-    vertexShader: 'varying vec2 vP; varying vec2 vUv; void main(){ vP = position.xz; vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+    uniforms: R.waterU, transparent: true, depthWrite: false, extensions: {derivatives: true},
+    vertexShader: 'varying vec2 vP; varying vec2 vUv; void main(){ vP = position.xy; vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
     fragmentShader: 'uniform float t; uniform float foamK; uniform sampler2D foam; varying vec2 vP; varying vec2 vUv; void main(){ ' +
-      'float a = sin(vP.x*1.7 + t*0.9 + sin(vP.y*0.8 + t*0.4)*1.6) * sin(vP.y*2.1 - t*0.7 + sin(vP.x*0.6 - t*0.3)*1.3); float s = smoothstep(0.62, 1.0, a);' +
+      'float fw = length(fwidth(vP)); float near = (1.0 - smoothstep(0.04, 0.16, fw)) * (0.45 + 0.55 * sin(vP.x*0.23 + vP.y*0.31 + t*0.1) * sin(vP.x*0.11 - vP.y*0.17));' +   // a lo lejos el oleaje fino se desvanece (evita las rayas por submuestreo)
+      'float a = sin(vP.x*1.7 + t*0.9 + sin(vP.y*0.8 + t*0.4)*1.6) * sin(vP.y*2.1 - t*0.7 + sin(vP.x*0.6 - t*0.3)*1.3); float s = smoothstep(0.62, 1.0, a) * near;' +
       'float d = texture2D(foam, vec2(vUv.x, vUv.y)).r * 9.8;' +               // distancia a la costa en píxeles del mapa
       'float sea = step(0.01, d);' +
-      'float wave = sin(d*2.4 - t*1.5 + sin(vP.x*3.0+t*0.5)*0.9);' +
+      'float wave = mix(0.0, sin(d*2.4 - t*1.5 + sin(vP.x*3.0+t*0.5)*0.9), 1.0 - smoothstep(0.15, 0.6, fw));' +
       'float band = (1.0 - smoothstep(0.0, 3.4, d)) * (0.5 + 0.5*wave);' +
-      'float edge = (1.0 - smoothstep(0.0, 1.1, d + 0.3*sin(vP.x*9.0 + t*1.2)));' +
+      'float edge = (1.0 - smoothstep(0.0, 1.1, d + 0.3*sin(vP.x*9.0 + t*1.2) * near));' +
       'float fo = clamp(band*0.5 + edge*0.55, 0.0, 1.0) * sea * foamK;' +
-      'float glint = smoothstep(0.93, 1.0, sin(vP.x*5.3 + t*1.9) * sin(vP.y*4.7 - t*1.4)) * 0.18 * sea;' +
+      'float glint = smoothstep(0.93, 1.0, sin(vP.x*5.3 + t*1.9) * sin(vP.y*4.7 - t*1.4)) * 0.18 * sea * (1.0 - smoothstep(0.03, 0.12, fw));' +
       'vec3 col = mix(vec3(0.75,0.9,1.0), vec3(1.0), fo); float al = s*0.2*sea + fo*0.5 + glint + (sin(vP.x*0.35 + t*0.15)*0.5+0.5)*0.03*sea; gl_FragColor = vec4(col, clamp(al, 0.0, 0.85)); }'
   });
   R.waterMesh.material.dispose(); R.waterMesh.material = wm;
@@ -52,7 +53,7 @@ function industryLevels(s) { let n = 0; BUILDINGS.forEach(b => { if (b.grp === '
 function buildChimneys() {
   if (!R.cityItems) return; const items = [];
   G.S.forEach(s => { const lv = industryLevels(s); const n = clamp(Math.round(lv / 7), 0, 6); if (!n) return; const prov = MAP.provs[stateCapitalProv(s.id)];
-    for (let k = 0; k < n; k++) { const a = hash2(s.id, k, 31) * 6.283, r = 0.35 + hash2(s.id, k, 33) * 0.9; const lon = xToLon(prov.px) + Math.cos(a) * r, lat = yToLat(prov.py) + Math.sin(a) * r * 0.7; const px = Math.round(lonToX(lon)), py = Math.round(latToY(lat)); if (px < 0 || py < 0 || px >= MAP_W || py >= MAP_H || !MAP.land[py * MAP_W + px]) continue; items.push({x: lon, z: -lat, y: MAP.height[py * MAP_W + px] * R.exag, h: 0.16 + hash2(s.id, k, 35) * 0.12, sid: s.id}); } });
+    for (let k = 0; k < n; k++) { const a = hash2(s.id, k, 31) * 6.283, r = 0.35 + hash2(s.id, k, 33) * 0.9; const lon = xToLon(prov.px) + Math.cos(a) * r, lat = yToLat(prov.py) + Math.sin(a) * r * 0.7; const px = Math.round(lonToX(lon)), py = Math.round(latToY(lat)); if (px < 0 || py < 0 || px >= MAP_W || py >= MAP_H || !MAP.land[py * MAP_W + px]) continue; items.push({x: lon, z: -lat, y: terrainYPx(px, py), h: 0.16 + hash2(s.id, k, 35) * 0.12, sid: s.id}); } });
   R.chimItems = items;
   if (!R.chimMesh) { const g = mergeParts([{geo: CY(0.014, 0.2, 7).translate(0, 0.1, 0), m: new THREE.Matrix4(), col: 0x8a4a38}, {geo: CY(0.017, 0.02, 7), m: mk4(0, 0.205, 0), col: 0x2a2a2e}, {geo: BX(0.07, 0.05, 0.06), m: mk4(0.05, 0.025, 0), col: 0x6a5a4a}]);
     R.chimMesh = new THREE.InstancedMesh(g, new THREE.MeshLambertMaterial({vertexColors: true}), 700); R.chimMesh.frustumCulled = false; R.scene.add(R.chimMesh); }
@@ -85,7 +86,7 @@ function updatePlanes(t) {
 function bombFire() {
   if (!R.puffs || R.cam.dist > 90) return false; let any = false;
   G.S.forEach(s => { if (!s.bomb || s.bomb < 0.06 || Math.random() > 0.25) return; const prov = MAP.provs[stateCapitalProv(s.id)]; if (Math.abs(prov.lon - R.cam.tx) > R.cam.dist || Math.abs(prov.lat + R.cam.tz) > R.cam.dist * 0.8) return;
-    const fire = Math.random() < 0.4, pf = R.puffs.find(p => !p.alive && p.fire === fire); if (!pf) return; pf.alive = true; pf.age = 0; pf.life = fire ? 0.6 : 2.6; pf.x = prov.lon + (Math.random() - 0.5) * 0.8; pf.z = -prov.lat + (Math.random() - 0.5) * 0.6; pf.y = MAP.height[prov.py * MAP_W + prov.px] * R.exag + 0.1; pf.sp.visible = true; any = true; });
+    const fire = Math.random() < 0.4, pf = R.puffs.find(p => !p.alive && p.fire === fire); if (!pf) return; pf.alive = true; pf.age = 0; pf.life = fire ? 0.6 : 2.6; pf.x = prov.lon + (Math.random() - 0.5) * 0.8; pf.z = -prov.lat + (Math.random() - 0.5) * 0.6; pf.y = terrainYPx(prov.px, prov.py) + 0.1; pf.sp.visible = true; any = true; });
   return any;
 }
 

@@ -27,7 +27,7 @@ function buildCities() {
     const place = (k, rmax) => {
       let px = prov.px, py = prov.py;
       if (k) { for (let t = 0; t < 4; t++) { const a = hash2(s.id, k * 7 + t, 17) * 6.283, r = 1.2 + hash2(s.id, k * 5 + t, 19) * rmax; const qx = Math.round(px0(prov) + Math.cos(a) * r), qy = Math.round(py0(prov) + Math.sin(a) * r * 0.85), qi = qy * MAP_W + qx; if (qx > 0 && qy > 0 && qx < MAP_W && qy < MAP_H && MAP.land[qi] && MAP.stateOf[qi] === s.id) { px = qx; py = qy; break; } } }
-      return {x: xToLon(px), z: -yToLat(py), y: MAP.height[py * MAP_W + px] * R.exag};
+      return {x: xToLon(px), z: -yToLat(py), y: terrainYPx(px, py)};
     };
     for (let k = 0; k < n; k++) {
       const p = place(k, 2.2 + Math.sqrt(pop / 1e5) * 0.9), big = k < 3;
@@ -102,7 +102,7 @@ function updateSmoke(t) {
       if (Math.random() > 0.55) continue;
       const fire = Math.random() < 0.22, pf = R.puffs.find(p => !p.alive && p.fire === fire); if (!pf) continue;
       pf.alive = true; pf.age = 0; pf.life = fire ? 0.5 + Math.random() * 0.4 : 2.2 + Math.random() * 1.6; pf.x = pv.lon + (Math.random() - 0.5) * 0.9; pf.z = -pv.lat + (Math.random() - 0.5) * 0.7;
-      pf.y = MAP.height[pv.py * MAP_W + pv.px] * R.exag + 0.1; pf.sp.visible = true;
+      pf.y = terrainYPx(pv.px, pv.py) + 0.1; pf.sp.visible = true;
     }
   });
   R.puffs.forEach(pf => {
@@ -154,7 +154,7 @@ function updateArmyMeshes(t) {
       const sp = worldToScreen(lon, 0.3, -lat); if (sp[0] < -60 || sp[0] > cw + 60 || sp[1] < -60 || sp[1] > ch + 60) return;
       const k = (perProv[a.loc] = (perProv[a.loc] || 0) + 1) - 1;
       const baseX = lon + (k % 2 ? 0.32 : -0.32) * (k ? 1 : 0), baseZ = -lat + Math.floor((k + 1) / 2) * 0.28 * (k % 2 ? 1 : -1);
-      const hy = MAP.height[Math.min(MAP.height.length - 1, Math.max(0, Math.round(latToY(lat)) * MAP_W + Math.round(lonToX(lon))))] * R.exag + 0.02;
+      const hy = terrainY(lon, lat) + 0.02;
       const col = R.occRGB(a.tag); c.setRGB(col[0] / 255, col[1] / 255, col[2] / 255);
       const moving = a.path.length && !a.battle;
       a.divs.slice(0, 9).forEach((d, i) => {

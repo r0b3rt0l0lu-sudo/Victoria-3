@@ -13,7 +13,7 @@ const { chromium } = require('playwright');
   await shot('verano', () => { G.date.m = 6; G.date.d = 15; R._seasonKey = null; R.dirty = true; });
   await shot('industria', () => { G.date.m = 8; R._seasonKey = null; setMapMode('political'); const sid = G.C.GBR.states.find(i => G.S[i].name.includes('Midlands')) ?? G.C.GBR.states[0]; focusState(sid, 26); updateCamera(); R.dirty = true; });
   await shot('costa', () => { focusLonLat(-3, 53, 20); updateCamera(); R.dirty = true; });
-  console.log(await page.evaluate(() => JSON.stringify({chim: R.chimItems && R.chimItems.length, snowK: R.detailU && R.detailU.snowK && R.detailU.snowK.value, foam: !!R.waterU.foam, tri: R.renderer.info.render.triangles})));
+  console.log(await page.evaluate(() => JSON.stringify({chim: R.chimItems && R.chimItems.length, snowK: R.detailU && R.detailU.snowK && R.detailU.snowK.value, foam: !!R.waterU.coastMap, rios: !!R.riverMesh, tri: R.renderer.info.render.triangles})));
   await shot('aviones', () => { G.date.m = 4; R._seasonKey = null; G.paused = true; const c = G.C.GBR; c.techs = new Set([...c.techs, 'military_aviation', 'fighters', 'bombers']); c.eq.aircraft = 400; c.treasury = 1e10; sqBuild(c, 'fighter', 60, airRegOf(c.capital)); sqBuild(c, 'bomber', 60, airRegOf(c.capital)); const rg = airReg(airRegOf(c.capital)); focusLonLat(rg.lon, rg.lat, 34); updateCamera(); R.dirty = true; });
   await page.evaluate(() => { R.quality = 'alto'; saveMapPrefs(); });
   await shot('sombras', () => { focusLonLat(8, 46, 30); updateCamera(); R.dirty = true; });

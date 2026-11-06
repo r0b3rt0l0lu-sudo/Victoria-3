@@ -130,3 +130,43 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - `src/pueblos.js`: 3 pueblos con nombre por provincia (listas por lengua); cada batalla se libra en uno (`battleSite`, `b.site`) y su tipo (cruce, puente, altura, bosque, amurallado, vado) moldea el terreno (`applySite`). El título muestra «Batalla de <pueblo> · <provincia>».
 - `src/mando2.js`: panel de mando unificado (6 órdenes + Quedarse; cuerpo entero = maniobra de línea; plan de ejército aparte). Eliminados los envoltorios duplicados de `tacStayBtn` y `tacMandoHtml` antiguo.
 - `src/batalla2.js`: carga por oleadas, flanqueo con línea que avanza y cierra huecos (`bvFillY`), pánico de cuerpo, asalto a fuertes. Ver `ESTUDIO_BATALLA.md`.
+
+## Mapa 3D, fase 1: relieve y color (src/relieve3d.js)
+- Altura de dibujo `R.hr` (1024×410) desde la altitud real SRTM/GEBCO (`elevAt`) con detalle procedural según la rugosidad; `metersToY` (exageración suave). `MAP.height` (juego) no cambia. Costa bajada con `MAP.dLand`, fondo marino con `MAP.dSea`.
+- `terrainY(lon, lat)` / `terrainYPx(px, py)`: altura del suelo dibujado; la usan ciudades, chimeneas, humo, fuego y figuras.
+- Texturas del shader: `R.reliefTex` (normales + altitud en metros) y `R.coastTex` (distancia con signo a la costa, suavizada, + dirección hacia tierra). El shader Lambert del terreno (`reliefShaderPatch`) usa normales por píxel, sombreado con luz configurable, roca en pendientes, línea de nieve real por latitud y estación (≈2600 m en los Alpes en verano), costa suave y bordes de bioma orgánicos en el modo Terreno, y detalle a dos escalas sin repetición visible.
+- `buildTerrainColors` reescrito: colores por bioma (`BIOME_COL` + `PAL`) y altitud real, sin sombreado horneado; la montaña/nieve procedural del juego ya no pinta manchas blancas.
+- Parámetros: `R.reliefK` (0–1, por defecto 0,75; los modos no-terreno usan el 60 %; guardado en `victoria-map-prefs.relief`, `setReliefStrength(k)`), `R.lightAz`/`R.lightAlt` (315°/48°, `setReliefLight(az, alt)`; el sol baja 12° en invierno).
+- Calidad baja (`RELIEF_LOW`): sin costa suave, sin bordes orgánicos y una sola escala de detalle.
+- Agua: corregido el fallo que pintaba rayas (el shader leía `position.xz` de un plano local, siempre z = 0); el oleaje fino se desvanece con la distancia (`fwidth`).
+- Coste relativo medido con SwiftShader (render de un fotograma, vistas continental/regional/ciudad): bajo +9/+20/+12 %, medio +21/+27/+21 %, alto +13/+17/+27 %. Carga: +~0,5 s.
+
+## Mapa 3D, fase 2: agua, costa y ríos (src/agua.js)
+- Agua animada nueva (`upgradeWater`): espuma de orilla y rompientes a partir de la distancia suavizada a la costa (`R.coastTex`), sin escalones; reflejo del cielo por Fresnel según la inclinación de la cámara; brillo del sol en la dirección de `R.lightAz`/`R.lightAlt`. El oleaje fino se desvanece con la distancia.
+- Uniformes nuevos en `R.waterU`: `waterQ` (0 en calidad baja: sin reflejo ni brillo), `coastMap`, `sunW`, `skyZ`/`skyH` (colores del cielo). `foamK` sigue a `R.lowEnd`.
+- Plataforma continental: aguas turquesa junto a la costa y degradado de profundidad hasta 70 px de mar, en la textura del terreno (se ve también con la animación apagada).
+- Ríos como cintas (`buildRiverRibbons`): `addRivers` guarda ahora `MAP.riverPaths` (solo dibujo; la jugabilidad no cambia). Trazados suavizados (Chaikin), más anchos río abajo y con afluentes, con ancho mínimo en pantalla (≈1,4 px, `R.riverU.pxW`) y corriente animada (desactivada en calidad baja). Una llamada de dibujo. Los ríos pintados en la textura quedan tenues (minimapa).
+- Coste relativo frente a la fase 1 (SwiftShader): dentro del ruido de medida (±5 %).
+
+## Mapa 3D, fase 3: vegetación y suelo (src/vegetacion.js)
+- Árboles instanciados (4 `InstancedMesh`: frondoso, conífera, palmera, matorral) colocados al cargar por bioma, altitud real (límite del bosque `treeLineAt`: ≈1900 m en los Alpes) y pendiente; palmeras en oasis y riberas del desierto y en el trópico. ≈140 000 candidatos (≈140 ms de carga).
+- Solo se dibujan los cercanos a la cámara (`R.cam.dist < VEG_DIST = 72`), rellenando las instancias al moverse (`refreshVegetation`), con tope por calidad `VEG_CAP` (bajo 0, medio 5000, alto 14000) y aclarado progresivo al llegar al límite. En los modos que no son Terreno, 40 % de densidad.
+- Color por estación: copas ocres y rojizas en otoño (fuera de los trópicos), ramas desnudas y escarcha en invierno.
+- Shader del terreno: dunas en los desiertos (máscara en el canal A de `R.reliefTex`, se apagan a lo lejos), nieve azulada en laderas fuertes y hielo marino polar (permanente desde ~78°, en invierno desde ~66°). Desactivado en calidad baja salvo el hielo y la nieve.
+- Coste relativo frente a la fase 2 (SwiftShader, modo político): bajo sin cambios; medio +10 % (regional) y +18 % (ciudad); alto +10 %/+9 %.
+
+## Mapa 3D, fase 4: ciudades, puertos y comunicaciones (src/ciudades3d.js)
+- `buildCities` reescrito: núcleo en cuadrícula de calles con plazas, tamaño según la población (hasta 70 casas, radio 0,13° + √pob/6000), casas más altas en el centro de las grandes ciudades y aldeas de 2–6 casas en el resto de provincias (≈6000 casas en total; calidad baja: la mitad y sin aldeas).
+- Estilo por región (`cityStyle`): europeo (tejas o pizarra, iglesia), ruso (cúpula de bulbo), Oriente Medio y norte de África (azoteas, cúpula y minarete), Asia oriental (tejados oscuros, pagoda), sur de Asia (azoteas ocres, cúpula blanca) y África subsahariana (chozas redondas). Monumento en las ciudades de más de 380 000 habitantes.
+- Las casas ya no se tiñen con el color del país (`updateCityColors` no hace nada): lo político lo dice el mapa.
+- Puertos: muelle, almacenes y hasta 3 barcos amarrados en la provincia costera (`portProvOf`) de cada estado de más de 120 000 habitantes (sin barcos en calidad baja).
+- Caminos (`buildRoads`): entre cada capital de estado y sus 3 vecinas más cercanas a menos de 7°, solo por tierra; trazado curvo suave. Ferrocarril (`rebuildRails`) en los tramos cuyos dos extremos pertenecen a países con la tecnología `railways`; se comprueba cada mes. Cintas con ancho mínimo en pantalla; los caminos se desvanecen a partir de distancia 55 y el ferrocarril a partir de 150. En modos no-terreno, al 60 %.
+- Ciudades visibles por debajo de distancia 36. Árboles algo más pequeños de cerca para no tapar las casas; en invierno, ramas pardas.
+- Coste relativo frente a la fase 3 (SwiftShader, mismas vistas, ciudades bien ocultas al alejarse): medio +0–7 %, alto +0–13 % (vista de ciudad); bajo dentro del ruido salvo la vista regional (+10–18 %).
+- Herramienta de medida: las capturas llaman ya a `updateCityVisibility()` tras mover la cámara (antes las ciudades se quedaban visibles en la vista continental de la medición).
+
+## Mapa 3D, fase 6: rótulos, fichas y panel gráfico (src/rotulos.js)
+- `updateLabels` reescrito: países, ciudades y estados se colocan juntos por prioridad (países 2000+, grandes ciudades 900, capitales +200, estados 500, ciudades menores 300–620) y el que choca con uno ya colocado no se pinta; una ciudad prueba antes a poner el nombre encima del punto. Anclados a la altura real del suelo (`terrainY`) y con fundido de opacidad según la distancia. `updateCityLabels` queda vacío (lo hace `updateLabels`).
+- Fichas: los ejércitos del mismo país en el mismo sitio se agrupan en una ficha («×n», suma de divisiones) cuando hay más de 3 fichas allí, salvo el seleccionado, los que combaten o se mueven. Las flotas extranjeras sin guerra solo se ven de cerca. `declutterTokens` reparte en rejilla de dos columnas y esquiva los nombres de países y grandes ciudades (`R.labelRects`).
+- Panel gráfico (botón ☀ junto a Q, `ACT.gfxpanel`): calidad, intensidad del relieve 0–100 %, dirección de la luz, bosques, caminos y ferrocarril, nombres de estados. Se guarda en `victoria-map-prefs` (`relief`, `lightAz`, `veg`, `roads`, `sl`).
+- Coste: solo CPU al mover la cámara; sin cambios medibles en el render.

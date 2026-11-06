@@ -7985,7 +7985,7 @@ function bvDraw(V, b, g, lines, all) {
   V.corpses.forEach(c => { g.save(); g.translate(c.x, c.y); g.rotate(c.hd + 1.57); g.globalAlpha = Math.max(0.2, 0.8 - c.age * 0.008); g.fillStyle = '#1c1612'; g.fillRect(-1.2, -3, 2.8, 6); g.fillStyle = c.color; g.fillRect(-0.9, -2.3, 2, 3); g.restore(); }); g.globalAlpha = 1;
   // humo y polvo (capa baja)
   V.parts.forEach(p => { if (p.k === 'gas') { const k = p.age / p.life; g.globalAlpha = 0.5 * Math.sin(Math.min(1, k) * 3.14); g.fillStyle = '#b6d13a'; g.beginPath(); g.arc(p.x, p.y, p.r * (1 + k * 1.6), 0, 6.3); g.fill(); g.globalAlpha = 1; return; }
-    if (p.k !== 'smoke' && p.k !== 'dust') return; const k = p.age / p.life; g.globalAlpha = (p.k === 'smoke' ? 0.34 : 0.26) * (1 - k); g.fillStyle = p.k === 'smoke' ? '#c9c6be' : '#b09a76'; g.beginPath(); g.arc(p.x, p.y, (p.r || 3) * (1 + k * 2.2), 0, 6.3); g.fill(); }); g.globalAlpha = 1;
+    if (p.k !== 'smoke' && p.k !== 'dust') return; const k = p.age / p.life; g.globalAlpha = (p.k === 'smoke' ? 0.34 : 0.26) * (1 - k); g.fillStyle = p.k === 'smoke' ? '#c9c6be' : '#b09a76'; g.beginPath(); g.arc(p.x, p.y, Math.max(0.5, (p.r || 3) * (1 + clamp(k, 0, 1.5) * 2.2)), 0, 6.3); g.fill(); }); g.globalAlpha = 1;
   // casillas de los bloques y órdenes en curso
   const blocks = all.filter(k => !(typeof tacHidden === 'function' && tacHidden(b, k))).sort((a, c) => a.y - c.y);
   blocks.forEach(blk => { bvPlate(g, blk, V.hover === blk); });
@@ -10537,7 +10537,7 @@ function tacMorale(V, b, all, dt) {
       const toC = Math.atan2(cav.y - v.y, cav.x - v.x), side = Math.abs(bvAng(v.hd, toC)), orgF = clamp(v.d.o / DIVS[v.d.t].org, 0, 1), mor = v.mor === undefined ? 0.8 : v.mor, tr = v.terr || {};
       let p = 0.08 + (1 - orgF) * 0.7 + (1 - mor) * 0.6 + (v.fat || 0) * 0.5;
       if (side > 1.9) p += 0.32; else if (side > 1.1) p += 0.14;                                  // cargados por el flanco o la espalda
-      if (v.mode === 'hold' || v.defLine || v.comp < 0.9) p -= 0.22;                                 // en cuadro / línea cerrada
+      if (v.mode === 'hold' || v.defLine || v.comp < 0.9) p -= 0.22; if (v.sq > V.t) p -= 0.3;                                 // en cuadro / línea cerrada
       if (tr.cover || tr.hill || tacFortAt(b, v.x, v.y)) p -= 0.2; if (tr.water) p += 0.1;
       if (v.type === 'art') p += 0.12; if (cav.type === 'tank') p += 0.3;
       const tired = (v.fat || 0) > 0.5 || mor < 0.4; if (!tired) p = Math.min(p, 0.06);          // las tropas descansadas y con moral aguantan la carga
@@ -12696,6 +12696,43 @@ bvPlanStep = function (V, b, blk, dt, all, home) {
   }
   return _bvPlanStepB(V, b, blk, dt, all, home);
 };
+/* ---------- fase 2: mando por proximidad y cuadro de infantería ---------- */
+// fuera del alcance de la voz y la bandera del comandante de cuerpo, los regimientos pierden moral poco a poco y tardan más en recibir órdenes
+function bvCommandRange(V, b, all, step) {
+  (V.corps || []).forEach(c => { const cm = V.cmd && V.cmd[c.id]; (c.blks || []).forEach(k => {
+    if (k.role === 'reserve' || k.garr || k.mode === 'rout' || k.mm === undefined) { k.noCmd = false; return; }
+    const far = cm && cm.alive ? Math.hypot(k.x - cm.x, k.y - cm.y) > CMD_R * 4.2 : !!(cm && !cm.alive);
+    k.noCmd = far; if (far) k.mm = Math.max(0, k.mm - (cm && !cm.alive ? 0.010 : 0.006) * step);
+  }); });
+}
+// cuadro: la infantería sin cobertura que ve venir una carga de caballería se cierra en cuadro (aguanta mejor, pero es un blanco para la artillería y no maniobra)
+function bvSquares(V, b, all, step) {
+  const cav = all.filter(o => o.type === 'cav' && (o.mode === 'gallop' || o.mode === 'charge') && o.mode !== 'rout');
+  all.forEach(k => {
+    if (k.type !== 'inf' || k.garr || k.mode === 'rout' || k.mode === 'melee' || k.brk > 0) return;
+    const th = cav.find(o => o.side !== k.side && Math.hypot(o.x - k.x, o.y - k.y) < 190 && Math.hypot(o.x - k.x, o.y - k.y) > 30);
+    if (th && (k.mm === undefined || k.mm > 0.25) && !(k.d.plan && k.d.plan.k === 'retreat')) { if (!(k.sq > V.t)) { k.sqNew = true; } k.sq = V.t + 4; } else if (k.sq && k.sq < V.t) k.sq = 0;
+  });
+}
+const _tacThinkC2 = tacThink;
+tacThink = function (V, b, all, dt) {
+  _tacThinkC2(V, b, all, dt); if (V.over || b.prep || b.ended || V.replay || dt <= 0) return; V._ct = (V._ct || 0) + dt; if (V._ct < 1) return; const step = V._ct; V._ct = 0;
+  bvCommandRange(V, b, all, step); bvSquares(V, b, all, step);
+};
+const _bvStepBlockC2 = bvStepBlock;
+bvStepBlock = function (V, b, blk, dt, lines, all) {
+  _bvStepBlockC2(V, b, blk, dt, lines, all);
+  if (blk.sq > V.t && blk.mode !== 'rout' && blk.mode !== 'melee') { blk.vx *= 0.25; blk.vy *= 0.25; blk.mode = 'hold'; blk.comp += (0.75 - blk.comp) * Math.min(1, dt * 3); blk.hd = blk.hd + (Math.round(blk.hd / (Math.PI / 2)) * Math.PI / 2 - blk.hd) * Math.min(1, dt * 2); if (blk.sqNew) { blk.sqNew = false; if (!V.replay && Math.random() < 0.5) bvBanner(V, `🔲 ${G.C[blk.tag].name} forma el cuadro ante la caballería`, blk.side, ''); } }
+};
+const _tacShellHitC2 = tacShellHit;
+tacShellHit = function (V, b, p, all) {
+  _tacShellHitC2(V, b, p, all); const v = all.find(x => x.id === p.vt); if (v && v.sq > V.t && v.mode !== 'rout') { v.d.s = Math.max(0, v.d.s - 0.004); v.d.o = Math.max(0, v.d.o - DIVS[v.d.t].org * 0.012); }       // el cuadro es un blanco apretado
+};
+const _bvCorpsFlagsC2 = bvCorpsFlags;
+bvCorpsFlags = function (g, V, b) {
+  _bvCorpsFlagsC2(g, V, b);
+  V.blocks.forEach(k => { if (k.sq > V.t && k.mode !== 'rout') { g.strokeStyle = 'rgba(255,240,170,.85)'; g.lineWidth = 1.4; g.setLineDash([3, 2]); g.strokeRect(k.x - k.wid / 2 - 4, k.y - k.dep / 2 - 4, k.wid + 8, k.dep + 8); g.setLineDash([]); } if (k.noCmd && k.mode !== 'rout' && k.side === playerSide(b)) { g.font = '10px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#ffb347'; g.fillText('📡✖', k.x, k.y - k.dep / 2 - 6); } });
+};
 
 /* ===== PANEL DE MANDO UNIFICADO =====
    Antes había cuatro familias de órdenes que se pisaban (planes por unidad, maniobras de línea, órdenes de ejército y estrategias). Ahora:
@@ -12811,7 +12848,7 @@ bvBuildBg = function (V, b) {
   }
   // 5) caminos y muros
   tf.roads.forEach(r => { [['rgba(70,52,28,.22)', 3.4], [_rgba(P.r, 0.55), 1.7]].forEach(([c, w]) => { g.strokeStyle = c; g.lineWidth = w; g.beginPath(); r.pts.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.stroke(); }); });
-  tf.walls.forEach(w => { g.strokeStyle = 'rgba(40,34,26,.35)'; g.lineWidth = 2.6; g.beginPath(); g.moveTo(w.x1 + 1, w.y1 + 1.5); g.lineTo(w.x2 + 1, w.y2 + 1.5); g.stroke(); g.strokeStyle = _rgba(P.wall, 0.95); g.lineWidth = 1.3; g.beginPath(); g.moveTo(w.x1, w.y1); g.lineTo(w.x2, w.y2); g.stroke(); });
+  tf.walls.forEach(w => { g.strokeStyle = 'rgba(40,34,26,.45)'; g.lineWidth = 4; g.beginPath(); g.moveTo(w.x1 + 1, w.y1 + 1.5); g.lineTo(w.x2 + 1, w.y2 + 1.5); g.stroke(); g.strokeStyle = _rgba(P.wall, 1, 1.15); g.lineWidth = 2.4; g.beginPath(); g.moveTo(w.x1, w.y1); g.lineTo(w.x2, w.y2); g.stroke(); });
   // 6) bosques y aldeas: capa de objetos (menos desenfocada)
   g = gB; g.lineCap = 'round'; g.lineJoin = 'round';
   const tree = (x, y, r, dk) => {

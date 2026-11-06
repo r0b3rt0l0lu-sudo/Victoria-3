@@ -11,10 +11,13 @@ Complementa `ESTUDIO_LINEA.md`. Fuentes: reglas de wargames napoleónicos (Lexne
 6. **El lugar importa.** Cada batalla se libra junto a un pueblo concreto con su propio escenario (cruce, puente, altura, bosque, villa amurallada, vado): `src/pueblos.js`.
 7. **Un solo lenguaje de órdenes.** Seis órdenes (Avanzar, Cargar, Flanquear, Mantener, Retirar, Objetivo) más «Quedarse»; el mismo botón es plan individual (regimiento) o maniobra de línea (cuerpo), y el plan del ejército entero va aparte (`src/mando2.js`).
 
+## Fase 2 (pulido y más realismo)
+8. **Mando por proximidad.** Los regimientos a más de ~220 px de su comandante de cuerpo pierden moral poco a poco (más rápido si el comandante ha caído); se marcan con 📡✖ en tu bando (`bvCommandRange`).
+9. **Cuadro de infantería.** La infantería que ve venir una carga de caballería a <190 px se cierra en cuadro durante unos segundos: se detiene, aguanta mejor la carga (−30 % de probabilidad de romperse) pero es un blanco para la artillería (`bvSquares`, `tacShellHit`).
+10. Tapias más visibles en el mapa pintado y radio de partículas acotado (evita un error de dibujo).
+
 ## Pendiente / ideas (no implementadas)
 - Fatiga y munición por regimiento más finas, municiones de artillería limitadas.
-- Cuadro de infantería contra caballería con transición real de formación.
-- Mando por proximidad del general (penalización a unidades lejos de su comandante).
 - Persecución con bajas diferenciadas según caballería disponible.
 
 Fuentes: [reglas Lexnet](https://www.dbai.tuwien.ac.at/user/mst/games/lbn/nlcrules120.pdf), [1st Empire](https://deepfriedhappymice.com/html/rd_1st_empire_2.html), [MTW Morale](https://forums.totalwar.org/wiki/index.php/MTW_Morale), [Total Generalship: Morale and Cohesion](https://acoup.blog/2022/07/01/collections-total-generalship-commanding-pre-modern-armies-part-iiic-morale-and-cohesion/).

@@ -458,7 +458,7 @@ function bvDraw(V, b, g, lines, all) {
   V.corpses.forEach(c => { g.save(); g.translate(c.x, c.y); g.rotate(c.hd + 1.57); g.globalAlpha = Math.max(0.2, 0.8 - c.age * 0.008); g.fillStyle = '#1c1612'; g.fillRect(-1.2, -3, 2.8, 6); g.fillStyle = c.color; g.fillRect(-0.9, -2.3, 2, 3); g.restore(); }); g.globalAlpha = 1;
   // humo y polvo (capa baja)
   V.parts.forEach(p => { if (p.k === 'gas') { const k = p.age / p.life; g.globalAlpha = 0.5 * Math.sin(Math.min(1, k) * 3.14); g.fillStyle = '#b6d13a'; g.beginPath(); g.arc(p.x, p.y, p.r * (1 + k * 1.6), 0, 6.3); g.fill(); g.globalAlpha = 1; return; }
-    if (p.k !== 'smoke' && p.k !== 'dust') return; const k = p.age / p.life; g.globalAlpha = (p.k === 'smoke' ? 0.34 : 0.26) * (1 - k); g.fillStyle = p.k === 'smoke' ? '#c9c6be' : '#b09a76'; g.beginPath(); g.arc(p.x, p.y, (p.r || 3) * (1 + k * 2.2), 0, 6.3); g.fill(); }); g.globalAlpha = 1;
+    if (p.k !== 'smoke' && p.k !== 'dust') return; const k = p.age / p.life; g.globalAlpha = (p.k === 'smoke' ? 0.34 : 0.26) * (1 - k); g.fillStyle = p.k === 'smoke' ? '#c9c6be' : '#b09a76'; g.beginPath(); g.arc(p.x, p.y, Math.max(0.5, (p.r || 3) * (1 + clamp(k, 0, 1.5) * 2.2)), 0, 6.3); g.fill(); }); g.globalAlpha = 1;
   // casillas de los bloques y órdenes en curso
   const blocks = all.filter(k => !(typeof tacHidden === 'function' && tacHidden(b, k))).sort((a, c) => a.y - c.y);
   blocks.forEach(blk => { bvPlate(g, blk, V.hover === blk); });

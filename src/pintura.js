@@ -66,7 +66,7 @@ bvBuildBg = function (V, b) {
   }
   // 5) caminos y muros
   tf.roads.forEach(r => { [['rgba(70,52,28,.22)', 3.4], [_rgba(P.r, 0.55), 1.7]].forEach(([c, w]) => { g.strokeStyle = c; g.lineWidth = w; g.beginPath(); r.pts.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.stroke(); }); });
-  tf.walls.forEach(w => { g.strokeStyle = 'rgba(40,34,26,.35)'; g.lineWidth = 2.6; g.beginPath(); g.moveTo(w.x1 + 1, w.y1 + 1.5); g.lineTo(w.x2 + 1, w.y2 + 1.5); g.stroke(); g.strokeStyle = _rgba(P.wall, 0.95); g.lineWidth = 1.3; g.beginPath(); g.moveTo(w.x1, w.y1); g.lineTo(w.x2, w.y2); g.stroke(); });
+  tf.walls.forEach(w => { g.strokeStyle = 'rgba(40,34,26,.45)'; g.lineWidth = 4; g.beginPath(); g.moveTo(w.x1 + 1, w.y1 + 1.5); g.lineTo(w.x2 + 1, w.y2 + 1.5); g.stroke(); g.strokeStyle = _rgba(P.wall, 1, 1.15); g.lineWidth = 2.4; g.beginPath(); g.moveTo(w.x1, w.y1); g.lineTo(w.x2, w.y2); g.stroke(); });
   // 6) bosques y aldeas: capa de objetos (menos desenfocada)
   g = gB; g.lineCap = 'round'; g.lineJoin = 'round';
   const tree = (x, y, r, dk) => {

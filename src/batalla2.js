@@ -100,3 +100,40 @@ bvPlanStep = function (V, b, blk, dt, all, home) {
   }
   return _bvPlanStepB(V, b, blk, dt, all, home);
 };
+/* ---------- fase 2: mando por proximidad y cuadro de infantería ---------- */
+// fuera del alcance de la voz y la bandera del comandante de cuerpo, los regimientos pierden moral poco a poco y tardan más en recibir órdenes
+function bvCommandRange(V, b, all, step) {
+  (V.corps || []).forEach(c => { const cm = V.cmd && V.cmd[c.id]; (c.blks || []).forEach(k => {
+    if (k.role === 'reserve' || k.garr || k.mode === 'rout' || k.mm === undefined) { k.noCmd = false; return; }
+    const far = cm && cm.alive ? Math.hypot(k.x - cm.x, k.y - cm.y) > CMD_R * 4.2 : !!(cm && !cm.alive);
+    k.noCmd = far; if (far) k.mm = Math.max(0, k.mm - (cm && !cm.alive ? 0.010 : 0.006) * step);
+  }); });
+}
+// cuadro: la infantería sin cobertura que ve venir una carga de caballería se cierra en cuadro (aguanta mejor, pero es un blanco para la artillería y no maniobra)
+function bvSquares(V, b, all, step) {
+  const cav = all.filter(o => o.type === 'cav' && (o.mode === 'gallop' || o.mode === 'charge') && o.mode !== 'rout');
+  all.forEach(k => {
+    if (k.type !== 'inf' || k.garr || k.mode === 'rout' || k.mode === 'melee' || k.brk > 0) return;
+    const th = cav.find(o => o.side !== k.side && Math.hypot(o.x - k.x, o.y - k.y) < 190 && Math.hypot(o.x - k.x, o.y - k.y) > 30);
+    if (th && (k.mm === undefined || k.mm > 0.25) && !(k.d.plan && k.d.plan.k === 'retreat')) { if (!(k.sq > V.t)) { k.sqNew = true; } k.sq = V.t + 4; } else if (k.sq && k.sq < V.t) k.sq = 0;
+  });
+}
+const _tacThinkC2 = tacThink;
+tacThink = function (V, b, all, dt) {
+  _tacThinkC2(V, b, all, dt); if (V.over || b.prep || b.ended || V.replay || dt <= 0) return; V._ct = (V._ct || 0) + dt; if (V._ct < 1) return; const step = V._ct; V._ct = 0;
+  bvCommandRange(V, b, all, step); bvSquares(V, b, all, step);
+};
+const _bvStepBlockC2 = bvStepBlock;
+bvStepBlock = function (V, b, blk, dt, lines, all) {
+  _bvStepBlockC2(V, b, blk, dt, lines, all);
+  if (blk.sq > V.t && blk.mode !== 'rout' && blk.mode !== 'melee') { blk.vx *= 0.25; blk.vy *= 0.25; blk.mode = 'hold'; blk.comp += (0.75 - blk.comp) * Math.min(1, dt * 3); blk.hd = blk.hd + (Math.round(blk.hd / (Math.PI / 2)) * Math.PI / 2 - blk.hd) * Math.min(1, dt * 2); if (blk.sqNew) { blk.sqNew = false; if (!V.replay && Math.random() < 0.5) bvBanner(V, `🔲 ${G.C[blk.tag].name} forma el cuadro ante la caballería`, blk.side, ''); } }
+};
+const _tacShellHitC2 = tacShellHit;
+tacShellHit = function (V, b, p, all) {
+  _tacShellHitC2(V, b, p, all); const v = all.find(x => x.id === p.vt); if (v && v.sq > V.t && v.mode !== 'rout') { v.d.s = Math.max(0, v.d.s - 0.004); v.d.o = Math.max(0, v.d.o - DIVS[v.d.t].org * 0.012); }       // el cuadro es un blanco apretado
+};
+const _bvCorpsFlagsC2 = bvCorpsFlags;
+bvCorpsFlags = function (g, V, b) {
+  _bvCorpsFlagsC2(g, V, b);
+  V.blocks.forEach(k => { if (k.sq > V.t && k.mode !== 'rout') { g.strokeStyle = 'rgba(255,240,170,.85)'; g.lineWidth = 1.4; g.setLineDash([3, 2]); g.strokeRect(k.x - k.wid / 2 - 4, k.y - k.dep / 2 - 4, k.wid + 8, k.dep + 8); g.setLineDash([]); } if (k.noCmd && k.mode !== 'rout' && k.side === playerSide(b)) { g.font = '10px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#ffb347'; g.fillText('📡✖', k.x, k.y - k.dep / 2 - 6); } });
+};

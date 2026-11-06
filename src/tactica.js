@@ -216,7 +216,7 @@ function tacMorale(V, b, all, dt) {
       const toC = Math.atan2(cav.y - v.y, cav.x - v.x), side = Math.abs(bvAng(v.hd, toC)), orgF = clamp(v.d.o / DIVS[v.d.t].org, 0, 1), mor = v.mor === undefined ? 0.8 : v.mor, tr = v.terr || {};
       let p = 0.08 + (1 - orgF) * 0.7 + (1 - mor) * 0.6 + (v.fat || 0) * 0.5;
       if (side > 1.9) p += 0.32; else if (side > 1.1) p += 0.14;                                  // cargados por el flanco o la espalda
-      if (v.mode === 'hold' || v.defLine || v.comp < 0.9) p -= 0.22;                                 // en cuadro / línea cerrada
+      if (v.mode === 'hold' || v.defLine || v.comp < 0.9) p -= 0.22; if (v.sq > V.t) p -= 0.3;                                 // en cuadro / línea cerrada
       if (tr.cover || tr.hill || tacFortAt(b, v.x, v.y)) p -= 0.2; if (tr.water) p += 0.1;
       if (v.type === 'art') p += 0.12; if (cav.type === 'tank') p += 0.3;
       const tired = (v.fat || 0) > 0.5 || mor < 0.4; if (!tired) p = Math.min(p, 0.06);          // las tropas descansadas y con moral aguantan la carga

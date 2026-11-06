@@ -68,9 +68,9 @@ function vegColor(type, rnd, lat, s, out) {
     const au = s.autumn * clamp((la - 28) / 14, 0, 1);                              // otoño solo fuera de los trópicos
     if (au > 0) { const k = rnd < 0.4 ? [0.62, 0.36, 0.12] : rnd < 0.7 ? [0.55, 0.22, 0.10] : [0.66, 0.54, 0.20]; out.r += (k[0] - out.r) * au; out.g += (k[1] - out.g) * au; out.b += (k[2] - out.b) * au; }
     const bare = s.snow * clamp((la - 38) / 12, 0, 1);                                // invierno: ramas desnudas, pardo grisáceo
-    if (bare > 0) { out.r += (0.36 - out.r) * bare * 0.8; out.g += (0.32 - out.g) * bare * 0.8; out.b += (0.28 - out.b) * bare * 0.8; }
+    if (bare > 0) { out.r += (0.30 - out.r) * bare * 0.8; out.g += (0.25 - out.g) * bare * 0.8; out.b += (0.19 - out.b) * bare * 0.8; }
   }
-  const fr = s.snow * clamp((la - 44) / 14, 0, 1) * (type === VEG_T.CONIFERA ? 0.55 : 0.35);   // escarcha
+  const fr = s.snow * clamp((la - 44) / 14, 0, 1) * (type === VEG_T.CONIFERA ? 0.55 : 0.15);   // escarcha
   if (fr > 0) { out.r += (0.92 - out.r) * fr; out.g += (0.95 - out.g) * fr; out.b += (0.98 - out.b) * fr; }
 }
 
@@ -88,7 +88,7 @@ function refreshVegetation(force) {
   const C = R.vegC, n = C.length / 6, rad = d * 1.05 + 4, rad2 = rad * rad, cx = R.cam.tx, cz = R.cam.tz;
   const dens = (R.mode === 'terrain' ? 1 : 0.4) * clamp((VEG_DIST - d) / 14, 0, 1);  // se aclara al acercarse al límite (sin saltos bruscos)
   // tamaño en grados: crece un poco al alejarse para seguir leyéndose
-  const sz = 0.055 + d * 0.0016;
+  const sz = 0.03 + d * 0.0018;
   // primero contamos cuántos caben para repartir el tope de forma uniforme
   let inR = 0; for (let k = 0; k < n; k++) { const dx = C[k * 6] - cx, dz = C[k * 6 + 2] - cz; if (dx * dx + dz * dz < rad2) inR++; }
   const keep = Math.min(1, cap / Math.max(1, inR)) * dens;

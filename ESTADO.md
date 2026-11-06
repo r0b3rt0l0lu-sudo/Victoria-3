@@ -154,3 +154,13 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - Color por estación: copas ocres y rojizas en otoño (fuera de los trópicos), ramas desnudas y escarcha en invierno.
 - Shader del terreno: dunas en los desiertos (máscara en el canal A de `R.reliefTex`, se apagan a lo lejos), nieve azulada en laderas fuertes y hielo marino polar (permanente desde ~78°, en invierno desde ~66°). Desactivado en calidad baja salvo el hielo y la nieve.
 - Coste relativo frente a la fase 2 (SwiftShader, modo político): bajo sin cambios; medio +10 % (regional) y +18 % (ciudad); alto +10 %/+9 %.
+
+## Mapa 3D, fase 4: ciudades, puertos y comunicaciones (src/ciudades3d.js)
+- `buildCities` reescrito: núcleo en cuadrícula de calles con plazas, tamaño según la población (hasta 70 casas, radio 0,13° + √pob/6000), casas más altas en el centro de las grandes ciudades y aldeas de 2–6 casas en el resto de provincias (≈6000 casas en total; calidad baja: la mitad y sin aldeas).
+- Estilo por región (`cityStyle`): europeo (tejas o pizarra, iglesia), ruso (cúpula de bulbo), Oriente Medio y norte de África (azoteas, cúpula y minarete), Asia oriental (tejados oscuros, pagoda), sur de Asia (azoteas ocres, cúpula blanca) y África subsahariana (chozas redondas). Monumento en las ciudades de más de 380 000 habitantes.
+- Las casas ya no se tiñen con el color del país (`updateCityColors` no hace nada): lo político lo dice el mapa.
+- Puertos: muelle, almacenes y hasta 3 barcos amarrados en la provincia costera (`portProvOf`) de cada estado de más de 120 000 habitantes (sin barcos en calidad baja).
+- Caminos (`buildRoads`): entre cada capital de estado y sus 3 vecinas más cercanas a menos de 7°, solo por tierra; trazado curvo suave. Ferrocarril (`rebuildRails`) en los tramos cuyos dos extremos pertenecen a países con la tecnología `railways`; se comprueba cada mes. Cintas con ancho mínimo en pantalla; los caminos se desvanecen a partir de distancia 55 y el ferrocarril a partir de 150. En modos no-terreno, al 60 %.
+- Ciudades visibles por debajo de distancia 36. Árboles algo más pequeños de cerca para no tapar las casas; en invierno, ramas pardas.
+- Coste relativo frente a la fase 3 (SwiftShader, mismas vistas, ciudades bien ocultas al alejarse): medio +0–7 %, alto +0–13 % (vista de ciudad); bajo dentro del ruido salvo la vista regional (+10–18 %).
+- Herramienta de medida: las capturas llaman ya a `updateCityVisibility()` tras mover la cámara (antes las ciudades se quedaban visibles en la vista continental de la medición).

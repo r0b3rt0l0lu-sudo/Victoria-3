@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Visor de tropas</title>
+<style>
+:root{--bg:#12181d;--panel:#222b33;--edge:#0a0e11;--gold:#c9a657;--gold2:#ecd697;--goldd:#7d6733;--text:#ebe3cf;--dim:#98a3ab}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px/1.4 Georgia,'Times New Roman',serif}
+#app{display:grid;grid-template-columns:310px 1fr;height:100%}
+#side{background:linear-gradient(var(--panel),var(--bg));border-right:1px solid var(--goldd);padding:14px;overflow:auto;font-family:system-ui,sans-serif}
+h1{font:700 18px/1.2 Georgia,serif;letter-spacing:.06em;color:var(--gold2);margin:0 0 12px}
+h2{font:600 12px/1.2 Georgia,serif;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);margin:16px 0 6px;border-bottom:1px solid rgba(201,166,87,.25);padding-bottom:4px}
+label{display:block;color:var(--dim);font-size:12px;margin:8px 0 3px}
+select,button,input[type=range]{width:100%}
+select{background:#1d262d;color:var(--text);border:1px solid var(--goldd);border-radius:5px;padding:6px}
+.seg{display:flex;gap:4px}.seg button{flex:1;padding:6px 0;background:#1d262d;color:var(--text);border:1px solid var(--goldd);border-radius:5px;cursor:pointer;font-size:12px}
+.seg button.on{background:linear-gradient(#8a6f2f,#5b4818);color:#fff6d6;border-color:var(--gold2)}
+.seg button:disabled{opacity:.35;cursor:default}
+button.act{margin-top:6px;padding:7px;background:linear-gradient(#e8cf85,#a6832f);color:#1d1606;border:0;border-radius:5px;font:700 13px Georgia,serif;cursor:pointer}
+input[type=range]{accent-color:#c9a657}
+.chk{display:flex;gap:8px;align-items:center;color:var(--text);font-size:13px;margin-top:8px}.chk input{accent-color:#c9a657;width:auto}
+#stage{position:relative;overflow:hidden}
+canvas#c{display:block;width:100%;height:100%}
+#hud{position:absolute;left:12px;top:10px;background:rgba(18,24,29,.85);border:1px solid var(--goldd);border-radius:6px;padding:6px 10px;font:12.5px system-ui,sans-serif;color:var(--dim)}
+#hud b{color:var(--gold2)}
+#tl{position:absolute;left:12px;right:12px;bottom:12px;height:46px;background:rgba(18,24,29,.88);border:1px solid var(--goldd);border-radius:6px;font-family:system-ui,sans-serif}
+#tl .bar{position:absolute;left:10px;right:10px;top:20px;height:6px;background:#2b3640;border-radius:3px}
+#tl .head{position:absolute;top:14px;width:2px;height:18px;background:var(--gold2)}
+#tl .ev{position:absolute;top:2px;transform:translateX(-50%);font-size:10.5px;color:var(--gold);white-space:nowrap}
+#tl .ev::after{content:'';position:absolute;left:50%;top:14px;width:1px;height:16px;background:var(--gold)}
+#tl .ev.hit{color:#fff6d6}
+#tl .dur{position:absolute;right:10px;top:30px;font-size:10.5px;color:var(--dim)}
+#stats,#note{font-size:12px;color:var(--dim);margin-top:8px;white-space:pre-line}
+#pal{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}#pal span{display:inline-flex;flex-direction:column;align-items:center;font-size:10px;color:var(--dim)}#pal i{display:block;width:26px;height:18px;border:1px solid #000;border-radius:3px}
+@media (max-width:760px){#app{grid-template-columns:1fr;grid-template-rows:auto 60vh}#side{border-right:0;border-bottom:1px solid var(--goldd)}}
+</style></head>
+<body><div id="app">
+<div id="side">
+  <h1>Tropas 3D · 1836–1936</h1>
+  <label>Unidad</label><select id="kind"></select>
+  <label>Época</label><div class="seg" id="era"></div>
+  <label>Nación</label><select id="nat"></select>
+  <label id="clipL">Animación</label><select id="clip"></select>
+  <label>Nivel de detalle</label><div class="seg" id="lod"><button data-l="0" class="on">LOD0</button><button data-l="1">LOD1</button><button data-l="2">LOD2</button></div>
+  <label>Velocidad <b id="spv">1×</b></label><input id="speed" type="range" min="0" max="2" step="0.05" value="1">
+  <label class="chk"><input type="checkbox" id="wire"> Alambre</label>
+  <label class="chk"><input type="checkbox" id="zones"> Ver zonas (rojo principal · amarillo ribete · azul pantalón · turquesa tocado · gris fijo)</label>
+  <label class="chk"><input type="checkbox" id="pause"> Pausa</label>
+  <h2>Paleta del uniforme</h2>
+  <div id="pal"></div><div id="note"></div>
+  <h2>Prueba de carga</h2>
+  <div class="seg" id="stressMode"><button data-m="gpu" class="on">GPU</button><button data-m="cpu">CPU</button></div>
+  <label class="chk"><input type="checkbox" id="autolod" checked> LOD por distancia (GPU)</label>
+  <div class="seg" style="margin-top:6px"><button class="act" data-n="2000">2000</button><button class="act" data-n="5000">5000</button><button class="act" data-n="20000">20 000</button></div>
+  <button class="act" id="stressOff" style="background:#1d262d;color:var(--text);border:1px solid var(--goldd)">Volver a la unidad</button>
+  <div id="stats"></div>
+</div>
+<div id="stage"><canvas id="c"></canvas><div id="hud"></div><div id="tl"><div class="bar"></div><div class="head"></div><div class="dur"></div></div></div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+<script src="troops3d.js"></script>
+<script>
+const T = Troops3D, $ = s => document.querySelector(s);
+const Q = new URLSearchParams(location.search);
+const NATS = Object.keys(T.NACIONES);
+const GROUPS = {'g:bateria': 'Pieza con 4 servidores', 'g:ametralladora': 'Ametralladora con 2 servidores', 'g:general': 'General con ayudante', 'g:mariscal': 'Mariscal con estandarte de mando', 'g:camilla': 'Camilla con dos sanitarios', 'g:fuerte': 'Guarnición tras el parapeto', 'g:tren': 'Pieza enganchada al avantrén'};
+const GROUP_ERAS = {'g:ametralladora': ['B', 'C', 'D']};
+const DEF_CLIP = {fusilero: e => e === 'A' ? 'disparar_A' : e === 'B' ? 'disparar_B' : 'disparar_D', granadero: e => 'cargar_bayoneta', tirador: e => e === 'A' ? 'disparar_rodilla_A' : 'disparar_rodilla', oficial: () => 'ordenar', abanderado: () => 'ondear', zapador: () => 'cavar', sanitario: () => 'camilla_delante', prisionero: () => 'marcha_atado', herido: () => 'herido', artillero: () => 'srv_cargador',
+  husar: () => 'galope', coracero: () => 'carga', lancero: () => 'carga_lanza', dragon: () => 'trote', general: () => 'observar_catalejo', ayudante: () => 'paso', mariscal: () => 'idle', mensajero: () => 'galope_largo', estandarte: () => 'paso',
+  canon: () => 'servicio', canon_rc: () => 'servicio_rc', obus: () => 'servicio', ametralladora: () => 'fuego_mg', avantren: () => 'paso', carro_municion: () => 'trote', carreta: () => 'paso', carreta_bueyes: () => 'paso', tanque: () => 'avanzar', mark1: () => 'avanzar', parapeto: () => 'reposo'};
+const S = {kind: Q.get('u') || 'fusilero', era: Q.get('e') || 'A', nat: Q.get('n') || 'FRA', clip: Q.get('c') || null, lod: +(Q.get('l') || 0), speed: 1, t: 0, stress: 0, mode: 'gpu'};
+
+const canvas = $('#c'), renderer = new THREE.WebGLRenderer({canvas, antialias: true, preserveDrawingBuffer: true});
+renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#8fa0a8'); scene.fog = new THREE.Fog('#8fa0a8', 80, 420);
+const cam = new THREE.PerspectiveCamera(32, 1, 0.1, 1200);
+const sun = new THREE.DirectionalLight(0xfff0d8, 0.78); sun.position.set(-60, 90, -40); scene.add(sun);       // igual que el juego: cálida desde el noroeste (−x oeste, −z norte)
+scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200), new THREE.MeshLambertMaterial({color: '#6c8c2a'})); ground.rotation.x = -Math.PI / 2; scene.add(ground);
+const ZC = ['#d23c3c', '#f0c030', '#3c64d2', '#30b0a0'];
+T.NACIONES.ZON = {nombre: 'Zonas', bandera: 'vert', veh: '#9a5ad2', f: ['#ff40c0', '#40ffc0', '#c0ff40'], A: {c: ZC, toc: 'chaco'}, B: {c: ZC, toc: 'kepi'}, C: {c: ZC, toc: 'pickel'}, D: {c: ZC, toc: 'stahl'}};
+const shared = new T.TroopShared(NATS.concat(['ZON']));
+
+// órbita sencilla
+const orb = {th: 0.6, ph: 0.32, r: 6, tgt: new THREE.Vector3(0, 0.9, 0)};
+function placeCam() { cam.position.set(orb.tgt.x + orb.r * Math.sin(orb.th) * Math.cos(orb.ph), orb.tgt.y + orb.r * Math.sin(orb.ph), orb.tgt.z + orb.r * Math.cos(orb.th) * Math.cos(orb.ph)); cam.lookAt(orb.tgt); }
+let drag = null; canvas.addEventListener('pointerdown', e => { drag = [e.clientX, e.clientY]; canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener('pointermove', e => { if (!drag) return; orb.th -= (e.clientX - drag[0]) * 0.006; orb.ph = Math.max(0.02, Math.min(1.45, orb.ph + (e.clientY - drag[1]) * 0.005)); drag = [e.clientX, e.clientY]; placeCam(); });
+canvas.addEventListener('pointerup', () => { drag = null; });
+canvas.addEventListener('wheel', e => { e.preventDefault(); orb.r = Math.max(1.5, Math.min(600, orb.r * (1 + Math.sign(e.deltaY) * 0.1))); placeCam(); }, {passive: false});
+
+// interfaz
+const CL = {inf: 'Infantería', cav: 'Caballería y mando', art: 'Artillería', tren: 'Trenes', tank: 'Tanques (época D)', fort: 'Fuerte'};
+Object.keys(CL).forEach(c => { const og = document.createElement('optgroup'); og.label = CL[c]; T.TROOP_KINDS.filter(k => T.KINDS[k].clase === c).forEach(k => og.appendChild(new Option(T.KINDS[k].nombre, k))); $('#kind').appendChild(og); });
+{ const og = document.createElement('optgroup'); og.label = 'Grupos'; Object.entries(GROUPS).forEach(([k, v]) => og.appendChild(new Option(v, k))); $('#kind').appendChild(og); }
+$('#kind').value = S.kind;
+NATS.forEach(n => $('#nat').add(new Option(T.NACIONES[n].nombre, n))); $('#nat').value = S.nat;
+const isGroup = () => S.kind.startsWith('g:');
+function eras() { return isGroup() ? (GROUP_ERAS[S.kind] || T.TROOP_ERAS) : T.KINDS[S.kind].eras; }
+const ERA_TXT = {A: 'A 1836', B: 'B 1856', C: 'C 1881', D: 'D 1914'};
+function eraButtons() { const es = eras(); if (!es.includes(S.era)) S.era = es[es.length - 1]; $('#era').innerHTML = T.TROOP_ERAS.map(e => `<button data-e="${e}" class="${e === S.era ? 'on' : ''}" ${es.includes(e) ? '' : 'disabled'}>${ERA_TXT[e]}</button>`).join(''); }
+$('#era').addEventListener('click', e => { const b = e.target.closest('button'); if (!b || b.disabled) return; S.era = b.dataset.e; S.clip = null; rebuild(); });
+$('#lod').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.lod = +b.dataset.l; rebuild(); });
+$('#kind').onchange = () => { S.kind = $('#kind').value; S.clip = null; rebuild(); };
+$('#nat').onchange = () => { S.nat = $('#nat').value; rebuild(); };
+$('#clip').onchange = () => { S.clip = $('#clip').value; if (isGroup()) rebuild(); else setClipAll(true); };
+$('#speed').oninput = () => { S.speed = +$('#speed').value; $('#spv').textContent = S.speed.toFixed(2) + '×'; };
+$('#wire').onchange = () => { batches.forEach(b => { b.mesh.material.wireframe = $('#wire').checked; }); };
+$('#zones').onchange = () => rebuild();
+$('#stressMode').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.mode = b.dataset.m; [...$('#stressMode').children].forEach(x => x.classList.toggle('on', x === b)); });
+document.querySelectorAll('button[data-n]').forEach(b => b.onclick = () => stress(+b.dataset.n));
+$('#stressOff').onclick = () => { S.stress = 0; rebuild(); };
+
+let batches = [], cpu = null, focus = null;
+function clear() { batches.forEach(b => { scene.remove(b.mesh); b.dispose(); }); batches = []; if (cpu) { cpu.meshes.forEach(m => m && scene.remove(m)); cpu = null; window.__cpu = null; } }
+const rigOf = k => T.KINDS[k].rig, clipsFor = k => Object.keys(T.CLIPS[rigOf(k)]);
+function batch(kind, cap, role, lod) { const b = new T.TroopBatch(shared, kind, S.era, curNat(), cap, {role, lod: lod != null ? lod : S.lod}); b.mesh.material.wireframe = $('#wire').checked; scene.add(b.mesh); batches.push(b); return b; }
+const curNat = () => $('#zones').checked ? 'ZON' : S.nat;
+const VIEW = {soldado: [1.0, 5.2], jinete: [1.4, 7.5], canon: [0.8, 9], tanque: [1.1, 10], markI: [1.4, 20], tiro: [1.2, 13], estatico: [0.5, 9]};
+function rebuild() {
+  clear(); eraButtons(); const nat = curNat();
+  if (isGroup()) {
+    const g = S.kind.slice(2), st = T.TROOP_GROUPS[g].estados; if (!st.includes(S.clip)) S.clip = st[0];
+    $('#clipL').textContent = 'Estado del grupo'; $('#clip').innerHTML = st.map(c => `<option ${c === S.clip ? 'selected' : ''}>${c}</option>`).join('');
+    const mem = T.troopGroup(g, S.era, S.clip, {}); focus = mem[0];
+    mem.forEach(m => { const b = batch(m.kind, 1, m.role); b.add(m.at[0], 0, m.at[1], m.at[2] * Math.PI / 180, 1, nat, m.clip, {phase: 0, h: 0, skin: 1, bright: 0.5, horse: 0, tread: m.clip === 'avanzar' ? 1.6 : 0}); });
+    const big = g === 'tren' || g === 'camilla' || g === 'general' || g === 'mariscal'; orb.tgt.set(0, 0.9, g === 'tren' ? 0 : 0.2); orb.r = g === 'tren' ? 16 : big ? 10 : 9;
+  } else {
+    const k = S.kind, rig = rigOf(k), cl = clipsFor(k); if (!cl.includes(S.clip)) S.clip = (DEF_CLIP[k] || (() => cl[0]))(S.era); if (!cl.includes(S.clip)) S.clip = cl[0];
+    $('#clipL').textContent = 'Animación'; $('#clip').innerHTML = cl.map(c => `<option ${c === S.clip ? 'selected' : ''}>${c}</option>`).join('');
+    const role = T.KINDS[k].roles ? ({artillero: 'cargador', sanitario: 'delante'})[k] : undefined;
+    const b = batch(k, 1, role); b.add(0, 0, 0, 0, 1, nat, S.clip, {phase: 0, h: 0, skin: 1, bright: 0.5, horse: 0, tread: S.clip === 'avanzar' ? 1.6 : 0}); focus = {kind: k, clip: S.clip};
+    const v = VIEW[rig]; orb.tgt.set(0, v[0], 0); orb.r = v[1] * (k === 'abanderado' || k === 'estandarte' ? 1.35 : 1) * (k === 'sanitario' ? 1.4 : 1);
+  }
+  shared.debugU.value = $('#zones').checked ? 1 : 0;
+  [...$('#lod').children].forEach(x => x.classList.toggle('on', +x.dataset.l === S.lod));
+  placeCam(); timeline(); palette();
+}
+function setClipAll(blend) {
+  batches.forEach(b => { for (let i = 0; i < b.mesh.count; i++) { b.setClip(i, S.clip, blend ? S.t % 1 : 0, blend); if (b.kind === 'tanque' || b.kind === 'mark1') { b.iLook.setW(i, S.clip === 'avanzar' ? 1.6 : 0); b.iLook.needsUpdate = true; } } });
+  if (!blend) S.t = 0; focus = {kind: S.kind, clip: S.clip}; timeline();
+}
+function curClip() { if (!focus) return null; const c = T.CLIPS[rigOf(focus.kind)][focus.clip]; return c; }
+function timeline() {
+  const c = curClip(), tl = $('#tl'); tl.querySelectorAll('.ev').forEach(e => e.remove()); if (!c) return;
+  const seen = {}; (c.ev || []).forEach(([t, n]) => { const d = document.createElement('div'); d.className = 'ev'; d.style.left = `calc(10px + (100% - 20px) * ${t})`; const k = Math.round(t * 50); d.style.top = seen[k] ? '-12px' : '2px'; seen[k] = 1; d.textContent = n; d.dataset.t = t; tl.appendChild(d); });
+  $('#tl .dur').textContent = `${focus.clip} · ${c.dur} s · ${c.loop === false ? 'sin bucle' : 'bucle'}`;
+}
+function palette() {
+  const k = isGroup() ? focus.kind : S.kind, p = T.uniformPalette(S.nat, S.era, T.KINDS[k].pal), cols = [['0 principal', p.main], ['1 ribete', p.trim], ['2 pantalón', p.accessory], ['3 tocado', p.hat], ['4', p.flag[0]], ['5', p.flag[1]], ['6', p.flag[2]], ['7 vehículo', p.vehicle]];
+  $('#pal').innerHTML = cols.map(([n, h]) => `<span><i style="background:${h}"></i>${n}</span>`).join('');
+  $('#note').textContent = `${T.NACIONES[S.nat].nombre}, época ${S.era} (${T.KINDS[k].pal || 'linea'}): ${p.note}\nTocado: ${p.headgear}`;
+}
+// prueba de carga: regimientos de 40 figuras en dos filas; fase aleatoria por figura; LOD por distancia a la cámara
+function stress(n) {
+  clear(); S.stress = n; const kind = !isGroup() && ['soldado', 'jinete'].includes(rigOf(S.kind)) ? S.kind : 'fusilero', cav = rigOf(kind) === 'jinete';
+  const cols = 20, per = 40, regs = Math.ceil(n / per), side = Math.ceil(Math.sqrt(regs)), dx = cav ? 1.2 : 0.7, dz = cav ? 2.6 : 1.1, rw = cols * dx + 3, rd = 2 * dz + 3;
+  const cl = clipsFor(kind), clip = cl.includes(DEF_CLIP[kind](S.era)) ? DEF_CLIP[kind](S.era) : cl[0];
+  orb.tgt.set(side * rw / 2, 0, side * rd / 2); orb.r = side * Math.max(rw, rd) * 0.9 + 20; orb.ph = 0.55; placeCam();
+  const pos = []; for (let i = 0; i < n; i++) { const r = Math.floor(i / per), k = i % per; pos.push([(r % side) * rw + (k % cols) * dx + (Math.random() - 0.5) * 0.08, Math.floor(r / side) * rd + Math.floor(k / cols) * dz, NATS[r % 4]]); }
+  if (S.mode === 'gpu') {
+    if ($('#autolod').checked) {
+      const L = [0, 1, 2].map(l => batch(kind, n, undefined, l)), cp = cam.position;
+      pos.forEach(([x, z, nat]) => { const d = Math.hypot(x - cp.x, z - cp.z, cp.y); L[d < 40 ? 0 : d < 140 ? 1 : 2].add(x, 0, z, 0, 1, nat, clip); });
+    } else { const b = batch(kind, n); pos.forEach(([x, z, nat]) => b.add(x, 0, z, 0, 1, nat, clip)); }
+  } else { const ci = shared.clipInfo(rigOf(kind), clip); cpu = window.__cpu = new T.CpuBatch(kind, S.era, S.nat, n, {lod: S.lod}); cpu.meshes.forEach(m => m && scene.add(m)); pos.forEach(([x, z]) => cpu.add(x, 0, z, 0, 1, ci, Math.random())); }
+}
+
+// bucle
+let last = performance.now(), fpsT = 0, fpsN = 0, fps = 0, cpuMs = 0, cpuAcc = 0, renMs = 0, renAcc = 0;
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now; if (!$('#pause').checked) S.t += dt * S.speed;
+  const t0 = performance.now(); shared.timeU.value = S.t; if (cpu) cpu.update(S.t, shared.baked); const t1 = performance.now();
+  const w = canvas.clientWidth, h = canvas.clientHeight; if (canvas.width !== Math.floor(w * renderer.getPixelRatio())) { renderer.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
+  renderer.render(scene, cam); const t2 = performance.now();
+  cpuAcc += t1 - t0; renAcc += t2 - t1; fpsN++; fpsT += dt;
+  if (fpsT > 0.5) { fps = fpsN / fpsT; cpuMs = cpuAcc / fpsN; renMs = renAcc / fpsN; fpsN = 0; fpsT = 0; cpuAcc = 0; renAcc = 0; hud(); }
+  const c = curClip(); if (c && !S.stress) { const ph = c.loop === false ? Math.min(1, (S.t % (c.dur + 1)) / c.dur) : (S.t / c.dur) % 1; $('#tl .head').style.left = `calc(10px + (100% - 20px) * ${ph})`; $('#tl').querySelectorAll('.ev').forEach(e => e.classList.toggle('hit', Math.abs(ph - +e.dataset.t) < 0.03)); }
+  requestAnimationFrame(frame);
+}
+function hud() {
+  const inf = renderer.info.render, tris = batches.reduce((s, b) => s + b.tris * b.mesh.count, 0) + (cpu ? cpu.tris * cpu.count : 0);
+  $('#hud').innerHTML = `<b>${fps.toFixed(0)}</b> FPS · <b>${inf.calls}</b> llamadas · <b>${(tris / 1000).toFixed(1)} k</b> triángulos · animación CPU <b>${cpuMs.toFixed(2)} ms</b> · render <b>${renMs.toFixed(1)} ms</b>`;
+  const t = batches.filter(b => b.mesh.count).map(b => `${b.kind}${b.role ? ' (' + b.role + ')' : ''} LOD${b.lod}${b.mesh.count > 1 ? ' ×' + b.mesh.count : ''}: ${b.tris} tri`).join('\n');
+  $('#stats').textContent = (S.stress ? `Prueba: ${S.stress} figuras (${S.mode.toUpperCase()})\n` : '') + t + (cpu ? `${cpu.kind} ×${cpu.count} (CPU, ${cpu.meshes.filter(Boolean).length} mallas)` : '') + `\nTextura de huesos: ${shared.baked.W}×${shared.baked.H} (${(shared.baked.bytes / 1024).toFixed(0)} KB)`;
+}
+rebuild(); requestAnimationFrame(frame);
+window.VISOR = {S, T, shared, scene, cam, renderer, orb, placeCam, rebuild, stress, setClipAll, batches: () => batches, setT: t => { S.t = t; shared.timeU.value = t; }};
+</script>
+</body></html>

@@ -188,3 +188,6 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - **Pantalla inicial v2** (`ui.js`, `guardado.js`, CSS): panel de país como tarjeta con pie fijo (Comenzar / Continuar siempre visibles), opciones plegables con resumen («Normal · 3 reglas · IA normal»), **tarjeta «Continuar partida»** con país, fecha y tamaño (meta guardada junto a la partida), filtros Todos/Fácil/Media/Difícil con contador, búsqueda con «/», flechas ↑↓ e Intro, recuerda el último país elegido, sin avisos tapando el botón y diseño adaptable (móvil con barra de acción fija).
 
 - **Elegir país en el mapa (pantalla inicial):** el mapa se puede arrastrar y acercar con la rueda mientras se elige; al pasar el ratón sobre un país aparece su ficha (régimen, rango, dificultad) y **un clic lo elige** (el panel y la lista se actualizan, sin recentrar la cámara; el país elegido se resalta y el resto se atenúa). En móvil, botón «🗺️ Elegir en el mapa» con barra inferior «✔ Elegir este país». Corregido de paso: tras «Continuar» la clase `starting` del body no se quitaba (ocultaba los avisos).
+
+## Sesión: tropas 3D en el mapa
+- Integradas las tropas 3D de Claude Design en el mapa de campaña con reserva a las figuras antiguas (detalle y pruebas en `PROGRESO.md`). Pendiente: visor de batalla en 3D, sombras de tropas y reserva en CPU.

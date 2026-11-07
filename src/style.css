@@ -813,3 +813,4 @@ button:disabled{cursor:not-allowed}
 .tblx{overflow-x:auto;max-width:100%}.tblx .tbl{min-width:560px}.tblx .tbl th,.tblx .tbl td{white-space:nowrap}
 div.block>small.dim,.tbl td>small.sub{display:block}div.block>small.dim{margin:2px 0 6px}
 .tbl td>small.sub{margin-top:1px}
+.cols.stack{flex-direction:column}.cols.stack>.col{width:100%;flex:none}

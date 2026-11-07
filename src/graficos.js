@@ -92,7 +92,7 @@ function bombFire() {
 
 /* ---------- sombras suaves (calidad Alta) ---------- */
 function applyShadows() {
-  const on = R.quality === 'alto'; if (R._shadowOn === on || !R.sun) return; R._shadowOn = on;
+  const on = R.shadowsUser != null ? !!R.shadowsUser : R.quality === 'alto'; if (R._shadowOn === on || !R.sun) return; R._shadowOn = on;
   R.renderer.shadowMap.enabled = on; R.renderer.shadowMap.type = THREE.PCFSoftShadowMap; R.sun.castShadow = on;
   if (on) { R.sun.shadow.mapSize.set(2048, 2048); R.sun.shadow.bias = -0.0006; R.sun.shadow.normalBias = 0.02; }
   (R.chunks || []).forEach(c => { /* las mallas se marcan al crearlas */ }); R.mesh.children.forEach(m => { m.castShadow = on; m.receiveShadow = on; m.material.needsUpdate = true; });

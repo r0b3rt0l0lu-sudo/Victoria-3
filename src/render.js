@@ -589,15 +589,15 @@ function frame_(t) {
   if (t - (R._gT || 0) > 250 && typeof graphicsTick === 'function') { R._gT = t; graphicsTick(t); }
   if (R.cityMesh === undefined && G.S && G.S.length && MAP.provs) { try { buildCities(); } catch (e) { console.warn(e); } R.cityMesh = R.cityMesh || null; R.dirty = true; }
   if ((R.anim || R.smokeOn || (G.battles && G.battles.length)) && t - (R.lastAnim || 0) > (R.lowEnd ? 110 : 55)) { R.lastAnim = t; if (R.anim && animateMap(t)) R.dirty = true; R.smokeOn = updateSmoke(t); if (R.smokeOn) R.dirty = true; updateCityVisibility(); if (G.armies && G.armies.length && (R.cam.dist < 62 || R.figsShown)) updateArmyMeshes(t); }
-  if (R.dirty || R.labelsDirty) {
-    updateCamera(); if (typeof updateCityVisibility === 'function') updateCityVisibility();
+  if ((R.dirty || R.labelsDirty) && !(R.fpsCap && t - (R._lastDraw || 0) < 1000 / R.fpsCap - 3)) {
+    R._lastDraw = t; updateCamera(); if (typeof updateCityVisibility === 'function') updateCityVisibility();
     const t0 = performance.now(); R.renderer.render(R.scene, R.camera);
     if (R.bench) { try { R.renderer.getContext().finish(); } catch (e) {} benchSample(performance.now() - t0); }
     if (++R.rn % 24 === 0 && t > 6000 && !R.noAdapt) {            // cada cierto tiempo se mide la carga real de la GPU para ajustar la resolución
       try { R.renderer.getContext().finish(); } catch (e) {}
       const g = performance.now() - t0; R.gpuMs = (R.gpuMs || g) * 0.6 + g * 0.4;
       const sc = R.resScale || 1; let ns = sc;
-      if (R.gpuMs > 26 && sc > (R.lowEnd ? 0.5 : 0.56)) ns = Math.max(R.lowEnd ? 0.5 : 0.56, sc - 0.12); else if (R.gpuMs < 9 && sc < 1) ns = Math.min(1, sc + 0.08);
+      if (R.resUser) ns = sc; else if (R.gpuMs > 26 && sc > (R.lowEnd ? 0.5 : 0.56)) ns = Math.max(R.lowEnd ? 0.5 : 0.56, sc - 0.12); else if (R.gpuMs < 9 && sc < 1) ns = Math.min(1, sc + 0.08);
       if (Math.abs(ns - sc) > 0.01) { R.resScale = ns; resizeRenderer(); }
     }
     R.renderMs = (R.renderMs || 10) * 0.9 + (performance.now() - t0) * 0.1;

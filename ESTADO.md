@@ -202,3 +202,7 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - Respaldo automático al camino síncrono si no hay Worker/OffscreenCanvas, falla, o pasan 60 s. Desactivar: `?sinworker`.
 - La simulación diaria sigue en el hilo principal (comparte G con la interfaz).
 - Verificado: MAP idéntico byte a byte; tras 365 días el PIB total coincide con el camino síncrono (0,01 %).
+
+## Ranuras de guardado
+- `src/ranuras.js`: «Automático» (el de siempre, con copia anterior) + 5 ranuras manuales (`SAVE_KEY-slotN`, comprimidas, con metadatos). 💾/📂 abren el gestor (guardar, cargar, borrar, exportar/importar); en la pantalla inicial, «Partidas guardadas…». «Continuar» retoma la más reciente de todas.
+- Arreglo del worker: tras recibir G se llama a `tplRegisterAll()` (las plantillas de división viven en la tabla `DIVS` del módulo, que no viaja con G). Sin esto la IA fallaba al reclutar. Verificado: 730 días sin errores con worker.

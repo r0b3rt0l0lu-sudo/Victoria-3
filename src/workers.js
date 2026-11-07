@@ -63,7 +63,7 @@ function wkBuildWorld(progress, opt) {
         else if (m.t === 'p') progress && progress(m.msg);
         else if (m.t === 'err') end(no, new Error(m.msg));
         else if (m.t === 'done') {
-          try { Object.keys(MAP).forEach(k => delete MAP[k]); Object.assign(MAP, m.map); Object.keys(G).forEach(k => delete G[k]); Object.assign(G, m.g); end(ok, true); } catch (err) { end(no, err); }
+          try { Object.keys(MAP).forEach(k => delete MAP[k]); Object.assign(MAP, m.map); Object.keys(G).forEach(k => delete G[k]); Object.assign(G, m.g); if (typeof tplRegisterAll === 'function') tplRegisterAll(); /* las plantillas de división se registran en tablas del módulo (DIVS), que no viajan con G */ end(ok, true); } catch (err) { end(no, err); }
         }
       };
       w.postMessage({t: 'init', src, elev: window.__ELEV || null, mod: window.__WK_MOD || null, off: !!window.__WK_OFF, seed: opt.seed || 0});

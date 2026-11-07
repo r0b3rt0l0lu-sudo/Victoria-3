@@ -38,7 +38,7 @@ doLoad = async function (fromStart) {
     if (s.from === 'principal') { try { const t = localStorage.getItem(SAVE_PREV); if (t) { loadData(await unpackSave(t)); ok = true; toast('♻️', 'La partida principal estaba dañada: se ha recuperado la copia anterior.'); } } catch (e2) { console.error(e2); } }
     if (!ok) { toast('⚠️', 'La partida guardada no se pudo cargar.'); return; }
   }
-  UI.started = true; UI.sel = null; UI.win = null; closeWindow();
+  UI.started = true; UI.sel = null; UI.win = null; closeWindow(); R.startHi = null; document.body.classList.remove('starting');
   $('#start').classList.add('hide'); setTimeout(() => $('#start').style.display = 'none', 600);
   $('#hud').classList.add('show');
   buildHud(); computeEdges(G.ownerOf); computeLabels(); setSelected(-1); renderStatePanel(); updateHud();

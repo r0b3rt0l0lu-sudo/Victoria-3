@@ -727,3 +727,27 @@ body.starting #toasts{display:none}
   .st-right{padding:8px 14px 16px;max-width:none;margin:0}.st-card2{max-height:none;overflow:visible}
   .st-cta{position:fixed;left:0;right:0;bottom:0;margin:0;padding:12px 14px;z-index:6;background:rgba(9,13,18,.97);border-top:1px solid rgba(201,166,87,.4);border-radius:0}.st-card2{padding-bottom:92px;backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(10,14,19,.94)}.st-head h2{font-size:28px}.st-card2 .st-stats{grid-template-columns:1fr 1fr}
 }
+
+/* ===== pantalla inicial: el mapa se puede mover y se elige país pinchando en él ===== */
+body.starting #start{pointer-events:none}
+body.starting #start .st-inner{pointer-events:none}
+body.starting #start .st-left,body.starting #start .st-card2,body.starting #start .st-snd,body.starting #start .st-mapbtn,body.starting #start .st-mapbar{pointer-events:auto}
+body.starting #gl{cursor:grab}body.starting.dragging #gl{cursor:grabbing}
+.st-maphint{position:absolute;left:calc(430px + (100vw - 430px) / 2);bottom:16px;transform:translateX(-50%);z-index:4;padding:6px 14px;border-radius:16px;background:rgba(8,12,16,.78);border:1px solid rgba(201,166,87,.35);color:var(--dim);font-size:12.5px;pointer-events:none;white-space:nowrap;max-width:calc(100vw - 460px);overflow:hidden;text-overflow:ellipsis}.st-maphint b{color:var(--gold2);font-weight:600}
+.st-mapbtn,.st-mapbar{display:none}
+@media (max-width:1100px){.st-maphint{left:calc(360px + (100vw - 360px) / 2);max-width:calc(100vw - 380px)}}
+@media (max-width:820px){
+  .st-maphint{display:none}
+  .st-mapbtn{display:block;position:fixed;left:50%;transform:translateX(-50%);bottom:84px;z-index:7;padding:8px 16px;border-radius:20px;border:1px solid var(--gold2);background:rgba(10,14,19,.92);color:var(--gold2);font:inherit;font-weight:600}
+  #start.st-mapmode .st-inner,#start.st-mapmode .st-mapbtn{display:none}
+  #start.st-mapmode .st-mapbar{display:flex;align-items:center;gap:10px;position:fixed;left:0;right:0;bottom:0;z-index:8;padding:12px 14px;background:rgba(9,13,18,.96);border-top:1px solid rgba(201,166,87,.4)}
+  #start.st-mapmode .st-mapbar span{flex:1;display:flex;align-items:center;gap:8px;min-width:0}#start.st-mapmode .st-mapbar small{color:var(--dim)}
+  #start.st-mapmode .st-mapbar button{padding:12px 16px;border-radius:8px;border:1px solid var(--gold2);background:linear-gradient(#8a6f2f,#5b4818);color:#fff6d6;font:inherit;font-weight:700}
+  #start.st-mapmode{background:none}
+}
+body.starting #start::after{background:radial-gradient(ellipse at 62% 50%,transparent 60%,rgba(0,0,0,.38) 100%)}
+body.starting #start{background:linear-gradient(90deg,rgba(8,12,16,.94) 0%,rgba(8,12,16,.8) 32%,rgba(8,12,16,.06) 52%,rgba(8,12,16,0) 100%)}
+@media (max-width:820px){
+  body.starting #start{background:rgba(8,12,16,.3)}body.starting #start.st-mapmode{background:none}body.starting #start.st-mapmode::after{background:none}
+  #start.st-mapmode .st-mapbar span>*:first-child{flex:none;width:34px;max-width:34px}
+}

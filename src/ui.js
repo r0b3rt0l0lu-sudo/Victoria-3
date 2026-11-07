@@ -756,11 +756,20 @@ function showTip(html, x, y) {
 function hideTip() { $('#tooltip').style.display = 'none'; }
 window.onMapHover = (id, e) => {
   if (id < 0) { hideTip(); return; }
+  if (document.body.classList.contains('starting') && !UI.started) {                    // pantalla inicial: se elige país sobre el mapa
+    const ow = G.S[id].owner; if (ow === NONE || !G.C[ow] || !G.C[ow].states.length) { hideTip(); return; }
+    const k = G.C[ow], d = difficulty(ow); showTip(`<div class="tt-h">${flag(ow, 'sm')} <b>${k.name}</b></div><div class="tt-s">${k.gov} · Rango ${k.rank} · ${d[0]}</div><div class="tt-s dim">Clic para elegir este país</div>`, e.clientX, e.clientY); return;
+  }
   const s = G.S[id], o = G.C[s.owner];
   showTip(`<div class="tt-h">${s.owner === NONE ? '' : flag(s.owner, 'sm')} <b>${s.name}</b></div><div class="tt-s">${s.owner === NONE ? 'Tierras sin reclamar' : o.name}</div>
    <div class="kv sm"><span>Población</span><b>${fmtN(popTotal(s), 1)}</b></div><div class="kv sm"><span>Nivel de vida</span><b>${f1(s.solAvg)}</b></div><div class="kv sm"><span>PIB semanal</span><b>${fmtN(s.gdp, 1)}</b></div>`, e.clientX, e.clientY);
 };
 window.onMapClick = (id, e, pid) => {
+  if (document.body.classList.contains('starting') && !UI.started) {                    // elegir país pinchando en el mapa
+    if (id < 0) return; const ow = G.S[id].owner; if (ow === NONE || !G.C[ow] || !G.C[ow].states.length) { toast('🗺️', 'Esas tierras no pertenecen a ningún país jugable.'); return; }
+    const f = document.querySelector('#st-filters button[data-f=all]'); if (f && !f.classList.contains('on')) ACT.stfilter({f: 'all'}); const q = document.getElementById('stq'); if (q && q.value) { q.value = ''; stApplyFilter(); }
+    selectStartCountry(ow, true); const on = document.querySelector('#st-list .st-card.on'); if (on) on.scrollIntoView({block: 'center', behavior: 'smooth'}); return;
+  }
   if (UI.draw && pid !== undefined && pid >= 0) { drawClick(pid); return; }
   if (UI.landNext && pid !== undefined && pid >= 0) { landClick(pid); return; }
   if (UI.selArmy && pid !== undefined && pid >= 0) { const a0 = armyById(UI.selArmy); if (a0 && a0.tag === G.player) { orderArmies(pid, UI.patrolNext ? 'patrol' : e && e.shiftKey ? 'wp' : 'move'); return; } }
@@ -856,6 +865,7 @@ const ACT = {
   load: () => doLoad(),
   cont: () => doLoad(true),
   pickc: d => selectStartCountry(d.tag),
+  stmap: () => { document.getElementById('start').classList.toggle('st-mapmode'); },
   stopts: () => { UI.stOpts = !UI.stOpts; const o = document.querySelector('.st-opts'), h = document.querySelector('.st-opt-h'); if (o) o.classList.toggle('open', !!UI.stOpts); if (h) { h.setAttribute('aria-expanded', UI.stOpts ? 'true' : 'false'); const ic = h.querySelector('i'); if (ic) ic.textContent = UI.stOpts ? '▾' : '▸'; } },
   stfilter: d => { $$('#st-filters button').forEach(b => b.classList.toggle('on', b.dataset.f === d.f)); stApplyFilter(); },
   filterc: () => {},
@@ -975,7 +985,10 @@ function buildStart() {
       <small class="st-count" id="st-count">${picks.length} países</small>
     </div>
     <div class="st-right"><div class="st-card2" id="st-info"></div></div>
-  </div>`;
+  </div>
+  <div class="st-maphint">🖱️ Arrastra para moverte · rueda para acercar · <b>haz clic en un país para elegirlo</b></div>
+  <button class="st-mapbtn" data-act="stmap">🗺️ Elegir en el mapa</button>
+  <div class="st-mapbar"><span id="st-mapname"></span><button data-act="stmap">✔ Elegir este país</button></div>`;
   selectStartCountry(last && G.C[last] && G.C[last].states.length ? last : (G.C.GBR && G.C.GBR.states.length ? 'GBR' : picks[0]));
   document.body.classList.add('starting');
   const on = $('#st-list .st-card.on'); if (on && on.scrollIntoView) on.scrollIntoView({block: 'center'});
@@ -993,8 +1006,8 @@ function stApplyFilter() {
   $$('#st-list .st-card').forEach(c => { const dd = c.dataset.d || '', okF = f === 'all' || (f === 'easy' && /easy|good/.test(dd)) || (f === 'mid' && /warn/.test(dd)) || (f === 'hard' && /hard|bad/.test(dd)), okQ = !q || norm(c.textContent).includes(q); c.style.display = okF && okQ ? '' : 'none'; if (okF && okQ) n++; });
   const e = $('#st-count'); if (e) e.textContent = n + (n === 1 ? ' país' : ' países');
 }
-function selectStartCountry(tag) {
-  UI.startTag = tag; try { localStorage.setItem('victoria-last-country', tag); } catch (e) { }
+function selectStartCountry(tag, keepView) {
+  UI.startTag = tag; R.startHi = tag; try { localStorage.setItem('victoria-last-country', tag); } catch (e) { }
   const c = G.C[tag]; const d = difficulty(tag);
   $$('#st-list .st-card').forEach(e => e.classList.toggle('on', e.dataset.tag === tag));
   const rulesOn = RULE_DEFS.filter(r => rule(r.k)).length, dn = ['Relajada', 'Normal', 'Difícil', 'Brutal'][(G.diff || 2) - 1], an = ['Pacífica', 'Normal', 'Belicosa'][rule('aggr')] || 'Normal';
@@ -1010,15 +1023,16 @@ function selectStartCountry(tag) {
    </div>
    <div class="st-cta"><button class="primary big" data-act="start">Comenzar partida <small>${c.name} · ${G.date.y}</small></button>${hasSave() ? '<button class="cont" data-act="cont" data-tip="Retoma tu última partida guardada">📂 Continuar</button>' : ''}</div>`;
   const ci = c.capital >= 0 ? c.capital : c.states[0];
-  if (ci !== undefined) focusState(ci, 70);
+  if (ci !== undefined && !keepView) focusState(ci, 70);
   // resalta el país en el mapa
   G.player = tag; G.tags.forEach(t => G.C[t].ai = t !== tag);
   setMapMode('political');
+  const nm = document.getElementById('st-mapname'); if (nm) nm.innerHTML = `${flag(tag, 'sm')} <b>${c.name}</b> <small>${d[0]}</small>`;
 }
 function startGame() {
   const tag = UI.startTag;
   G.player = tag; G.tags.forEach(t => G.C[t].ai = t !== tag);
-  UI.started = true; UI.startT = G.date.t; UI.seen = {}; G.paused = true; achSnapshot(G.C[tag]); document.body.classList.remove('starting');
+  R.startHi = null; UI.started = true; UI.startT = G.date.t; UI.seen = {}; G.paused = true; achSnapshot(G.C[tag]); document.body.classList.remove('starting');
   $('#start').classList.add('hide'); setTimeout(() => $('#start').style.display = 'none', 600);
   $('#hud').classList.add('show');
   buildHud(); updateHud(); computeLabels();

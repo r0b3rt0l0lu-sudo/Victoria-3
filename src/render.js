@@ -27,7 +27,7 @@ function stateFill(s) {
   // devuelve [r, g, b, alpha]
   const c = G.C[s.owner];
   switch (R.mode) {
-    case 'political': { if (s.owner === NONE) return [...hex2rgb(NEUTRAL_COLOR), 0.28]; return [...(c._rgb || (c._rgb = hex2rgb(c.color))), 0.72]; }
+    case 'political': { if (s.owner === NONE) return [...hex2rgb(NEUTRAL_COLOR), 0.28]; return [...(c._rgb || (c._rgb = hex2rgb(c.color))), R.startHi ? (s.owner === R.startHi ? 0.97 : 0.5) : 0.72]; }       // pantalla inicial: el país elegido destaca
     case 'terrain': return [0, 0, 0, 0];
     case 'population': { const d = s.popBase * 1000 / Math.max(1, MAP.stats[s.id].area * Math.cos(yToLat(MAP.stats[s.id].sy / Math.max(1, MAP.stats[s.id].area)) * Math.PI / 180)); return [...ramp(RAMP_HEAT, Math.sqrt(d / 380)), 0.85]; }
     case 'sol': return [...ramp(RAMP_SOL, s.solAvg / 20), 0.82];

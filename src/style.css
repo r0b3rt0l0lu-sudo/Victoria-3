@@ -808,3 +808,8 @@ button:disabled{cursor:not-allowed}
 .sv-f{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px;border-top:1px solid rgba(201,166,87,.25)}.sv-f small{color:var(--dim)}.sv-f span{display:flex;gap:6px}
 .st-saves2{display:block;width:100%;margin:-4px 0 12px;padding:6px;border-radius:8px;border:1px dashed rgba(201,166,87,.4);background:none;color:var(--dim);font:inherit;font-size:12.5px;cursor:pointer}.st-saves2:hover{color:var(--gold2);border-color:var(--gold2)}
 @media (max-width:640px){.sv-row{flex-wrap:wrap}.sv-n{width:auto;flex-direction:row;gap:8px;align-items:baseline}.sv-i{flex-basis:100%;order:3}.sv-b{margin-left:auto}.sv-f{flex-direction:column;align-items:stretch}}
+
+/* ===== Ejército: sin solapamientos (tabla de reclutamiento con desplazamiento propio, descripciones en su propia línea) ===== */
+.tblx{overflow-x:auto;max-width:100%}.tblx .tbl{min-width:560px}.tblx .tbl th,.tblx .tbl td{white-space:nowrap}
+div.block>small.dim,.tbl td>small.sub{display:block}div.block>small.dim{margin:2px 0 6px}
+.tbl td>small.sub{margin-top:1px}

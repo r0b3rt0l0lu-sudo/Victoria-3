@@ -17,7 +17,7 @@ def mini(txt, loader):
     return r.stdout
 three = rd('vendor/three.min.js')
 css = mini(rd('src/style.css'), 'css')
-order = ['icons.js', 'geo.js', 'data.js', 'nombres.js', 'wasmk.js', 'cities.js', 'mapgen.js', 'provinces.js', 'mapsmooth.js', 'sim.js', 'crisis.js', 'diplo.js', 'military.js', 'logistics.js', 'milecon.js', 'dcrisis.js', 'render.js', 'relieve3d.js', 'troops3d.js', 'render3d.js', 'tropas3d_mapa.js', 'ui.js', 'ui_mil.js', 'battleviz.js', 'terreno.js', 'politics2.js', 'national.js', 'peace.js', 'coalition.js', 'diplo2.js', 'landing.js', 'intel.js', 'espionaje.js', 'mil2.js', 'doctrinas.js', 'plantillas.js', 'produccion.js', 'aviacion.js', 'marina.js', 'resistencia.js', 'suministros.js', 'convoyes.js', 'tactica.js', 'tactica2.js', 'tactica3.js', 'asedios.js', 'aspecto.js', 'campo.js', 'pueblos.js', 'terreno2.js', 'elev_data.js', 'relieve.js', 'realismo.js', 'campo2.js', 'mando.js', 'linea.js', 'ejercito.js', 'campo3.js', 'batalla2.js', 'batalla3.js', 'batalla4.js', 'batalla5.js', 'batalla6.js', 'mando2.js', 'pintura.js', 'inicio.js', 'musica.js', 'guardado.js', 'mariscales.js', 'ia_guerra.js', 'ia_operaciones.js', 'ia_v3.js', 'moral.js', 'resumenes.js', 'asesor.js', 'ofertas_paz.js', 'navalviz.js', 'graficos.js', 'agua.js', 'vegetacion.js', 'ciudades3d.js', 'rotulos.js', 'rendimiento.js', 'content.js', 'historia.js', 'escenarios.js', 'manual.js', 'main.js']
+order = ['icons.js', 'geo.js', 'data.js', 'nombres.js', 'wasmk.js', 'cities.js', 'mapgen.js', 'provinces.js', 'mapsmooth.js', 'sim.js', 'crisis.js', 'diplo.js', 'military.js', 'logistics.js', 'milecon.js', 'dcrisis.js', 'render.js', 'relieve3d.js', 'troops3d.js', 'render3d.js', 'tropas3d_mapa.js', 'ui.js', 'ui_mil.js', 'battleviz.js', 'terreno.js', 'politics2.js', 'national.js', 'peace.js', 'coalition.js', 'diplo2.js', 'landing.js', 'intel.js', 'espionaje.js', 'mil2.js', 'doctrinas.js', 'plantillas.js', 'produccion.js', 'aviacion.js', 'marina.js', 'resistencia.js', 'suministros.js', 'convoyes.js', 'tactica.js', 'tactica2.js', 'tactica3.js', 'asedios.js', 'aspecto.js', 'campo.js', 'pueblos.js', 'terreno2.js', 'elev_data.js', 'relieve.js', 'realismo.js', 'campo2.js', 'mando.js', 'linea.js', 'ejercito.js', 'campo3.js', 'batalla2.js', 'batalla3.js', 'batalla4.js', 'batalla5.js', 'batalla6.js', 'mando2.js', 'pintura.js', 'inicio.js', 'musica.js', 'guardado.js', 'mariscales.js', 'ia_guerra.js', 'ia_operaciones.js', 'ia_v3.js', 'moral.js', 'resumenes.js', 'asesor.js', 'ofertas_paz.js', 'navalviz.js', 'graficos.js', 'agua.js', 'vegetacion.js', 'ciudades3d.js', 'rotulos.js', 'rendimiento.js', 'content.js', 'historia.js', 'escenarios.js', 'manual.js', 'workers.js', 'main.js']
 def cat(files): return '\n'.join(rd('src/' + f) for f in files)
 def h8(b): return hashlib.sha1(b if isinstance(b, bytes) else b.encode('utf-8')).hexdigest()[:8]
 SCEN_YEARS = [y for y in (1910,) if os.path.exists(os.path.join(root, 'escenarios', f'{y}.b64'))]
@@ -46,7 +46,7 @@ TITLE = 'Victoria — Una era de revolución (réplica web)'
 # ---------- 1) UN SOLO ARCHIVO ----------
 three_tag = '<script src="https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.min.js"></script>' if light else '<script>' + three.replace('</script>', '<\\/script>') + '</script>'
 boot_single = """<script>(function(){if(/nowasm/.test(location.search))window.__WK_OFF=1;var g=document.getElementById('game').textContent;function run(){var s=document.createElement('script');s.textContent=g;document.body.appendChild(s);}
-try{var w=document.getElementById('wasm64'),b=atob(w.textContent.trim()),u=new Uint8Array(b.length);for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i);if(!u.length)throw 0;WebAssembly.instantiate(u,{}).then(function(r){window.__WK_EX=r.instance.exports;run();},run);}catch(e){run();}})();</script>"""
+try{var w=document.getElementById('wasm64'),b=atob(w.textContent.trim()),u=new Uint8Array(b.length);for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i);if(!u.length)throw 0;WebAssembly.instantiate(u,{}).then(function(r){window.__WK_EX=r.instance.exports;window.__WK_MOD=r.module;run();},run);}catch(e){run();}})();</script>"""
 html = f'''<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -97,7 +97,7 @@ if not light and '--only-single' not in sys.argv:
   } catch (e) { await load('js/datos-b64.js?v=' + V['js/datos-b64.js']); elev = b64(window.__B64.elev); wasm = b64(window.__B64.wasm); scen = window.__B64.scen; }
   var dv = new DataView(elev.buffer, elev.byteOffset), w = dv.getUint32(0, true), h = dv.getUint32(4, true), n = w * h;
   window.__ELEV = {w: w, h: h, m: elev.subarray(8, 8 + n), r: elev.subarray(8 + n, 8 + 2 * n)}; window.__SCEN = scen;
-  try { if (wasm.length) window.__WK_EX = (await WebAssembly.instantiate(wasm, {})).instance.exports; } catch (e) { console.warn('WebAssembly no disponible; se usa JS', e); }
+  try { if (wasm.length) var wi = await WebAssembly.instantiate(wasm, {}); window.__WK_EX = wi.instance.exports; window.__WK_MOD = wi.module; } catch (e) { console.warn('WebAssembly no disponible; se usa JS', e); }
   await load('js/three.min.js?v=' + V['js/three.min.js']); await load('js/game.js?v=' + V['js/game.js']);
 })();
 """ % json.dumps(files)

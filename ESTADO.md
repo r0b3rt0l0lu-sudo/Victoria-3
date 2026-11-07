@@ -196,3 +196,9 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - **Arreglo de solape:** el panel de estado/ejército no tapa ya el menú inferior (la altura máxima se multiplicaba por el zoom de la interfaz `--wz`; ahora se divide). Comprobado en 1100×680, 1500×860 y 1900×1000: siempre queda ~30 px sobre el menú.
 - **Ventanas:** al abrir una, el mapa se atenúa, los paneles laterales se apartan (`body.win-open`) y vuelven al cerrar; se oculta el tooltip pendiente. Entrada animada con las propiedades `translate`/`scale` (no pisan el centrado de la ventana).
 - **Pulido general (final de `style.css`):** cifras tabulares, barras de desplazamiento finas y doradas, anillo de foco visible con teclado, respuesta al pulsar los botones, sombras con profundidad y respeto a `prefers-reduced-motion`.
+
+## Web Worker (arranque)
+- `src/workers.js`: `buildMap()` + `initGame('GBR')` se ejecutan en un Worker (mismo código del juego, DOM simulado, OffscreenCanvas) y devuelven MAP (transferido) y G (clonado). La página sigue respondiendo durante la carga (283 vs 46 fotogramas; mayor bloqueo 0,5 s vs 2,4 s); el tiempo total es similar.
+- Respaldo automático al camino síncrono si no hay Worker/OffscreenCanvas, falla, o pasan 60 s. Desactivar: `?sinworker`.
+- La simulación diaria sigue en el hilo principal (comparte G con la interfaz).
+- Verificado: MAP idéntico byte a byte; tras 365 días el PIB total coincide con el camino síncrono (0,01 %).

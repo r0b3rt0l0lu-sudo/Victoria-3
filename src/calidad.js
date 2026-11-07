@@ -70,6 +70,7 @@ function perfOpen() {
   p = document.createElement('div'); p.id = 'perfpanel'; p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', 'Rendimiento y calidad'); document.body.appendChild(p);
   const draw = () => { p.innerHTML = perfPanelHtml(); perfBind(p); perfLive(); };
   p._draw = draw; draw();
+  const cc = document.getElementById('camctl'); if (cc && innerWidth > 640) { const r = cc.getBoundingClientRect(); p.style.right = Math.max(8, innerWidth - r.left + 8) + 'px'; }      // a la izquierda de los controles de cámara
   clearInterval(_pfTimer); _pfTimer = setInterval(() => { if (!document.getElementById('perfpanel')) { clearInterval(_pfTimer); return; } perfLive(); }, 500);
 }
 function perfLive() { const e = document.getElementById('pf-stats'); if (e) e.innerHTML = perfStatsHtml(); }

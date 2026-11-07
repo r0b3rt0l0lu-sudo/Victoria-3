@@ -206,3 +206,7 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 ## Ranuras de guardado
 - `src/ranuras.js`: «Automático» (el de siempre, con copia anterior) + 5 ranuras manuales (`SAVE_KEY-slotN`, comprimidas, con metadatos). 💾/📂 abren el gestor (guardar, cargar, borrar, exportar/importar); en la pantalla inicial, «Partidas guardadas…». «Continuar» retoma la más reciente de todas.
 - Arreglo del worker: tras recibir G se llama a `tplRegisterAll()` (las plantillas de división viven en la tabla `DIVS` del módulo, que no viaja con G). Sin esto la IA fallaba al reclutar. Verificado: 730 días sin errores con worker.
+
+## Ejército: auditoría de solapamientos (90 vistas × 5 tamaños)
+- Reclutamiento: tabla con desplazamiento propio (`.tblx`) y columnas apiladas (`.cols.stack`); Doctrinas e Inteligencia: descripciones en su propia línea. Resultado: 0 problemas.
+- Prueba de jugabilidad con clics reales (empezar, avanzar, 14 pestañas de Ejército, reclutar, mover, guerra, batalla 20 s, guardar/cargar ranura, simular 1 año): sin errores de página.

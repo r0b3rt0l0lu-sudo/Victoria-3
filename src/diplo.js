@@ -154,26 +154,28 @@ function declareWar(attTag, defTag, cbId, targets, opts) {
 
 function recruitSides(w) {
   const A = G.C[w.att], D = G.C[w.def];
-  const tryJoin = (tag, side, p) => {
+  const tryJoin = (tag, side, p, kind, lead) => {
     if (!alive(tag) || w.attAll.includes(tag) || w.defAll.includes(tag)) return;
     if (G.C[tag].wars.length >= 2) return;
     if (side === 'att' && w.defAll.some(x => anyPactBetween(tag, x, ['alliance', 'nonagg']))) return;
     if (side === 'def' && w.attAll.some(x => anyPactBetween(tag, x, ['alliance']))) return;
     const C = G.C[tag];
     if (C.ai && tag !== G.player && typeof canReach === 'function' && !canReach(tag, side === 'att' ? w.def : w.att) && !canReach(side === 'att' ? w.def : w.att, tag)) p *= 0.35;       // los aliados lejanos e inalcanzables rara vez entran
+    if (kind && typeof joinWill === 'function') p = joinWill(tag, lead, side, w, kind, p);          // diplo2.js: fuerza, odds, honor y reclamaciones propias
     if (Math.random() < p || (!C.ai)) {
+      if (kind && typeof honorKept === 'function') honorKept(tag, lead, side, w, kind);
       (side === 'att' ? w.attAll : w.defAll).push(tag); C.wars.push(w.id);
       if (tag === G.player) notify('war', `Tu país entra en la guerra del lado de ${side === 'att' ? A.name : D.name}.`);
       else logMsg(`${C.name} se une a la guerra del lado de ${side === 'att' ? A.name : D.name}.`);
-    }
+    } else if (kind && typeof honorBroken === 'function') honorBroken(tag, lead, side, w, kind);
   };
   const callers = (lead, side) => {
-    allies(lead).forEach(t => tryJoin(t, side, side === 'def' ? 0.88 : 0.7 + relOf(lead, t) / 300));
+    allies(lead).forEach(t => tryJoin(t, side, side === 'def' ? 0.88 : 0.7 + relOf(lead, t) / 300, 'alliance', lead));
     const b = blocOf(lead);
-    if (b && b.type === 'military') b.members.forEach(t => t !== lead && tryJoin(t, side, 0.75));
+    if (b && b.type === 'military') b.members.forEach(t => t !== lead && tryJoin(t, side, 0.75, 'bloc', lead));
     if (b && b.type === 'military' && b.leader === lead) {}
-    if (side === 'def') guaranteedBy(lead).forEach(t => tryJoin(t, 'def', 0.7));
-    G.C[lead].subjects?.forEach(t => tryJoin(t, side, 1));
+    if (side === 'def') guaranteedBy(lead).forEach(t => tryJoin(t, 'def', 0.7, 'guarantee', lead));
+    G.C[lead].subjects?.forEach(t => tryJoin(t, side, 1, 'subject', lead));
   };
   callers(w.att, 'att'); callers(w.def, 'def');
   // el líder de un bloque militar es arrastrado por sus miembros

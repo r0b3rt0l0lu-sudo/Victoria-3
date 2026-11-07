@@ -102,6 +102,7 @@ function buildHud() {
     <button class="rbtn" data-act="search" data-tip="<b>Buscar</b><br>País, estado o ciudad. <small>Ctrl+K o /</small>">🔍</button>
     <button class="rbtn" data-act="win" data-w="achievements" data-tip="<b>Logros</b><br>Metas que desbloquean prestigio.">🏅</button>
     <button class="rbtn" data-act="save" data-tip="<b>Guardar partida</b>">💾</button>
+    <button class="rbtn" data-act="exportsave" data-tip="<b>Exportar partida</b><br>Descarga un archivo .sav (copia fuera del navegador).">📤</button><button class="rbtn" data-act="importsave" data-tip="<b>Importar partida</b><br>Carga un archivo .sav exportado.">📥</button>
     <button class="rbtn" data-act="load" data-tip="<b>Cargar partida</b>">📂</button>
     <button class="rbtn" data-act="win" data-w="journal" data-tip="<b>Diario</b><br>Objetivos y registro de sucesos.">📜</button>
     <button class="rbtn" data-act="win" data-w="manual" data-tip="<b>Manual</b><br>Guía de todos los sistemas. <small>F1</small>">📖</button>
@@ -439,7 +440,7 @@ WINDOWS.diplomacy = {title: 'Diplomacia', icon: '🤝', render() {
      <div class="kv"><span>Rango · Prestigio</span><b>#${o.rank} · ${Math.round(o.prestige)}</b></div><div class="kv"><span>Población · Ejército</span><b>${fmtN(o.stats.pop, 1)} · ${fmtN(o.stats.soldiers, 1)}</b></div>
      <div class="kv"><span>Estados · Infamia</span><b>${o.states.length} · ${Math.round(o.infamy)}</b></div>
      ${o.bloc ? `<div class="kv"><span>Bloque</span><b style="color:${blocOf(sel).color}">${blocOf(sel).name}</b></div>` : ''}${o.overlord ? `<div class="kv"><span>Soberano</span><b>${G.C[o.overlord].name}</b></div>` : ''}
-     ${sel !== G.player ? `<div class="kv"><span>Relaciones</span><b>${sgn(rel, 0)}</b></div>${bar(rel + 100, 200, rel < 0 ? 'bad' : 'good')}` : ''}
+     ${sel !== G.player ? `<div class="kv" data-tip="<b>Opinión de ${o.name} hacia ti</b><br>${typeof relFactors === 'function' ? relFactors(sel, G.player).map(x => x[0] + ': <b>' + sgn(x[1], 0) + '</b>').join('<br>') || 'Sin factores estructurales' : ''}<br><br>La relación deriva poco a poco hacia la tendencia (${typeof relTarget === 'function' ? sgn(relTarget(sel, G.player), 0) : '—'})."><span>Relaciones</span><b>${sgn(rel, 0)}</b></div>${bar(rel + 100, 200, rel < 0 ? 'bad' : 'good')}${typeof honorOf === 'function' ? `<div class="kv" data-tip="<b>Credibilidad</b><br>Cumplir alianzas y garantías la sube; romperlas o no acudir a una defensa la baja. Afecta a si aceptan tus pactos y a si tus aliados acuden."><span>Credibilidad de sus tratados</span><b>${Math.round(honorOf(o))}</b></div>${grudgeOf(sel, G.player) > 5 ? `<div class="kv"><span>Rencor hacia ti</span><b class="bad">${Math.round(grudgeOf(sel, G.player))}</b></div>` : ''}` : ''}` : ''}
      ${myPacts.length ? `<div class="chips2">${myPacts.map(p => `<span class="tag">${pactLabel(p)}</span>`).join('')}</div>` : ''}
      ${actions}</div></div></div>`;
   } else if (t === 'pacts') {
@@ -850,7 +851,7 @@ const ACT = {
   animtoggle: () => { R.anim = !R.anim; if (R.waterMesh) { R.waterMesh.visible = R.anim; R.cloudMesh.visible = R.anim; } R.renderMs = 10; R.dirty = true; syncCamBtns(); toast('≈', R.anim ? 'Animaciones del mapa activadas.' : 'Animaciones desactivadas (más fluidez).'); },
   quality: () => { const q = ['bajo', 'medio', 'alto']; const nq = q[(q.indexOf(R.quality || 'medio') + 1) % 3]; R.qualityManual = true; R.resScale = 1; applyQuality(nq, 'Calidad gráfica: ' + nq + (nq === 'bajo' ? ' (más fluidez).' : nq === 'alto' ? ' (más detalle).' : '.')); saveMapPrefs(); },
   edgescroll: () => { R.edgeScroll = !R.edgeScroll; saveMapPrefs(); syncCamBtns(); toast('⇱', R.edgeScroll ? 'Desplazamiento por los bordes activado.' : 'Desplazamiento por los bordes desactivado.'); },
-  gomenu: () => { if (confirm('¿Volver al menú principal?\n\nLa partida se guardará automáticamente (puedes retomarla con «Continuar»).')) { try { doSave(true); } catch (e) {} location.reload(); } },
+  gomenu: () => { if (confirm('¿Volver al menú principal?\n\nLa partida se guardará automáticamente (puedes retomarla con «Continuar»).')) { Promise.resolve(doSave(true)).then(() => location.reload(), () => location.reload()); } },
   save: () => doSave(),
   load: () => doLoad(),
   cont: () => doLoad(true),

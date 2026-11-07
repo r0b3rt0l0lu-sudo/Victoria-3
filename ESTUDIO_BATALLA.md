@@ -45,6 +45,16 @@ Complementa `ESTUDIO_LINEA.md`. Fuentes: reglas de wargames napoleónicos (Lexne
 25. **Mariscal.** Cada ejército tiene su mariscal tras la línea (nombre del general del ejército). Si cae (caballería encima, melé, cañoneo): −12 % de moral al ejército (−20 % cerca), −3 % de ataque, órdenes ×2,4 más lentas y mensajeros en ruta perdidos; a los 25 s asume un sucesor (órdenes ×1,3 más lentas el resto de la batalla).
 26. **Humo.** El humo de pólvora acumulado a lo largo de la línea de visión (más allá de 110 px) tapa al enemigo en la niebla de guerra y baja hasta un 35 % la cadencia de quien dispara a través de él; el viento lo desplaza.
 
+## Calibración (sesión de diplomacia y guardado)
+Arnés: simulación acelerada de batallas completas (6+5+5 batallas, escenarios variados) midiendo munición, visión, pánico, enfilada y anclaje. Hallazgos:
+- **Las batallas son cortas en tiempo de visor:** 1 día ≈ 1,8 s de visor, así que una batalla de 3-14 días dura 5-25 s. La munición original (0,0016 por salva) casi no se tocaba (mín. 0,9). Ahora **0,02 por salva** (infantería) y **0,15 por disparo** (artillería): tras ~10 días de combate sostenido los regimientos más activos quedan al 20-60 % y las baterías al 40-75 %, y los carros las reponen.
+- **Niebla:** alcance base 340 → **280 px** (lluvia/nieve 210, niebla 150). Con las líneas a ~150 px de distancia la visibilidad sigue siendo casi total en campo abierto; la niebla pesa en la aproximación, en alturas con línea de visión cortada y en los flancos. Visibilidad media medida: 0,25-1,0.
+- **Pánico de cuerpo:** umbral 0,40 → **0,34** de amenaza y probabilidad ×1,4. En batallas simétricas de IA sigue siendo raro (0-1 por batalla); aparece cuando hay flanqueo real.
+- **Pánico de regimiento** (código anterior): 0-20 por batalla con y sin los sistemas nuevos (interruptor `window.__NO_BATTLE_EXT`): no lo han disparado los sistemas nuevos.
+- **Anclaje:** 5-30 % de los regimientos anclados de media. **Enfilada:** 0-0,9 regimientos enfilados por muestra. **Sin mando:** 5-20 %.
+- Mensajeros y mariscal: sin eventos en estas batallas (la IA no usa mensajeros y el mariscal rara vez corre peligro), lo que concuerda con lo deseado (muerte de mariscal rara).
+- Pendiente de calibrar con partidas jugadas: riesgo del mariscal, interceptación de mensajeros y alcance de visión en bosque.
+
 ## Pendiente / ideas (no implementadas)
 - Munición limitada de artillería y carros de munición visibles.
 - Cuadro con transición real (animación de formación).

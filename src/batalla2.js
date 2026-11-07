@@ -61,9 +61,9 @@ function bvCorpsPanic(V, b, all, step) {
     const ls = (c.blks || []).filter(k => k.role === 'line' && k.type !== 'art' && !k.garr && k.mode !== 'rout' && !k.d.out); if (ls.length < 2 || V.t < (c.panicUntil || 0)) return;
     if (buffOn(V, c.side, 'endure') || buffOn(V, c.side, 'inspire')) return;
     const fl = ls.filter(k => V.t - (k.flanked || -99) < 4 && !k.anc).length, ex = ls.filter(k => k.expo && !k.anc).length, rear = ls.filter(k => V.t - (k.flanked || -99) < 4 && k.foe && Math.abs(bvAng(k.hd, Math.atan2(k.foe.y - k.y, k.foe.x - k.x))) > 1.9).length;
-    const score = (fl + 0.7 * ex + 0.8 * rear) / ls.length; c.threat = score; if (score < 0.4) return;
+    const score = (fl + 0.7 * ex + 0.8 * rear) / ls.length; c.threat = score; if (score < 0.34) return;
     const mm = ls.reduce((n, k) => n + (k.mm === undefined ? 0.8 : k.mm), 0) / ls.length, org = ls.reduce((n, k) => n + k.d.o / DIVS[k.d.t].org, 0) / ls.length, cm = V.cmd && V.cmd[c.id], lead = cm && cm.alive ? 0.7 : 1.15;
-    const p = clamp((score - 0.3) * (0.5 + 0.9 * (1 - mm) + 0.5 * (1 - org)) * 0.16 * lead, 0, 0.5) * step;
+    const p = clamp((score - 0.3) * (0.5 + 0.9 * (1 - mm) + 0.5 * (1 - org)) * 0.22 * lead, 0, 0.5) * step;
     if (Math.random() >= p) return;
     c.panicUntil = V.t + 30; const cn = G.C[c.tag].name;
     ls.forEach(k => { if (k.type === 'tank') return; k.mm = Math.min(k.mm === undefined ? 0.8 : k.mm, 0.14); k.brk = Math.max(k.brk || 0, 5 + Math.random() * 4); k.d.o = Math.max(0, k.d.o - DIVS[k.d.t].org * 0.14); k.fat = Math.min(1, (k.fat || 0) + 0.25); k.figs.forEach(f => { if (f.alive && !f.flee && Math.random() < 0.55) bvFlee(V, k, f, 1.2); }); });
@@ -75,7 +75,7 @@ function bvCorpsPanic(V, b, all, step) {
 }
 const _tacThinkB = tacThink;
 tacThink = function (V, b, all, dt) {
-  const run = !(V.over || b.prep || b.ended || V.replay || dt <= 0); _tacThinkB(V, b, all, dt);
+  const run = !(V.over || b.prep || b.ended || V.replay || dt <= 0); _tacThinkB(V, b, all, dt); if (window.__NO_BATTLE_EXT) return;
   if (!run) return; V._bt = (V._bt || 0) + dt; if (V._bt < 1) return; const step = V._bt; V._bt = 0;
   tacFortSiege(V, b, all, step); bvCorpsPanic(V, b, all, step);
 };
@@ -120,7 +120,7 @@ function bvSquares(V, b, all, step) {
 }
 const _tacThinkC2 = tacThink;
 tacThink = function (V, b, all, dt) {
-  _tacThinkC2(V, b, all, dt); if (V.over || b.prep || b.ended || V.replay || dt <= 0) return; V._ct = (V._ct || 0) + dt; if (V._ct < 1) return; const step = V._ct; V._ct = 0;
+  _tacThinkC2(V, b, all, dt); if (window.__NO_BATTLE_EXT) return; if (V.over || b.prep || b.ended || V.replay || dt <= 0) return; V._ct = (V._ct || 0) + dt; if (V._ct < 1) return; const step = V._ct; V._ct = 0;
   bvCommandRange(V, b, all, step); bvSquares(V, b, all, step);
 };
 const _bvStepBlockC2 = bvStepBlock;

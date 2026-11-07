@@ -81,7 +81,7 @@ bvFire = function (V, b, blk, dt, foes) { if (blk.type === 'inf' && blk.foe) { c
 /* ---------- bucle y dibujo ---------- */
 const _tacThinkB6 = tacThink;
 tacThink = function (V, b, all, dt) {
-  _tacThinkB6(V, b, all, dt); if (V.over || b.prep || b.ended || V.replay || dt <= 0) return;
+  _tacThinkB6(V, b, all, dt); if (window.__NO_BATTLE_EXT) return; if (V.over || b.prep || b.ended || V.replay || dt <= 0) return;
   bvMarStep(V, b, all, dt); bvCouriersStep(V, b, all, dt); V._b6 = (V._b6 || 0) + dt; if (V._b6 >= 1) { V._b6 = 0; bvFreshStep(V, b, all); }
 };
 const _bvCorpsFlagsB6 = bvCorpsFlags;

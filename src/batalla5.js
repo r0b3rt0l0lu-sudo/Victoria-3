@@ -60,7 +60,7 @@ tacPlanFx = function (V, b, all) {
 };
 ACT.scrtoggle = d => { const b = G.battles.find(x => x.id === UI.battle); if (!b || b.ended) return; b.scrOff = b.scrOff || {}; if (b.scrOff[d.c]) delete b.scrOff[d.c]; else b.scrOff[d.c] = true; renderBattlePanel(); };
 /* ---------- artillería: munición, carros y proyectiles ---------- */
-const SH_COST = {ball: 0.035, shell: 0.05, shrap: 0.045, canister: 0.03};
+const SH_COST = {ball: 0.15, shell: 0.19, shrap: 0.17, canister: 0.11};       // calibrado: ~7 disparos vacían la batería en una batalla larga; los carros la reponen
 const SH_NAME = {ball: 'bala maciza', shell: 'granada', shrap: 'metralla', canister: 'bote'};
 function bvShellType(b, blk, t) {
   const d = Math.hypot(t.x - blk.x, t.y - blk.y), y = G.date.y;
@@ -89,7 +89,7 @@ function bvArtRestock(V, b, all, step) {
 /* ---------- bucle, dibujo y panel ---------- */
 const _tacThinkB5 = tacThink;
 tacThink = function (V, b, all, dt) {
-  _tacThinkB5(V, b, all, dt); if (V.over || b.prep || b.ended || V.replay || dt <= 0) return; V._b5 = (V._b5 || 0) + dt; if (V._b5 < 1) return; const step = V._b5; V._b5 = 0;
+  _tacThinkB5(V, b, all, dt); if (window.__NO_BATTLE_EXT) return; if (V.over || b.prep || b.ended || V.replay || dt <= 0) return; V._b5 = (V._b5 || 0) + dt; if (V._b5 < 1) return; const step = V._b5; V._b5 = 0;
   bvQualStep(V, b, all, step); tacEnfilade(V, b, all, step); bvScreens(V, b, all, step); bvArtRestock(V, b, all, step);
 };
 // el ammo de infantería sube con la mala calidad

@@ -5,7 +5,7 @@
    · NIEBLA: del enemigo solo ves lo que alcanzan a ver tus regimientos (menos con lluvia/niebla; más desde una altura); lo ya visto queda como un «?».
    · OBJETIVOS: cada tipo de pueblo tiene puntos que valen (puente, altura, bosques, vado, villa…); controlarlos da bonos y moral. */
 /* ---------- munición y fatiga ---------- */
-const AMMO_PER_SHOT = 0.0016, AMMO_LOW = 0.25;
+const AMMO_PER_SHOT = 0.02, AMMO_LOW = 0.25;       // calibrado: ~50 salvas con contacto (≈ una batalla larga de ~10 días) vacían el cartucheo; se repone en reserva/retaguardia
 const _bvFireB3 = bvFire;
 bvFire = function (V, b, blk, dt, foes) {
   if (blk.type === 'inf' || blk.type === 'cav') {
@@ -50,7 +50,7 @@ endBattle = function (b, winner) {
   _endBattleB3(b, winner);
 };
 /* ---------- niebla de guerra ---------- */
-function bvSightRange(V, b) { const k = battleWeather(b).k; return k === 'fog' ? 190 : k === 'rain' || k === 'snow' ? 270 : 340; }
+function bvSightRange(V, b) { const k = battleWeather(b).k; return k === 'fog' ? 150 : k === 'rain' || k === 'snow' ? 210 : 280; }
 function bvFogOn(V, b) { return !!(V && b && !V.replay && !V.over && !b.prep && !b.ended && playerSide(b)); }
 function bvFogUpdate(V, b, all) {
   V._fogT = (V._fogT || 0) + 1; if (V._fogT % 12 !== 1 && V.seen) return; const ps = playerSide(b), tf = V.tf, R0 = bvSightRange(V, b), seen = new Set(), mine = all.filter(k => k.side === ps && k.mode !== 'rout');
@@ -99,7 +99,7 @@ tacPlanFx = function (V, b, all) {
 };
 const _tacThinkB3 = tacThink;
 tacThink = function (V, b, all, dt) {
-  _tacThinkB3(V, b, all, dt); if (bvFogOn(V, b)) bvFogUpdate(V, b, all); if (V.over || b.prep || b.ended || V.replay || dt <= 0) return; V._b3 = (V._b3 || 0) + dt; if (V._b3 < 1) return; const step = V._b3; V._b3 = 0; bvAmmoStep(V, b, all, step); bvObjectives(V, b, all, step);
+  _tacThinkB3(V, b, all, dt); if (window.__NO_BATTLE_EXT) return; if (bvFogOn(V, b)) bvFogUpdate(V, b, all); if (V.over || b.prep || b.ended || V.replay || dt <= 0) return; V._b3 = (V._b3 || 0) + dt; if (V._b3 < 1) return; const step = V._b3; V._b3 = 0; bvAmmoStep(V, b, all, step); bvObjectives(V, b, all, step);
 };
 // marcadores de los objetivos en el campo
 const _bvCorpsFlagsB3b = bvCorpsFlags;

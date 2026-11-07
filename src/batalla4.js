@@ -67,7 +67,7 @@ function bvAnchorAi(V, b, all, s) {
 }
 const _tacThinkB4 = tacThink;
 tacThink = function (V, b, all, dt) {
-  _tacThinkB4(V, b, all, dt); if (V.over || b.prep || b.ended || V.replay || dt <= 0) return; V._b4 = (V._b4 || 0) + dt; if (V._b4 < 1) return; const step = V._b4; V._b4 = 0;
+  _tacThinkB4(V, b, all, dt); if (window.__NO_BATTLE_EXT) return; if (V.over || b.prep || b.ended || V.replay || dt <= 0) return; V._b4 = (V._b4 || 0) + dt; if (V._b4 < 1) return; const step = V._b4; V._b4 = 0;
   bvAnchorMark(V, b, all);
   all.forEach(k => { if (k.anc && k.mm !== undefined && k.mode !== 'rout') k.mm = Math.min(1, k.mm + 0.008 * ANCHOR_KIND_W[k.anc.kind] * step); });          // quien se apoya en un ancla se siente seguro
   const ps = playerSide(b); ['A', 'B'].forEach(s => { if (s !== ps) bvAnchorAi(V, b, all, s); });

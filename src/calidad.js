@@ -59,7 +59,7 @@ function perfPanelHtml() {
 }
 function perfStatsHtml() {
   const p = perfStats(), row = (l, v, c) => `<div class="pf-kv"><span>${l}</span><b class="${c || ''}">${v}</b></div>`, f = p.fps;
-  return row('Fotogramas', Math.round(f) + ' / s', f >= 50 ? 'ok' : f >= 28 ? 'mid' : 'bad') + row('Dibujados', Math.round(p.dfps) + ' / s') + row('Tiempo por fotograma', `${p.ft.toFixed(1)} ms · peor 5 %: ${p.p95.toFixed(0)} ms`, p.p95 > 50 ? 'bad' : p.p95 > 28 ? 'mid' : 'ok')
+  return row('Fotogramas', Math.round(f) + ' / s', f >= 50 ? 'ok' : f >= 28 ? 'mid' : 'bad') + row('Dibujados (solo si la imagen cambia)', Math.round(p.dfps) + ' / s') + row('Tiempo por fotograma', `${p.ft.toFixed(1)} ms · peor 5 %: ${p.p95.toFixed(0)} ms`, p.p95 > 50 ? 'bad' : p.p95 > 28 ? 'mid' : 'ok')
     + row('Dibujado (CPU)', (R.renderMs || 0).toFixed(1) + ' ms') + row('GPU (estimado)', R.gpuMs ? R.gpuMs.toFixed(1) + ' ms' : '—') + row('Simulación por día', `${PERF.simMs.toFixed(1)} ms · máx ${PERF.simMax.toFixed(0)} ms`, PERF.simMs > 25 ? 'bad' : PERF.simMs > 10 ? 'mid' : 'ok')
     + row('Fotogramas lentos (>50 ms)', PERF.slow) + (p.mem ? row('Memoria JS', Math.round(p.mem) + ' MB', p.mem > 900 ? 'bad' : p.mem > 500 ? 'mid' : '') : '') + row('Resolución · calidad', Math.round((R.resScale || 1) * 100) + ' % · ' + (R.quality || '—'));
 }
@@ -111,7 +111,7 @@ if (PERF.show) setTimeout(perfBoxUpdate, 500);
 // acceso desde el panel ☀ (gráficos del mapa)
 if (typeof gfxPanelHtml === 'function') { const _gh = gfxPanelHtml; gfxPanelHtml = function () { return _gh().replace(/(<p class="gfx-note">)/, '<button class="gfx-perf" data-act="perfpanel">📊 Rendimiento y contador…</button>$1'); }; }
 const _perfCss = document.createElement('style'); _perfCss.textContent = `
-#perfpanel{position:fixed;right:64px;bottom:90px;width:300px;max-height:calc(100vh - 110px);overflow-y:auto;z-index:121;padding:10px 12px 10px;border-radius:10px;border:1px solid rgba(201,166,87,.5);background:rgba(12,17,23,.96);box-shadow:0 8px 30px rgba(0,0,0,.55);color:var(--text);font-size:12.5px}
+#perfpanel{position:fixed;right:64px;bottom:196px;width:300px;max-height:calc(100vh - 290px);min-height:220px;overflow-y:auto;z-index:121;padding:10px 12px 10px;border-radius:10px;border:1px solid rgba(201,166,87,.5);background:rgba(12,17,23,.96);box-shadow:0 8px 30px rgba(0,0,0,.55);color:var(--text);font-size:12.5px}
 #perfpanel .pf-h{font-family:var(--head);color:var(--gold2);font-size:14px;letter-spacing:.06em;display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
 #perfpanel .pf-h button{background:none;border:0;color:var(--dim);cursor:pointer;font-size:14px}
 #perfpanel .pf-row{display:flex;flex-direction:column;gap:4px;margin:8px 0}#perfpanel .pf-row b{color:var(--gold2);font-weight:600}
@@ -126,5 +126,6 @@ const _perfCss = document.createElement('style'); _perfCss.textContent = `
 #perfpanel .pf-note{margin:8px 0 0;color:var(--dim);font-size:11.5px;line-height:1.4}
 #perfbox{position:fixed;left:8px;bottom:74px;z-index:119;padding:2px 8px;border-radius:6px;background:rgba(8,12,16,.78);border:1px solid rgba(255,255,255,.15);font:600 11.5px/1.5 ui-monospace,Consolas,monospace;pointer-events:none;white-space:nowrap}
 #perfbox.ok{color:#8fd48f}#perfbox.mid{color:#e6c35c}#perfbox.bad{color:#ef7f6f}
-@media (max-width:640px){#perfpanel{right:8px;left:8px;width:auto;bottom:8px}}`;
+@media (max-width:1280px){#perfpanel{max-height:calc(100vh - 330px)}}
+@media (max-width:640px){#perfpanel{right:8px;left:8px;width:auto;bottom:8px;max-height:calc(100vh - 140px)}}`;
 document.head.appendChild(_perfCss);

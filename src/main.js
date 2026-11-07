@@ -1,6 +1,8 @@
 /* ===== ARRANQUE ===== */
 function setLoad(t) { const e = document.getElementById('loadtxt'); if (e) e.textContent = t; }
-window.addEventListener('load', () => {
+// el juego puede inyectarse DESPUÉS del evento load (se carga tras el WebAssembly y los datos): arrancar ya si la página está lista
+const startGameBoot = () => {
+  if (window.__booted) return; window.__booted = true;
   const steps = [
     ['Modelando el relieve del mundo…', () => buildMap()],
     ['Poblando los estados y calentando la economía…', () => initGame('GBR')],
@@ -17,4 +19,5 @@ window.addEventListener('load', () => {
     }, 60);
   };
   next();
-});
+};
+if (document.readyState === 'complete') startGameBoot(); else window.addEventListener('load', startGameBoot);

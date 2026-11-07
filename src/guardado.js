@@ -9,10 +9,14 @@ async function gzipB64(text) {
 async function gunzipB64(b64) { const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0)); return await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream('gzip'))).text(); }
 async function packSave(raw) { try { if (typeof CompressionStream !== 'undefined') return GZ_TAG + await gzipB64(raw); } catch (e) { console.warn('gzip', e); } return raw; }
 async function unpackSave(txt) { if (txt && txt.slice(0, GZ_TAG.length) === GZ_TAG) return await gunzipB64(txt.slice(GZ_TAG.length)); return txt; }
-async function writeSave(raw) {
+const SAVE_META = SAVE_KEY + '-meta';
+// datos de la partida para la tarjeta «Continuar» de la pantalla inicial (sin tener que descomprimirla)
+function writeSaveMeta(info, size) { try { localStorage.setItem(SAVE_META, JSON.stringify({tag: info.player, y: info.date.y, m: info.date.m, d: info.date.d, name: G.C && G.C[info.player] ? G.C[info.player].name : info.player, size, at: Date.now()})); } catch (e) { } }
+async function writeSave(raw, info) {
   const packed = await packSave(raw); let prev = null; try { prev = localStorage.getItem(SAVE_KEY); } catch (e) { }
   try { localStorage.setItem(SAVE_KEY, packed); } catch (e) { try { localStorage.removeItem(SAVE_PREV); localStorage.setItem(SAVE_KEY, packed); } catch (e2) { throw e2; } }       // sin sitio: se sacrifica la copia anterior
   if (prev && prev !== packed) { try { localStorage.setItem(SAVE_PREV, prev); } catch (e) { try { localStorage.removeItem(SAVE_PREV); } catch (e2) { } } }
+  try { writeSaveMeta(info || JSON.parse(raw), packed.length); } catch (e) { }
   return packed.length;
 }
 // lee la partida (o la copia anterior si la principal está dañada) y la devuelve como texto JSON
@@ -24,7 +28,7 @@ async function readSave() {
   return null;
 }
 doSave = async function (silent) {
-  try { const n = await writeSave(saveData()); if (!silent) toast('💾', `Partida guardada: ${dateStr()} (${Math.round(n / 1024)} KB)`); }
+  try { const n = await writeSave(saveData(), {player: G.player, date: {y: G.date.y, m: G.date.m, d: G.date.d}}); if (!silent) toast('💾', `Partida guardada: ${dateStr()} (${Math.round(n / 1024)} KB)`); }
   catch (e) { toast('⚠️', 'No se pudo guardar la partida (' + (e.name || 'error') + '). Libera espacio del navegador o exporta la partida.'); }
 };
 doLoad = async function (fromStart) {
@@ -48,7 +52,17 @@ async function exportSaveFile() {
 }
 function importSaveFile() {
   const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.sav,.txt,.json';
-  inp.onchange = async () => { const f = inp.files && inp.files[0]; if (!f) return; try { const raw = await unpackSave(await f.text()); if (raw.trimStart()[0] !== '{') throw new Error('formato'); await writeSave(raw); toast('📥', 'Partida importada. Pulsa «Continuar» o «Cargar».'); doLoad(); } catch (e) { toast('⚠️', 'El archivo no es una partida válida.'); } };
+  inp.onchange = async () => { const f = inp.files && inp.files[0]; if (!f) return; try { const raw = await unpackSave(await f.text()); if (raw.trimStart()[0] !== '{') throw new Error('formato'); await writeSave(raw, JSON.parse(raw)); toast('📥', 'Partida importada. Pulsa «Continuar» o «Cargar».'); doLoad(); } catch (e) { toast('⚠️', 'El archivo no es una partida válida.'); } };
   inp.click();
 }
 ACT.exportsave = () => exportSaveFile(); ACT.importsave = () => importSaveFile();
+
+// tarjeta de la pantalla inicial: qué partida se retomará
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+function saveCardHtml() {
+  if (!hasSave()) return '';
+  let m = null; try { m = JSON.parse(localStorage.getItem(SAVE_META) || 'null'); } catch (e) { }
+  const prev = (() => { try { return !!localStorage.getItem(SAVE_PREV); } catch (e) { return false; } })();
+  const info = m ? `<b>${m.name}</b><small>${m.d} de ${MESES[m.m] || ''} de ${m.y} · ${Math.round((m.size || 0) / 1024)} KB${prev ? ' · con copia de seguridad' : ''}</small>` : '<b>Partida guardada</b><small>Retoma donde lo dejaste</small>';
+  return `<button class="st-save" data-act="cont" data-tip="Retoma tu última partida guardada"><span class="st-save-ic">📂</span><span class="st-save-t"><em>Continuar partida</em>${info}</span><span class="st-save-go">▶</span></button>`;
+}

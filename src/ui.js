@@ -842,9 +842,9 @@ const ACT = {
   goCrisis: () => { UI.winTab.prod = 'crisis'; UI.win = null; openWindow('production'); },
   goMail: () => { UI.winTab.dip = 'pacts'; UI.win = null; openWindow('diplomacy'); },
   msec: d => { UI.manualSec = d.id; renderWindow(true); },
-  rule: d => { G.rules = G.rules || defaultRules(); G.rules[d.k] = !rule(d.k); $$('#st-rules button').forEach(b => b.classList.toggle('on', !!rule(b.dataset.k))); },
-  aggr: d => { G.rules = G.rules || defaultRules(); G.rules.aggr = +d.n; $$('#st-aggr button').forEach(b => b.classList.toggle('on', +b.dataset.n === rule('aggr'))); },
-  diff: d => { G.diff = +d.n; $$('#st-diff button').forEach(b => b.classList.toggle('on', b.dataset.n === d.n)); },
+  rule: d => { G.rules = G.rules || defaultRules(); G.rules[d.k] = !rule(d.k); $$('#st-rules button').forEach(b => b.classList.toggle('on', !!rule(b.dataset.k)));  stOptSummary(); },
+  aggr: d => { G.rules = G.rules || defaultRules(); G.rules.aggr = +d.n; $$('#st-aggr button').forEach(b => b.classList.toggle('on', +b.dataset.n === rule('aggr')));  stOptSummary(); },
+  diff: d => { G.diff = +d.n; $$('#st-diff button').forEach(b => b.classList.toggle('on', b.dataset.n === d.n));  stOptSummary(); },
   zin: () => camZoom(0.7), zout: () => camZoom(1.4), camhome: () => camHome(),
   rotl: () => camRotate(0.3), rotr: () => camRotate(-0.3), tiltu: () => camTilt(0.15), tiltd: () => camTilt(-0.15),
   wheelmode: () => { R.wheelMode = R.wheelMode === 'zoom' ? 'pan' : 'zoom'; saveMapPrefs(); syncCamBtns(); toast('🖱️', R.wheelMode === 'zoom' ? 'La rueda del ratón o del panel táctil hace zoom.' : 'La rueda o el panel táctil desplaza el mapa (pellizca para hacer zoom).'); },
@@ -856,6 +856,8 @@ const ACT = {
   load: () => doLoad(),
   cont: () => doLoad(true),
   pickc: d => selectStartCountry(d.tag),
+  stopts: () => { UI.stOpts = !UI.stOpts; const o = document.querySelector('.st-opts'), h = document.querySelector('.st-opt-h'); if (o) o.classList.toggle('open', !!UI.stOpts); if (h) { h.setAttribute('aria-expanded', UI.stOpts ? 'true' : 'false'); const ic = h.querySelector('i'); if (ic) ic.textContent = UI.stOpts ? '▾' : '▸'; } },
+  stfilter: d => { $$('#st-filters button').forEach(b => b.classList.toggle('on', b.dataset.f === d.f)); stApplyFilter(); },
   filterc: () => {},
   selarmy: d => { selectArmy(+d.id); const a = armyById(+d.id); if (a) focusProv(a.loc, 40); renderWindow(); },
   seltoken: (d, el, e) => { selectArmy(+d.id, e && (e.shiftKey || e.ctrlKey)); if (UI.win === 'military') renderWindow(); },
@@ -897,7 +899,7 @@ document.addEventListener('input', e => {
   const el = e.target;
   if (el.id === 'dipq') { UI.dipQ = el.value; const pos = el.selectionStart; renderWindow(true); const n = $('#dipq'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }
   else if (el.id === 'blocname') UI.blocName = el.value;
-  else if (el.id === 'stq') { const q = norm(el.value); $$('#st-list .st-card').forEach(c => { c.style.display = !q || norm(c.textContent).includes(q) ? '' : 'none'; }); }
+  else if (el.id === 'stq') stApplyFilter();
 });
 window.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && UI.started) { e.preventDefault(); openSearch(); return; }
@@ -960,31 +962,53 @@ const INTRO = {
 function buildStart() {
   const rest = G.rankList.filter(t => !START_PICKS.includes(t) && G.C[t].states.length);
   const picks = START_PICKS.filter(t => G.C[t] && G.C[t].states.length).concat(rest);
+  let last = null; try { last = localStorage.getItem('victoria-last-country'); } catch (e) { }
   $('#start').innerHTML = `
   <div class="st-inner">
     <div class="st-left">
       <button class="sndbtn st-snd" data-act="music" data-tip="<b>Música y sonido</b>">🎵</button><div class="st-logo"><small>UNA RÉPLICA DE FANS</small><h1>VICTORIA</h1><div class="orn"></div><h3>Una era de revolución</h3></div>
+      ${typeof saveCardHtml === 'function' ? saveCardHtml() : ''}
       ${typeof scenBarHtml === 'function' ? scenBarHtml() : ''}
-      <input id="stq" class="search" placeholder="🔍 Buscar país…" autocomplete="off">
-      <div class="st-list" id="st-list">${picks.map(t => { const c = G.C[t]; const d = difficulty(t); return `<div class="st-card" data-act="pickc" data-tag="${t}">${flag(t, 'md')}<div><b>${c.name}</b><small>${c.gov}</small></div><span class="diff ${d[1]}">${d[0]}</span></div>`; }).join('')}</div>
+      <input id="stq" class="search" placeholder="🔍 Buscar país…  (pulsa / para buscar)" autocomplete="off">
+      <div class="st-filters" id="st-filters"><button class="on" data-act="stfilter" data-f="all">Todos</button><button data-act="stfilter" data-f="easy">Fácil</button><button data-act="stfilter" data-f="mid">Media</button><button data-act="stfilter" data-f="hard">Difícil</button></div>
+      <div class="st-list" id="st-list">${picks.map(t => { const c = G.C[t]; const d = difficulty(t); return `<div class="st-card" data-act="pickc" data-tag="${t}" data-d="${d[1]}">${flag(t, 'md')}<div><b>${c.name}</b><small>${c.gov}</small></div><span class="diff ${d[1]}">${d[0]}</span></div>`; }).join('')}</div>
+      <small class="st-count" id="st-count">${picks.length} países</small>
     </div>
-    <div class="st-right" id="st-info"></div>
+    <div class="st-right"><div class="st-card2" id="st-info"></div></div>
   </div>`;
-  selectStartCountry(G.C.GBR && G.C.GBR.states.length ? 'GBR' : picks[0]);
+  selectStartCountry(last && G.C[last] && G.C[last].states.length ? last : (G.C.GBR && G.C.GBR.states.length ? 'GBR' : picks[0]));
   document.body.classList.add('starting');
+  const on = $('#st-list .st-card.on'); if (on && on.scrollIntoView) on.scrollIntoView({block: 'center'});
+}
+
+document.addEventListener('keydown', e => {
+  if (!document.body.classList.contains('starting') || UI.started) return; const t = e.target, typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA');
+  if (e.key === '/' && !typing) { e.preventDefault(); const q = document.getElementById('stq'); if (q) q.focus(); }
+  else if (e.key === 'Enter' && !(typing && t.id !== 'stq') && typeof startGame === 'function') { e.preventDefault(); startGame(); }
+  else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !(typing && t.id !== 'stq')) { const cs = [...document.querySelectorAll('#st-list .st-card')].filter(c => c.style.display !== 'none'), i = cs.findIndex(c => c.classList.contains('on')), n = cs[clamp((i < 0 ? 0 : i) + (e.key === 'ArrowDown' ? 1 : -1), 0, cs.length - 1)]; if (n) { e.preventDefault(); selectStartCountry(n.dataset.tag); n.scrollIntoView({block: 'nearest'}); } }
+});
+function stOptSummary() { const e = document.getElementById('st-optsum'); if (e) e.textContent = ['Relajada', 'Normal', 'Difícil', 'Brutal'][(G.diff || 2) - 1] + ' · ' + RULE_DEFS.filter(r => rule(r.k)).length + ' reglas · IA ' + (['pacífica', 'normal', 'belicosa'][rule('aggr')] || 'normal'); }
+function stApplyFilter() {
+  const q = norm(($('#stq') || {}).value || ''), f = ((document.querySelector('#st-filters button.on') || {}).dataset || {}).f || 'all'; let n = 0;
+  $$('#st-list .st-card').forEach(c => { const dd = c.dataset.d || '', okF = f === 'all' || (f === 'easy' && /easy|good/.test(dd)) || (f === 'mid' && /warn/.test(dd)) || (f === 'hard' && /hard|bad/.test(dd)), okQ = !q || norm(c.textContent).includes(q); c.style.display = okF && okQ ? '' : 'none'; if (okF && okQ) n++; });
+  const e = $('#st-count'); if (e) e.textContent = n + (n === 1 ? ' país' : ' países');
 }
 function selectStartCountry(tag) {
-  UI.startTag = tag;
+  UI.startTag = tag; try { localStorage.setItem('victoria-last-country', tag); } catch (e) { }
   const c = G.C[tag]; const d = difficulty(tag);
   $$('#st-list .st-card').forEach(e => e.classList.toggle('on', e.dataset.tag === tag));
-  $('#st-info').innerHTML = `<div class="st-crest">${flag(tag, 'huge')}</div><h2>${c.name}</h2><div class="st-gov">${c.gov} · Rango ${c.rank} · <span class="${d[1]}">${d[0]}</span></div>
+  const rulesOn = RULE_DEFS.filter(r => rule(r.k)).length, dn = ['Relajada', 'Normal', 'Difícil', 'Brutal'][(G.diff || 2) - 1], an = ['Pacífica', 'Normal', 'Belicosa'][rule('aggr')] || 'Normal';
+  $('#st-info').innerHTML = `<div class="st-head"><div class="st-crest">${flag(tag, 'huge')}</div><div><h2>${c.name}</h2><div class="st-gov">${c.gov} · Rango ${c.rank} · <span class="${d[1]}">${d[0]}</span></div></div></div>
    <p class="st-intro">${G.date.y === 1836 && INTRO[tag] ? INTRO[tag] : `Gobierna ${c.name} en el año ${G.date.y} y llévala hacia ${G.date.y < 1880 ? 'la era industrial' : 'el nuevo siglo'}.`}</p>
    <div class="traits st">${traitsHtml(c)}</div>
    <div class="st-stats"><div><small>Población</small><b>${fmtN(c.stats.pop, 1)}</b></div><div><small>Alfabetización</small><b>${Math.round(c.lit)}%</b></div><div><small>Estados</small><b>${c.states.length}</b></div><div><small>Ejército</small><b>${fmtN(c.stats.soldiers, 0)}</b></div></div>
-   <div class="st-diffrow"><small>Dificultad económica</small><div class="seg" id="st-diff">${[1, 2, 3, 4].map(n => `<button data-act="diff" data-n="${n}" class="${(G.diff || 2) === n ? 'on' : ''}" data-tip="${['Pocas crisis, costes bajos', 'Crisis ocasionales y costes realistas', 'Crisis frecuentes, intereses y costes altos', 'Crisis constantes: economía muy hostil'][n - 1]}">${DIFF[n].name}</button>`).join('')}</div></div>
+   <button class="st-opt-h" data-act="stopts" aria-expanded="${UI.stOpts ? 'true' : 'false'}"><span>⚙️ Opciones de la partida</span><small id="st-optsum">${dn} · ${rulesOn} reglas · IA ${an.toLowerCase()}</small><i>${UI.stOpts ? '▾' : '▸'}</i></button>
+   <div class="st-opts ${UI.stOpts ? 'open' : ''}">
+   <div class="st-diffrow"><small>Dificultad económica</small><div class="seg" id="st-diff">${[1, 2, 3, 4].map(n => `<button data-act="diff" data-n="${n}" class="${(G.diff || 2) === n ? 'on' : ''}" data-tip="${['Pocas crisis, costes bajos', 'Crisis ocasionales y costes realistas', 'Crisis frecuentes, intereses y costes altos', 'Casi todo sale mal: solo para veteranos'][n - 1]}">${['Relajada', 'Normal', 'Difícil', 'Brutal'][n - 1]}</button>`).join('')}</div></div>
    <div class="st-diffrow"><small>Reglas de la partida</small><div class="seg" id="st-rules">${RULE_DEFS.map(r => `<button data-act="rule" data-k="${r.k}" class="${rule(r.k) ? 'on' : ''}" data-tip="<b>${r.name}</b><br>${r.desc}">${r.name}</button>`).join('')}</div></div>
-   <div class="st-diffrow"><small>Agresividad de la IA</small><div class="seg" id="st-aggr">${[0, 1, 2].map(n => `<button data-act="aggr" data-n="${n}" class="${rule('aggr') === n ? 'on' : ''}" data-tip="${['Las potencias declaran menos guerras', 'Comportamiento estándar', 'Las potencias buscan la guerra con frecuencia'][n]}">${AGGR_NAMES[n]}</button>`).join('')}</div></div>
-   <button class="primary big" data-act="start">Comenzar partida</button>${hasSave() ? '<button class="cont" data-act="cont">📂 Continuar partida guardada</button>' : ''}`;
+   <div class="st-diffrow"><small>Agresividad de la IA</small><div class="seg" id="st-aggr">${[0, 1, 2].map(n => `<button data-act="aggr" data-n="${n}" class="${rule('aggr') === n ? 'on' : ''}" data-tip="${['Las potencias declaran menos guerras', 'Comportamiento estándar', 'Las potencias buscan la guerra con frecuencia'][n]}">${['Pacífica', 'Normal', 'Belicosa'][n]}</button>`).join('')}</div></div>
+   </div>
+   <div class="st-cta"><button class="primary big" data-act="start">Comenzar partida <small>${c.name} · ${G.date.y}</small></button>${hasSave() ? '<button class="cont" data-act="cont" data-tip="Retoma tu última partida guardada">📂 Continuar</button>' : ''}</div>`;
   const ci = c.capital >= 0 ? c.capital : c.states[0];
   if (ci !== undefined) focusState(ci, 70);
   // resalta el país en el mapa

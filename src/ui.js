@@ -1000,6 +1000,11 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'Enter' && !(typing && t.id !== 'stq') && typeof startGame === 'function') { e.preventDefault(); startGame(); }
   else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !(typing && t.id !== 'stq')) { const cs = [...document.querySelectorAll('#st-list .st-card')].filter(c => c.style.display !== 'none'), i = cs.findIndex(c => c.classList.contains('on')), n = cs[clamp((i < 0 ? 0 : i) + (e.key === 'ArrowDown' ? 1 : -1), 0, cs.length - 1)]; if (n) { e.preventDefault(); selectStartCountry(n.dataset.tag); n.scrollIntoView({block: 'nearest'}); } }
 });
+
+// la barra de fecha y el plano del país se colocan según el ancho/alto REAL de la fila de botones de la derecha (así nada se solapa al añadir botones o reducir la ventana)
+function trLayout() { const t = document.getElementById('topright'); if (!t) return; const r = t.getBoundingClientRect(), st = document.documentElement.style; st.setProperty('--trw', Math.ceil(r.width) + 'px'); st.setProperty('--trh', Math.ceil(r.height) + 'px'); }
+const _buildHudT = buildHud;
+buildHud = function () { const r = _buildHudT.apply(this, arguments); trLayout(); const t = document.getElementById('topright'); if (t && window.ResizeObserver && !window._trRO) { window._trRO = new ResizeObserver(trLayout); window._trRO.observe(t); } window.addEventListener('resize', trLayout); return r; };
 function stOptSummary() { const e = document.getElementById('st-optsum'); if (e) e.textContent = ['Relajada', 'Normal', 'Difícil', 'Brutal'][(G.diff || 2) - 1] + ' · ' + RULE_DEFS.filter(r => rule(r.k)).length + ' reglas · IA ' + (['pacífica', 'normal', 'belicosa'][rule('aggr')] || 'normal'); }
 function stApplyFilter() {
   const q = norm(($('#stq') || {}).value || ''), f = ((document.querySelector('#st-filters button.on') || {}).dataset || {}).f || 'all'; let n = 0;

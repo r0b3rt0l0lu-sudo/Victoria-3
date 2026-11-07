@@ -779,3 +779,14 @@ button:disabled{cursor:not-allowed}
 .window{border-radius:12px}
 /* 7) respeto a quien prefiere menos animación */
 @media (prefers-reduced-motion:reduce){#windows.open,#windows.open .window,#statepanel.open{animation:none}#statepanel,#armypanel{transition:none}}
+
+/* ===== barra superior sin solapes: la fecha y el plano del país se colocan según el tamaño real de los botones (--trw / --trh vienen de trLayout()) ===== */
+#topright{row-gap:6px}
+@media (min-width:1281px){
+  #datebox{right:calc(var(--trw,480px) + 26px)}
+  #plaque{max-width:max(380px,calc(100vw - var(--trw,480px) - 440px))}
+}
+@media (max-width:1280px){
+  #topright{flex-wrap:wrap;justify-content:flex-end;max-width:calc(100vw - 400px)}
+  #datebox{right:12px;top:calc(var(--trh,36px) + 18px)}
+}

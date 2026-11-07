@@ -191,3 +191,8 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 
 ## Sesión: tropas 3D en el mapa
 - Integradas las tropas 3D de Claude Design en el mapa de campaña con reserva a las figuras antiguas (detalle y pruebas en `PROGRESO.md`). Pendiente: visor de batalla en 3D, sombras de tropas y reserva en CPU.
+
+## Sesión: pulido visual de la interfaz en partida
+- **Arreglo de solape:** el panel de estado/ejército no tapa ya el menú inferior (la altura máxima se multiplicaba por el zoom de la interfaz `--wz`; ahora se divide). Comprobado en 1100×680, 1500×860 y 1900×1000: siempre queda ~30 px sobre el menú.
+- **Ventanas:** al abrir una, el mapa se atenúa, los paneles laterales se apartan (`body.win-open`) y vuelven al cerrar; se oculta el tooltip pendiente. Entrada animada con las propiedades `translate`/`scale` (no pisan el centrado de la ventana).
+- **Pulido general (final de `style.css`):** cifras tabulares, barras de desplazamiento finas y doradas, anillo de foco visible con teclado, respuesta al pulsar los botones, sombras con profundidad y respeto a `prefers-reduced-motion`.

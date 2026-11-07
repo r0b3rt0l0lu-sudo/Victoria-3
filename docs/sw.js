@@ -1,6 +1,6 @@
-// Service worker: instalable y jugable sin conexión. Caché versionada por contenido (f254d15a); red primero para recibir versiones nuevas.
-const CACHE = 'victoria-f254d15a';
-const FILES = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./js/three.min.js?v=b53d85dd", "./js/game.js?v=2f752484", "./css/style.css?v=51fc682b", "./data/elevacion.bin?v=e00db860", "./wasm/kernels.wasm?v=19be9f89", "./data/1910.bin?v=0c59e724", "./js/boot.js?v=7d032a0b"];
+// Service worker: instalable y jugable sin conexión. Caché versionada por contenido (06b0cb45); red primero para recibir versiones nuevas.
+const CACHE = 'victoria-06b0cb45';
+const FILES = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./js/three.min.js?v=b53d85dd", "./js/game.js?v=ca72ad11", "./css/style.css?v=edb10d25", "./data/elevacion.bin?v=e00db860", "./wasm/kernels.wasm?v=19be9f89", "./data/1910.bin?v=0c59e724", "./js/boot.js?v=4fc53b24"];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {

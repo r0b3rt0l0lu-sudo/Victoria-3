@@ -187,11 +187,11 @@ const WINDOWS = {};
 function openWindow(id) {
   UI.seen = UI.seen || {}; UI.seen[id] = true;
   if (UI.win === id) { closeWindow(); return; }
-  UI.win = id; renderWindow(true);
+  UI.win = id; document.body.classList.add('win-open'); try { hideTip(); } catch (e) { } renderWindow(true);
   $$('#menu .mbtn').forEach(b => b.classList.toggle('on', b.id === 'mb-' + id));
 }
 const WIN_HELP = Object.assign({journal: 'Objetivos del país y registro de sucesos.', achievements: 'Metas que desbloquean prestigio e innovación.', manual: 'Guía de todos los sistemas del juego.'}, Object.fromEntries(MENU_ITEMS.map(m => [m[0], m[4]])));
-function closeWindow() { UI.win = null; $('#windows').innerHTML = ''; $('#windows').classList.remove('open'); $$('#menu .mbtn').forEach(b => b.classList.remove('on')); }
+function closeWindow() { UI.win = null; document.body.classList.remove('win-open'); $('#windows').innerHTML = ''; $('#windows').classList.remove('open'); $$('#menu .mbtn').forEach(b => b.classList.remove('on')); }
 function renderWindow(fresh) {
   if (!UI.win) return;
   const w = WINDOWS[UI.win]; const root = $('#windows');

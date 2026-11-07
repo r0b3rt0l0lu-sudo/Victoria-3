@@ -751,3 +751,31 @@ body.starting #start{background:linear-gradient(90deg,rgba(8,12,16,.94) 0%,rgba(
   body.starting #start{background:rgba(8,12,16,.3)}body.starting #start.st-mapmode{background:none}body.starting #start.st-mapmode::after{background:none}
   #start.st-mapmode .st-mapbar span>*:first-child{flex:none;width:34px;max-width:34px}
 }
+
+/* ===== PULIDO VISUAL (interfaz en partida) ===== */
+/* 1) los paneles laterales no tapan el menú inferior: la altura máxima se divide por el zoom de la interfaz (antes se multiplicaba) */
+#statepanel,#armypanel{top:calc((var(--ph,100px) + 22px)/var(--wz,1));max-height:calc((100vh - var(--ph,100px) - 108px)/var(--wz,1))}
+/* 2) al abrir una ventana, el mapa se atenúa y los paneles laterales se apartan (menos ruido, más foco) */
+#windows.open{background:radial-gradient(ellipse at 50% 45%,rgba(6,9,13,.2),rgba(4,6,9,.55));animation:uiFadeIn .22s ease-out backwards}
+body.win-open #statepanel,body.win-open #armypanel{opacity:0;translate:-14px 0;pointer-events:none}
+#statepanel,#armypanel{transition:opacity .2s ease,translate .22s ease}
+#windows.open .window{animation:uiPop .24s cubic-bezier(.2,.9,.3,1) backwards}
+@keyframes uiFadeIn{from{opacity:0}to{opacity:1}}
+@keyframes uiPop{from{opacity:0;translate:0 10px;scale:.985}to{opacity:1;translate:0 0;scale:1}}
+#statepanel.open{animation:uiSlide .24s cubic-bezier(.2,.9,.3,1) backwards}
+@keyframes uiSlide{from{opacity:0;translate:-16px 0}to{opacity:1;translate:0 0}}
+/* 3) legibilidad: cifras tabulares y ajustes en tablas y botones */
+.tbl td,.tbl th,.kv b,.st-stats b,#plaque b,#plaque span{font-variant-numeric:tabular-nums}
+.tbl td .tag,.tbl td .pill,.tbl td button{white-space:nowrap}
+/* 4) barras de desplazamiento finas y doradas */
+*{scrollbar-width:thin;scrollbar-color:rgba(201,166,87,.55) rgba(10,14,19,.4)}
+::-webkit-scrollbar{width:9px;height:9px}::-webkit-scrollbar-track{background:rgba(10,14,19,.4);border-radius:6px}::-webkit-scrollbar-thumb{background:linear-gradient(180deg,rgba(201,166,87,.7),rgba(140,112,50,.7));border-radius:6px;border:2px solid rgba(10,14,19,.5)}::-webkit-scrollbar-thumb:hover{background:linear-gradient(180deg,rgba(236,200,110,.9),rgba(170,136,60,.9))}
+/* 5) accesibilidad: anillo de foco visible con teclado y botones con respuesta táctil */
+:focus-visible{outline:2px solid var(--gold2,#ecc86e);outline-offset:2px;border-radius:4px}
+button:not(:disabled):active,.rbtn:active,.mbtn:active{transform:translateY(1px) scale(.98)}
+button:disabled{cursor:not-allowed}
+/* 6) paneles con borde interior dorado sutil y sombra más suave (profundidad) */
+#statepanel,.window,#plaque,#menu{box-shadow:0 10px 34px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,236,170,.07)}
+.window{border-radius:12px}
+/* 7) respeto a quien prefiere menos animación */
+@media (prefers-reduced-motion:reduce){#windows.open,#windows.open .window,#statepanel.open{animation:none}#statepanel,#armypanel{transition:none}}

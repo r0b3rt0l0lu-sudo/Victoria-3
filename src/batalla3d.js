@@ -63,6 +63,24 @@ function b3Compose(S) {
     rv.fords.forEach(f => { const x = rv.x + Math.sin(f.y / 70 + rv.ph) * rv.amp; g.fillStyle = 'rgba(150,128,90,.96)'; g.fillRect(X(x - rv.w * 1.4), Y(f.y - f.w / 2), rv.w * 2.8 * s, f.w * s); }); }
   S.gtex.needsUpdate = true;
 }
+// bandera real de cada país (la misma del resto del juego) pintada en una textura que se completa al cargar el SVG; se comparte entre batallas
+function b3FlagTex(tag) {
+  R.b3flags = R.b3flags || {}; if (R.b3flags[tag]) return R.b3flags[tag];
+  const c = G.C[tag], W = 192, H = 128, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d'); g.fillStyle = (c && c.color) || '#888'; g.fillRect(0, 0, W, H);
+  const tex = new THREE.CanvasTexture(cv); if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4; R.b3flags[tag] = tex;
+  const shade = () => { const lg = g.createLinearGradient(0, 0, W, 0); lg.addColorStop(0, 'rgba(0,0,0,.34)'); lg.addColorStop(0.08, 'rgba(0,0,0,0)'); lg.addColorStop(0.5, 'rgba(255,255,255,.07)'); lg.addColorStop(0.62, 'rgba(0,0,0,.12)'); lg.addColorStop(1, 'rgba(0,0,0,.2)'); g.fillStyle = lg; g.fillRect(0, 0, W, H); g.strokeStyle = 'rgba(0,0,0,.55)'; g.lineWidth = 4; g.strokeRect(2, 2, W - 4, H - 4); tex.needsUpdate = true; };
+  shade();
+  try { const svg = flagSVG(c.flagSpec).replace('<svg ', `<svg width="${W}" height="${H}" `), img = new Image(); img.onload = () => { g.drawImage(img, 0, 0, W, H); shade(); if (typeof R !== 'undefined') R.dirty = true; }; img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); } catch (e) { }
+  return tex;
+}
+let _b3FlagGeo = null;
+function b3FlagGeo() {      // paño con ondas suaves (más amplias lejos del asta)
+  if (_b3FlagGeo) return _b3FlagGeo; const g = new THREE.PlaneGeometry(3.5, 2.35, 12, 4), p = g.attributes.position; for (let i = 0; i < p.count; i++) { const u = (p.getX(i) + 1.75) / 3.5; p.setZ(i, Math.sin(u * 9) * 0.16 * u); } g.computeVertexNormals(); g.translate(1.75, 6.8, 0); return _b3FlagGeo = g;
+}
+function b3FlagMesh(S, tag) {
+  let f = S.fm[tag]; if (!f) { const mesh = new THREE.InstancedMesh(b3FlagGeo(), new THREE.MeshBasicMaterial({map: b3FlagTex(tag), side: THREE.DoubleSide}), 160); mesh.count = 0; mesh.frustumCulled = false; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); S.scene.add(mesh); f = S.fm[tag] = {mesh, n: 0}; }
+  return f;
+}
 // etiquetas con el nombre de las aldeas: rótulos nítidos del mismo tamaño en pantalla a cualquier distancia
 function b3Label(txt) { return b3Tex(512, 96, (g, w, h) => { g.font = '700 52px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round'; g.lineWidth = 11; g.strokeStyle = 'rgba(14,12,9,.9)'; g.strokeText(txt, w / 2, h / 2 + 2); g.fillStyle = '#f6edd2'; g.fillText(txt, w / 2, h / 2 + 2); }); }
 const _b3m = new THREE.Matrix4(), _b3q = new THREE.Quaternion(), _b3p = new THREE.Vector3(), _b3s = new THREE.Vector3(), _b3up = new THREE.Vector3(0, 1, 0), _b3c = new THREE.Color();
@@ -123,11 +141,11 @@ function b3Build(V, b) {
   const flagTex = b3Tex(64, 40, (g, w, h) => { g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.strokeStyle = 'rgba(0,0,0,.55)'; g.lineWidth = 4; g.strokeRect(2, 2, w - 4, h - 4); g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(0, 0, 7, h); g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(w * 0.42, 6, 5, h - 12); g.fillRect(w * 0.3, h / 2 - 2.5, w * 0.4, 5); }),
     plateTex = b3Tex(64, 64, (g, w, h) => { g.shadowColor = '#fff'; g.shadowBlur = 12; g.fillStyle = '#fff'; g.fillRect(14, 14, w - 28, h - 28); });
   S.poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.14, 0.14, 8.4, 4).translate(0, 4.2, 0), new THREE.MeshLambertMaterial({color: 0x4a3a28}), N);
-  S.flags = new THREE.InstancedMesh(new THREE.PlaneGeometry(3.6, 2.3).translate(1.8, 6.8, 0), new THREE.MeshBasicMaterial({map: flagTex, color: 0xffffff, side: THREE.DoubleSide}), N);
-  S.flags2 = new THREE.InstancedMesh(new THREE.PlaneGeometry(3.6, 0.8).translate(1.8, 5.1, 0), new THREE.MeshBasicMaterial({color: 0xffffff, side: THREE.DoubleSide}), N);
+  S.fm = {};
+  S.flags2 = new THREE.InstancedMesh(new THREE.PlaneGeometry(3.5, 0.7).translate(1.75, 5.15, 0), new THREE.MeshBasicMaterial({color: 0xffffff, side: THREE.DoubleSide}), N);
   S.plates = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({map: plateTex, color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2}), N);
   S.sh = new THREE.InstancedMesh(S.shGeo, S.shMat, R.lowEnd ? 2500 : 5000); S.sh.count = 0; S.sh.frustumCulled = false; S.sh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); S.scene.add(S.sh); S.shN = 0;
-  [S.poles, S.flags, S.flags2, S.plates].forEach(m => { m.count = 0; m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); S.scene.add(m); });
+  [S.poles, S.flags2, S.plates].forEach(m => { m.count = 0; m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); S.scene.add(m); });
   S.ring = new THREE.Mesh(new THREE.RingGeometry(0.92, 1, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({color: 0xfff096, transparent: true, opacity: 0.9, depthTest: false, depthWrite: false})); S.ring.visible = false; S.ring.renderOrder = 9; S.scene.add(S.ring);
   S.scene.add(S.fortG);
   // --- partículas
@@ -158,7 +176,7 @@ function b3Forts(S, b) {
     add(earth, col, f.x, y, f.y, f.w, hh, f.h, true);
     if (!dead) { add(box, trench ? 0x2c241a : 0x2f2820, f.x, y + hh - 0.05, f.y, f.w * (trench ? 0.78 : 0.62), 0.12, f.h * (trench ? 0.55 : 0.62)); }
     if (!dead && (f.kind === 'fort' || f.kind === 'redoubt')) [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([a, c]) => add(box, f.kind === 'fort' ? 0x9a8c72 : 0x6e5a3c, f.x + a * f.w * 0.46, y, f.y + c * f.h * 0.46, 3.4, hh + 2.2, 3.4, true));
-    const tcol = G.C[f.side === 'A' ? b.A0 : b.B0].color, fp = new THREE.Mesh(new THREE.PlaneGeometry(3, 1.9).translate(1.5, 0, 0), new THREE.MeshBasicMaterial({color: tcol, side: THREE.DoubleSide})); fp.position.set(f.x, y + hh + 6.2, f.y); S.fortG.add(fp);
+    const tcol = G.C[f.side === 'A' ? b.A0 : b.B0].color, fp = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 2.1, 8, 2).translate(1.6, 0, 0), new THREE.MeshBasicMaterial({map: b3FlagTex(f.side === 'A' ? b.A0 : b.B0), side: THREE.DoubleSide})); fp.position.set(f.x, y + hh + 6.2, f.y); S.fortG.add(fp);
     add(new THREE.CylinderGeometry(0.13, 0.13, 6.8, 4).translate(0, 3.4, 0), 0x4a3a28, f.x, y + hh, f.y, 1, 1, 1); });
 }
 
@@ -257,10 +275,11 @@ function b3Frame(V, b, g, lines, all) {
   // estandartes y placas
   let n = 0; const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p3 = new THREE.Vector3(), s3 = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
   vis.forEach(blk => { if (n >= 220) return; const y = b3H(S.tf, blk.x, blk.y), yaw = Math.PI / 2 - blk.hd;
-    q.setFromAxisAngle(up, yaw + Math.PI / 2); p3.set(blk.x, y, blk.y); s3.set(1, 1, 1); m4.compose(p3, q, s3); S.poles.setMatrixAt(n, m4); S.flags.setMatrixAt(n, m4); S.flags2.setMatrixAt(n, m4); col.set(blk.color); S.flags.setColorAt(n, col); S.flags2.setColorAt(n, blk.side === 'A' ? S.mats.A : S.mats.B);
+    q.setFromAxisAngle(up, yaw + Math.PI / 2); p3.set(blk.x, y, blk.y); s3.set(1, 1, 1); m4.compose(p3, q, s3); S.poles.setMatrixAt(n, m4); S.flags2.setMatrixAt(n, m4); S.flags2.setColorAt(n, blk.side === 'A' ? S.mats.A : S.mats.B); { const fm = b3FlagMesh(S, blk.tag); if (fm.n < 160) fm.mesh.setMatrixAt(fm.n++, m4); }
     q.setFromAxisAngle(up, yaw); p3.set(blk.x, y + 0.25, blk.y); s3.set(blk.wid + 2, 1, blk.dep + 2); m4.compose(p3, q, s3); S.plates.setMatrixAt(n, m4); S.plates.setColorAt(n, blk.side === 'A' ? S.mats.A : S.mats.B); n++; });
   S.sh.count = S.shN; S.sh.instanceMatrix.needsUpdate = true;
-  [S.poles, S.flags, S.flags2, S.plates].forEach(m => { m.count = n; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; });
+  Object.values(S.fm).forEach(f => { f.mesh.count = f.n; f.mesh.instanceMatrix.needsUpdate = true; f.n = 0; });
+  [S.poles, S.flags2, S.plates].forEach(m => { m.count = n; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; });
   const sel = V.sel && V.blocks.has(V.sel.d) ? V.sel : null; S.ring.visible = !!sel; if (sel) { const r = Math.max(sel.dep, sel.wid) / 2 + 7; S.ring.position.set(sel.x, b3H(S.tf, sel.x, sel.y) + 0.6, sel.y); S.ring.scale.set(r, 1, r); S.ring.material.opacity = 0.6 + 0.4 * Math.sin(V.t * 5); }
   b3Parts(S, V);
   // dibujado con el renderizador del mapa en la esquina de su lienzo y copia al lienzo del visor

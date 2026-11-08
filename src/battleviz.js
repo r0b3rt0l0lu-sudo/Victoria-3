@@ -44,7 +44,7 @@ function bvSlot(blk, f) {
 function bvDims(blk) { const F = blk.F, s = blk.sc * blk.comp; blk.dep = (blk.type === 'art' ? 2.2 : F.rows) * F.sy * s + 4; blk.wid = (F.cols * F.sx) * s + 4; }
 function bvKill(V, blk, f) {
   f.alive = false; f.dying = 0.8; blk.hits++;
-  const cp = {x: f.x, y: f.y, color: blk.color, age: 0, hd: blk.hd + rnd(-0.6, 0.6), kind: f.kind}; V.corpses.push(cp); if (V.corpses.length > 520) V.corpses.shift(); if (!V.replay && V.rec.corp.length < 4000) V.rec.corp.push(Object.assign({t: V.t}, cp));
+  const cp = {x: f.x, y: f.y, color: blk.color, tag: blk.tag, age: 0, hd: blk.hd + rnd(-0.6, 0.6), kind: f.kind}; V.corpses.push(cp); if (V.corpses.length > 520) V.corpses.shift(); if (!V.replay && V.rec.corp.length < 4000) V.rec.corp.push(Object.assign({t: V.t}, cp));
   // la baja tiene un causante visible: un tirador enemigo cercano
   let best = null, bd = 1e9; V.blocks.forEach(o => { if (o.side === blk.side || o.role === 'reserve') return; const d = Math.hypot(o.x - f.x, o.y - f.y); if (d < bd && d < 230) { bd = d; best = o; } });
   if (best && Math.random() < 0.7) { const sh = best.figs.filter(q => q.alive && !q.flee); if (sh.length) { const q = sh[Math.floor(Math.random() * sh.length)]; bvPart(V, {k: 'tracer', x: q.x, y: q.y, x2: f.x, y2: f.y, life: 0.09}); bvPart(V, {k: 'flash', x: q.x, y: q.y, life: 0.1}); } }

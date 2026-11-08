@@ -214,3 +214,9 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 ## Visor de batalla 3D y realismo 3
 - `src/batalla3d.js`: la misma simulación del visor 2D dibujada en 3D (suelo con relieve y textura del 2D, árboles, casas, muros, fuertes, soldados/jinetes/piezas con tropas3d.js, humo, fogonazos, obuses, lluvia, caídos y heridos). Se dibuja con el renderizador del mapa (parado durante la batalla) y se copia al lienzo del visor. Cámara libre (arrastrar, botón derecho, rueda, doble clic), selección y órdenes funcionan igual. Botón «Ver en 3D»; por defecto activo salvo en calidad baja; respaldo automático al 2D (`R.b3Dead`).
 - `src/realismo3.js`: pendiente, barro, incendios de bosque, hora del día (batalla) y enfermedad/heridos (campaña). Calibración medida: selva −21 % de fuerza en 200 días frente a −0,7 % en terreno templado; bosque seco prende el 71 % de los obuses, con lluvia el 7 %.
+
+## Auditoría de jugabilidad (robustez)
+- Un error en un fotograma o en un día de simulación ya no congela la partida: `frame_` y el bucle de días atrapan la excepción (`reportErr`), la registran una vez por tipo y siguen.
+- Espiral de deuda: el interés ya no crece sin límite con la deuda; una deuda desproporcionada (>110× ingresos) fuerza la quiebra aunque haya otra en curso; red de seguridad ante valores no finitos. Antes Corea llegaba a tesoro −∞.
+- Paz blanca: se acepta siempre tras 20 semanas (antes 40). El consejero avisa de guerras estancadas (sin combates ni ocupación) y explica qué hacer.
+- Comprobado: 30 años con Reino Unido y Rusia y 20 con Japón, EE. UU. y Otomano sin excepciones ni datos corruptos tras el arreglo; controles de ratón/teclado, guardar/cargar, reclutar, mover, declarar guerra y paz.

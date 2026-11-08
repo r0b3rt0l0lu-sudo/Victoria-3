@@ -18,6 +18,10 @@ function advisorTips(c) {
   if (G.proposals.length) add(2, '✉️', `${G.proposals.length} propuesta${G.proposals.length > 1 ? 's' : ''} diplomática${G.proposals.length > 1 ? 's' : ''}`, 'Otros países esperan tu respuesta: tratados, alianzas o garantías.', W('diplomacy', 'dip', 'pacts'));
   if (c.legitimacy < 40 && !(typeof cwRisk === 'function' && cwRisk(c).pct >= 40)) add(2, '🏛️', 'Legitimidad baja', `Está en ${Math.round(c.legitimacy)}%: crecen los disturbios. Prueba con reformas o con los grupos de interés que te apoyan.`, W('politics', 'pol', 'igs'));
   if (c.wars.length) { const idle = armiesOf(G.player).filter(a => !a.sea && !a.battle && !a.path.length && !a.front && !a.mode).length; if (idle >= 2) add(2, '🪖', `${idle} ejércitos sin órdenes`, 'Estás en guerra y tienes tropas paradas. Dibuja un frente de ataque o de defensa, o muévelas.', W('military', 'mil', 'armies')); }
+  G.wars.filter(w => (w.attAll.includes(G.player) || w.defAll.includes(G.player)) && w.weeks >= 10 && Math.abs(w.score) < 8 && !mine.length).slice(0, 2).forEach(w => {
+    const foe = (w.attAll.includes(G.player) ? w.defAll : w.attAll).map(t => G.C[t].name).join(', ');
+    add(2, '🧭', `Tu guerra contra ${foe} no avanza`, 'Hace semanas que no hay combates ni territorios ocupados. Si el enemigo está al otro lado del mar necesitas transportes y un plan de desembarco (Ejército → Desembarcos); si no, envía tus ejércitos a sus provincias con el clic derecho. También puedes pedir la paz blanca.', W('military', 'mil', 'wars'));
+  });
   // ---- sugerencias ----
   if (c.influence > 140) add(3, '🕊️', `Influencia sin gastar (${Math.floor(c.influence)})`, 'Úsala en reformas, en mejorar relaciones o en fabricar casus belli.', W('diplomacy', 'dip', 'world'));
   if (c.nat && !c.nat.cur && G.date.t > 90) add(3, '🌳', 'Elige una decisión nacional', 'Las decisiones dan ventajas permanentes a tu país.', W('national'));

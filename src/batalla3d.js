@@ -39,13 +39,13 @@ function b3Ground(S, V, b) {
   S.base = base; S.gcv = document.createElement('canvas'); S.gcv.width = cw; S.gcv.height = ch;
   S.gtex = new THREE.CanvasTexture(S.gcv); if (THREE.SRGBColorSpace) S.gtex.colorSpace = THREE.SRGBColorSpace; S.gtex.anisotropy = R.lowEnd ? 1 : 4;
   b3Compose(S);
-  const NX = 170, NZ = 80, n = (NX + 1) * (NZ + 1), pos = new Float32Array(n * 3), uv = new Float32Array(n * 2), idx = [];
+  const NX = R.lowEnd ? 200 : 320, NZ = R.lowEnd ? 96 : 150, n = (NX + 1) * (NZ + 1), pos = new Float32Array(n * 3), uv = new Float32Array(n * 2), idx = [];
   for (let j = 0; j <= NZ; j++) for (let i = 0; i <= NX; i++) { const k = j * (NX + 1) + i, x = -B3_EX + i / NX * W3, z = -B3_EZ + j / NZ * H3; pos[k * 3] = x; pos[k * 3 + 1] = b3H(tf, x, z); pos[k * 3 + 2] = z; uv[k * 2] = i / NX; uv[k * 2 + 1] = 1 - j / NZ; }
   for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) { const a = j * (NX + 1) + i, bb = a + 1, c = a + NX + 1, d = c + 1; idx.push(a, c, bb, bb, c, d); }
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); geo.setIndex(idx); geo.computeVertexNormals();
   const mat = new THREE.MeshLambertMaterial({map: S.gtex});
-  if (R.renderer.capabilities.isWebGL2) mat.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
-    { vec2 q = vMapUv * vec2(1700.0, 800.0); float fw = fwidth(q.x); float n = fract(sin(dot(floor(q), vec2(12.9898, 78.233))) * 43758.5453); diffuseColor.rgb *= 1.0 + (n - 0.5) * 0.15 * (1.0 - smoothstep(0.35, 0.9, fw)); }`); };
+  if (R.renderer.capabilities.isWebGL2) mat.onBeforeCompile = sh => { sh.fragmentShader = 'float vh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }\nfloat vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(vh(i), vh(i + vec2(1.0, 0.0)), f.x), mix(vh(i + vec2(0.0, 1.0)), vh(i + vec2(1.0, 1.0)), f.x), f.y); }\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+    { vec2 q = vMapUv * vec2(1700.0, 800.0); float fw = fwidth(q.x); float n1 = vnoise(q * 0.5), n2 = vnoise(q * 1.7); float n = n1 * 0.65 + n2 * 0.35; diffuseColor.rgb *= 1.0 + (n - 0.5) * 0.2 * (1.0 - smoothstep(0.25, 0.8, fw)); }`); };
   S.ground = new THREE.Mesh(geo, mat); S.scene.add(S.ground);
   const sk = new THREE.Mesh(new THREE.PlaneGeometry(16000, 16000).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({color: S.avg})); sk.position.set(BV_W / 2, -0.9, BV_H / 2); S.scene.add(sk);
 }

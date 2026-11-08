@@ -13,7 +13,7 @@
 function bvHeight(tf, x, z) {
   let h = 0.45 * Math.sin(x * 0.021 + z * 0.017) * Math.cos(z * 0.027 - x * 0.011);
   (tf.hills || []).forEach(hl => { const dx = (x - hl.x) / hl.rx, dz = (z - hl.y) / hl.ry, d = dx * dx + dz * dz; if (d < 1) { const k = 1 - d, s = k * k * (3 - 2 * k); h += s * Math.min(30, (hl.rx + hl.ry) * 0.06); } });
-  if (tf.river) { const dx = Math.abs(x - tacRiverX(tf, z)), w = tf.river.w * 1.4; if (dx < w) { const k = 1 - dx / w; h -= 1.8 * k * k * (3 - 2 * k); } }
+  if (tf.river) { const dx = Math.abs(x - tacRiverX(tf, z)), w = tf.river.w * 2.6; if (dx < w) { const k = 1 - dx / w; h -= 1.3 * Math.min(1, k * k * (3 - 2 * k) * 2.2); } }
   return h;
 }
 function bvSlope(tf, blk) {           // pendiente en el sentido de la marcha (subida > 0), cacheada 0,4 s

@@ -313,9 +313,11 @@ bvHover = function (V, all) {
   return _b3Hover(V, all);
 };
 /* ---------- ratón ---------- */
+// desplazamiento de la cámara por un arrastre de dx, dy píxeles de pantalla (alto del lienzo: cssH)
+function b3Pan(dx, dy, cssH) { const c = B3.cam, k = 2 * c.d * Math.tan(20 * Math.PI / 180) / cssH, fx = -Math.sin(c.yaw), fz = -Math.cos(c.yaw), rx = Math.cos(c.yaw), rz = -Math.sin(c.yaw), sp = Math.sin(c.pit); c.tx += -dx * rx * k + dy * fx * k / sp; c.tz += -dx * rz * k + dy * fz * k / sp; }
 function b3Bind(cv) {
   const nrm = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height]; }, cssH = () => cv.getBoundingClientRect().height || 1;
-  const pan = (dx, dy) => { const c = B3.cam, k = 2 * c.d * Math.tan(20 * Math.PI / 180) / cssH(), fx = -Math.sin(c.yaw), fz = -Math.cos(c.yaw), rx = Math.cos(c.yaw), rz = -Math.sin(c.yaw), sp = Math.sin(c.pit); c.tx += -dx * rx * k + dy * fx * k / sp; c.tz += -dx * rz * k + dy * fz * k / sp; };
+  const pan = (dx, dy) => b3Pan(dx, dy, cssH());
   cv.addEventListener('mousedown', e => { if (!B3.active) return; e.stopImmediatePropagation(); B3.drag = {x: e.clientX, y: e.clientY, moved: 0, rot: e.button === 2 || e.shiftKey, btn: e.button}; }, true);
   cv.addEventListener('mousemove', e => {
     if (!B3.active || !B3.S) return; e.stopImmediatePropagation(); const d = B3.drag;

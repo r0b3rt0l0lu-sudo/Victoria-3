@@ -87,7 +87,7 @@ function crisisMonth() {
     // contador de legitimidad baja
     c.lowLeg = c.legitimacy < 32 ? (c.lowLeg || 0) + 1 : Math.max(0, (c.lowLeg || 0) - 1);
     if (ratio > 26 * (c.mods.crisis ? 1 + c.mods.crisis : 1) && Math.random() < 0.2) addCrisis('currency', t);
-    if (ratio > 70 && !G.crises.some(x => x.type === 'bankruptcy' && x.scope === t)) { addCrisis('bankruptcy', t); c.treasury = 0; c.debt = 0; c.prestige = Math.max(0, c.prestige - 15); c.investPool = 0; }
+    if (ratio > 70 && (ratio > 110 || !G.crises.some(x => x.type === 'bankruptcy' && x.scope === t))) { addCrisis('bankruptcy', t); c.treasury = 0; c.debt = 0; c.prestige = Math.max(0, c.prestige - 15); c.investPool = 0; }
     if (c.radicals > 0.22 && c.stats.indLevels > 10 && Math.random() < 0.016 * dp.crisis) addCrisis('strike', t);
     if (c.stats.pop > 8e5 && Math.random() < 0.0014 * dp.crisis * (1 - Math.min(0.7, c.mods.grow * 80))) addCrisis('epidemic', t);
     if (c.stats.sol < 5 && Math.random() < 0.004 * dp.crisis) {

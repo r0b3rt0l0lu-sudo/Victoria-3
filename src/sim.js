@@ -527,9 +527,11 @@ function econEnd() {
     spreadPublic(c, pub);
     c.treasury += free - pub;
     if (c.treasury < 0) { c.debt = -c.treasury; } else c.debt = 0;
-    const rate = 0.0006 * dp.rate * c.fx.credit * G.fx.credit * (1 + (c.debt / Math.max(1, income)) / 40);
+    // el interés sube con el endeudamiento, pero con tope: antes crecía sin límite y la deuda se disparaba hasta el infinito (espiral de deuda)
+    const rate = 0.0006 * dp.rate * c.fx.credit * G.fx.credit * (1 + Math.min(40, c.debt / Math.max(1, income)) / 40);
     const interest = c.debt * rate;
     if (interest && !warm) { c.treasury -= interest; c.budget.expense.interest = interest; }
+    if (!isFinite(c.treasury)) { c.treasury = 0; c.debt = 0; }          // red de seguridad: nunca valores no numéricos
     c.investPool += cs.invest * 0.9 * G.fx.invest * c.fx.invest;
     privateInvest(c, warm);
     c.innovStock = (c.innovStock || 0) + st.innovRate;

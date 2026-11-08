@@ -210,3 +210,7 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 ## Ejército: auditoría de solapamientos (90 vistas × 5 tamaños)
 - Reclutamiento: tabla con desplazamiento propio (`.tblx`) y columnas apiladas (`.cols.stack`); Doctrinas e Inteligencia: descripciones en su propia línea. Resultado: 0 problemas.
 - Prueba de jugabilidad con clics reales (empezar, avanzar, 14 pestañas de Ejército, reclutar, mover, guerra, batalla 20 s, guardar/cargar ranura, simular 1 año): sin errores de página.
+
+## Visor de batalla 3D y realismo 3
+- `src/batalla3d.js`: la misma simulación del visor 2D dibujada en 3D (suelo con relieve y textura del 2D, árboles, casas, muros, fuertes, soldados/jinetes/piezas con tropas3d.js, humo, fogonazos, obuses, lluvia, caídos y heridos). Se dibuja con el renderizador del mapa (parado durante la batalla) y se copia al lienzo del visor. Cámara libre (arrastrar, botón derecho, rueda, doble clic), selección y órdenes funcionan igual. Botón «Ver en 3D»; por defecto activo salvo en calidad baja; respaldo automático al 2D (`R.b3Dead`).
+- `src/realismo3.js`: pendiente, barro, incendios de bosque, hora del día (batalla) y enfermedad/heridos (campaña). Calibración medida: selva −21 % de fuerza en 200 días frente a −0,7 % en terreno templado; bosque seco prende el 71 % de los obuses, con lluvia el 7 %.

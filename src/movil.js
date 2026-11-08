@@ -23,7 +23,7 @@ function movDecorate() {
 const _movBuildHud = buildHud;
 buildHud = function () { const r = _movBuildHud.apply(this, arguments); movDecorate(); return r; };
 // los botones que ensanchan el mapa tras crearse el HUD (calidad, gráficos…) también se agrupan
-setInterval(() => { if (MOV.phone) { const cc = document.getElementById('camctl'); if (cc && !cc.querySelector('.more')) movDecorate(); } }, 2000);
+setInterval(() => { document.body.classList.toggle('bt', !!UI.battle); if (MOV.phone) { const cc = document.getElementById('camctl'); if (cc && !cc.querySelector('.more')) movDecorate(); } }, 2000);
 Object.assign(ACT, {
   moretop: () => { const e = document.getElementById('topright'); e.classList.toggle('open'); document.getElementById('camctl').classList.remove('open'); },
   morecam: () => { const e = document.getElementById('camctl'); e.classList.toggle('open'); document.getElementById('topright').classList.remove('open'); }

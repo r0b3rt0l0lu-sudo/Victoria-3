@@ -829,8 +829,10 @@ body.phone #camctl button{width:36px;height:36px}
 body.phone #menu{left:6px;right:6px;bottom:max(6px,env(safe-area-inset-bottom));max-width:none;width:auto;overflow-x:auto;justify-content:flex-start;gap:6px;padding:5px 8px;border-radius:26px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 body.phone #menu::-webkit-scrollbar{display:none}
 body.phone .mbtn{flex:none;width:44px;height:44px;font-size:21px}body.phone .mbtn em{display:none}
-body.phone #toasts{left:8px!important;right:8px!important;top:auto!important;bottom:calc(124px + env(safe-area-inset-bottom))!important;width:auto!important;min-width:0!important;transform:none!important}
-body.phone .toast{font-size:13px;padding:7px 10px}body.phone .toast:nth-last-child(n+4){display:none}
+body.phone #toasts{left:8px!important;right:8px!important;top:calc(var(--ph,56px) + 56px)!important;bottom:auto!important;width:auto!important;min-width:0!important;transform:none!important;flex-direction:column!important}
+body.phone.bt #toasts{top:54px!important}
+body.pl #toasts{left:auto!important;right:8px!important;width:320px!important;top:104px!important}
+body.phone .toast{font-size:13px;padding:7px 10px}body.phone .toast:nth-last-child(n+3){display:none}
 body.phone #windows .window{left:6px!important;right:6px!important;top:calc(env(safe-area-inset-top) + 6px)!important;width:auto!important;transform:none!important;max-height:calc(var(--vh,1vh)*100 - 82px)!important}
 body.phone .whead{padding:8px 12px}body.phone .wbody{padding:10px 10px 14px}
 body.phone .tbl td,body.phone .tbl th,body.phone .kv b{white-space:nowrap}
@@ -845,7 +847,7 @@ body.phone .bcam button,body.phone .ordbtns button{padding:8px 12px;font-size:13
 /* vertical */
 body.pp #plaque{max-width:calc(100vw - 62px)!important;padding:4px 8px 4px 6px!important}
 body.pp #plaque .chips,body.pp .pl-sub{display:none!important}
-body.pp #topright{top:max(6px,env(safe-area-inset-top));right:max(6px,env(safe-area-inset-right));flex-direction:column;gap:6px;align-items:flex-end}
+body.pp #topright{top:max(6px,env(safe-area-inset-top));right:max(6px,env(safe-area-inset-right));flex-direction:column;flex-wrap:nowrap;max-width:none;gap:6px;align-items:flex-end}
 body.pp #topright.open{max-height:calc(var(--vh,1vh)*100 - 90px);overflow-y:auto;padding:6px;background:rgba(14,19,24,.96);border:1px solid var(--goldd);border-radius:22px}
 body.pp #datebox{right:auto!important;left:6px!important;top:calc(var(--ph,56px) + 4px)!important;max-width:calc(100vw - 62px)}
 body.pp #camctl{right:6px;bottom:150px;flex-direction:column;width:auto;max-width:none}

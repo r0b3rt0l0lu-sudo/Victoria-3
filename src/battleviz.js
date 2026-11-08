@@ -382,11 +382,11 @@ function bvBuildBg(V, b) {
   if (tf.farm) { const f = tf.farm, x = f.x - f.w / 2, y = f.y - f.h / 2; g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(x + 5, y + 5, f.w, f.h); g.fillStyle = '#a58a62'; g.fillRect(x, y, f.w, f.h); g.fillStyle = '#7a3a2a'; g.beginPath(); g.moveTo(x - 4, y); g.lineTo(x + f.w / 2, y - 15); g.lineTo(x + f.w + 4, y); g.fill(); g.fillStyle = '#3a2a1c'; g.fillRect(x + f.w / 2 - 4, y + f.h - 14, 8, 14); g.strokeStyle = 'rgba(90,66,40,.7)'; g.lineWidth = 1.2; g.strokeRect(x - 12, y - 10, f.w + 24, f.h + 20); }
   if (typeof tacBgExtras === 'function') tacBgExtras(g, V, b, H);
   // vegetación y rocas por bioma
-  const nT = bio === 2 || bio === 6 ? 50 : bio === 1 ? 14 : bio === 4 ? 9 : 5;
+  const nT = V._bg3 ? 0 : bio === 2 || bio === 6 ? 50 : bio === 1 ? 14 : bio === 4 ? 9 : 5;
   for (let i = 0; i < nT; i++) { const band = H(i, 40) < 0.7, x = H(i, 41) * BV_W, y = band ? (H(i, 42) < 0.5 ? 26 + H(i, 43) * 52 : BV_H - 16 - H(i, 43) * 48) : 70 + H(i, 44) * (BV_H - 140); if (Math.abs(y - ry) < 14 && bio !== 6) continue; tree(x, y, 5 + H(i, 45) * 7, bio === 6); }
-  if (bio === 7 || bio === 8) { for (let i = 0; i < 16; i++) { const x = H(i, 51) * BV_W, y = H(i, 52) < 0.5 ? 24 + H(i, 53) * 54 : BV_H - 20 - H(i, 53) * 50, w = 16 + H(i, 54) * 30; g.fillStyle = 'rgba(40,36,34,.35)'; g.beginPath(); g.moveTo(x - w, y + w * 0.5); g.lineTo(x - w * 0.2, y - w * 0.9); g.lineTo(x + w * 0.3, y - w * 0.4); g.lineTo(x + w, y + w * 0.5); g.closePath(); g.fill(); g.fillStyle = bio === 8 ? 'rgba(255,255,255,.55)' : 'rgba(200,190,170,.35)'; g.beginPath(); g.moveTo(x - w * 0.2, y - w * 0.9); g.lineTo(x + w * 0.3, y - w * 0.4); g.lineTo(x - w * 0.25, y - w * 0.3); g.closePath(); g.fill(); } }
+  if ((bio === 7 || bio === 8) && !V._bg3) { for (let i = 0; i < 16; i++) { const x = H(i, 51) * BV_W, y = H(i, 52) < 0.5 ? 24 + H(i, 53) * 54 : BV_H - 20 - H(i, 53) * 50, w = 16 + H(i, 54) * 30; g.fillStyle = 'rgba(40,36,34,.35)'; g.beginPath(); g.moveTo(x - w, y + w * 0.5); g.lineTo(x - w * 0.2, y - w * 0.9); g.lineTo(x + w * 0.3, y - w * 0.4); g.lineTo(x + w, y + w * 0.5); g.closePath(); g.fill(); g.fillStyle = bio === 8 ? 'rgba(255,255,255,.55)' : 'rgba(200,190,170,.35)'; g.beginPath(); g.moveTo(x - w * 0.2, y - w * 0.9); g.lineTo(x + w * 0.3, y - w * 0.4); g.lineTo(x - w * 0.25, y - w * 0.3); g.closePath(); g.fill(); } }
   // una granja o ruina en un extremo
-  const vg = g.createRadialGradient(BV_W / 2, BV_H / 2, BV_H * 0.4, BV_W / 2, BV_H / 2, BV_W * 0.62); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.42)'); g.fillStyle = vg; g.fillRect(0, 0, BV_W, BV_H);
+  const vg = g.createRadialGradient(BV_W / 2, BV_H / 2, BV_H * 0.4, BV_W / 2, BV_H / 2, BV_W * 0.62); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.42)'); if (!V._bg3) { g.fillStyle = vg; g.fillRect(0, 0, BV_W, BV_H); }
   return cv;
 }
 function bvPlate(g, blk, hover) {

@@ -6,8 +6,8 @@
    · Cámara libre: arrastrar = mover · botón derecho o Mayús + arrastrar = girar · rueda = zoom · doble clic = vista completa · clic = seleccionar bloque.
    · Se dibuja con el renderizador del mapa (que está parado mientras hay una batalla abierta) y se copia al lienzo del visor, así no hay un segundo contexto WebGL.
    · Si el equipo no cumple los requisitos de las tropas 3D, o cualquier cosa falla, se vuelve solo al visor 2D (R.b3Dead = true). Botón «Vista 3D» para alternar. */
-const B3 = {S: null, cam: {tx: BV_W / 2, tz: BV_H / 2, d: 980, yaw: 0, pit: 0.8}, drag: null, hoverW: null, active: false, ray: null};
-const B3_S = 1.35;                                                                 // escala de las figuras (1,8 u de altura → ≈ 2,4 u del campo)
+const B3 = {S: null, cam: {tx: BV_W / 2, tz: BV_H / 2, d: 900, yaw: 0, pit: 0.82}, drag: null, hoverW: null, active: false, ray: null};
+const B3_S = 1.6;                                                                  // escala de las figuras (1,8 u de altura → ≈ 2,4 u del campo)
 const B3_CAP = {inf: [1400, 2800, 2800], cav: [400, 900, 900], art: [300, 700, 700]};
 const B3_CAV = ['husar', 'husar', 'lancero', 'dragon', 'coracero'];
 const b3Pref = () => { try { const v = localStorage.getItem('victoria-bv3d'); return v === null ? null : v === '1'; } catch (e) { return null; } };
@@ -16,7 +16,55 @@ function b3On() {
   if (R.bv3d === undefined) { const p = b3Pref(); R.bv3d = p === null ? R.quality !== 'bajo' : p; }
   return !!R.bv3d && !R.b3Dead && b3Usable();
 }
-function b3H(tf, x, z) { return bvHeight(tf, x, z); }                      // altura compartida con la simulación (realismo3.js)
+const B3_EX = 300, B3_EZ = 260;                                                    // el suelo se prolonga más allá del campo: no hay «borde del mundo»
+// altura compartida con la simulación (realismo3.js) + barranco hundido (solo visual: se cruza por los pasos)
+function b3H(tf, x, z) {
+  let h = bvHeight(tf, x, z);
+  if (tf.ravine) { const rv = tf.ravine, dx = Math.abs(x - (rv.x + Math.sin(z / 70 + rv.ph) * rv.amp)), w = rv.w * 1.5; if (dx < w && !rv.fords.some(f => Math.abs(z - f.y) < f.w / 2 + 8)) { const k = 1 - dx / w; h -= 6.5 * k * k * (3 - 2 * k); } }
+  return h;
+}
+const b3Rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+function b3Strip(tf) { return Object.assign({}, tf, {forests: [], orchards: [], villages: [], hills: [], hill: null, hill2: null, walls: [], farm: null, ravine: null}); }
+function b3Tex(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); if (THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace; return t; }
+// suelo: la textura pintada del visor 2D SIN bosques, aldeas, colinas ni textos (eso se hace en 3D), prolongada en espejo más allá del campo
+function b3Ground(S, V, b) {
+  const tf = S.tf, W3 = BV_W + 2 * B3_EX, H3 = BV_H + 2 * B3_EZ, cw = Math.min(R.renderer.capabilities.maxTextureSize || 2048, R.lowEnd ? 2048 : 3072), ch = Math.round(cw * H3 / W3), s = cw / W3; S.gs = s;
+  const kT = b.tf, kV = V.tf, P = CanvasRenderingContext2D.prototype, ft = P.fillText, st = P.strokeText; let bg;
+  try { b.tf = b3Strip(tf); V.tf = b.tf; V._bg3 = true; P.fillText = P.strokeText = function () { }; bg = bvBuildBg(V, b); }
+  finally { b.tf = kT; V.tf = kV; delete V._bg3; P.fillText = ft; P.strokeText = st; }
+  const base = document.createElement('canvas'); base.width = cw; base.height = ch; const g = base.getContext('2d'), fw = BV_W * s, fh = BV_H * s;
+  for (let iy = -1; iy <= 1; iy++) for (let ix = -1; ix <= 1; ix++) { const dx = (B3_EX + ix * BV_W) * s, dy = (B3_EZ + iy * BV_H) * s, fx = ix !== 0, fy = iy !== 0; g.save(); g.translate(dx + (fx ? fw : 0), dy + (fy ? fh : 0)); g.scale(fx ? -1 : 1, fy ? -1 : 1); g.drawImage(bg, 0, 0, fw, fh); g.restore(); }
+  bg.width = bg.height = 1;
+  { const a = document.createElement('canvas'); a.width = a.height = 1; const ag = a.getContext('2d'); ag.drawImage(base, 0, 0, 1, 1); const d = ag.getImageData(0, 0, 1, 1).data; S.avg = new THREE.Color(); if (THREE.SRGBColorSpace) S.avg.setRGB(d[0] / 255, d[1] / 255, d[2] / 255, THREE.SRGBColorSpace); else S.avg.setRGB(d[0] / 255, d[1] / 255, d[2] / 255); }
+  S.base = base; S.gcv = document.createElement('canvas'); S.gcv.width = cw; S.gcv.height = ch;
+  S.gtex = new THREE.CanvasTexture(S.gcv); if (THREE.SRGBColorSpace) S.gtex.colorSpace = THREE.SRGBColorSpace; S.gtex.anisotropy = R.lowEnd ? 1 : 4;
+  b3Compose(S);
+  const NX = 170, NZ = 80, n = (NX + 1) * (NZ + 1), pos = new Float32Array(n * 3), uv = new Float32Array(n * 2), idx = [];
+  for (let j = 0; j <= NZ; j++) for (let i = 0; i <= NX; i++) { const k = j * (NX + 1) + i, x = -B3_EX + i / NX * W3, z = -B3_EZ + j / NZ * H3; pos[k * 3] = x; pos[k * 3 + 1] = b3H(tf, x, z); pos[k * 3 + 2] = z; uv[k * 2] = i / NX; uv[k * 2 + 1] = 1 - j / NZ; }
+  for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) { const a = j * (NX + 1) + i, bb = a + 1, c = a + NX + 1, d = c + 1; idx.push(a, c, bb, bb, c, d); }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); geo.setIndex(idx); geo.computeVertexNormals();
+  const mat = new THREE.MeshLambertMaterial({map: S.gtex});
+  if (R.renderer.capabilities.isWebGL2) mat.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+    { vec2 q = vMapUv * vec2(1700.0, 800.0); float fw = fwidth(q.x); float n = fract(sin(dot(floor(q), vec2(12.9898, 78.233))) * 43758.5453); diffuseColor.rgb *= 1.0 + (n - 0.5) * 0.15 * (1.0 - smoothstep(0.35, 0.9, fw)); }`); };
+  S.ground = new THREE.Mesh(geo, mat); S.scene.add(S.ground);
+  const sk = new THREE.Mesh(new THREE.PlaneGeometry(16000, 16000).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({color: S.avg})); sk.position.set(BV_W / 2, -0.9, BV_H / 2); S.scene.add(sk);
+}
+// pintura variable del suelo: suelo de bosque (verde, ardiendo o calcinado), patios de aldea y barranco
+function b3Compose(S) {
+  const g = S.gcv.getContext('2d'), s = S.gs, tf = S.tf, bio = S.bio; g.clearRect(0, 0, S.gcv.width, S.gcv.height); g.drawImage(S.base, 0, 0);
+  const X = x => (x + B3_EX) * s, Y = z => (z + B3_EZ) * s;
+  const blob = (x, y, r, sq, c, a) => { g.save(); g.translate(X(x), Y(y)); g.scale(1, sq); const rr = r * s, rg = g.createRadialGradient(0, 0, rr * 0.15, 0, 0, rr); rg.addColorStop(0, b3Rgba(c, a)); rg.addColorStop(0.7, b3Rgba(c, a * 0.85)); rg.addColorStop(1, b3Rgba(c, 0)); g.fillStyle = rg; g.beginPath(); g.arc(0, 0, rr, 0, 6.3); g.fill(); g.restore(); };
+  const floor = bio === 8 ? [92, 108, 100] : bio === 7 || bio === 3 ? [96, 84, 58] : [30, 62, 36];
+  (tf.forests || []).forEach(f => { if (f.burnt) blob(f.x, f.y, f.r * 1.08, 0.82, [18, 14, 10], 0.88); else if (f.fire) { blob(f.x, f.y, f.r * 1.08, 0.82, floor, 0.55); blob(f.x, f.y, f.r * 0.9, 0.82, [90, 36, 12], 0.55); } else blob(f.x, f.y, f.r * 1.08, 0.82, floor, 0.72); });
+  (tf.orchards || []).forEach(f => blob(f.x, f.y, f.r * 1.05, 1, [58, 92, 48], 0.32));
+  (tf.villages || []).forEach(v => blob(v.x, v.y, v.r * 1.15, 0.82, [194, 176, 140], 0.6));
+  if (tf.ravine) { const rv = tf.ravine, path = () => { g.beginPath(); for (let z = -B3_EZ - 8; z <= BV_H + B3_EZ + 8; z += 8) { const x = rv.x + Math.sin(z / 70 + rv.ph) * rv.amp; z === -B3_EZ - 8 ? g.moveTo(X(x), Y(z)) : g.lineTo(X(x), Y(z)); } g.stroke(); };
+    g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = 'rgba(88,72,52,.85)'; g.lineWidth = rv.w * 2.6 * s; path(); g.strokeStyle = 'rgba(52,42,32,.95)'; g.lineWidth = rv.w * 1.5 * s; path(); g.strokeStyle = 'rgba(26,21,16,.95)'; g.lineWidth = rv.w * 0.6 * s; path();
+    rv.fords.forEach(f => { const x = rv.x + Math.sin(f.y / 70 + rv.ph) * rv.amp; g.fillStyle = 'rgba(150,128,90,.96)'; g.fillRect(X(x - rv.w * 1.4), Y(f.y - f.w / 2), rv.w * 2.8 * s, f.w * s); }); }
+  S.gtex.needsUpdate = true;
+}
+// etiquetas con el nombre de las aldeas: rótulos nítidos del mismo tamaño en pantalla a cualquier distancia
+function b3Label(txt) { return b3Tex(512, 96, (g, w, h) => { g.font = '700 52px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round'; g.lineWidth = 11; g.strokeStyle = 'rgba(14,12,9,.9)'; g.strokeText(txt, w / 2, h / 2 + 2); g.fillStyle = '#f6edd2'; g.fillText(txt, w / 2, h / 2 + 2); }); }
 const _b3m = new THREE.Matrix4(), _b3q = new THREE.Quaternion(), _b3p = new THREE.Vector3(), _b3s = new THREE.Vector3(), _b3up = new THREE.Vector3(0, 1, 0), _b3c = new THREE.Color();
 function b3Put(im, i, x, y, z, sx, sy, sz, yaw) { _b3q.setFromAxisAngle(_b3up, yaw || 0); _b3p.set(x, y, z); _b3s.set(sx, sy, sz); _b3m.compose(_b3p, _b3q, _b3s); im.setMatrixAt(i, _b3m); }
 // coloca (o recoloca) los árboles: los de un bosque calcinado quedan bajos y negros
@@ -24,8 +72,8 @@ function b3PlaceTrees(S) {
   const T = S.trees, tf = S.tf, bio = S.bio; let ti = 0;
   const place = (arr, mesh) => arr.forEach((t, i) => { const fo = t[5] >= 0 ? tf.forests[t[5]] : null, burnt = !!(fo && fo.burnt), y = b3H(tf, t[0], t[1]);
     b3Put(mesh, i, t[0], y, t[1], t[2], t[2] * (burnt ? 0.35 : 0.9 + t[4] * 0.3), t[2], t[4] * 6); _b3c.setHSL(burnt ? 0.07 : (bio === 7 || bio === 3 ? 0.17 : 0.3) + (t[4] - 0.5) * 0.06, burnt ? 0.2 : 0.38, burnt ? 0.05 : 0.16 + t[4] * 0.1); mesh.setColorAt(i, _b3c);
-    b3Put(T.trunk, ti++, t[0], y, t[1], t[2], burnt ? t[2] * 0.5 : t[2], t[2], 0); });
-  place(T.pines, T.cone); place(T.round, T.ball); [T.cone, T.ball, T.trunk].forEach(m => { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }); S.burnSig = S.burnSigWant === undefined ? 0 : S.burnSigWant;
+    b3Put(T.trunk, ti, t[0], y, t[1], t[2], burnt ? t[2] * 0.5 : t[2], t[2], 0); b3Put(S.tsh, ti++, t[0] + 1, y + 0.12, t[1] + 1, burnt ? 3 : 8.5 * t[2], 1, burnt ? 3 : 8.5 * t[2], 0); });
+  place(T.pines, T.cone); place(T.round, T.ball); S.tsh.instanceMatrix.needsUpdate = true; [T.cone, T.ball, T.trunk].forEach(m => { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }); S.burnSig = S.burnSigWant === undefined ? 0 : S.burnSigWant;
 }
 function b3Dispose(S) {
   if (!S) return; S.scene.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m.map) m.map.dispose(); m.dispose(); }); } });
@@ -41,21 +89,13 @@ const b3Flush = P => { const u = P.userData; P.geometry.setDrawRange(0, u.n); P.
 
 function b3Build(V, b) {
   const S = {bid: b.id, scene: new THREE.Scene(), sets: {}, tf: V.tf || battleTerrain(b), seed: V.seed, fortSig: null, fortG: new THREE.Group()};
-  const sky = 0xa9bfcf; S.scene.background = new THREE.Color(sky); S.scene.fog = new THREE.Fog(sky, 1500, 3600); S.sky = new THREE.Color(sky);
-  S.sun = new THREE.DirectionalLight(0xfff0d8, 0.88); S.sun.position.set(-500, 900, -350); S.scene.add(S.sun); S.amb = new THREE.AmbientLight(0xffffff, 0.78); S.scene.add(S.amb);
+  const sky = 0xa9bfcf; S.scene.background = new THREE.Color(sky); S.scene.fog = new THREE.Fog(sky, 1400, 3300); S.sky = new THREE.Color(sky);
+  S.sun = new THREE.DirectionalLight(0xfff0d8, 0.88); S.sun.position.set(-500, 900, -350); S.scene.add(S.sun); S.amb = new THREE.AmbientLight(0xffffff, 0.62); S.scene.add(S.amb); S.hemi = new THREE.HemisphereLight(0xd6e4ff, 0x6a6a52, 0.34); S.scene.add(S.hemi);
   S.cam = new THREE.PerspectiveCamera(40, BV_W / BV_H, 2, 7000);
   const tf = S.tf, H = (i, k) => hash2(i, S.seed, k), bio = MAP.provs[b.prov].biome;
-  // --- suelo con relieve y la textura pintada del visor 2D
-  if (!V.bg) V.bg = bvBuildBg(V, b);
-  { const NX = 120, NZ = 52, n = (NX + 1) * (NZ + 1), pos = new Float32Array(n * 3), uv = new Float32Array(n * 2), idx = [];
-    for (let j = 0; j <= NZ; j++) for (let i = 0; i <= NX; i++) { const k = j * (NX + 1) + i, x = i / NX * BV_W, z = j / NZ * BV_H; pos[k * 3] = x; pos[k * 3 + 1] = b3H(tf, x, z); pos[k * 3 + 2] = z; uv[k * 2] = i / NX; uv[k * 2 + 1] = 1 - j / NZ; }
-    for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) { const a = j * (NX + 1) + i, bb = a + 1, c = a + NX + 1, d = c + 1; idx.push(a, c, bb, bb, c, d); }
-    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); geo.setIndex(idx); geo.computeVertexNormals();
-    const cv = document.createElement('canvas'); cv.width = R.lowEnd ? 1536 : 2048; cv.height = Math.round(cv.width * BV_H / BV_W); cv.getContext('2d').drawImage(V.bg, 0, 0, cv.width, cv.height);
-    const tex = new THREE.CanvasTexture(cv); if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = R.lowEnd ? 1 : 4;
-    S.ground = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({map: tex})); S.scene.add(S.ground);
-    // marco oscuro alrededor del campo, para que no «flote»
-    const fr = new THREE.Mesh(new THREE.PlaneGeometry(BV_W * 3, BV_H * 4), new THREE.MeshBasicMaterial({color: 0x56604a, fog: true})); fr.rotation.x = -Math.PI / 2; fr.position.set(BV_W / 2, -3, BV_H / 2); S.scene.add(fr); }
+  S.bio = bio; S.shMat = new THREE.MeshBasicMaterial({map: b3Tex(64, 64, (g, w, h) => { const rg = g.createRadialGradient(32, 32, 2, 32, 32, 31); rg.addColorStop(0, 'rgba(255,255,255,1)'); rg.addColorStop(0.55, 'rgba(255,255,255,.6)'); rg.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = rg; g.fillRect(0, 0, w, h); }), color: 0x000000, transparent: true, opacity: 0.42, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1});
+  S.shGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+  b3Ground(S, V, b);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p3 = new THREE.Vector3(), s3 = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
   const put = (im, i, x, y, z, sx, sy, sz, yaw) => { q.setFromAxisAngle(up, yaw || 0); p3.set(x, y, z); s3.set(sx, sy, sz); m4.compose(p3, q, s3); im.setMatrixAt(i, m4); };
   // --- árboles (mismas posiciones que los pintados en el suelo); cada uno recuerda su bosque para poder quemarse
@@ -67,21 +107,27 @@ function b3Build(V, b) {
     const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.35, 0.5, 3, 5).translate(0, 1.5, 0), new THREE.MeshLambertMaterial({color: 0x5a4430}), Math.max(1, list.length));
     const cone = new THREE.InstancedMesh(new THREE.ConeGeometry(3.2, 9, 6).translate(0, 7, 0), new THREE.MeshLambertMaterial({color: 0xffffff, flatShading: true}), Math.max(1, pines.length));
     const ball = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(3.6, 0).scale(1, 0.9, 1).translate(0, 5.6, 0), new THREE.MeshLambertMaterial({color: 0xffffff, flatShading: true}), Math.max(1, round.length));
+    S.tsh = new THREE.InstancedMesh(S.shGeo, S.shMat, Math.max(1, list.length)); S.tsh.count = list.length; S.tsh.frustumCulled = false; S.scene.add(S.tsh);
     cone.count = pines.length; ball.count = round.length; trunk.count = list.length; S.trees = {pines, round, cone, ball, trunk}; S.bio = bio; [cone, ball, trunk].forEach(m => { m.frustumCulled = false; S.scene.add(m); }); b3PlaceTrees(S); }
   // --- aldeas: casas con tejado y alguna iglesia
   { const hs = []; (tf.villages || []).forEach((v, vi) => { for (let i = 0; i < v.n; i++) hs.push({x: v.x + (H(i + vi * 50, 90) - 0.5) * v.r * 1.7, z: v.y + (H(i + vi * 50, 91) - 0.5) * v.r * 1.3, w: 6 + H(i + vi * 50, 92) * 3, d: 5 + H(i + vi * 50, 93) * 3, h: 3.6 + H(i + vi * 50, 94) * 1.8, r: (H(i + vi * 50, 95) - 0.5) * 0.5, t: H(i + vi * 50, 96)}); if (v.church) hs.push({x: v.x, z: v.y, w: 5, d: 9, h: 5, r: 0, t: 0.5, church: true}); });
     if (hs.length) { const walls = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshLambertMaterial({color: 0xffffff}), hs.length), roofs = new THREE.InstancedMesh(new THREE.ConeGeometry(0.78, 1, 4).rotateY(Math.PI / 4).translate(0, 0.5, 0), new THREE.MeshLambertMaterial({color: 0xffffff, flatShading: true}), hs.length);
       hs.forEach((h, i) => { const y = b3H(tf, h.x, h.z); put(walls, i, h.x, y, h.z, h.w, h.h, h.d, h.r); col.setHSL(0.1 + h.t * 0.04, 0.25, 0.68 + h.t * 0.1); walls.setColorAt(i, col); put(roofs, i, h.x, y + h.h, h.z, h.w * 1.25, h.church ? 9 : 2.8 + h.t, h.d * 1.25, h.r); col.setHSL(h.church ? 0.6 : 0.02 + h.t * 0.04, 0.5, h.church ? 0.3 : 0.32); roofs.setColorAt(i, col); });
       [walls, roofs].forEach(m => { m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; m.frustumCulled = false; S.scene.add(m); }); } }
+  (tf.villages || []).forEach(v => { if (!v.name) return; const sp = new THREE.Sprite(new THREE.SpriteMaterial({map: b3Label(v.name), depthTest: false, transparent: true, sizeAttenuation: false, fog: false})); sp.scale.set(0.2, 0.0375, 1); sp.position.set(v.x, b3H(tf, v.x, v.y) + 15, v.y); sp.renderOrder = 8; S.scene.add(sp); });
   // --- muros y setos
   if ((tf.walls || []).length) { const wl = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1.5, 0.9).translate(0, 0.75, 0), new THREE.MeshLambertMaterial({color: 0x8b8678}), tf.walls.length);
     tf.walls.forEach((w, i) => { const l = Math.hypot(w.x2 - w.x1, w.y2 - w.y1), mx = (w.x1 + w.x2) / 2, mz = (w.y1 + w.y2) / 2; put(wl, i, mx, b3H(tf, mx, mz), mz, l, 1, 1, Math.atan2(-(w.y2 - w.y1), w.x2 - w.x1)); }); wl.instanceMatrix.needsUpdate = true; wl.frustumCulled = false; S.scene.add(wl); }
   // --- estandartes, placas de bloque y anillo de selección (dinámicos)
   const N = 220;
-  S.poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.14, 0.14, 7.5, 4).translate(0, 3.75, 0), new THREE.MeshLambertMaterial({color: 0x4a3a28}), N);
-  S.flags = new THREE.InstancedMesh(new THREE.PlaneGeometry(3.2, 2).translate(1.6, 6.4, 0), new THREE.MeshBasicMaterial({color: 0xffffff, side: THREE.DoubleSide}), N);
-  S.plates = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: 0.26, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2}), N);
-  [S.poles, S.flags, S.plates].forEach(m => { m.count = 0; m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); S.scene.add(m); });
+  const flagTex = b3Tex(64, 40, (g, w, h) => { g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.strokeStyle = 'rgba(0,0,0,.55)'; g.lineWidth = 4; g.strokeRect(2, 2, w - 4, h - 4); g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(0, 0, 7, h); g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(w * 0.42, 6, 5, h - 12); g.fillRect(w * 0.3, h / 2 - 2.5, w * 0.4, 5); }),
+    plateTex = b3Tex(64, 64, (g, w, h) => { g.shadowColor = '#fff'; g.shadowBlur = 12; g.fillStyle = '#fff'; g.fillRect(14, 14, w - 28, h - 28); });
+  S.poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.14, 0.14, 8.4, 4).translate(0, 4.2, 0), new THREE.MeshLambertMaterial({color: 0x4a3a28}), N);
+  S.flags = new THREE.InstancedMesh(new THREE.PlaneGeometry(3.6, 2.3).translate(1.8, 6.8, 0), new THREE.MeshBasicMaterial({map: flagTex, color: 0xffffff, side: THREE.DoubleSide}), N);
+  S.flags2 = new THREE.InstancedMesh(new THREE.PlaneGeometry(3.6, 0.8).translate(1.8, 5.1, 0), new THREE.MeshBasicMaterial({color: 0xffffff, side: THREE.DoubleSide}), N);
+  S.plates = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({map: plateTex, color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2}), N);
+  S.sh = new THREE.InstancedMesh(S.shGeo, S.shMat, R.lowEnd ? 2500 : 5000); S.sh.count = 0; S.sh.frustumCulled = false; S.sh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); S.scene.add(S.sh); S.shN = 0;
+  [S.poles, S.flags, S.flags2, S.plates].forEach(m => { m.count = 0; m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); S.scene.add(m); });
   S.ring = new THREE.Mesh(new THREE.RingGeometry(0.92, 1, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({color: 0xfff096, transparent: true, opacity: 0.9, depthTest: false, depthWrite: false})); S.ring.visible = false; S.ring.renderOrder = 9; S.scene.add(S.ring);
   S.scene.add(S.fortG);
   // --- partículas
@@ -106,14 +152,18 @@ function b3Set(S, kind, era, tag, role) {
 function b3Forts(S, b) {
   const fl = b.forts || [], sig = fl.map(f => f.id + ':' + (f.hp > 0 ? 1 : 0) + ':' + f.kind + ':' + (f.garr ? 1 : 0)).join('|'); if (sig === S.fortSig) return; S.fortSig = sig;
   while (S.fortG.children.length) { const c = S.fortG.children.pop(); c.geometry.dispose(); c.material.dispose(); }
-  fl.forEach(f => { const dead = f.hp <= 0, hh = dead ? 0.5 : f.kind === 'trench' ? 1.3 : f.kind === 'fort' ? 5 : 2.6, col = dead ? 0x2e271f : f.kind === 'fort' ? 0x8d7f66 : 0x6b5638, y = b3H(S.tf, f.x, f.y);
-    const m = new THREE.Mesh(new THREE.BoxGeometry(f.w, hh, f.h).translate(0, hh / 2, 0), new THREE.MeshLambertMaterial({color: col, flatShading: true})); m.position.set(f.x, y, f.y); S.fortG.add(m);
-    if (!dead && f.kind !== 'trench') { const t = new THREE.Mesh(new THREE.BoxGeometry(f.w * 0.62, 0.6, f.h * 0.6).translate(0, hh + 0.3, 0), new THREE.MeshLambertMaterial({color: 0x3c3226})); t.position.set(f.x, y, f.y); S.fortG.add(t); }
-    const tcol = G.C[f.side === 'A' ? b.A0 : b.B0].color; const fp = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.6).translate(1.3, 0, 0), new THREE.MeshBasicMaterial({color: tcol, side: THREE.DoubleSide})); fp.position.set(f.x, y + hh + 4.5, f.y); S.fortG.add(fp);
-    const pl = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 5.5, 4).translate(0, 2.75, 0), new THREE.MeshLambertMaterial({color: 0x4a3a28})); pl.position.set(f.x, y + hh, f.y); S.fortG.add(pl); });
+  const earth = new THREE.CylinderGeometry(0.62, 0.7071, 1, 4, 1).rotateY(Math.PI / 4).translate(0, 0.5, 0), box = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
+  const add = (geo, col, x, y, z, sx, sy, sz, flat) => { const m = new THREE.Mesh(geo.clone(), new THREE.MeshLambertMaterial({color: col, flatShading: !!flat})); m.position.set(x, y, z); m.scale.set(sx, sy, sz); S.fortG.add(m); return m; };
+  fl.forEach(f => { const dead = f.hp <= 0, trench = f.kind === 'trench', hh = dead ? 0.6 : trench ? 1.4 : f.kind === 'fort' ? 5.5 : 3, y = b3H(S.tf, f.x, f.y) - 0.2, col = dead ? 0x2e271f : f.kind === 'fort' ? 0x8f8168 : 0x7a6342;
+    add(earth, col, f.x, y, f.y, f.w, hh, f.h, true);
+    if (!dead) { add(box, trench ? 0x2c241a : 0x2f2820, f.x, y + hh - 0.05, f.y, f.w * (trench ? 0.78 : 0.62), 0.12, f.h * (trench ? 0.55 : 0.62)); }
+    if (!dead && (f.kind === 'fort' || f.kind === 'redoubt')) [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([a, c]) => add(box, f.kind === 'fort' ? 0x9a8c72 : 0x6e5a3c, f.x + a * f.w * 0.46, y, f.y + c * f.h * 0.46, 3.4, hh + 2.2, 3.4, true));
+    const tcol = G.C[f.side === 'A' ? b.A0 : b.B0].color, fp = new THREE.Mesh(new THREE.PlaneGeometry(3, 1.9).translate(1.5, 0, 0), new THREE.MeshBasicMaterial({color: tcol, side: THREE.DoubleSide})); fp.position.set(f.x, y + hh + 6.2, f.y); S.fortG.add(fp);
+    add(new THREE.CylinderGeometry(0.13, 0.13, 6.8, 4).translate(0, 3.4, 0), 0x4a3a28, f.x, y + hh, f.y, 1, 1, 1); });
 }
 
 /* ---------- soldados ---------- */
+function b3Sh(S, x, y, z, r) { if (S.shN >= S.sh.instanceMatrix.count) return; b3Put(S.sh, S.shN++, x, y + 0.14, z, r * 2.2, 1, r * 2.2, 0); }
 const _b3o = {phase: 0, h: 0, bright: 0, skin: 0, horse: 0, start: null};
 const _b3Cl = ['caer_muerto_atras', 'caer_muerto_adelante', 'caer_muerto_rodillas', 'caer_muerto_costado'];
 function b3Clip(blk, f, era, cav) {
@@ -132,25 +182,25 @@ function b3Fig(S, V, blk, f, era, tU, cp, ca) {
     if (f.kind !== 'gun' || (!f.alive && f.dying <= 0)) return;
     const st = (blk.mode === 'artfire' || blk.mode === 'fire' || f.flash > 0) ? 'fuego' : (blk.sp || 0) > 8 ? 'marcha' : 'reposo', y = b3H(tf, f.x, f.y), yaw = Math.PI / 2 - blk.hd, c2 = Math.cos(yaw), s2 = Math.sin(yaw), h1 = hash2(blk.id, f.i, 11);
     Troops3D.troopGroup('bateria', era, st).forEach(m => { const set = b3Set(S, m.kind, era, tag, m.role), lx = m.at[0] * B3_S, lz = m.at[1] * B3_S, x = f.x + lx * c2 + lz * s2, z = f.y - lx * s2 + lz * c2;
-      _b3o.phase = h1; _b3o.h = 0; _b3o.bright = (h1 * 7.3) % 1; _b3o.skin = (h1 * 4) | 0; _b3o.horse = 0; _b3o.start = null; set.add(d3(x, y, z), x, y, z, yaw + (m.at[2] || 0) * Math.PI / 180, B3_S, tag, m.clip, _b3o); });
+      _b3o.phase = h1; _b3o.h = 0; _b3o.bright = (h1 * 7.3) % 1; _b3o.skin = (h1 * 4) | 0; _b3o.horse = 0; _b3o.start = null; set.add(d3(x, y, z), x, y, z, yaw + (m.at[2] || 0) * Math.PI / 180, B3_S, tag, m.clip, _b3o); b3Sh(S, x, y, z, /canon|obus|avantren/.test(m.kind) ? 2.6 : 1.0); });
     return;
   }
   const cav = blk.type === 'cav', tank = blk.type === 'tank', kind = tank ? 'tanque' : cav ? B3_CAV[blk.id % B3_CAV.length] : 'fusilero', set = b3Set(S, kind, era, tag, null);
-  const m = tank ? 1 : cav ? 2 : (R.lowEnd ? 2 : 4), sp = cav ? 2.6 : tank ? 0 : 1.15 * (blk.comp || 1);
+  const m = tank ? 1 : cav ? 2 : (R.lowEnd ? 2 : 6), sp = cav ? 2.9 : tank ? 0 : 1.65 * (blk.comp || 1);
   const dyingK = !f.alive && f.dying > 0;
   for (let j = 0; j < m; j++) {
-    const lx = tank ? 0 : cav ? 0 : (j < 2 ? -sp : sp), ly = tank ? 0 : cav ? (j ? sp : -sp) : (j % 2 ? sp : -sp), x = f.x + c * lx - s * ly, z = f.y + s * lx + c * ly, y = b3H(tf, x, z);
+    const lx = tank || cav ? 0 : R.lowEnd ? 0 : (j < 3 ? -0.5 : 0.5) * sp * 1.1, ly = tank ? 0 : cav ? (j ? sp : -sp) : R.lowEnd ? (j ? sp / 2 : -sp / 2) : ((j % 3) - 1) * sp, x = f.x + c * lx - s * ly, z = f.y + s * lx + c * ly, y = b3H(tf, x, z);
     const h1 = hash2(blk.id * 131 + f.i, j, 11), h2 = hash2(blk.id * 131 + f.i, j, 13); _b3o.phase = h1; _b3o.h = (h2 - 0.5) * 0.12; _b3o.bright = (h1 * 7.3) % 1; _b3o.skin = (h2 * 4) | 0; _b3o.horse = (h1 * 4) | 0; _b3o.start = null;
     let yaw = Math.PI / 2 - blk.hd + (h1 - 0.5) * 0.12, clip;
     if (dyingK) { clip = tank ? 'destruido' : _b3Cl[(h2 * 4) | 0]; _b3o.start = tU - (0.8 - f.dying) * 1.5; }
     else { if (f.flee > 0) yaw = Math.atan2(f.vx, f.vy); clip = b3Clip(blk, f, era, cav); }
-    set.add(d3(x, y, z), x, y, z, yaw, tank ? B3_S * 1.1 : B3_S, tag, clip, _b3o);
+    set.add(d3(x, y, z), x, y, z, yaw, tank ? B3_S * 1.1 : B3_S, tag, clip, _b3o); b3Sh(S, x, y, z, tank ? 3.4 : cav ? 2.0 : 1.05);
   }
 }
 function b3Corpse(S, V, cpz, era, tU, ca) {
   if (cpz.kind === 'gun') return; const tag = cpz.tag || 'GEN', set = b3Set(S, 'fusilero', era, tag, null);
   for (let j = 0; j < (R.lowEnd ? 1 : 2); j++) { const x = cpz.x + (j ? 1.1 : 0), z = cpz.y + (j ? 0.7 : 0), y = b3H(S.tf, x, z), h1 = hash2(Math.round(cpz.x * 7), Math.round(cpz.y * 7), 3 + j), wounded = h1 < 0.3;
-    _b3o.phase = h1; _b3o.h = 0; _b3o.bright = (h1 * 7.3) % 1; _b3o.skin = (h1 * 4) | 0; _b3o.horse = 0; _b3o.start = wounded ? null : tU - 10; set.add(Math.hypot(x - ca.x, y - ca.y, z - ca.z), x, y, z, Math.PI / 2 - (cpz.hd || 0), B3_S, tag, wounded ? 'herido' : _b3Cl[(h1 * 4) | 0], _b3o); }
+    _b3o.phase = h1; _b3o.h = 0; _b3o.bright = (h1 * 7.3) % 1; _b3o.skin = (h1 * 4) | 0; _b3o.horse = 0; _b3o.start = wounded ? null : tU - 10; set.add(Math.hypot(x - ca.x, y - ca.y, z - ca.z), x, y, z, Math.PI / 2 - (cpz.hd || 0), B3_S, tag, wounded ? 'herido' : _b3Cl[(h1 * 4) | 0], _b3o); b3Sh(S, x, y, z, 1.1); }
 }
 
 /* ---------- partículas ---------- */
@@ -174,7 +224,7 @@ function b3Parts(S, V) {
     S.sun.color.setRGB(1, 0.94 - 0.28 * L.warm, 0.85 - 0.5 * L.warm); S.sky.setRGB(0.66, 0.75, 0.81).lerp(_b3c.setRGB(0.85, 0.62, 0.45), L.warm * 0.6).multiplyScalar(0.45 + 0.55 * L.k); S.scene.background.copy(S.sky); S.scene.fog.color.copy(S.sky); S.hourK = L.k; }
   { const md = V.mud || 0; S.ground.material.color.setRGB(1 - 0.34 * md, 1 - 0.42 * md, 1 - 0.5 * md); }
   (S.tf.forests || []).forEach(f => { if (!f.fire) return; for (let i = 0; i < 7; i++) { const a = Math.random() * 6.28, d = Math.sqrt(Math.random()) * f.r * 0.85, x = f.x + Math.cos(a) * d, z = f.y + Math.sin(a) * d * 0.8, y = b3H(S.tf, x, z) + 3 + Math.random() * 7; b3Push(S.boom, x, y, z, 1, 0.5 + Math.random() * 0.3, 0.12, 0.55); } b3Push(S.boom, f.x, b3H(S.tf, f.x, f.y) + 6, f.y, 1, 0.45, 0.1, 0.35); });
-  S.scene.fog.near = on ? 700 : 1500; S.scene.fog.far = on ? 2400 : 3600; S.amb.intensity = (on ? 0.62 : 0.78) * (0.55 + 0.45 * (S.hourK || 1)); S.sun.intensity = (on ? 0.55 : 0.88) * (S.hourK || 1);
+  S.scene.fog.near = on ? 700 : 1500; S.scene.fog.far = on ? 2400 : 3600; S.amb.intensity = (on ? 0.5 : 0.62) * (0.55 + 0.45 * (S.hourK || 1)); S.hemi.intensity = (on ? 0.26 : 0.34) * (S.hourK || 1); S.sun.intensity = (on ? 0.55 : 0.88) * (S.hourK || 1);
 }
 
 /* ---------- cámara y dibujado ---------- */
@@ -197,7 +247,8 @@ function b3Frame(V, b, g, lines, all) {
   const dt = Math.min(0.05, V.t - (B3.lt || V.t)) || 0.016; B3.lt = V.t;
   S.burnSigWant = V.burnSig || 0; if (S.burnSig !== S.burnSigWant) b3PlaceTrees(S);
   b3Camera(S, V, dt); b3Forts(S, b);
-  Object.keys(S.sets).forEach(k => S.sets[k].begin());
+  Object.keys(S.sets).forEach(k => S.sets[k].begin()); S.shN = 0;
+  { const fl = (S.tf.forests || []).map(f => f.burnt ? 2 : f.fire ? 1 : 0).join(''); if (fl !== S.floorSig) { S.floorSig = fl; b3Compose(S); } }
   const cp = S.cam.position, ca = {x: cp.x, y: cp.y, z: cp.z};
   const vis = all.filter(k => !(typeof tacHidden === 'function' && tacHidden(b, k)) && (typeof bvSeen !== 'function' || bvSeen(V, b, k)));
   vis.forEach(blk => blk.figs.forEach(f => { if (f.alive || f.dying > 0) b3Fig(S, V, blk, f, era, tU, null, ca); }));
@@ -206,9 +257,10 @@ function b3Frame(V, b, g, lines, all) {
   // estandartes y placas
   let n = 0; const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p3 = new THREE.Vector3(), s3 = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
   vis.forEach(blk => { if (n >= 220) return; const y = b3H(S.tf, blk.x, blk.y), yaw = Math.PI / 2 - blk.hd;
-    q.setFromAxisAngle(up, yaw + Math.PI / 2); p3.set(blk.x, y, blk.y); s3.set(1, 1, 1); m4.compose(p3, q, s3); S.poles.setMatrixAt(n, m4); S.flags.setMatrixAt(n, m4); col.set(blk.color); S.flags.setColorAt(n, col);
+    q.setFromAxisAngle(up, yaw + Math.PI / 2); p3.set(blk.x, y, blk.y); s3.set(1, 1, 1); m4.compose(p3, q, s3); S.poles.setMatrixAt(n, m4); S.flags.setMatrixAt(n, m4); S.flags2.setMatrixAt(n, m4); col.set(blk.color); S.flags.setColorAt(n, col); S.flags2.setColorAt(n, blk.side === 'A' ? S.mats.A : S.mats.B);
     q.setFromAxisAngle(up, yaw); p3.set(blk.x, y + 0.25, blk.y); s3.set(blk.wid + 2, 1, blk.dep + 2); m4.compose(p3, q, s3); S.plates.setMatrixAt(n, m4); S.plates.setColorAt(n, blk.side === 'A' ? S.mats.A : S.mats.B); n++; });
-  [S.poles, S.flags, S.plates].forEach(m => { m.count = n; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; });
+  S.sh.count = S.shN; S.sh.instanceMatrix.needsUpdate = true;
+  [S.poles, S.flags, S.flags2, S.plates].forEach(m => { m.count = n; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; });
   const sel = V.sel && V.blocks.has(V.sel.d) ? V.sel : null; S.ring.visible = !!sel; if (sel) { const r = Math.max(sel.dep, sel.wid) / 2 + 7; S.ring.position.set(sel.x, b3H(S.tf, sel.x, sel.y) + 0.6, sel.y); S.ring.scale.set(r, 1, r); S.ring.material.opacity = 0.6 + 0.4 * Math.sin(V.t * 5); }
   b3Parts(S, V);
   // dibujado con el renderizador del mapa en la esquina de su lienzo y copia al lienzo del visor
@@ -257,7 +309,7 @@ function b3Bind(cv) {
   cv.addEventListener('wheel', e => { if (!B3.active) return; e.preventDefault(); e.stopImmediatePropagation(); B3.cam.d *= Math.exp(e.deltaY * 0.0013); if (R.bviz) R.bviz.follow = false; }, {capture: true, passive: false});
   cv.addEventListener('dblclick', e => { if (!B3.active) return; e.stopImmediatePropagation(); b3Reset(); }, true);
 }
-function b3Reset() { const V = R.bviz; Object.assign(B3.cam, {tx: BV_W / 2 + (V ? V.adv * 100 : 0), tz: BV_H / 2, d: 980, yaw: 0, pit: 0.8}); if (V) V.follow = false; }
+function b3Reset() { const V = R.bviz; Object.assign(B3.cam, {tx: BV_W / 2 + (V ? V.adv * 100 : 0), tz: BV_H / 2, d: 900, yaw: 0, pit: 0.82}); if (V) V.follow = false; }
 const _b3Bind = bvBind;
 bvBind = function (cv) { if (!cv._b3) { cv._b3 = true; b3Bind(cv); } return _b3Bind(cv); };
 // botones del visor

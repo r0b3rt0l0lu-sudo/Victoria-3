@@ -6,7 +6,7 @@
    · Cámara libre: arrastrar = mover · botón derecho o Mayús + arrastrar = girar · rueda = zoom · doble clic = vista completa · clic = seleccionar bloque.
    · Se dibuja con el renderizador del mapa (que está parado mientras hay una batalla abierta) y se copia al lienzo del visor, así no hay un segundo contexto WebGL.
    · Si el equipo no cumple los requisitos de las tropas 3D, o cualquier cosa falla, se vuelve solo al visor 2D (R.b3Dead = true). Botón «Vista 3D» para alternar. */
-const B3 = {S: null, cam: {tx: BV_W / 2, tz: BV_H / 2, d: 1250, yaw: 0, pit: 0.72}, drag: null, hoverW: null, active: false, ray: null};
+const B3 = {S: null, cam: {tx: BV_W / 2, tz: BV_H / 2, d: 980, yaw: 0, pit: 0.8}, drag: null, hoverW: null, active: false, ray: null};
 const B3_S = 1.35;                                                                 // escala de las figuras (1,8 u de altura → ≈ 2,4 u del campo)
 const B3_CAP = {inf: [1400, 2800, 2800], cav: [400, 900, 900], art: [300, 700, 700]};
 const B3_CAV = ['husar', 'husar', 'lancero', 'dragon', 'coracero'];
@@ -172,7 +172,7 @@ function b3Parts(S, V) {
 /* ---------- cámara y dibujado ---------- */
 function b3Camera(S, V, dt) {
   const c = B3.cam; if (V.follow && (V.sel || V.hover)) { const tg = V.sel || V.hover; c.tx += (tg.x - c.tx) * Math.min(1, dt * 4); c.tz += (tg.y - c.tz) * Math.min(1, dt * 4); c.d += (Math.min(c.d, 380) - c.d) * Math.min(1, dt * 3); }
-  c.tx = clamp(c.tx, 0, BV_W); c.tz = clamp(c.tz, 0, BV_H); c.d = clamp(c.d, 35, 2600); c.pit = clamp(c.pit, 0.1, 1.5);
+  c.tx = clamp(c.tx, 0, BV_W); c.tz = clamp(c.tz, 0, BV_H); c.d = clamp(c.d, 25, 2600); c.pit = clamp(c.pit, 0.1, 1.5);
   const ty = b3H(S.tf, c.tx, c.tz), cp = Math.cos(c.pit), cam = S.cam;
   cam.position.set(c.tx + Math.sin(c.yaw) * cp * c.d, ty + Math.sin(c.pit) * c.d, c.tz + Math.cos(c.yaw) * cp * c.d); cam.lookAt(c.tx, ty, c.tz); cam.updateMatrixWorld();
 }
@@ -247,7 +247,7 @@ function b3Bind(cv) {
   cv.addEventListener('wheel', e => { if (!B3.active) return; e.preventDefault(); e.stopImmediatePropagation(); B3.cam.d *= Math.exp(e.deltaY * 0.0013); if (R.bviz) R.bviz.follow = false; }, {capture: true, passive: false});
   cv.addEventListener('dblclick', e => { if (!B3.active) return; e.stopImmediatePropagation(); b3Reset(); }, true);
 }
-function b3Reset() { const V = R.bviz; Object.assign(B3.cam, {tx: BV_W / 2 + (V ? V.adv * 100 : 0), tz: BV_H / 2, d: 1250, yaw: 0, pit: 0.72}); if (V) V.follow = false; }
+function b3Reset() { const V = R.bviz; Object.assign(B3.cam, {tx: BV_W / 2 + (V ? V.adv * 100 : 0), tz: BV_H / 2, d: 980, yaw: 0, pit: 0.8}); if (V) V.follow = false; }
 const _b3Bind = bvBind;
 bvBind = function (cv) { if (!cv._b3) { cv._b3 = true; b3Bind(cv); } return _b3Bind(cv); };
 // botones del visor

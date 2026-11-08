@@ -31,7 +31,7 @@ bvSpeedMul = function (V, b, blk) {
 };
 // ---- hora del día ----
 function bvHour(V) { const len = Math.max(1800, typeof dayMs === 'function' ? dayMs() : 1800); return 6 + 14 * clamp((performance.now() - (V.dayT || performance.now())) / len, 0, 1); }
-function bvLight(h) { return h < 8 ? {k: 0.66 + 0.34 * (h - 6) / 2, warm: 1 - (h - 6) / 2} : h < 17 ? {k: 1, warm: 0} : {k: 1 - 0.46 * (h - 17) / 3, warm: (h - 17) / 3}; }
+function bvLight(h) { return h < 8 ? {k: 0.8 + 0.2 * (h - 6) / 2, warm: 1 - (h - 6) / 2} : h < 17 ? {k: 1, warm: 0} : {k: 1 - 0.26 * (h - 17) / 3, warm: (h - 17) / 3}; }
 const bvTwilight = V => { const h = V.hour || 12; return h < 7.2 || h > 18.8; };
 const _rl3Sight = bvSightRange;
 bvSightRange = function (V, b) { return _rl3Sight(V, b) * (bvTwilight(V) ? 0.8 : 1); };

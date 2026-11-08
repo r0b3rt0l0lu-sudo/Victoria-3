@@ -211,7 +211,7 @@ function b3Parts(S, V) {
     else if (p.k === 'dust') b3Push(S.dust, p.x, y0 + 0.8 + p.age * 0.6, p.y, 0.72, 0.62, 0.46, 0.3 * (1 - k));
     else if (p.k === 'flash') b3Push(S.flash, p.x, y0 + 1.7, p.y, 1, 0.82, 0.4, 1 - k);
     else if (p.k === 'spark') b3Push(S.flash, p.x, y0 + 1 + k * (p.hot ? 3 : 7), p.y, p.hot ? 1 : 0.6, p.hot ? 0.65 : 1, p.hot ? 0.3 : 0.6, 0.9 * (1 - k));
-    else if (p.k === 'boom') { b3Push(S.boom, p.x, y0 + 2 + k * 5, p.y, 1, 0.55 + 0.25 * (1 - k), 0.2, 0.9 * (1 - k)); b3Push(S.smoke, p.x, y0 + 4 + k * 9, p.y, 0.3, 0.28, 0.26, 0.5 * (1 - k)); }
+    else if (p.k === 'boom') { b3Push(S.boom, p.x, y0 + 2 + k * 5, p.y, 1, 0.55 + 0.25 * (1 - k), 0.2, 0.9 * (1 - k)); b3Push(S.smoke, p.x, y0 + 5 + k * 12, p.y, 0.46, 0.44, 0.42, 0.4 * (1 - k)); }
     else if (p.k === 'shell') { const q = Math.min(1, k); b3Push(S.shell, p.x + (p.x2 - p.x) * q, b3H(tf, p.x2, p.y2) + 2 + Math.sin(q * 3.14) * 60, p.y + (p.y2 - p.y) * q, 0.12, 0.11, 0.1, 1); }
     else if (p.k === 'gas') b3Push(S.gas, p.x, y0 + 4, p.y, 0.72, 0.82, 0.22, 0.4 * Math.sin(Math.min(1, k) * 3.14));
     else if (p.k === 'splash') b3Push(S.dust, p.x, y0 + 1 + k * 3, p.y, 0.9, 0.95, 1, 0.5 * (1 - k)); });

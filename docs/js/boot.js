@@ -1,6 +1,6 @@
 /* Arranque: carga el WebAssembly y los datos binarios y después el juego. Con file:// (sin servidor) usa el respaldo en base64. */
 (async function () {
-  var V = {"js/three.min.js": "b53d85dd", "js/game.js": "9d51a57b", "css/style.css": "96232090", "data/elevacion.bin": "e00db860", "wasm/kernels.wasm": "19be9f89", "data/1910.bin": "0c59e724", "js/datos-b64.js": "8a68c082"};
+  var V = {"js/three.min.js": "b53d85dd", "js/game.js": "a43c2ae5", "css/style.css": "96232090", "data/elevacion.bin": "e00db860", "wasm/kernels.wasm": "19be9f89", "data/1910.bin": "0c59e724", "js/datos-b64.js": "8a68c082"};
   if (/nowasm/.test(location.search)) window.__WK_OFF = 1;
   function load(src) { return new Promise(function (ok, no) { var s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = function () { no(new Error(src)); }; document.body.appendChild(s); }); }
   async function bin(rel) { var r = await fetch(rel + '?v=' + V[rel]); if (!r.ok) throw new Error(rel); return new Uint8Array(await r.arrayBuffer()); }

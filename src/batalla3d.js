@@ -16,12 +16,16 @@ function b3On() {
   if (R.bv3d === undefined) { const p = b3Pref(); R.bv3d = p === null ? R.quality !== 'bajo' : p; }
   return !!R.bv3d && !R.b3Dead && b3Usable();
 }
-// altura del terreno: colinas del escenario, cauce hundido y ondulación suave
-function b3H(tf, x, z) {
-  let h = 0.45 * Math.sin(x * 0.021 + z * 0.017) * Math.cos(z * 0.027 - x * 0.011);
-  (tf.hills || []).forEach(hl => { const dx = (x - hl.x) / hl.rx, dz = (z - hl.y) / hl.ry, d = dx * dx + dz * dz; if (d < 1) { const k = 1 - d, s = k * k * (3 - 2 * k); h += s * Math.min(30, (hl.rx + hl.ry) * 0.06); } });
-  if (tf.river) { const dx = Math.abs(x - tacRiverX(tf, z)), w = tf.river.w * 1.4; if (dx < w) { const k = 1 - dx / w; h -= 1.8 * k * k * (3 - 2 * k); } }
-  return h;
+function b3H(tf, x, z) { return bvHeight(tf, x, z); }                      // altura compartida con la simulación (realismo3.js)
+const _b3m = new THREE.Matrix4(), _b3q = new THREE.Quaternion(), _b3p = new THREE.Vector3(), _b3s = new THREE.Vector3(), _b3up = new THREE.Vector3(0, 1, 0), _b3c = new THREE.Color();
+function b3Put(im, i, x, y, z, sx, sy, sz, yaw) { _b3q.setFromAxisAngle(_b3up, yaw || 0); _b3p.set(x, y, z); _b3s.set(sx, sy, sz); _b3m.compose(_b3p, _b3q, _b3s); im.setMatrixAt(i, _b3m); }
+// coloca (o recoloca) los árboles: los de un bosque calcinado quedan bajos y negros
+function b3PlaceTrees(S) {
+  const T = S.trees, tf = S.tf, bio = S.bio; let ti = 0;
+  const place = (arr, mesh) => arr.forEach((t, i) => { const fo = t[5] >= 0 ? tf.forests[t[5]] : null, burnt = !!(fo && fo.burnt), y = b3H(tf, t[0], t[1]);
+    b3Put(mesh, i, t[0], y, t[1], t[2], t[2] * (burnt ? 0.35 : 0.9 + t[4] * 0.3), t[2], t[4] * 6); _b3c.setHSL(burnt ? 0.07 : (bio === 7 || bio === 3 ? 0.17 : 0.3) + (t[4] - 0.5) * 0.06, burnt ? 0.2 : 0.38, burnt ? 0.05 : 0.16 + t[4] * 0.1); mesh.setColorAt(i, _b3c);
+    b3Put(T.trunk, ti++, t[0], y, t[1], t[2], burnt ? t[2] * 0.5 : t[2], t[2], 0); });
+  place(T.pines, T.cone); place(T.round, T.ball); [T.cone, T.ball, T.trunk].forEach(m => { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }); S.burnSig = S.burnSigWant === undefined ? 0 : S.burnSigWant;
 }
 function b3Dispose(S) {
   if (!S) return; S.scene.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m.map) m.map.dispose(); m.dispose(); }); } });
@@ -54,17 +58,16 @@ function b3Build(V, b) {
     const fr = new THREE.Mesh(new THREE.PlaneGeometry(BV_W * 3, BV_H * 4), new THREE.MeshBasicMaterial({color: 0x56604a, fog: true})); fr.rotation.x = -Math.PI / 2; fr.position.set(BV_W / 2, -3, BV_H / 2); S.scene.add(fr); }
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p3 = new THREE.Vector3(), s3 = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
   const put = (im, i, x, y, z, sx, sy, sz, yaw) => { q.setFromAxisAngle(up, yaw || 0); p3.set(x, y, z); s3.set(sx, sy, sz); m4.compose(p3, q, s3); im.setMatrixAt(i, m4); };
-  // --- árboles (mismas posiciones que los pintados en el suelo)
+  // --- árboles (mismas posiciones que los pintados en el suelo); cada uno recuerda su bosque para poder quemarse
   { const list = [], capT = R.lowEnd ? 500 : 1500;
-    tf.forests.forEach((f, fi) => { const n = Math.round(f.r * 0.8), pine = bio === 5 || bio === 2 || H(fi, 9) < 0.4; for (let i = 0; i < n; i++) { const a = H(i + fi * 200, 70) * 6.283, d = Math.sqrt(H(i + fi * 200, 71)) * f.r; list.push([f.x + Math.cos(a) * d, f.y + Math.sin(a) * d * 0.8, 0.8 + H(i + fi * 200, 72) * 0.7, pine, H(i + fi * 200, 73)]); } });
-    (tf.orchards || []).forEach((f, fi) => { const n = Math.round(f.r * 0.3); for (let i = 0; i < n; i++) { const a = H(i + fi * 90, 80) * 6.283, d = Math.sqrt(H(i + fi * 90, 81)) * f.r; list.push([f.x + Math.cos(a) * d, f.y + Math.sin(a) * d, 0.6 + H(i, 82) * 0.3, false, 0.9]); } });
+    tf.forests.forEach((f, fi) => { const n = Math.round(f.r * 0.8), pine = bio === 5 || bio === 2 || H(fi, 9) < 0.4; for (let i = 0; i < n; i++) { const a = H(i + fi * 200, 70) * 6.283, d = Math.sqrt(H(i + fi * 200, 71)) * f.r; list.push([f.x + Math.cos(a) * d, f.y + Math.sin(a) * d * 0.8, 0.8 + H(i + fi * 200, 72) * 0.7, pine, H(i + fi * 200, 73), fi]); } });
+    (tf.orchards || []).forEach((f, fi) => { const n = Math.round(f.r * 0.3); for (let i = 0; i < n; i++) { const a = H(i + fi * 90, 80) * 6.283, d = Math.sqrt(H(i + fi * 90, 81)) * f.r; list.push([f.x + Math.cos(a) * d, f.y + Math.sin(a) * d, 0.6 + H(i, 82) * 0.3, false, 0.9, -1]); } });
     if (list.length > capT) list.length = capT;
     const pines = list.filter(t => t[3]), round = list.filter(t => !t[3]);
     const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.35, 0.5, 3, 5).translate(0, 1.5, 0), new THREE.MeshLambertMaterial({color: 0x5a4430}), Math.max(1, list.length));
     const cone = new THREE.InstancedMesh(new THREE.ConeGeometry(3.2, 9, 6).translate(0, 7, 0), new THREE.MeshLambertMaterial({color: 0xffffff, flatShading: true}), Math.max(1, pines.length));
     const ball = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(3.6, 0).scale(1, 0.9, 1).translate(0, 5.6, 0), new THREE.MeshLambertMaterial({color: 0xffffff, flatShading: true}), Math.max(1, round.length));
-    let ti = 0; const place = (arr, mesh) => arr.forEach((t, i) => { const y = b3H(tf, t[0], t[1]); put(mesh, i, t[0], y, t[1], t[2], t[2] * (0.9 + t[4] * 0.3), t[2], t[4] * 6); col.setHSL((bio === 7 || bio === 3 ? 0.17 : 0.3) + (t[4] - 0.5) * 0.06, 0.38, 0.16 + t[4] * 0.1); mesh.setColorAt(i, col); put(trunk, ti++, t[0], y, t[1], t[2], t[2], t[2], 0); });
-    place(pines, cone); place(round, ball); cone.count = pines.length; ball.count = round.length; trunk.count = list.length; [cone, ball, trunk].forEach(m => { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; m.frustumCulled = false; S.scene.add(m); }); }
+    cone.count = pines.length; ball.count = round.length; trunk.count = list.length; S.trees = {pines, round, cone, ball, trunk}; S.bio = bio; [cone, ball, trunk].forEach(m => { m.frustumCulled = false; S.scene.add(m); }); b3PlaceTrees(S); }
   // --- aldeas: casas con tejado y alguna iglesia
   { const hs = []; (tf.villages || []).forEach((v, vi) => { for (let i = 0; i < v.n; i++) hs.push({x: v.x + (H(i + vi * 50, 90) - 0.5) * v.r * 1.7, z: v.y + (H(i + vi * 50, 91) - 0.5) * v.r * 1.3, w: 6 + H(i + vi * 50, 92) * 3, d: 5 + H(i + vi * 50, 93) * 3, h: 3.6 + H(i + vi * 50, 94) * 1.8, r: (H(i + vi * 50, 95) - 0.5) * 0.5, t: H(i + vi * 50, 96)}); if (v.church) hs.push({x: v.x, z: v.y, w: 5, d: 9, h: 5, r: 0, t: 0.5, church: true}); });
     if (hs.length) { const walls = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshLambertMaterial({color: 0xffffff}), hs.length), roofs = new THREE.InstancedMesh(new THREE.ConeGeometry(0.78, 1, 4).rotateY(Math.PI / 4).translate(0, 0.5, 0), new THREE.MeshLambertMaterial({color: 0xffffff, flatShading: true}), hs.length);
@@ -146,8 +149,8 @@ function b3Fig(S, V, blk, f, era, tU, cp, ca) {
 }
 function b3Corpse(S, V, cpz, era, tU, ca) {
   if (cpz.kind === 'gun') return; const tag = cpz.tag || 'GEN', set = b3Set(S, 'fusilero', era, tag, null);
-  for (let j = 0; j < (R.lowEnd ? 1 : 2); j++) { const x = cpz.x + (j ? 1.1 : 0), z = cpz.y + (j ? 0.7 : 0), y = b3H(S.tf, x, z), h1 = hash2(Math.round(cpz.x * 7), Math.round(cpz.y * 7), 3 + j);
-    _b3o.phase = h1; _b3o.h = 0; _b3o.bright = (h1 * 7.3) % 1; _b3o.skin = (h1 * 4) | 0; _b3o.horse = 0; _b3o.start = tU - 10; set.add(Math.hypot(x - ca.x, y - ca.y, z - ca.z), x, y, z, Math.PI / 2 - (cpz.hd || 0), B3_S, tag, _b3Cl[(h1 * 4) | 0], _b3o); }
+  for (let j = 0; j < (R.lowEnd ? 1 : 2); j++) { const x = cpz.x + (j ? 1.1 : 0), z = cpz.y + (j ? 0.7 : 0), y = b3H(S.tf, x, z), h1 = hash2(Math.round(cpz.x * 7), Math.round(cpz.y * 7), 3 + j), wounded = h1 < 0.3;
+    _b3o.phase = h1; _b3o.h = 0; _b3o.bright = (h1 * 7.3) % 1; _b3o.skin = (h1 * 4) | 0; _b3o.horse = 0; _b3o.start = wounded ? null : tU - 10; set.add(Math.hypot(x - ca.x, y - ca.y, z - ca.z), x, y, z, Math.PI / 2 - (cpz.hd || 0), B3_S, tag, wounded ? 'herido' : _b3Cl[(h1 * 4) | 0], _b3o); }
 }
 
 /* ---------- partículas ---------- */
@@ -166,7 +169,12 @@ function b3Parts(S, V) {
   // lluvia: líneas alrededor del punto que mira la cámara
   const on = V.rain > 0; S.rain.visible = on;
   if (on) { const a = S.rain.geometry.attributes.position.array, c = B3.cam, t = V.t; for (let i = 0; i < 600; i++) { const x = c.tx + (hash2(i, 5, 9) - 0.5) * 900, z = c.tz + (hash2(i, 6, 9) - 0.5) * 600, y = 90 - ((hash2(i, 7, 9) * 90 + t * 160) % 90); a[i * 6] = x; a[i * 6 + 1] = y; a[i * 6 + 2] = z; a[i * 6 + 3] = x - 1; a[i * 6 + 4] = y - 5; a[i * 6 + 5] = z; } S.rain.geometry.attributes.position.needsUpdate = true; }
-  S.scene.fog.near = on ? 700 : 1500; S.scene.fog.far = on ? 2400 : 3600; S.amb.intensity = on ? 0.62 : 0.78; S.sun.intensity = on ? 0.55 : 0.88;
+  // hora del día: el sol recorre el cielo y la luz se calienta al alba y al ocaso
+  { const hr = V.hour || 12, L = bvLight(hr), ang = Math.PI * (clamp(hr, 6, 20) - 6) / 14; S.sun.position.set(-Math.cos(ang) * 700, Math.sin(ang) * 800 + 120, -350);
+    S.sun.color.setRGB(1, 0.94 - 0.28 * L.warm, 0.85 - 0.5 * L.warm); S.sky.setRGB(0.66, 0.75, 0.81).lerp(_b3c.setRGB(0.85, 0.62, 0.45), L.warm * 0.6).multiplyScalar(0.45 + 0.55 * L.k); S.scene.background.copy(S.sky); S.scene.fog.color.copy(S.sky); S.hourK = L.k; }
+  { const md = V.mud || 0; S.ground.material.color.setRGB(1 - 0.34 * md, 1 - 0.42 * md, 1 - 0.5 * md); }
+  (S.tf.forests || []).forEach(f => { if (!f.fire) return; for (let i = 0; i < 7; i++) { const a = Math.random() * 6.28, d = Math.sqrt(Math.random()) * f.r * 0.85, x = f.x + Math.cos(a) * d, z = f.y + Math.sin(a) * d * 0.8, y = b3H(S.tf, x, z) + 3 + Math.random() * 7; b3Push(S.boom, x, y, z, 1, 0.5 + Math.random() * 0.3, 0.12, 0.55); } b3Push(S.boom, f.x, b3H(S.tf, f.x, f.y) + 6, f.y, 1, 0.45, 0.1, 0.35); });
+  S.scene.fog.near = on ? 700 : 1500; S.scene.fog.far = on ? 2400 : 3600; S.amb.intensity = (on ? 0.62 : 0.78) * (0.55 + 0.45 * (S.hourK || 1)); S.sun.intensity = (on ? 0.55 : 0.88) * (S.hourK || 1);
 }
 
 /* ---------- cámara y dibujado ---------- */
@@ -187,6 +195,7 @@ function b3Frame(V, b, g, lines, all) {
   const S = B3.S && B3.S.bid === b.id && !B3.S.stale ? B3.S : (b3Dispose(B3.S), B3.S = b3Build(V, b));
   if (!R.t3) t3Init(); const sh = R.t3.shared, era = t3Era(), tU = performance.now() / 1000; sh.timeU.value = tU;
   const dt = Math.min(0.05, V.t - (B3.lt || V.t)) || 0.016; B3.lt = V.t;
+  S.burnSigWant = V.burnSig || 0; if (S.burnSig !== S.burnSigWant) b3PlaceTrees(S);
   b3Camera(S, V, dt); b3Forts(S, b);
   Object.keys(S.sets).forEach(k => S.sets[k].begin());
   const cp = S.cam.position, ca = {x: cp.x, y: cp.y, z: cp.z};
@@ -213,6 +222,7 @@ function b3Frame(V, b, g, lines, all) {
   // HUD del visor 2D encima; la ficha del bloque bajo el ratón se coloca donde lo proyecta la cámara 3D
   const keep = {x: V.cam.x, y: V.cam.y, z: V.cam.z}, h = V.hover; if (h) { const v = new THREE.Vector3(h.x, b3H(S.tf, h.x, h.y) + 3, h.y).project(S.cam), sx = (v.x * 0.5 + 0.5) * BV_W, sy = (-v.y * 0.5 + 0.5) * BV_H; V.cam.z = 1; V.cam.x = h.x + BV_W / 2 - sx; V.cam.y = h.y + BV_H / 2 - sy; }
   g.save(); g.scale(BV_W / 960, BV_H / 420); bvOverlay(V, b, g, lines, all); g.restore(); V.cam.x = keep.x; V.cam.y = keep.y; V.cam.z = keep.z;
+  if (typeof rl3Badge === 'function') rl3Badge(g, V, b);
   g.save(); g.font = '12px sans-serif'; g.textAlign = 'left'; g.fillStyle = 'rgba(8,12,16,.7)'; g.fillRect(8, BV_H - 26, 560, 20); g.fillStyle = '#d9d2bc'; g.fillText('🧊 Vista 3D · arrastrar: mover · botón derecho o Mayús: girar · rueda: zoom · doble clic: vista completa', 14, BV_H - 12); g.restore();
 }
 // el dibujado 2D se sustituye por el 3D (con respaldo si algo falla)

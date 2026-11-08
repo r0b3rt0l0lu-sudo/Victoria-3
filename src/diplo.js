@@ -232,7 +232,7 @@ function makePeace(w) {
   const sc = mine ? w.score : -w.score;
   if (sc > 30) endWar(w, mine ? w.att : w.def);
   else if (sc < -30) endWar(w, mine ? w.def : w.att);
-  else if (Math.random() < 0.55 + Math.abs(sc) / 200 || w.weeks > 40) endWar(w, null);
+  else if (Math.random() < 0.55 + Math.abs(sc) / 200 || w.weeks > 20) endWar(w, null);
   else toast('🕊️', 'El enemigo rechaza la paz blanca. Insiste más adelante.');
 }
 function clearOccupationKeep(w) {

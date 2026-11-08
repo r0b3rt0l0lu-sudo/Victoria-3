@@ -1077,7 +1077,7 @@ window.onFrame = function (t) {
     let n = 0; const tb = performance.now();
     while (UI.acc >= dayMs() && n < 40) {
       UI.acc -= dayMs(); const m0 = G.date.m;
-      advanceDay(); n++;
+      try { advanceDay(); } catch (e) { reportErr('simulación', e); } n++;                 // un fallo puntual de un día no detiene la partida
       if (n >= 1 && performance.now() - tb > (typeof simBudgetMs === 'function' ? simBudgetMs() : 14)) { UI.acc = Math.min(UI.acc, dayMs() * 1.5); break; }       // presupuesto de tiempo: el resto de días pasa al siguiente fotograma
       if (G.date.m !== m0 && R.mode !== 'political' && R.mode !== 'terrain') R.needPaint = true;
       if (G.date.m !== m0 && G.date.m === 0) doSave(true);

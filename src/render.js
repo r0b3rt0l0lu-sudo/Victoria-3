@@ -580,7 +580,13 @@ function drawMinimap() {
 }
 
 let _lastT = 0; R.rn = 0;
-function frame_(t) {
+// Un error en un fotograma ya no congela el juego: se registra (una vez por tipo) y el bucle sigue
+function reportErr(where, e) {
+  try { R.errs = R.errs || {}; const msg = String((e && e.message) || e).slice(0, 90), key = where + ':' + msg, k = R.errs[key] = (R.errs[key] || 0) + 1;
+    if (k === 1) { console.error('Error en ' + where + ':', e); R.errToast = (R.errToast || 0) + 1; if (R.errToast <= 4 && typeof toast === 'function') toast('⚠️', `Error interno (${where}): ${msg}. El juego sigue; si se repite, guarda la partida y recarga.`); } } catch (e2) { }
+}
+function frame_(t) { try { frameCore_(t); } catch (e) { reportErr('dibujado', e); requestAnimationFrame(frame_); } }
+function frameCore_(t) {
   const dt = Math.min(0.1, (t - _lastT) / 1000); _lastT = t;
   if (typeof pageHidden === 'function' && pageHidden()) { requestAnimationFrame(frame_); return; }
   if (R.skip3d) { if (window.onFrame) window.onFrame(t); requestAnimationFrame(frame_); return; }

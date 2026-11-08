@@ -832,6 +832,8 @@ body.phone .mbtn{flex:none;width:44px;height:44px;font-size:21px}body.phone .mbt
 body.phone #toasts{left:8px!important;right:8px!important;top:calc(var(--ph,56px) + 56px)!important;bottom:auto!important;width:auto!important;min-width:0!important;transform:none!important;flex-direction:column!important}
 body.phone.bt #toasts{top:54px!important}
 body.pl #toasts{left:auto!important;right:8px!important;width:320px!important;top:104px!important}
+body.pp #toasts{right:58px!important}
+body.pl.bt #toasts{top:auto!important;bottom:8px!important;right:auto!important;left:8px!important;width:300px!important}
 body.phone .toast{font-size:13px;padding:7px 10px}body.phone .toast:nth-last-child(n+3){display:none}
 body.phone #windows .window{left:6px!important;right:6px!important;top:calc(env(safe-area-inset-top) + 6px)!important;width:auto!important;transform:none!important;max-height:calc(var(--vh,1vh)*100 - 82px)!important}
 body.phone .whead{padding:8px 12px}body.phone .wbody{padding:10px 10px 14px}
@@ -862,7 +864,7 @@ body.pl #plaque{max-width:calc(100vw - 340px)!important}
 body.pl #topright{top:6px;right:6px;gap:5px;flex-wrap:wrap;justify-content:flex-end;max-width:260px}
 body.pl #topright.open{max-width:340px;padding:6px;background:rgba(14,19,24,.96);border:1px solid var(--goldd);border-radius:22px}
 body.pl #datebox{right:6px!important;top:56px!important}
-body.pl #camctl{right:6px;bottom:78px;flex-direction:row;flex-wrap:wrap;width:auto;max-width:160px}
+body.pl #camctl{right:6px;bottom:128px;flex-direction:row;flex-wrap:wrap;width:auto;max-width:160px}
 body.pl #camctl.open{max-width:200px}
 body.pl #mapctl{right:6px;bottom:6px}body.pl #minimap{width:150px;height:60px}
 body.pl #menu{right:auto;max-width:calc(100vw - 180px)}

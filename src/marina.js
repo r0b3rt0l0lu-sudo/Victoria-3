@@ -26,7 +26,7 @@ const shipPow = (s, key) => SHIP_TYPES[s.t][key] * Math.max(0.05, s.hp);
 function fleetPower(f, key) { let p = 0; f.ships.forEach(s => { p += shipPow(s, key || 'att'); }); return p * (1 + 0.04 * ((f.adm && f.adm.lvl) || 1) - 0.04) * (1 + docMod(f.tag, 'nav')); }
 function zonePower(tag, zone, side) {       // side: 'own' (propio y aliados) | 'foe'
   let p = 0;
-  mx().fl.forEach(f => { if (f.zone !== zone || f.tr || !f.ships.length) return; const own = f.tag === tag || sameSide(tag, f.tag), foe = hostileTags(tag, f.tag); if ((side === 'own' && own && !foe) || (side === 'foe' && foe)) p += fleetPower(f) * (f.mission === 'convoy' ? 1.2 : 1); });
+  mx().fl.forEach(f => { if (f.zone !== zone || f.tr || f.port != null || !f.ships.length) return; const own = f.tag === tag || sameSide(tag, f.tag), foe = hostileTags(tag, f.tag); if ((side === 'own' && own && !foe) || (side === 'foe' && foe)) p += fleetPower(f) * (f.mission === 'convoy' ? 1.2 : 1); });
   return p;
 }
 // ¿es segura la zona para los transportes de un país? (el enemigo no la domina)
@@ -59,9 +59,9 @@ function newFleet(tag, zone, name) {
   const M = mx(), f = {id: M.nfl++, tag, zone, ships: [], adm: newAdmiral(tag), mission: 'port', target: null, name: name || `${fleetsOf(tag).length + 1}.ª Flota`, tr: null};
   M.fl.push(f); return f;
 }
-function addShip(c, type, zone) {
-  let f = mx().fl.find(x => x.tag === c.tag && x.zone === zone && !x.tr && x.ships.length < 14);
-  if (!f) f = newFleet(c.tag, zone); f.ships.push({t: type, hp: 1}); return f;
+function addShip(c, type, zone, port) {       // port: estado del astillero donde atraca el buque recién botado
+  let f = mx().fl.find(x => x.tag === c.tag && x.zone === zone && !x.tr && x.ships.length < 14 && (port === undefined || x.port === port));
+  if (!f) { f = newFleet(c.tag, zone); if (port !== undefined) { f.port = port; f.mission = 'port'; } } f.ships.push({t: type, hp: 1}); return f;
 }
 function navalBuildWeek() {
   const M = mx();
@@ -69,7 +69,7 @@ function navalBuildWeek() {
     const c = G.C[q.tag]; if (!c || !c.states.length || G.S[q.state].owner !== q.tag) return false;
     q.age += 7; const yard = G.S[q.state].b.shipyard || 0, cap = 6 + yard * 5;
     const take = Math.min(q.need - q.done, c.eq.ships || 0, cap); if (take > 0) { q.done += take; c.eq.ships -= take; }
-    if (q.done >= q.need - 1e-6 && q.age >= q.min) { const z = homeZone(c, q.state); if (z !== null) { addShip(c, q.type, z); if (q.tag === G.player) notify('build', `${SHIP_TYPES[q.type].name} botado en ${G.S[q.state].name}.`, q.state); } return false; }
+    if (q.done >= q.need - 1e-6 && q.age >= q.min) { const z = homeZone(c, q.state); if (z !== null) { addShip(c, q.type, z, q.state); if (q.tag === G.player) notify('build', `${SHIP_TYPES[q.type].name} botado en ${G.S[q.state].name}.`, q.state); } return false; }
     return true;
   });
 }
@@ -82,7 +82,7 @@ function navalTargetPts(c) { const coast = portsStates(c).length; if (!coast) re
 
 /* ---------- movimiento y misiones ---------- */
 function fleetMove(f, zone) {
-  if (zone === f.zone && !f.tr) return; const from = f.tr ? f.tr.to : f.zone;
+  if (zone === f.zone && !f.tr && f.port == null) return; f.port = null; f.dockTo = null; if (zone === f.zone && !f.tr) { if (f.mission === 'port') f.mission = 'patrol'; return; } const from = f.tr ? f.tr.to : f.zone;
   let spd = 9; f.ships.forEach(s => { spd = Math.min(spd, SHIP_TYPES[s.t].spd); }); if (spd === 9) spd = 1;
   const days = Math.max(2, Math.ceil(zoneDist(from, zone) / (6 * spd)));
   f.tr = {to: zone, left: days}; f.zoneFrom = f.zone;
@@ -162,7 +162,7 @@ function blockadeScore(w) {
 }
 function raidLoss(tag) {
   const c = G.C[tag]; let raid = 0, convoy = 0; const zs = countryZones(c);
-  mx().fl.forEach(f => { if (f.tr || !f.ships.length) return;
+  mx().fl.forEach(f => { if (f.tr || f.port != null || !f.ships.length) return;
     if (f.mission === 'raid' && hostileTags(tag, f.tag) && zs.has(f.zone) && (!f.target || f.target === tag)) f.ships.forEach(s => { raid += SHIP_TYPES[s.t].raid * (0.4 + s.hp * 0.6); });
     if ((f.mission === 'convoy' || f.mission === 'patrol') && (f.tag === tag || sameSide(tag, f.tag)) && zs.has(f.zone)) f.ships.forEach(s => { convoy += (f.mission === 'convoy' ? 1.2 : 0.6) * (0.5 + SHIP_TYPES[s.t].att / 12); }); });
   let boost = 0; mx().fl.forEach(f => { if (f.mission === 'raid') boost = Math.max(boost, 0); });
@@ -223,7 +223,7 @@ function navalAI(c) {
     let tgt = null, bz = null, bs = 0; enemies.forEach(e => { countryZones(G.C[e]).forEach((n, z) => { const s = n * 2 - zoneDist(f.zone, z) * 0.1 - zonePower(c.tag, z, 'foe') * 0.01; if (s > bs) { bs = s; tgt = e; bz = z; } }); });
     if (tgt === null) { f.mission = 'port'; return; }
     const foe = zonePower(c.tag, bz, 'foe');
-    if (power > foe * 1.25 + 1) { if (f.zone !== bz) fleetMove(f, bz); f.mission = f.ships.some(s => SHIP_TYPES[s.t].raid >= 1.8) && Math.random() < 0.5 ? 'raid' : 'blockade'; f.target = tgt; }
+    if (power > foe * 1.25 + 1) { if (f.zone !== bz || f.port != null) fleetMove(f, bz); f.mission = f.ships.some(s => SHIP_TYPES[s.t].raid >= 1.8) && Math.random() < 0.5 ? 'raid' : 'blockade'; f.target = tgt; }
     else { const hz = mainPortZone(c); if (hz !== null && f.zone !== hz) fleetMove(f, hz); f.mission = 'patrol'; f.target = null; }
   });
   // las flotas pequeñas se agrupan en la misma zona y misión (se mantiene su identidad)
@@ -236,10 +236,11 @@ function navyHtml() {
   const total = fl.reduce((n, f) => n + f.ships.length, 0);
   const zoneOpts = sel => SEA_ZONES.map(z => `<option value="${z.id}" ${z.id === sel ? 'selected' : ''}>${z.name}</option>`).join('');
   const fleetRow = f => { const cnt = {}; f.ships.forEach(s => cnt[s.t] = (cnt[s.t] || 0) + 1); const avg = f.ships.reduce((n, s) => n + s.hp, 0) / Math.max(1, f.ships.length);
-    return `<div class="card"><div class="kv"><b>${f.name}</b><span>${f.tr ? `⛵ en ruta a ${SEA_ZONES[f.tr.to].name} (${f.tr.left} d)` : SEA_ZONES[f.zone].name}</span></div>
+    return `<div class="card"><div class="kv"><b>${f.name}</b><span>${f.tr ? `⛵ en ruta a ${SEA_ZONES[f.tr.to].name} (${f.tr.left} d)${f.dockTo != null ? ` · destino: puerto de ${G.S[f.dockTo].name}` : ''}` : f.port != null ? `⚓ atracada en ${G.S[f.port].name}` : SEA_ZONES[f.zone].name}</span></div>
     <div class="kv sm"><span>Buques</span><b>${SHIP_ORDER.filter(k => cnt[k]).map(k => SHIP_TYPES[k].icon + cnt[k]).join(' ')}</b></div>
     <div class="kv sm"><span>Casco · Poder</span><b>${Math.round(avg * 100)}% · ${f1(fleetPower(f))}</b></div><div class="kv sm"><span>Almirante</span><b>${f.adm.name} (nivel ${f.adm.lvl})</b></div>
-    <div class="btnrow"><select data-act="flmove" data-id="${f.id}">${zoneOpts(f.tr ? f.tr.to : f.zone)}</select>
+    <div class="btnrow"><select data-act="fldock" data-id="${f.id}" data-tip="Lleva la flota a un puerto: allí se repara mucho más rápido (más con astilleros) y queda a salvo, pero no vigila ni protege la zona."><option value="">${f.port != null ? '⚓ Atracada: zarpar o cambiar de puerto…' : '⚓ Llevar a puerto…'}</option>${ps.map(id => `<option value="${id}" ${f.port === id ? 'disabled' : ''}>${G.S[id].name}${(G.S[id].b.shipyard || 0) >= 0.1 ? ' · astillero ' + G.S[id].b.shipyard.toFixed(1) : ''}</option>`).join('')}</select>
+    <select data-act="flmove" data-id="${f.id}">${zoneOpts(f.tr ? f.tr.to : f.zone)}</select>
     <select data-act="flmis" data-id="${f.id}">${Object.keys(NAV_MISSIONS).map(k => `<option value="${k}" ${f.mission === k ? 'selected' : ''}>${NAV_MISSIONS[k].icon} ${NAV_MISSIONS[k].name}</option>`).join('')}</select>
     ${f.mission === 'blockade' || f.mission === 'raid' ? `<select data-act="fltgt" data-id="${f.id}"><option value="">— cualquier enemigo —</option>${G.tags.filter(o => o !== NONE && hostileTags(G.player, o) && alive(o)).map(o => `<option value="${o}" ${f.target === o ? 'selected' : ''}>${G.C[o].name}</option>`).join('')}</select>` : ''}</div></div>`; };
   const q = M.nq.filter(x => x.tag === G.player);
@@ -258,6 +259,7 @@ function navyHtml() {
 MX_TABS.push({id: 'navy', label: '⚓ Marina', html: navyHtml});
 Object.assign(ACT, {
   shipnew: d => { const c = me(), sid = portsStates(c).filter(id => (G.S[id].b.shipyard || 0) >= 0.1)[0]; const r = sid === undefined ? {ok: false, msg: 'Necesitas astilleros.'} : shipOrder(c, d.t, sid); toast(r.ok ? '⚓' : '⚠️', r.msg); renderWindow(); },
+  fldock: (d, el) => { const f = mx().fl.find(x => x.id === +d.id); if (f && el && el.value !== '') { const r = fleetDock(f, +el.value); if (!r.ok) toast('⚠️', r.msg); } renderWindow(); },
   flmove: (d, el) => { const f = mx().fl.find(x => x.id === +d.id); if (f && el) fleetMove(f, +el.value); renderWindow(); },
   flmis: (d, el) => { const f = mx().fl.find(x => x.id === +d.id); if (f && el) { f.mission = el.value; f.target = null; } renderWindow(); },
   fltgt: (d, el) => { const f = mx().fl.find(x => x.id === +d.id); if (f && el) f.target = el.value || null; renderWindow(); }

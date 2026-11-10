@@ -217,7 +217,7 @@ function loadData(text) {
   Object.assign(G.price, d.price); Object.assign(G.avail, d.avail); Object.assign(G.prod, d.prod); Object.assign(G.dem, d.dem); Object.assign(G.ratio, d.ratio); Object.assign(G.stock, d.stock);
   GOODS.forEach(g => { G.hist[g.id] = d.hist[g.id] || []; });
   G.player = d.player;
-  G.tags.forEach(t => { G.C[t].ai = t !== d.player; G.C[t].states = []; });
+  G.tags.forEach((t, i) => { G.C[t].ai = t !== d.player; G.C[t].states = []; G.C[t].id = i + 1; });      // los identificadores siguen el orden actual de países (pueden haberse añadido nuevos desde que se guardó)
   G.S.forEach(s => G.C[s.owner].states.push(s.id));
   refreshOwnerOf();
   if (d.v2 !== 2) initArmies();

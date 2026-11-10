@@ -208,7 +208,7 @@ function navalAI(c) {
   const avail = shipsAvail(c); if (avail.length && M.nq.filter(q => q.tag === c.tag).length < (c.rank <= 8 ? 5 : 2)) {
     const have = fleetShips(fl[0] || {ships: []}); void have;
     const raider = mc(c).doc.navy === 'raid'; const mix = Math.random();
-    let type = avail[avail.length - 1]; if (type === 'dread' && Math.random() < 0.15) type = 'cruiser';
+    let type = avail[avail.length - 1 - (avail.length > 8 && Math.random() < 0.55 ? Math.floor(Math.random() * 3) : 0)]; if (type === 'dread' && Math.random() < 0.15) type = 'cruiser';
     if (raider && avail.includes('sub') && mix < 0.4) type = 'sub'; else if (raider && avail.includes('cruiser') && mix < 0.3) type = 'cruiser';
     if (avail.includes('cruiser') && mix < 0.18 && type !== 'sub') type = 'cruiser';
     const yards = portsStates(c).filter(id => (G.S[id].b.shipyard || 0) >= 0.1).sort((a, b) => (G.S[b].b.shipyard || 0) - (G.S[a].b.shipyard || 0));

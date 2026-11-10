@@ -180,7 +180,10 @@ function nvDraw(V, r, g) {
     else if (p.k === 'boom') { g.fillStyle = `rgba(255,${150 + 80 * (1 - q) | 0},40,${0.9 * (1 - q)})`; g.beginPath(); g.arc(p.x, p.y, 4 + q * 16, 0, 6.3); g.fill(); }
     else if (p.k === 'splash') { g.strokeStyle = `rgba(255,255,255,${0.9 * (1 - q)})`; g.lineWidth = 1.5; g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(p.x, p.y - 16 * (1 - q)); g.moveTo(p.x - 4, p.y); g.lineTo(p.x - 7, p.y - 9 * (1 - q)); g.moveTo(p.x + 4, p.y); g.lineTo(p.x + 7, p.y - 9 * (1 - q)); g.stroke(); }
     else if (p.k === 'debris') { g.fillStyle = '#5a4630'; g.fillRect(p.x, p.y, 3, 2); } });
-  // marcador de dominio
+  nvHud(V, r, g);
+}
+function nvHud(V, r, g) {
+  const W = NV_W, H = NV_H;
   const pa = r.pa || 1, pb = r.pb || 1, m = clamp(pa / (pa + pb), 0.04, 0.96), ca = G.C[r.a] ? G.C[r.a].color : '#c44', cb = G.C[r.b] ? G.C[r.b].color : '#48c';
   g.fillStyle = 'rgba(8,12,16,.7)'; g.fillRect(0, 0, W, 20); g.fillStyle = ca; g.fillRect(0, 2, W * m, 6); g.fillStyle = cb; g.fillRect(W * m, 2, W * (1 - m), 6); g.fillStyle = '#fff'; g.fillRect(W * m - 1, 0, 2, 10);
   g.font = 'bold 11px sans-serif'; g.textBaseline = 'middle'; g.fillStyle = '#f5ecd0'; g.textAlign = 'left'; g.fillText(`${G.C[r.a].name} · ${r.A ? r.A.length : 0} buques`, 6, 14); g.textAlign = 'right'; g.fillText(`${r.B ? r.B.length : 0} buques · ${G.C[r.b].name}`, W - 6, 14);
@@ -201,7 +204,8 @@ function renderNavalPanel() {
     <div class="kv sm"><span>Hundidos</span><b class="bad">${sunk}</b></div>${(fl || []).map(f => `<div class="kv sm"><span>${f.name} · ${f.adm}</span><b>${f.n} · ${NAV_MISSIONS[f.mission] ? NAV_MISSIONS[f.mission].icon : ''}</b></div>`).join('')}</div>`; };
   root.classList.add('open');
   if (root.dataset.zid !== String(z)) { root.dataset.zid = z; R.nviz = null; if (!R.skip3d) { R.skip3d = true; R.bvPrevPause = G.paused; G.paused = true; }
-    root.innerHTML = `<div class="sp-head"><div><h2 id="nv-t"></h2><small id="nv-s"></small></div><button class="bvplay" data-act="nvpause"></button><button class="x" data-act="closenb">✕</button></div><canvas id="nvmap" width="${NV_W * 2}" height="${NV_H * 2}"></canvas><div id="nv-st"></div><div id="nv-log" class="blog"></div>`; }
+    root.innerHTML = `<div class="sp-head"><div><h2 id="nv-t"></h2><small id="nv-s"></small></div><button class="bvplay" data-act="nvpause"></button><button data-act="nv3d" id="nv-3d" class="nv3dbtn"></button><button class="x" data-act="closenb">✕</button></div><canvas id="nvmap" width="${NV_W * 2}" height="${NV_H * 2}"></canvas><div id="nv-st"></div><div id="nv-log" class="blog"></div>`; }
+  { const b3 = root.querySelector('#nv-3d'); if (b3) b3.textContent = (typeof n3On === 'function' && n3On()) ? '🗺️ Vista 2D' : '🧊 Vista 3D'; }
   const pb = root.querySelector('.bvplay'); if (pb) pb.textContent = G.paused ? '▶ Continuar la batalla' : '⏸ Pausar';
   root.querySelector('#nv-t').textContent = '⚓ Batalla naval · ' + SEA_ZONES[z].name; root.querySelector('#nv-s').textContent = `${live ? 'Día ' + r.day : 'Batalla finalizada'} · ${G.C[r.a].name} contra ${G.C[r.b].name}`;
   root.querySelector('#nv-st').innerHTML = `<div class="bsides">${side(r.a, r.fleetsA, r.A, r.sunkB)}${side(r.b, r.fleetsB, r.B, r.sunkA)}</div>`;

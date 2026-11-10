@@ -1,4 +1,4 @@
-/* ===== PAÍSES «DORMIDOS» PARA LAS ÉPOCAS DE 1939 Y 2020 =====
+/* ===== PAÍSES «DORMIDOS» PARA LAS ÉPOCAS DE 1939 =====
    Naciones que en 1836 no existen como estado (sin territorio) y que solo cobran vida en las épocas posteriores: dominios británicos, países independientes de la
    descolonización… Como la Confederación o los rebeldes, no aparecen al elegir país en 1836. Se añaden al final de COUNTRY_DATA (sus identificadores no alteran a los demás). */
 Object.assign(COUNTRY_DATA, {

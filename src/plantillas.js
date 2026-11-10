@@ -65,7 +65,6 @@ function aiTemplates(c) {
   if (hasTech(c, 'motorization')) want.push(['Infantería motorizada', ['mot', 'mot', 'mot', 'mot', 'mot', 'mot', 'mg', 'art', 'eng'], 2]);
   if (hasTech(c, 'armor')) want.push(['División blindada', ['arm', 'arm', 'arm', 'arm', 'arm', 'mot', 'mot', 'mot', 'art'], 3]);
   if (hasTech(c, 'mech_war')) want.push(['Infantería mecanizada y carros', ['mech', 'mech', 'mech', 'mtank', 'mtank', 'mtank', 'spg', 'mot', 'eng'], 4]);
-  if (hasTech(c, 'mbt')) want.push(['Brigadas acorazadas modernas', ['mech', 'mech', 'mech', 'mbt', 'mbt', 'mbt', 'spg', hasTech(c, 'guided_missiles') ? 'msl' : 'mot', 'eng'], 5]);
   want.forEach(([name, bns, tier]) => { const ex = m.tpl.find(t => t.ai === tier); if (!ex) { const t = tplCreate(c, name, bns); t.ai = tier; } else if (ex.bns.join() !== bns.join()) { ex.bns = bns.slice(); ex.name = name; tplRegister(c, ex); } });
   // las plantillas de la IA con generaciones antiguas se sustituyen por las nuevas: los tipos ya reclutados siguen existiendo
 }

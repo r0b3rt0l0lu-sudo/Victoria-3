@@ -387,7 +387,7 @@ function fxText(fx) {
 WINDOWS.tech = {title: 'Tecnología', icon: '💡', render() {
   const c = me(), st = c.stats;
   const cur = c.research ? TECH[c.research] : null;
-  const eras = [1, 2, 3].map(e => {
+  const eras = ERAS.slice(1).map(E0 => E0.n).map(e => {
     const E = ERAS[e], un = eraUnlocked(c, e), cnt = eraCount(c, e), tot = TECHS.filter(t => t.era === e).length;
     return `<div class="era ${un ? 'open' : ''}"><b>Era ${e}: ${E.name}</b><small>${un ? `${cnt} de ${tot} investigadas` : `🔒 Año ${E.needYear} y ${E.needPrev} tecnologías de la era ${e - 1} (${eraCount(c, e - 1)}/${E.needPrev})`}</small>${bar(cnt, tot, 'gold')}</div>`;
   }).join('');
@@ -397,7 +397,7 @@ WINDOWS.tech = {title: 'Tecnología', icon: '💡', render() {
    <div class="kv"><span>Tecnologías completadas</span><b>${done} / ${total}</b></div>
    <p class="hint">Cada tecnología cuesta un 1,5% más por cada tecnología ya investigada. Las eras avanzadas exigen año y progreso previo; las <b>doctrinas</b> (⚖) son excluyentes y las marcadas con ⏳ caducan si no se investigan a tiempo.</p></div>
   <div class="eras">${eras}</div>
-  <div class="techcols">${TECH_CATS.map(cat => `<div class="techcol"><h3>${cat}</h3>${[1, 2, 3].map(e => {
+  <div class="techcols">${TECH_CATS.map(cat => `<div class="techcol"><h3>${cat}</h3>${ERAS.slice(1).map(E0 => E0.n).map(e => {
     const list = TECHS.filter(t => t.cat === cat && t.era === e); if (!list.length) return '';
     return `<h5>Era ${e}</h5>` + list.map(t => {
       const stt = techStatus(c, t), now = c.research === t.id;

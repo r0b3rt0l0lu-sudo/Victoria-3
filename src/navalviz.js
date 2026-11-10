@@ -154,6 +154,8 @@ function nvShip(g, s, V) {
     g.fillStyle = '#efe7d0'; g.strokeStyle = 'rgba(0,0,0,.35)'; const bil = Math.sin(V.t * 1.6 + k + s.ph) * 1.5; g.beginPath(); g.moveTo(mx2, -H * 2.7); g.quadraticCurveTo(mx2 + 11 + bil, -H * 1.8, mx2, -H * 0.9); g.closePath(); g.fill(); g.stroke(); g.beginPath(); g.moveTo(mx2, -H * 2.2); g.quadraticCurveTo(mx2 - 9 - bil, -H * 1.6, mx2, -H * 1.0); g.closePath(); g.fill(); g.stroke(); }
   for (let k = 0; k < (st.funnels || 0); k++) { g.fillStyle = '#26262b'; g.fillRect(-L * 0.12 + k * L * 0.22, -H * 1.55, 5, H * 1.1); }
   for (let k = 0; k < (st.turret || 0); k++) { const tx = L * 0.32 - k * (L * 0.62 / Math.max(1, (st.turret || 1) - 1 || 1)); g.fillStyle = '#5b646c'; g.fillRect(tx - 3.5, -H * 0.95, 7, H * 0.45); g.fillStyle = '#2b3136'; g.fillRect(tx + 3, -H * 0.82, 7 + (s.fire > 0 ? 2 : 0), 1.8); }
+  if (st.deck) { g.fillStyle = '#3a4046'; g.fillRect(-L / 2 + 2, -H * 0.62, L - 6, 3); g.fillStyle = 'rgba(255,255,255,.5)'; g.fillRect(-L / 2 + 8, -H * 0.58, L - 24, 0.8); g.fillStyle = '#56606a'; g.fillRect(L * 0.18, -H * 1.15, 9, H * 0.55); for (let k = 0; k < 3; k++) { g.fillStyle = '#8a929a'; g.fillRect(-L * 0.3 + k * 14, -H * 0.8, 6, 2); } }
+  if (st.mast) { g.fillStyle = '#4a545c'; g.fillRect(-2, -H * 1.9, 2, H * 0.9); g.fillRect(-6, -H * 1.7, 10, 1.5); }
   if (s.t === 'steam') { g.fillStyle = '#35393f'; g.fillRect(-1, -H * 1.5, 4, H); }
   // bandera
   g.strokeStyle = '#ddd'; g.beginPath(); g.moveTo(L / 2 - 6, -H * 0.5); g.lineTo(L / 2 - 6, -H * 1.3); g.stroke(); g.fillStyle = s.color; g.fillRect(L / 2 - 6, -H * 1.3, 7, 4);

@@ -31,7 +31,7 @@ function tplKey(tag, id) { return 'T' + tag + '_' + id; }
 // registra (o actualiza) el tipo de división asociado a una plantilla
 function tplRegister(c, t) {
   const st = tplStats(t.bns), key = tplKey(c.tag, t.id); t.key = key;
-  DIVS[key] = {armor: +((st.cnt.arm || 0) / Math.max(1, t.bns.length)).toFixed(2), name: t.name, icon: BATTALIONS[t.bns[0]] ? (st.kind === 'cav' ? '🐎' : st.kind === 'art' ? '💣' : '🪖') : '🪖', att: +st.att.toFixed(2), def: +st.def.toFixed(2), spd: st.spd, org: Math.round(st.org), cost: Math.round(st.cost), days: Math.round(12 + st.cost * 0.06), desc: t.bns.length + ' batallones', kind: st.kind, width: st.width, tpl: true, fort: st.fort, sup: st.sup};
+  DIVS[key] = {armor: +(((st.cnt.arm || 0) + (st.cnt.mtank || 0) + (st.cnt.mbt || 0)) / Math.max(1, t.bns.length)).toFixed(2), name: t.name, icon: BATTALIONS[t.bns[0]] ? (st.kind === 'cav' ? '🐎' : st.kind === 'art' ? '💣' : '🪖') : '🪖', att: +st.att.toFixed(2), def: +st.def.toFixed(2), spd: st.spd, org: Math.round(st.org), cost: Math.round(st.cost), days: Math.round(12 + st.cost * 0.06), desc: t.bns.length + ' batallones', kind: st.kind, width: st.width, tpl: true, fort: st.fort, sup: st.sup};
   DIV_NEEDS[key] = st.needs;
   return DIVS[key];
 }

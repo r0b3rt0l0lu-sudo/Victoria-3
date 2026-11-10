@@ -38,3 +38,17 @@ navalAI = function (c) {
     if (avg < 0.55 || (!c.wars.length && f.mission === 'port')) { const cand = dockCandidates(c, f)[0]; if (cand !== undefined) fleetDock(f, cand); }
   });
 };
+
+/* ---------- agrupar flotas sueltas ---------- */
+// junta las flotas ociosas (sin viaje ni órdenes de ataque) del mismo país que comparten zona y puerto, hasta 14 buques por flota
+function fleetsMerge(tag) {
+  const M = mx(), groups = new Map(); let n = 0;
+  M.fl.forEach(f => { if (f.tag !== tag || f.tr || f.dockTo != null || !f.ships.length || (f.mission !== 'port' && f.mission !== 'patrol')) return; const k = f.zone + '|' + (f.port == null ? '' : f.port) + '|' + f.mission; (groups.get(k) || groups.set(k, []).get(k)).push(f); });
+  groups.forEach(list => { if (list.length < 2) return; list.sort((a, b) => b.ships.length - a.ships.length);
+    for (let i = 0; i < list.length; i++) { const a = list[i]; if (!a.ships.length) continue;
+      for (let j = list.length - 1; j > i && a.ships.length < 14; j--) { const b = list[j]; if (!b.ships.length) continue; const take = Math.min(14 - a.ships.length, b.ships.length); a.ships.push(...b.ships.splice(0, take)); if (!b.ships.length) n++; } } });
+  M.fl = M.fl.filter(f => f.ships.length); return n;
+}
+const _navalWeek39 = navalWeek;
+navalWeek = function () { _navalWeek39(); if (G.week % 4 === 0) G.tags.forEach(t => { if (t !== NONE && G.C[t].ai && G.C[t].states.length) fleetsMerge(t); }); };
+Object.assign(ACT, {flmerge: () => { const n = fleetsMerge(G.player); toast('⚓', n ? `Flotas agrupadas: ${n} menos.` : 'No hay flotas que agrupar (deben estar en la misma zona o puerto y sin misión de ataque).'); renderWindow(); }});

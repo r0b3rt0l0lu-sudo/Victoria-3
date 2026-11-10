@@ -81,7 +81,7 @@ const PACTS20 = {alliance: [['USA', 'GBR'], ['USA', 'FRA'], ['USA', 'PRU'], ['US
     try { updateRanks(); } catch (e) { }
     // 5. 1939: empieza con la invasión de Polonia
     let war = null;
-    if (year === 1939) { const ids = ['Polonia del Congreso', 'Galitzia'].map(n => byName[n].id); const r = declareWar('PRU', 'BAV', 'conquest', ids, {free: true}); war = r.ok ? 'ok' : r.msg; }
+    if (year === 1939) { const ids = ['Polonia del Congreso', 'Galitzia'].map(n => byName[n].id); const r = declareWar('PRU', 'BAV', 'conquest', ids, {free: true}); war = r.ok ? 'ok' : r.msg; if (r.ok) { ['GBR', 'FRA', 'CAN', 'AUL', 'ZUL'].forEach(t => { if (alive(t) && !r.war.defAll.includes(t)) { r.war.defAll.push(t); G.C[t].wars.push(r.war.id); } }); G.C.BAV.treasury = Math.max(G.C.BAV.treasury, 400e6); G.C.BAV.mob = 3; } }
     return {log: log.length, miss, dead, vivos: G.tags.filter(alive).length, fecha: G.date.y + '-' + (G.date.m + 1) + '-' + G.date.d, war, tecn: ['GBR', 'PRU', 'USA', 'RUS', 'BAV', 'ETH'].map(x => x + ':' + (G.C[x] ? G.C[x].techs.size : '-')).join(' '), text: saveData()};
   }, [txt, year, cfg]);
   fs.writeFileSync(out, zlib.gzipSync(Buffer.from(res.text), {level: 9}).toString('base64'));

@@ -44,6 +44,7 @@ function scenModernize(year) {
     G.armies.forEach(a => { if (a.tag !== t || a.sea) return; a.divs.forEach(d => { if ((d.t === 'inf' || d.t === 'cav' || d.t === 'art') && Math.random() < (d.t === 'cav' ? frac * 0.9 : frac)) d.t = pick(top).key; }); });
   });
   if (!G.mx || !G.mx.fl) return;
+  if (typeof fleetsMerge === 'function') G.tags.forEach(t => { if (t !== NONE) fleetsMerge(t); });
   G.mx.fl.forEach(f => { const c = G.C[f.tag]; if (!c) return; const av = shipsAvail(c);
     f.ships.forEach(s => {
       if (['sail', 'steam', 'ironclad', 'cruiser'].includes(s.t)) { if (av.includes('destroyer')) s.t = 'destroyer'; else if (av.includes('cruiser')) s.t = 'cruiser'; }
@@ -64,6 +65,7 @@ async function scenarioSwitch(year) {
       // el jugador empieza de cero: objetivos, logros y estadísticas de partida
       G.tags.forEach(t => { const c = G.C[t]; if (t === NONE) return; c.journalDone = {}; c.ach = {}; c.cnt = {}; c.start = {ind: c.stats.indLevels, lit: c.lit, soldiers: c.stats.soldiers, prestige: c.prestige, rank: c.rank}; });
       G.notifs = []; G.log = []; logMsg(`Comienza la partida en ${year}.`);
+      if (year === 1939) { logMsg('1 de septiembre de 1939: Alemania invade Polonia. Reino Unido, Francia y los dominios acuden en su ayuda; la Unión Soviética firmó un pacto de no agresión con Alemania.'); G.eventCool.scen1939 = 1; }
     }
     G.paused = true; computeEdges(G.ownerOf); fullRepaint(); computeLabels(); buildStart();
   } catch (e) { console.error(e); toast('⚠️', 'No se pudo cargar la época: ' + e.message); }

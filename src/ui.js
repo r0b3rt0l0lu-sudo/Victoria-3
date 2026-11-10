@@ -216,7 +216,7 @@ const TAB_TIPS = {
   'pol:igs': 'Quién tiene el poder y qué grupos te apoyan.', 'pol:ideo': 'Ideologías y cambio de régimen.', 'pol:mov': 'Elecciones y movimientos políticos.', 'pol:laws': 'Leyes: reformas que cambian toda la economía.'
 };
 const TAB_GROUPS = {
-  mil: [['Tierra', ['armies', 'fronts', 'generals', 'recruit', 'templates', 'doctrines', 'marshals', 'occupation']], ['Guerra', ['wars', 'stats', 'intel']], ['Industria', ['production']], ['Aire y mar', ['air', 'navy']]],
+  mil: [['Ejército', ['armies', 'fronts', 'generals', 'marshals']], ['Reclutar y equipar', ['recruit', 'templates', 'production', 'doctrines']], ['Guerra', ['wars', 'occupation', 'intel', 'stats']], ['Aire y mar', ['air', 'navy']]],
   dip: [['Relaciones', ['world', 'pacts', 'claims']], ['Alianzas y poder', ['blocs', 'coal', 'vassals', 'colony']], ['Crisis', ['crisis']]]
 };
 function tabs(key, list) {
@@ -226,7 +226,9 @@ function tabs(key, list) {
   if (!grp || list.length < 6) return `<div class="tabs">${list.map(btn).join('')}</div>`;
   const used = new Set(), groups = grp.map(([label, ids]) => { const items = list.filter(t => ids.includes(t[0])); items.forEach(t => used.add(t[0])); return [label, items]; }).filter(g => g[1].length);
   const rest = list.filter(t => !used.has(t[0])); if (rest.length) groups.push(['Otros', rest]);
-  return `<div class="tabs grouped">${groups.map(([l, items]) => `<div class="tgroup"><small>${l}</small><div>${items.map(btn).join('')}</div></div>`).join('')}</div>`;
+  // dos niveles: primero la sección (una fila corta) y debajo solo las pestañas de la sección elegida
+  const curG = groups.find(g => g[1].some(t => t[0] === cur)) || groups[0];
+  return `<div class="tabs tabs-g">${groups.map(g => `<button class="tab gtab ${g === curG ? 'on' : ''}" data-act="tab" data-k="${key}" data-t="${g === curG ? cur : g[1][0][0]}">${g[0]}</button>`).join('')}</div><div class="tabs tabs-sub">${curG[1].map(btn).join('')}</div>`;
 }
 const curTab = (key, def) => UI.winTab[key] || def;
 

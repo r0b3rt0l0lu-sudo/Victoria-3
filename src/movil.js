@@ -1,7 +1,6 @@
 /* ===== MÓVIL: modo teléfono (body.phone, con .pp vertical y .pl horizontal) =====
    · Se activa solo en pantallas pequeñas con puntero táctil (o ?movil para probar en el ordenador; ?sinmovil lo desactiva).
-   · Menos controles a la vista: arriba solo asesor, búsqueda y guardado; en el mapa, zoom, inicio y giro. El resto, tras un botón «⋯».
-   · Paneles de estado y ejército como hoja inferior; ventanas a pantalla casi completa; menú inferior desplazable.
+      · Paneles de estado y ejército como hoja inferior; ventanas a pantalla casi completa; menú inferior desplazable.
    · Visor de batalla: un dedo mueve, dos dedos hacen zoom (y giran/inclinan en 3D), un toque selecciona. */
 const MOV = {phone: false, portrait: false, touch: false};
 function movUpdate() {
@@ -11,25 +10,8 @@ function movUpdate() {
   document.documentElement.style.setProperty('--vh', h * 0.01 + 'px');
 }
 window.addEventListener('resize', movUpdate); window.addEventListener('orientationchange', () => setTimeout(movUpdate, 200)); movUpdate();
-// qué botones se quedan a la vista; los demás van tras «⋯»
-function movDecorate() {
-  const tr = document.getElementById('topright'), cc = document.getElementById('camctl'); if (!tr || !cc) return;
-  const kt = ['advisor', 'search', 'save'], kc = ['zin', 'zout', 'camhome', 'rotl', 'rotr'];
-  [...tr.children].forEach(b => { if (b.classList.contains('more')) return; b.classList.toggle('k', kt.includes(b.dataset.act)); });
-  [...cc.children].forEach(b => { if (b.classList.contains('more')) return; b.classList.toggle('k', kc.includes(b.dataset.act)); });
-  if (!document.getElementById('btn-more-top')) tr.insertAdjacentHTML('beforeend', '<button class="rbtn more" id="btn-more-top" data-act="moretop" aria-label="Más botones">⋯</button>');
-  if (!document.getElementById('btn-more-cam')) cc.insertAdjacentHTML('beforeend', '<button class="more" id="btn-more-cam" data-act="morecam" aria-label="Más controles del mapa">⋯</button>');
-}
-const _movBuildHud = buildHud;
-buildHud = function () { const r = _movBuildHud.apply(this, arguments); movDecorate(); return r; };
-// los botones que ensanchan el mapa tras crearse el HUD (calidad, gráficos…) también se agrupan
-setInterval(() => { document.body.classList.toggle('bt', !!UI.battle); if (MOV.phone) { const cc = document.getElementById('camctl'); if (cc && !cc.querySelector('.more')) movDecorate(); } }, 2000);
-Object.assign(ACT, {
-  moretop: () => { const e = document.getElementById('topright'); e.classList.toggle('open'); document.getElementById('camctl').classList.remove('open'); },
-  morecam: () => { const e = document.getElementById('camctl'); e.classList.toggle('open'); document.getElementById('topright').classList.remove('open'); }
-});
-// tocar fuera cierra los menús «⋯»
-document.addEventListener('pointerdown', e => { if (!MOV.phone) return; ['topright', 'camctl'].forEach(id => { const el = document.getElementById(id); if (el && el.classList.contains('open') && !el.contains(e.target)) el.classList.remove('open'); }); }, true);
+// (la barra superior y los controles del mapa ya son cortos: no hacen falta menús «⋯»; ver interfaz.js)
+document.addEventListener('pointerdown', e => { const m = document.getElementById('topmenu'); if (MOV.phone && m && m.classList.contains('open') && !m.contains(e.target) && !e.target.closest('#btn-topmenu')) m.classList.remove('open'); }, true);
 
 /* ---------- gestos táctiles en el visor de batalla (2D y 3D) ---------- */
 function movBattleTouch(cv) {

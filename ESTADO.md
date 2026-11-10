@@ -220,3 +220,9 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - Espiral de deuda: el interés ya no crece sin límite con la deuda; una deuda desproporcionada (>110× ingresos) fuerza la quiebra aunque haya otra en curso; red de seguridad ante valores no finitos. Antes Corea llegaba a tesoro −∞.
 - Paz blanca: se acepta siempre tras 20 semanas (antes 40). El consejero avisa de guerras estancadas (sin combates ni ocupación) y explica qué hacer.
 - Comprobado: 30 años con Reino Unido y Rusia y 20 con Japón, EE. UU. y Otomano sin excepciones ni datos corruptos tras el arreglo; controles de ratón/teclado, guardar/cargar, reclutar, mover, declarar guerra y paz.
+
+## Interfaz simplificada (`src/interfaz.js`)
+- Barra superior 11 → 4 botones: 🧭 asesor, 🔍 buscar, 💾 Partidas (guardar/cargar/exportar/importar en un solo gestor), ☰ menú (Diario, Logros, Manual, Música, Salir).
+- Controles del mapa 13 → 6: zoom, inicio, giro y ☀ «Vista y gráficos» (calidad, relieve, luz, árboles, caminos, nombres, rendimiento, inclinar, rueda, borde, agua y nubes, tamaño de la interfaz). Los botones antiguos siguen en el DOM, ocultos, para el resto del código.
+- Ventanas con muchas pestañas (Ejército 14, Diplomacia 8): dos niveles (sección + pestañas de la sección). Ejército: Ejército · Reclutar y equipar · Guerra · Aire y mar.
+- Móvil: ya no hace falta el botón «⋯».

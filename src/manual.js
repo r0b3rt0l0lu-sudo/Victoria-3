@@ -340,7 +340,7 @@ const MANUAL = [
 {id: 'perf', title: '20. Rendimiento y guardado', html: `
 <ul><li>La simulación económica se reparte en <b>etapas diarias</b> para evitar picos de cálculo, y el dibujo del mapa solo repinta lo que cambia (un estado al pasar el ratón, los frentes de guerra) en lugar de toda la textura.</li>
 <li>Si tu equipo va justo, evita los modos de mapa que se actualizan cada mes (población, nivel de vida…) y usa velocidades bajas durante las guerras grandes.</li>
-<li>El guardado se hace en el almacenamiento local del navegador (unos 1,5 MB). Un autoguardado se crea cada enero; el botón 💾 sobrescribe la partida guardada.</li></ul>`},
+<li>El guardado se hace en el almacenamiento local del navegador (unos 1,5 MB). Un autoguardado se crea cada enero; el botón 💾 abre «Partidas»: cinco ranuras manuales, el autoguardado, y exportar/importar un archivo.</li></ul>`},
 
 {id: 'keys', title: '21. Atajos de teclado', html: `
 <table class="tbl"><tbody>

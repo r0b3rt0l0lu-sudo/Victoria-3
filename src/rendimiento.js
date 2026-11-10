@@ -34,7 +34,7 @@ function benchSample(g) {
   const hw = hwProbe(), gpu = gpuName(), prof = profileFor(hw, gpu); let q = prof;
   if (med > 60) { q = 'bajo'; R.resScale = 0.6; } else if (med > 24) q = 'bajo'; else if (med > 11 && QRANK[q] > 1) q = 'medio'; else if (med < 5 && prof === 'medio' && hw.cores >= 6 && !hw.cros) q = 'medio';
   try { localStorage.setItem('victoria-autoq', JSON.stringify({q, gpu, med: Math.round(med), t: Date.now()})); } catch (e) {}
-  if (!R.qualityManual) applyQuality(q, `Calidad gráfica ajustada automáticamente a «${q}» (${gpu ? gpu.replace(/\(.*?\)/g, '').slice(0, 38) : 'GPU'}; ${Math.round(med)} ms por fotograma). Puedes cambiarla con el botón Q.`);
+  if (!R.qualityManual) applyQuality(q, `Calidad gráfica ajustada automáticamente a «${q}» (${gpu ? gpu.replace(/\(.*?\)/g, '').slice(0, 38) : 'GPU'}; ${Math.round(med)} ms por fotograma). Puedes cambiarla en el botón ☀ (Vista y gráficos).`);
   R.hw = {hw, gpu, prof, med};
 }
 // al arrancar: usa el resultado guardado si es reciente (y del mismo equipo); si no, mide

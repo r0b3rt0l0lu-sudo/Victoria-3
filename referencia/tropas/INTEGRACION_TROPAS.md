@@ -1,4 +1,4 @@
-# Tropas 3D: integración en Victoria (instrucciones para Claude Code)
+# Tropas 3D: integración en Victoria, épocas A–E (instrucciones para Claude Code)
 
 Este paquete contiene la versión completa de las tropas 3D: 30 tipos, 4 épocas, 89 clips, 3 niveles de detalle (LOD), 15 paletas de nación y un visor. No usa archivos externos: todo se genera en código.
 
@@ -204,3 +204,77 @@ El material es `MeshLambertMaterial` con un parche en `onBeforeCompile`. Para qu
 - WebGL1 en un dispositivo real.
 - Las sombras.
 - La integración dentro del juego: este documento es para hacerla.
+
+
+---
+
+## 8. Época E (1937–1945) — punto de control 1
+
+Estado de la época E en este paquete:
+
+- **Ya hechos, con modelos para Alemania, Reino Unido y URSS:** fusilero, ametrallador, camión con tropas, semioruga, tanque medio, cazacarros, cañón antitanque con 3 servidores y obús pesado con 5.
+- **Resto de naciones:** usan las variantes genéricas (ver `docs/tabla_uniformes.md` y `src/g_eraE.js`).
+- **Pendiente** (segunda entrega): jeep, moto, tanque ligero, antiaéreo, etc. Hasta entonces usa las sustituciones de la tabla de abajo.
+
+### Cambios en el módulo que afectan al juego
+
+- `TROOP_ERAS` pasa a ser `['A','B','C','D','E']`.
+- **Época por año:** < 1856 A, < 1881 B, < 1914 C, < 1937 D, resto E. Usa `nearestEra`: si un tipo no tiene la época pedida, `buildTroop` usa la más cercana.
+- **Zonas de color nuevas:** 8–10 son la marca nacional y 11 el segundo color de camuflaje.
+  - La textura de paletas pasa de 8 a 12 columnas.
+  - Si el juego registra países con el código del §2, añade a cada entrada `E`: `veh`, `veh2`, `marca: {tipo, c: [3 colores]}` y `modelo: {...}`. Si no, se copian de la nación base.
+- **Marcas** (`marca.tipo`): `balken`, `roundel`, `estrella`, `sol` o `ninguna`. La forma va en la geometría y los colores en la paleta. Por eso `troopGeoKey` incluye el modelo y la marca: países con distinto modelo o marca no comparten lote.
+- **Naciones nuevas:** `GER` (Alemania; `PRU.E` es la misma), `SOV` (URSS; `RUS.E` es la misma), `POL`, `CAN`, `AUS`, `SAF`, `HUN`, `ROU`, `YUG`, `FIN` y `CHN`. Amplía el mapa `HIST` del §2 con los códigos del juego.
+- **Textura de huesos:** ahora guarda 3 fotogramas por fila. Mide 180×1838 y ocupa 5 MB en `Float`. La condición de compatibilidad pasa a `maxTextureSize >= 2048`.
+- **Orugas:**
+  - `opts.tread` = velocidad de la banda (negativa para retroceder).
+  - Para girar sobre el eje, pasa `1000 + velocidad` y cada oruga gira en un sentido.
+  - Clips de tanque: `avanzar` (`tread` 1.6), `retroceder` (−1.2), `girar_sobre_el_eje` (1001.2).
+
+### Batallones del juego → figuras
+
+Usa los batallones de la plantilla, `t.bns` en `plantillas.js`, y no solo `dKind`.
+
+Una división de hasta 9 batallones se dibuja así:
+
+- **Columna** (marcha): un bloque por batallón, en el orden de `BN_ORDER`, uno detrás de otro sobre la ruta.
+- **Línea** (batalla): los bloques uno al lado de otro.
+
+Cada bloque:
+
+| Batallón | Época E | Épocas A–D |
+|---|---|---|
+| `inf` | 6–8 `fusilero` (`marcha`, `disparar` / `disparar_tumbado`, `avance_agachado`) | `fusilero` |
+| `mg` | 2 `ametrallador` (`disparar_rafaga`) + 4 `fusilero` | grupo `ametralladora` (B–D) |
+| `eng` | 4 `fusilero` E + 2 `zapador` D (provisional, hasta el ingeniero E) | `zapador` |
+| `mot` | 1–2 `camion` (`avanzar` en marcha; `descargar_tropas` al entrar en combate, luego `fusilero`) | `fusilero` |
+| `arm` | 2 `tanque_medio` + 1 `cazacarros` (`avanzar`, `disparar_canon`) | `tanque` (D) |
+| `art` | grupo `bateria` E (obús) o grupo `antitanque` si la división tiene `arm` enemigo cerca | grupo `bateria` |
+| `cav` | `dragon` (época D: carabina, sin lanza) | `husar` |
+
+El juego todavía no tiene batallones `mech`, `mtank` ni `spg`. Cuando existan:
+
+- `mech` → `semioruga` (con `descargar_tropas`) + `fusilero`.
+- `mtank` → `tanque_medio`.
+- `spg` → `cazacarros` hasta que exista el autopropulsado.
+
+### Eventos E que conviene enlazar
+
+| Evento | Efecto |
+|---|---|
+| `disparo`, `fuego`, `rafaga` | Fogonazo y humo |
+| `fogonazo`, `humo` (tanque) | Humo grande en la boca |
+| `extraer_casquillo` | Casquillo (opcional) |
+| `explosion`, `incendio`, `carcasa_humeante` | Humo negro persistente: el tanque se queda en la última pose de `destruido` |
+| `bajan`, `vacio` | Crear los soldados a pie junto al vehículo |
+| `lanzar` | Granada |
+| `cuerpo_al_suelo` | Cadáver |
+
+### Pruebas extra para la época E
+
+1. Con la fecha en 1939 (`G.date.y`), las capturas del mapa muestran:
+   - un ejército alemán con tanques grises y cruz de balcón;
+   - uno británico con camiones;
+   - uno soviético con T-34 y estrella.
+2. Con la fecha en 1900, las tropas siguen como antes. Comprueba que no hay regresiones en A–D.
+3. El rendimiento de `updateArmyMeshes` con 2.500 figuras mezcladas.

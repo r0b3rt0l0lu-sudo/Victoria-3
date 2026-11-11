@@ -17,9 +17,9 @@
 'use strict';
 const THREE = root.THREE;
 const D2R = Math.PI / 180;
-const TROOP_ERAS = ['A', 'B', 'C', 'D'];
+const TROOP_ERAS = ['A', 'B', 'C', 'D', 'E'];
 const MAXP = 20;                                     // partes máximas por figura (ancho de la textura = MAXP × 3 texeles)
-const Z = {MAIN: 0, TRIM: 1, ACC: 2, HAT: 3, F1: 4, F2: 5, F3: 6, VEH: 7, FIX: 8};
+const Z = {MAIN: 0, TRIM: 1, ACC: 2, HAT: 3, F1: 4, F2: 5, F3: 6, VEH: 7, M1: 8, M2: 9, M3: 10, VEH2: 11, FIX: 12};   // M1–M3: marca nacional; VEH2: segundo color de camuflaje
 const V = {NONE: 0, SKIN: 1, HORSE: 2};
 // colores fijos (Lambert, pensados para luz cálida del noroeste)
 const C = {cuero: 0x5a3a22, cueroN: 0x26201c, correaB: 0xe8e2d0, madera: 0x7a5232, maderaO: 0x4e3420, acero: 0x8a9096, hierro: 0x3a3c40, laton: 0xc8a048,
@@ -230,7 +230,7 @@ const NACIONES = {
 };
 function eraOf(obj, era) {                          // la época pedida o la más cercana definida
   if (!obj) return null; if (obj[era]) return obj[era];
-  const i = TROOP_ERAS.indexOf(era); for (let d = 1; d < 4; d++) { const a = TROOP_ERAS[i - d], b = TROOP_ERAS[i + d]; if (a && obj[a]) return obj[a]; if (b && obj[b]) return obj[b]; }
+  const i = TROOP_ERAS.indexOf(era); for (let d = 1; d < 5; d++) { const a = TROOP_ERAS[i - d], b = TROOP_ERAS[i + d]; if (a && obj[a]) return obj[a]; if (b && obj[b]) return obj[b]; }
   return null;
 }
 // uniformPalette(nación, época, papel) → {main, trim, accessory, hat, flag, headgear, vehicle, note}
@@ -238,9 +238,10 @@ function uniformPalette(nation, era, rol) {
   const n = NACIONES[nation] || NACIONES.GEN, base = eraOf(n, era) || eraOf(NACIONES.GEN, era);
   const R = rol && rol !== 'linea' && n.rol && n.rol[rol];
   // un papel usa su época o la más cercana anterior a D; en D (caqui/gris de campaña) solo si la define: todos visten como la línea
-  const r = R ? (R[era] || (era !== 'D' ? eraOf({A: R.A, B: R.B, C: R.C}, era) : null)) : null;
+  const r = R ? (R[era] || (era < 'D' ? eraOf({A: R.A, B: R.B, C: R.C}, era) : null)) : null;
   const e = r || base;
-  return {main: e.c[0], trim: e.c[1], accessory: e.c[2], hat: e.c[3], flag: n.f.slice(), flagLayout: n.bandera, headgear: e.toc, vehicle: n.veh || '#6a6c52', note: e.nota || ''};
+  const mk = e.marca || n.marca || {tipo: 'ninguna', c: ['#1c1c1c', '#e8e4d8', '#b02020']}, veh = e.veh || n.veh || '#6a6c52';
+  return {main: e.c[0], trim: e.c[1], accessory: e.c[2], hat: e.c[3], flag: (e.f || n.f).slice(), flagLayout: e.bandera || n.bandera, headgear: e.toc, vehicle: veh, vehicle2: e.veh2 || veh, mark: mk.c.slice(), markType: mk.tipo, modelo: e.modelo || {}, note: e.nota || ''};
 }
 
 /* ---------------- figuras (LOD0) ---------------- */
@@ -281,6 +282,7 @@ function headgear(g, h, toc, o) {
     case 'qing': g.cyl(h, H, 0, [0, 0.31, 0], 0.25, 0, 0.14, 6); g.cyl(h, Z.FIX, C.rojo, [0, 0.36, 0], 0.08, 0, 0.09, 4); break;
     case 'kabalak': g.cyl(h, H, 0, [0, 0.31, 0], 0.145, 0.155, 0.12, 6, {top: true, dome: 0.03}); break;
     case 'bicornio': g.box(h, Z.FIX, C.negro, [0, 0.34, 0], [0.44, 0.16, 0.1], {taper: 0.45, taperZ: 0.7}); g.cyl(h, Z.TRIM, 0, [0, 0.45, 0.02], 0.03, 0, 0.12, 4); break;
+    default: headgearE(g, h, toc, o);
   }
   if (o.plumero) g.octa(h, Z.FIX, C.pluma, [0, 0.5, 0], 0.07, {ry: 0.12});
   if (o.penacho) g.cyl(h, Z.TRIM, 0, [0, 0.55, 0.02], 0.045, 0.02, 0.18, 4);
@@ -313,6 +315,7 @@ function weapon(g, a, w, o) {
     case 'proyectil': g.cyl(a, Z.FIX, C.laton, [0, 0.0, 0.07], 0.045, 0.03, 0.3, 4, {rot: [90, 0, 0], top: true}); break;
     case 'pala': g.cyl(a, Z.FIX, C.madera, [0, 0.62, 0], 0.018, 0.018, 0.95, 4); g.box(a, Z.FIX, C.hierro, [0, 0.14, 0.0], [0.2, 0.26, 0.03], {taper: -0.1}); break;
     case 'catalejo': break;
+    default: weaponE(g, a, w, o); break;
     case 'camilla': {                                                // camilla con un herido: dos varales a ±0,24 a lo largo de +Y
       [0.25, -0.25].forEach(x => g.cyl(a, Z.FIX, C.madera, [x, 1.15, 0], 0.02, 0.02, 2.3, 4));
       g.quad([-0.25, 0.25, 0], [0.25, 0.25, 0], [0.25, 2.05, 0], [-0.25, 2.05, 0], a, Z.FIX, C.lona);
@@ -343,7 +346,8 @@ function buildSoldier(o) {
     g.box(P.torso, Z.FIX, C.cuero, [0, 0.03, 0], [0.4, 0.06, 0.25], {noTop: true});                 // cinturón con cartucheras
     if (o.cartucheras !== false) [0.1, -0.1].forEach(x => g.quad([x - 0.045, 0.01, 0.128], [x + 0.045, 0.01, 0.128], [x + 0.045, 0.08, 0.128], [x - 0.045, 0.08, 0.128], P.torso, Z.FIX, C.cuero));
   }
-  if (o.mochila !== false && !o.lite) { if (AB) { g.box(P.torso, Z.FIX, C.mochila, [0, 0.28, -0.17], [0.32, 0.3, 0.11]); if (era === 'A') g.cyl(P.torso, Z.FIX, C.manta, [0, 0.46, -0.17], 0.05, 0.05, 0.32, 4, {rot: [0, 0, 90]}); } else g.box(P.torso, Z.FIX, C.lona, [0, 0.28, -0.16], [0.28, 0.26, 0.1]); }
+  if (era === 'E' && !o.lite) eKit(g, P, o);
+  else if (o.mochila !== false && !o.lite) { if (AB) { g.box(P.torso, Z.FIX, C.mochila, [0, 0.28, -0.17], [0.32, 0.3, 0.11]); if (era === 'A') g.cyl(P.torso, Z.FIX, C.manta, [0, 0.46, -0.17], 0.05, 0.05, 0.32, 4, {rot: [0, 0, 90]}); } else g.box(P.torso, Z.FIX, C.lona, [0, 0.28, -0.16], [0.28, 0.26, 0.1]); }
   if (o.espalda === 'pala') g.box(P.torso, Z.FIX, C.hierro, [0.05, 0.28, -0.17], [0.18, 0.24, 0.03], {rot: [0, 0, 15]});
   if (o.rango === 'oficial' && AB) g.box(P.torso, Z.TRIM, 0, [0, 0.12, 0.0], [0.4, 0.07, 0.245], {noTop: true, rot: [0, 0, 12]});   // faja
   // cabeza y tocado
@@ -362,8 +366,8 @@ function buildSoldier(o) {
   // piernas
   [['musloIz', 'piernaIz'], ['musloDe', 'piernaDe']].forEach(([u, l]) => {
     g.box(P[u], pants, 0, [0, -0.2, 0], [0.14, 0.42, 0.15], {noTop: true, taper: 0.12});
-    if (o.lite) { g.box(P[l], Z.FIX, era === 'D' ? C.panno : C.bota, [0, -0.22, 0.02], [0.12, 0.46, 0.15], {noTop: true, taper: 0.06}); return; }
-    g.box(P[l], era === 'D' ? Z.FIX : pants, era === 'D' ? C.panno : 0, [0, -0.17, 0], [0.12, 0.36, 0.13], {noTop: true, taper: 0.06});   // D: polainas/puttees
+    if (o.lite) { g.box(P[l], Z.FIX, era >= 'D' ? C.panno : C.bota, [0, -0.22, 0.02], [0.12, 0.46, 0.15], {noTop: true, taper: 0.06}); return; }
+    g.box(P[l], era >= 'D' ? Z.FIX : pants, era >= 'D' ? (o.botas ? C.bota : C.panno) : 0, [0, -0.17, 0], [0.12, 0.36, 0.13], {noTop: true, taper: 0.06});   // D: polainas/puttees
     g.box(P[l], Z.FIX, C.bota, [0, -0.41, 0.04], [0.12, 0.1, 0.24], {noTop: true});
   });
   weapon(g, P.arma, o.arma, o);
@@ -398,10 +402,10 @@ function buildRider(o) {
   g.box(P.torso, Z.TRIM, 0, [0, 0.45, 0], [0.22, 0.05, 0.19], {noTop: true});
   if (t === 'husar' && AB) { g.quad([-0.05, 0.4, 0.112], [0.05, 0.4, 0.112], [0.05, 0.03, 0.112], [-0.05, 0.03, 0.112], P.torso, Z.TRIM, 0);   // alamares
     g.box(P.torso, Z.MAIN, 0, [0.12, 0.25, -0.05], [0.2, 0.42, 0.25], {rot: [0, 0, -8]}); }                                                   // pelliza colgada del hombro izquierdo
-  else if (t === 'coracero' && o.era !== 'D') g.box(P.torso, Z.FIX, C.acero, [0, 0.26, 0], [0.4, 0.36, 0.26], {taper: -0.08});             // coraza
+  else if (t === 'coracero' && o.era < 'D') g.box(P.torso, Z.FIX, C.acero, [0, 0.26, 0], [0.4, 0.36, 0.26], {taper: -0.08});             // coraza
   else if (t === 'general' || t === 'mariscal' || t === 'ayudante') { g.box(P.torso, Z.TRIM, 0, [0, 0.1, 0], [0.38, 0.06, 0.235], {noTop: true, rot: [0, 0, 10]}); }   // faja
   else g.box(P.torso, Z.FIX, C.cuero, [0, 0.03, 0], [0.38, 0.06, 0.24], {noTop: true});
-  if (t === 'dragon' || (o.era === 'D' && (t === 'husar' || t === 'lancero' || t === 'coracero'))) g.box(P.torso, Z.FIX, C.hierro, [0.12, 0.18, -0.14], [0.05, 0.7, 0.05], {rot: [0, 0, -30]});   // carabina a la espalda
+  if (t === 'dragon' || (o.era >= 'D' && (t === 'husar' || t === 'lancero' || t === 'coracero'))) g.box(P.torso, Z.FIX, C.hierro, [0.12, 0.18, -0.14], [0.05, 0.7, 0.05], {rot: [0, 0, -30]});   // carabina a la espalda
   if (t === 'mensajero') g.box(P.torso, Z.FIX, C.cuero, [0.19, 0.06, 0.02], [0.06, 0.2, 0.24]);                                              // cartera
   if (t === 'general' || t === 'mariscal') { g.box(P.brazoIz, Z.TRIM, 0, [0.02, 0.01, 0], [0.13, 0.03, 0.13]); g.box(P.brazoDe, Z.TRIM, 0, [-0.02, 0.01, 0], [0.13, 0.03, 0.13]); }   // charreteras
   g.head(P.cabeza, [0, 0.13, 0.005], 0.125, 0.24, !o.toc);
@@ -419,7 +423,7 @@ function buildRider(o) {
 function buildCannon(o) {
   const g = new GeoBuilder(), P = rigIndex('canon'), t = o.tipo || 'liso', era = o.era;
   const wheels = (r, col) => ['ruedaIz', 'ruedaDe'].forEach(k => g.cyl(P[k], Z.FIX, col, [0, 0, 0], r, r, 0.07, 8, {rot: [0, 0, 90], top: true, bottom: true}));
-  if (t === 'liso' || (t === 'obus' && era !== 'D')) {
+  if (t === 'liso' || (t === 'obus' && era < 'D')) {
     g.box(P.cureña, Z.FIX, 0x5e6a48, [0, 0.42, -0.85], [0.22, 0.14, 2.0], {rot: [-14, 0, 0]});             // gualderas pintadas (verde oliva, aprox.)
     g.box(P.cureña, Z.FIX, 0x5e6a48, [0, 0.7, 0.15], [0.5, 0.22, 0.5]);
     g.box(P.cureña, Z.FIX, C.hierro, [0, 0.62, 0.15], [1.26, 0.08, 0.08], {noFront: true, noBack: true});
@@ -427,7 +431,7 @@ function buildCannon(o) {
     else g.cyl(P.tubo, Z.FIX, C.bronce, [0, 0.12, 0.1], 0.17, 0.15, 0.85, 8, {rot: [90 - 32, 0, 0], top: true, bottom: true});    // obús corto elevado
     wheels(0.62, C.madera);
   } else if (t === 'rc' || t === 'obus') {
-    if (era === 'D') {                                                                                        // pieza de campaña con escudo (tipo 75 mm / obús de 105)
+    if (era >= 'D') {                                                                                        // pieza de campaña con escudo (tipo 75 mm / obús de 105)
       g.box(P.cureña, Z.FIX, 0x5a5c4a, [0, 0.36, -1.0], [0.16, 0.12, 2.0], {rot: [-12, 0, 0]});
       g.box(P.cureña, Z.FIX, 0x5a5c4a, [0, 0.7, 0.05], [0.38, 0.24, 0.9]);
       g.box(P.cureña, Z.FIX, C.hierro, [0, 0.62, 0.15], [1.26, 0.07, 0.07], {noFront: true, noBack: true});
@@ -444,7 +448,7 @@ function buildCannon(o) {
       wheels(0.62, C.madera);
     }
   } else if (t === 'mg') {
-    if (era === 'D') {                                                                                        // Maxim / Vickers sobre trípode (sin ruedas)
+    if (era >= 'D') {                                                                                        // Maxim / Vickers sobre trípode (sin ruedas)
       [[0, -0.6], [0.4, 0.3], [-0.4, 0.3]].forEach(([x, z]) => g.box(P.cureña, Z.FIX, 0x4a4c40, [x * 0.5, 0.25, z * 0.5], [0.05, 0.6, 0.05], {rot: [z < 0 ? 40 : -30, 0, -x * 50], noTop: true}));
       g.cyl(P.tubo, Z.FIX, 0x5a5e50, [0, -0.32, 0.3], 0.065, 0.06, 0.9, 6, {rot: [90, 0, 0], top: true});    // camisa de agua
       g.box(P.tubo, Z.FIX, 0x3a3c38, [0, -0.32, -0.25], [0.16, 0.18, 0.36], {bottom: true});
@@ -461,14 +465,15 @@ function buildCannon(o) {
   return g;
 }
 // tanque ligero tipo Renault FT (1917): casco, torreta giratoria, cañón de 37 mm, orugas con bandas animadas (fx.y)
-function trackLoop(g, part, prof, w, x, zoneSide) {
+function trackLoop(g, part, prof, w, x, zoneSide, side, sideColor) {
+  side = side || 1;
   const len = []; let L = 0; for (let i = 0; i < prof.length; i++) { len.push(L); const a = prof[i], b = prof[(i + 1) % prof.length]; L += Math.hypot(a[0] - b[0], a[1] - b[1]); }
   for (let i = 0; i < prof.length; i++) {
-    const a = prof[i], b = prof[(i + 1) % prof.length], u0 = len[i] * 4, u1 = (len[i] + Math.hypot(a[0] - b[0], a[1] - b[1])) * 4;
+    const a = prof[i], b = prof[(i + 1) % prof.length], u0 = side * (1 + len[i] * 4), u1 = side * (1 + (len[i] + Math.hypot(a[0] - b[0], a[1] - b[1])) * 4);
     const A0 = [x + w / 2, a[1], a[0]], B0 = [x + w / 2, b[1], b[0]], A1 = [x - w / 2, a[1], a[0]], B1 = [x - w / 2, b[1], b[0]];
     g.tri(A0, A1, B1, part, Z.FIX, C.oruga, 0, [0, u0], [0, u0], [0, u1]); g.tri(A0, B1, B0, part, Z.FIX, C.oruga, 0, [0, u0], [0, u1], [0, u1]);
   }
-  [x + w / 2, x - w / 2].forEach(xx => { for (let i = 1; i < prof.length - 1; i++) { const a = prof[0], b = prof[i], c = prof[i + 1]; const pa = [xx, a[1], a[0]], pb = [xx, b[1], b[0]], pc = [xx, c[1], c[0]]; if (xx > x) g.tri(pa, pc, pb, part, zoneSide, 0); else g.tri(pa, pb, pc, part, zoneSide, 0); } });
+  [x + w / 2, x - w / 2].forEach(xx => { for (let i = 1; i < prof.length - 1; i++) { const a = prof[0], b = prof[i], c = prof[i + 1]; const pa = [xx, a[1], a[0]], pb = [xx, b[1], b[0]], pc = [xx, c[1], c[0]]; if (xx > x) g.tri(pa, pc, pb, part, zoneSide, sideColor || 0); else g.tri(pa, pb, pc, part, zoneSide, sideColor || 0); } });
 }
 function buildTank(o) {
   const g = new GeoBuilder(), P = rigIndex('tanque'), VZ = Z.VEH;
@@ -479,14 +484,14 @@ function buildTank(o) {
   g.cyl(P.torreta, VZ, 0, [0, 0.24, 0], 0.46, 0.4, 0.5, 8, {top: true, dome: 0.08});
   g.box(P.torreta, Z.FIX, C.negro, [0, 0.3, 0.42], [0.2, 0.06, 0.06], {noBack: true});
   g.cyl(P.canon, Z.FIX, C.hierro, [0, 0, 0.3], 0.055, 0.05, 0.56, 6, {rot: [90, 0, 0], top: true});
-  ['orugaIz', 'orugaDe'].forEach(k => trackLoop(g, P[k], [[2.05, 1.35], [1.65, 0.22], [-1.45, 0.1], [-1.9, 0.55], [-1.55, 1.05], [1.55, 1.48]], 0.34, 0, VZ));
+  ['orugaIz', 'orugaDe'].forEach((k, i) => trackLoop(g, P[k], [[2.05, 1.35], [1.65, 0.22], [-1.45, 0.1], [-1.9, 0.55], [-1.55, 1.05], [1.55, 1.48]], 0.34, 0, VZ, i ? -1 : 1));
   return g;
 }
 // tanque romboidal Mark I «macho» (1916): orugas alrededor del casco, barbetas laterales con cañones de 6 libras, ruedas de cola
 function buildMarkI(o) {
   const g = new GeoBuilder(), P = rigIndex('markI'), VZ = Z.VEH;
   const prof = [[4.9, 2.0], [3.4, 0.05], [-3.3, 0.05], [-4.1, 1.15], [-3.8, 2.45], [3.7, 2.45]];
-  ['orugaIz', 'orugaDe'].forEach(k => trackLoop(g, P[k], prof, 0.56, 0, VZ));
+  ['orugaIz', 'orugaDe'].forEach((k, i) => trackLoop(g, P[k], prof, 0.56, 0, VZ, i ? -1 : 1));
   g.box(P.casco, VZ, 0, [0, 1.35, 0.1], [1.7, 1.9, 6.6], {taper: 0.0});                                        // casco central
   g.box(P.casco, VZ, 0, [0, 2.55, 2.4], [1.3, 0.6, 1.2], {noBack: true});                                       // puesto de conducción
   ['sponIz', 'sponDe'].forEach((k, i) => { const s = i ? -1 : 1; g.box(P[k], VZ, 0, [0.12 * s, 0, 0], [0.5, 1.0, 1.6], {taperZ: 0.35, taper: 0.0, bottom: true}); });
@@ -524,7 +529,7 @@ function buildTeam(o) {
 // parapeto de fuerte: cestones y tierra (A–C) o sacos terreros (D), 4 m de frente
 function buildParapet(o) {
   const g = new GeoBuilder();
-  if (o.era === 'D') { for (let r = 0; r < 3; r++) for (let i = 0; i < 6 - (r === 2 ? 1 : 0); i++) g.box(0, Z.FIX, r % 2 ? C.saco : 0x9a8c68, [-1.75 + i * 0.7 + (r % 2) * 0.35, 0.15 + r * 0.3, 0], [0.66, 0.28, 0.42], {bottom: false, noBack: r < 2}); }
+  if (o.era >= 'D') { for (let r = 0; r < 3; r++) for (let i = 0; i < 6 - (r === 2 ? 1 : 0); i++) g.box(0, Z.FIX, r % 2 ? C.saco : 0x9a8c68, [-1.75 + i * 0.7 + (r % 2) * 0.35, 0.15 + r * 0.3, 0], [0.66, 0.28, 0.42], {bottom: false, noBack: r < 2}); }
   else { for (let i = 0; i < 6; i++) g.cyl(0, Z.FIX, C.mimbre, [-1.75 + i * 0.7, 0.5, 0.35], 0.32, 0.32, 1.0, 6, {top: true, topColor: C.tierra}); g.box(0, Z.FIX, C.tierra, [0, 0.45, -0.35], [4.2, 0.9, 0.8], {taperZ: 0.6}); }
   return g;
 }
@@ -587,7 +592,7 @@ function lodRider(o, lvl) {
   return g;
 }
 function lodCannon(o, lvl) {
-  const g = new GeoBuilder(), P = rigIndex('canon'), col = o.era === 'D' ? 0x5a5c4a : 0x5e6a48, mg = o.tipo === 'mg' && o.era === 'D';
+  const g = new GeoBuilder(), P = rigIndex('canon'), col = o.era >= 'D' ? 0x5a5c4a : 0x5e6a48, mg = o.tipo === 'mg' && o.era >= 'D';
   if (lvl === 2) {
     if (!mg) ['ruedaIz', 'ruedaDe'].forEach(k => g.quad([0, -0.6, -0.6], [0, -0.6, 0.6], [0, 0.6, 0.6], [0, 0.6, -0.6], P[k], Z.FIX, C.madera));
     g.quad([-0.15, 0.2, -1.8], [0.15, 0.2, -1.8], [0.15, 0.62, 0.3], [-0.15, 0.62, 0.3], P.cureña, Z.FIX, col);
@@ -595,7 +600,7 @@ function lodCannon(o, lvl) {
   }
   g.box(P.cureña, Z.FIX, col, [0, 0.42, -0.85], [0.2, 0.14, 2.0], {rot: [-14, 0, 0]});
   g.box(P.cureña, Z.FIX, col, [0, 0.7, 0.15], [0.46, 0.22, 0.5]);
-  if (o.era === 'D' && o.tipo !== 'mg') g.quad([-0.52, 0.5, 0.42], [0.52, 0.5, 0.42], [0.46, 1.4, 0.42], [-0.46, 1.4, 0.42], P.cureña, Z.FIX, 0x5f6250);
+  if (o.era >= 'D' && o.tipo !== 'mg') g.quad([-0.52, 0.5, 0.42], [0.52, 0.5, 0.42], [0.46, 1.4, 0.42], [-0.46, 1.4, 0.42], P.cureña, Z.FIX, 0x5f6250);
   g.cyl(P.tubo, Z.FIX, o.tipo === 'liso' ? C.bronce : 0x3a3c38, [0, 0, 0.3], 0.1, 0.08, mg ? 0.9 : 1.6, 4, {rot: [o.tipo === 'obus' ? 58 : 90, 0, 0], top: true});
   if (!mg) ['ruedaIz', 'ruedaDe'].forEach(k => g.disc(P[k], Z.FIX, C.madera, [0, 0, 0], 0.6, 6, {two: true}));
   return g;
@@ -627,7 +632,7 @@ function lodTeam(o, lvl) {
   if (lvl === 1) ['ruedaDI', 'ruedaDD', 'ruedaTI', 'ruedaTD'].forEach(k => { if (o.tipo === 'avantren' && k[5] === 'D') return; g.disc(P[k], Z.FIX, C.madera, [0, 0, 0], 0.6, 6, {two: true}); });
   return g;
 }
-function lodParapet(o, lvl) { const g = new GeoBuilder(); g.box(0, Z.FIX, o.era === 'D' ? C.saco : C.tierra, [0, 0.45, 0], [4.2, 0.9, 1.0], {taperZ: 0.3, noTop: lvl === 2}); return g; }
+function lodParapet(o, lvl) { const g = new GeoBuilder(); g.box(0, Z.FIX, o.era >= 'D' ? C.saco : C.tierra, [0, 0.45, 0], [4.2, 0.9, 1.0], {taperZ: 0.3, noTop: lvl === 2}); return g; }
 
 /* ---------------- catálogo ---------------- */
 const AB = e => e === 'A' || e === 'B';
@@ -640,7 +645,7 @@ const KINDS = {
   fusilero: {rig: 'soldado', clase: 'inf', pal: 'linea', nombre: 'Fusilero (infantería de línea)', o: (era, nat) => ({era, toc: hg(nat, era, 'linea'), arma: AB(era) ? 'mosquete' : 'fusil', bayoneta: era === 'D'})},
   granadero: {rig: 'soldado', clase: 'inf', pal: 'guardia', nombre: 'Granadero / guardia', o: (era, nat) => ({era, toc: hg(nat, era, 'guardia'), arma: AB(era) ? 'mosquete' : 'fusil', bayoneta: era === 'D', penacho: era === 'C' && hg(nat, era, 'guardia') !== 'pickel_pen'})},
   tirador: {rig: 'soldado', clase: 'inf', pal: 'ligera', nombre: 'Tirador / infantería ligera', o: (era, nat) => ({era, toc: hg(nat, era, 'ligera'), arma: 'fusil', mochila: false, correaje: false, bayoneta: era === 'D'})},
-  oficial: {rig: 'soldado', clase: 'inf', pal: 'linea', nombre: 'Oficial a pie', o: (era, nat) => ({era, toc: era === 'D' ? 'gorra' : hg(nat, era, 'linea'), arma: 'espada', rango: 'oficial', mochila: false, charreteras: true, correaje: false, cartucheras: false, catalejo: true})},
+  oficial: {rig: 'soldado', clase: 'inf', pal: 'linea', nombre: 'Oficial a pie', o: (era, nat) => ({era, toc: era >= 'D' ? 'gorra' : hg(nat, era, 'linea'), arma: 'espada', rango: 'oficial', mochila: false, charreteras: true, correaje: false, cartucheras: false, catalejo: true})},
   abanderado: {rig: 'soldado', clase: 'inf', pal: 'linea', dobleCara: true, nombre: 'Portaestandarte', o: (era, nat) => ({era, toc: hg(nat, era, 'linea'), arma: 'astil', mochila: false, correaje: false, cartucheras: false, flagLayout: (NACIONES[nat] || NACIONES.GEN).bandera, unBrazo: true})},
   zapador: {rig: 'soldado', clase: 'inf', pal: 'linea', nombre: 'Zapador / ingeniero', o: (era, nat) => ({era, toc: hg(nat, era, 'linea'), arma: 'pala', espalda: 'pala', mochila: false})},
   sanitario: {rig: 'soldado', clase: 'inf', pal: 'linea', roles: ['delante', 'detras'], nombre: 'Sanitario con camilla', o: (era, nat, rol) => ({era, toc: hg(nat, era, 'linea'), arma: rol === 'detras' ? 'ninguna' : 'camilla', mochila: false, correaje: false, cartucheras: false, brazalete: era !== 'A', unBrazo: true})},
@@ -648,14 +653,14 @@ const KINDS = {
   herido: {rig: 'soldado', clase: 'inf', pal: 'linea', nombre: 'Herido', o: (era, nat) => ({era, toc: hg(nat, era, 'linea'), arma: 'ninguna', mochila: false, cartucheras: false})},
   artillero: {rig: 'soldado', clase: 'art', pal: 'artilleria', roles: Object.keys(ROLE_ARMA), nombre: 'Servidor de pieza', o: (era, nat, rol) => ({era, lite: true, toc: hg(nat, era, 'artilleria'), arma: rol === 'cargador' && !AB(era) ? 'proyectil' : rol === 'artillero' && !AB(era) ? 'ninguna' : ROLE_ARMA[rol || 'cargador'], mochila: false})},
   husar: Object.assign(RIDER('husar', 'caballeria'), {nombre: 'Húsar'}),
-  coracero: Object.assign(RIDER('coracero', 'linea', (era, nat) => era === 'D' ? hg(nat, era, 'linea') : 'casco_cor'), {nombre: 'Coracero'}),
-  lancero: Object.assign(RIDER('lancero', 'caballeria', (era, nat) => era === 'D' ? hg(nat, era, 'linea') : 'czapka'), {dobleCara: true, nombre: 'Lancero'}),
+  coracero: Object.assign(RIDER('coracero', 'linea', (era, nat) => era >= 'D' ? hg(nat, era, 'linea') : 'casco_cor'), {nombre: 'Coracero'}),
+  lancero: Object.assign(RIDER('lancero', 'caballeria', (era, nat) => era >= 'D' ? hg(nat, era, 'linea') : 'czapka'), {dobleCara: true, nombre: 'Lancero'}),
   dragon: Object.assign(RIDER('dragon', 'linea', (era, nat) => AB(era) ? 'casco_dragon' : hg(nat, era, 'linea')), {nombre: 'Dragón'}),
-  general: Object.assign(RIDER('general', 'estado_mayor', (era, nat) => era === 'D' ? 'gorra' : hg(nat, era, 'estado_mayor')), {nombre: 'General a caballo'}),
-  ayudante: Object.assign(RIDER('ayudante', 'estado_mayor', (era, nat) => era === 'D' ? 'gorra' : hg(nat, era, 'linea')), {nombre: 'Ayudante de campo'}),
-  mariscal: Object.assign(RIDER('mariscal', 'estado_mayor', era => era === 'D' ? 'gorra' : 'bicornio'), {nombre: 'Mariscal'}),
+  general: Object.assign(RIDER('general', 'estado_mayor', (era, nat) => era >= 'D' ? 'gorra' : hg(nat, era, 'estado_mayor')), {nombre: 'General a caballo'}),
+  ayudante: Object.assign(RIDER('ayudante', 'estado_mayor', (era, nat) => era >= 'D' ? 'gorra' : hg(nat, era, 'linea')), {nombre: 'Ayudante de campo'}),
+  mariscal: Object.assign(RIDER('mariscal', 'estado_mayor', era => era >= 'D' ? 'gorra' : 'bicornio'), {nombre: 'Mariscal'}),
   mensajero: Object.assign(RIDER('mensajero', 'linea'), {nombre: 'Mensajero a caballo'}),
-  estandarte: Object.assign(RIDER('estandarte', 'estado_mayor', (era, nat) => era === 'D' ? 'gorra' : hg(nat, era, 'linea')), {dobleCara: true, nombre: 'Estandarte de mando'}),
+  estandarte: Object.assign(RIDER('estandarte', 'estado_mayor', (era, nat) => era >= 'D' ? 'gorra' : hg(nat, era, 'linea')), {dobleCara: true, nombre: 'Estandarte de mando'}),
   canon: Object.assign(GUN('liso', ['A', 'B']), {nombre: 'Cañón de ánima lisa'}),
   canon_rc: Object.assign(GUN('rc', ['B', 'C', 'D']), {nombre: 'Cañón rayado de retrocarga'}),
   obus: Object.assign(GUN('obus', ['A', 'B', 'C', 'D']), {nombre: 'Obús'}),
@@ -668,7 +673,7 @@ const KINDS = {
   mark1: {rig: 'markI', clase: 'tank', eras: ['D'], nombre: 'Tanque romboidal Mark I', o: era => ({era}), build: buildMarkI, lod: (o, l) => lodTank(o, l, true)},
   parapeto: {rig: 'estatico', clase: 'fort', nombre: 'Parapeto de fuerte', o: era => ({era}), build: buildParapet, lod: lodParapet}
 };
-Object.values(KINDS).forEach(k => { if (k.rig === 'soldado') { k.build = buildSoldier; k.lod = lodSoldier; } k.eras = k.eras || TROOP_ERAS.slice(); });
+Object.values(KINDS).forEach(k => { if (k.rig === 'soldado') { k.build = buildSoldier; k.lod = lodSoldier; } k.eras = k.eras || ['A', 'B', 'C', 'D']; });
 const TROOP_KINDS = Object.keys(KINDS);
 
 /* ---------------- animaciones ---------------- */
@@ -969,6 +974,7 @@ function poseTroop(kindOrRig, clipName, phase, out) {
     _e.set(_r3[0] * D2R, _r3[1] * D2R, _r3[2] * D2R); _q.setFromEuler(_e);
     _p.set(off[0], off[1], off[2]);
     if (par < 0 && clip.root) { sampleTrack(clip.root, t, _t3, 3); _p.x += _t3[0]; _p.y += _t3[1]; _p.z += _t3[2]; }
+    if (clip.pos && clip.pos[name]) { sampleTrack(clip.pos[name], t, _t3, 3); _p.x += _t3[0]; _p.y += _t3[1]; _p.z += _t3[2]; }
     if (name === 'tubo' && clip.slide) { sampleTrack(clip.slide, t, _t1, 1); _p.z += _t1[0]; }
     if (name === 'canon' && clip.gunSlide) { sampleTrack(clip.gunSlide, t, _t1, 1); _p.z += _t1[0]; }
     _m.compose(_p, _q, _s);
@@ -1028,21 +1034,22 @@ function bakeClips() {
       row += frames;
     });
   });
-  const W = MAXP * 3, H = rows.length, data = new Float32Array(W * H * 4);
-  rows.forEach((m, r) => { for (let p = 0; p < MAXP; p++) { const o = (r * W + p * 3) * 4, e = m.subarray(p * 16, p * 16 + 16);
+  // FPR fotogramas por fila de textura para no pasar de 2048 filas (límite seguro en móviles)
+  const FPR = Math.max(1, Math.ceil(rows.length / 2048)), W = MAXP * 3 * FPR, H = Math.ceil(rows.length / FPR), data = new Float32Array(W * H * 4);
+  rows.forEach((m, r) => { const rr = Math.floor(r / FPR), cc = r - rr * FPR; for (let p = 0; p < MAXP; p++) { const o = (rr * W + cc * MAXP * 3 + p * 3) * 4, e = m.subarray(p * 16, p * 16 + 16);
     for (let i = 0; i < 3; i++) { data[o + i * 4] = e[i]; data[o + i * 4 + 1] = e[4 + i]; data[o + i * 4 + 2] = e[8 + i]; data[o + i * 4 + 3] = e[12 + i]; } } });
   const tex = new THREE.DataTexture(data, W, H, THREE.RGBAFormat, THREE.FloatType); tex.needsUpdate = true; tex.magFilter = tex.minFilter = THREE.NearestFilter;
-  if (H > 4096) console.warn('troops3d: la textura de huesos tiene ' + H + ' filas (> 4096, límite de algunos móviles)');
-  _baked = {tex, index, rows, W, H, bytes: data.byteLength}; return _baked;
+  if (H > 4096 || W > 4096) console.warn('troops3d: textura de huesos de ' + W + '×' + H);
+  _baked = {tex, index, rows, W, H, FPR, frames: rows.length, bytes: data.byteLength}; return _baked;
 }
 
 /* ---------------- paletas en textura ---------------- */
 // fila 0: tonos de piel (0–3) y pelajes (4–7); filas siguientes: una por nación × época × papel
 const SKIN = ['#f0c8a0', '#d9a77e', '#b07a50', '#7a4e30'], HORSE = ['#8a5430', '#a8683a', '#3a322c', '#b8b0a2'];
 function makePaletteTex(entries) {
-  const W = 8, H = 1 + entries.length, d = new Uint8Array(W * H * 4), put = (r, c, hex) => { const v = new THREE.Color(hex), o = (r * W + c) * 4; /* Color(hex) ya es lineal (ColorManagement de r152): se guarda en sRGB */ d[o] = Math.round(Math.pow(v.r, 1 / 2.2) * 255); d[o + 1] = Math.round(Math.pow(v.g, 1 / 2.2) * 255); d[o + 2] = Math.round(Math.pow(v.b, 1 / 2.2) * 255); d[o + 3] = 255; };
+  const W = 12, H = 1 + entries.length, d = new Uint8Array(W * H * 4), put = (r, c, hex) => { const v = new THREE.Color(hex), o = (r * W + c) * 4; /* Color(hex) ya es lineal (ColorManagement de r152): se guarda en sRGB */ d[o] = Math.round(Math.pow(v.r, 1 / 2.2) * 255); d[o + 1] = Math.round(Math.pow(v.g, 1 / 2.2) * 255); d[o + 2] = Math.round(Math.pow(v.b, 1 / 2.2) * 255); d[o + 3] = 255; };
   SKIN.forEach((h, i) => put(0, i, h)); HORSE.forEach((h, i) => put(0, 4 + i, h));
-  entries.forEach((e, r) => { const p = uniformPalette(e[0], e[1], e[2]); [p.main, p.trim, p.accessory, p.hat, p.flag[0], p.flag[1], p.flag[2], p.vehicle].forEach((h, c) => put(r + 1, c, h)); });
+  entries.forEach((e, r) => { const p = uniformPalette(e[0], e[1], e[2]); [p.main, p.trim, p.accessory, p.hat, p.flag[0], p.flag[1], p.flag[2], p.vehicle, p.mark[0], p.mark[1], p.mark[2], p.vehicle2].forEach((h, c) => put(r + 1, c, h)); });
   const tex = new THREE.DataTexture(d, W, H, THREE.RGBAFormat); tex.needsUpdate = true; tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
@@ -1055,14 +1062,14 @@ function makeTroopMaterial(shared, opts) {
   opts = opts || {};
   const mat = new THREE.MeshLambertMaterial({vertexColors: true, side: opts.side || THREE.FrontSide});
   mat.onBeforeCompile = sh => {
-    sh.uniforms.uBones = shared.bonesU; sh.uniforms.uBonesSize = shared.bonesSizeU; sh.uniforms.uPal = shared.palU; sh.uniforms.uPalSize = shared.palSizeU; sh.uniforms.uTime = shared.timeU; sh.uniforms.uBlend = shared.blendU; sh.uniforms.uDebug = shared.debugU;
+    sh.uniforms.uBones = shared.bonesU; sh.uniforms.uBonesSize = shared.bonesSizeU; sh.uniforms.uFPR = shared.fprU; sh.uniforms.uPal = shared.palU; sh.uniforms.uPalSize = shared.palSizeU; sh.uniforms.uTime = shared.timeU; sh.uniforms.uBlend = shared.blendU; sh.uniforms.uDebug = shared.debugU;
     sh.vertexShader = sh.vertexShader.replace('#include <common>', `#include <common>
-uniform sampler2D uBones; uniform vec2 uBonesSize; uniform sampler2D uPal; uniform vec2 uPalSize; uniform float uTime; uniform float uBlend; uniform float uDebug;
+uniform sampler2D uBones; uniform vec2 uBonesSize; uniform float uFPR; uniform sampler2D uPal; uniform vec2 uPalSize; uniform float uTime; uniform float uBlend; uniform float uDebug;
 attribute float aPart; attribute float aZone; attribute float aVar; attribute vec2 aFx;
 attribute vec4 iAnimA; attribute vec4 iAnimB; attribute vec4 iLook;
 varying float vTread;
 vec4 bt(float x, float y) { return texture2D(uBones, vec2((x + 0.5) / uBonesSize.x, (y + 0.5) / uBonesSize.y)); }
-mat4 boneAt(float row, float part) { float x = part * 3.0; vec4 a = bt(x, row), b = bt(x + 1.0, row), c = bt(x + 2.0, row);
+mat4 boneAt(float fr, float part) { float row = floor(fr / uFPR); float x = (fr - row * uFPR) * 60.0 + part * 3.0; vec4 a = bt(x, row), b = bt(x + 1.0, row), c = bt(x + 2.0, row);
   return mat4(a.x, b.x, c.x, 0.0, a.y, b.y, c.y, 0.0, a.z, b.z, c.z, 0.0, a.w, b.w, c.w, 1.0); }
 mat4 clipBone(vec4 an, float part) {
   float fr = abs(an.y), f;
@@ -1080,13 +1087,14 @@ vec3 objectTangent = vec3(tangent.xyz);
       .replace('#include <begin_vertex>', `vec3 pos0 = position;
 if (aFx.x > 0.0) { float ph = iAnimA.w * 6.2831; pos0.z += sin(aFx.x * 7.0 - uTime * 6.0 + ph) * 0.13 * aFx.x + sin(aFx.x * 3.0 - uTime * 2.3 + pos0.y * 3.0) * 0.05 * aFx.x; pos0.y += sin(aFx.x * 5.0 - uTime * 4.0 + ph) * 0.03 * aFx.x; }
 vec3 transformed = (bm * vec4(pos0, 1.0)).xyz;
-vTread = aFx.y > 0.0 ? aFx.y + uTime * iLook.w : -1.0;`)
+float sp = iLook.w, piv = step(500.0, sp); sp -= piv * 1000.0;
+vTread = aFx.y != 0.0 ? abs(aFx.y) + uTime * sp * (piv > 0.5 ? sign(aFx.y) : 1.0) : -1.0;`)
       .replace('#include <color_vertex>', `float palRow = floor(iLook.x), bright = 0.92 + fract(iLook.x) * 0.16;
-vec3 zc = aZone < 7.5 ? texture2D(uPal, vec2((aZone + 0.5) / uPalSize.x, (palRow + 1.5) / uPalSize.y)).rgb : color;
+vec3 zc = aZone < 11.5 ? texture2D(uPal, vec2((aZone + 0.5) / uPalSize.x, (palRow + 1.5) / uPalSize.y)).rgb : color;
 if (aVar > 0.5 && aVar < 1.5) zc = texture2D(uPal, vec2((iLook.y + 0.5) / uPalSize.x, 0.5 / uPalSize.y)).rgb;
 if (aVar > 1.5) zc = texture2D(uPal, vec2((4.0 + iLook.z + 0.5) / uPalSize.x, 0.5 / uPalSize.y)).rgb;
-if (uDebug > 0.5 && aZone > 7.5) zc = vec3(0.55);
-vColor = zc * (aZone < 2.5 || aZone > 6.5 && aZone < 7.5 ? bright : 1.0);`);
+if (uDebug > 0.5 && aZone > 11.5) zc = vec3(0.55);
+vColor = zc * (aZone < 2.5 || (aZone > 6.5 && aZone < 7.5) || (aZone > 10.5 && aZone < 11.5) ? bright : 1.0);`);
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vTread;')
       .replace('#include <color_fragment>', `#include <color_fragment>
 if (vTread >= 0.0) diffuseColor.rgb *= 0.7 + 0.45 * step(0.5, fract(vTread));`);
@@ -1097,25 +1105,25 @@ if (vTread >= 0.0) diffuseColor.rgb *= 0.7 + 0.45 * step(0.5, fract(vTread));`);
 
 /* ---------------- API: buildTroop ---------------- */
 const _cache = {};
-function nearestEra(K, era) { if (K.eras.includes(era)) return era; const i = TROOP_ERAS.indexOf(era); for (let d = 1; d < 4; d++) { if (K.eras.includes(TROOP_ERAS[i - d])) return TROOP_ERAS[i - d]; if (K.eras.includes(TROOP_ERAS[i + d])) return TROOP_ERAS[i + d]; } return K.eras[0]; }
+function nearestEra(K, era) { if (K.eras.includes(era)) return era; const i = TROOP_ERAS.indexOf(era); for (let d = 1; d < 5; d++) { if (K.eras.includes(TROOP_ERAS[i - d])) return TROOP_ERAS[i - d]; if (K.eras.includes(TROOP_ERAS[i + d])) return TROOP_ERAS[i + d]; } return K.eras[0]; }
 // buildTroop(tipo, época, {nation, role}) → {tint, fixed, geometry, parts, clips, lod: [{level, geometry, tint, fixed, tris}×3], tris, rig, era}
 function buildTroop(kind, era, opts) {
   opts = opts || {}; const K = KINDS[kind]; if (!K) throw new Error('tipo desconocido: ' + kind);
   era = nearestEra(K, era || 'A');
-  const nat = opts.nation || 'GEN', o = K.o(era, nat, opts.role), key = [kind, era, o.toc || '', o.flagLayout || '', opts.role || ''].join('|');
+  const nat = opts.nation || 'GEN', o = K.o(era, nat, opts.role), key = [kind, era, o.toc || '', o.flagLayout || '', opts.role || '', o.modelo || '', o.marca || '', o.tripulante || '', o.lmg || '', o.equipo || ''].join('|');
   if (_cache[key]) return _cache[key];
-  const lv = [K.build(o), K.lod(o, 1), K.lod(o, 2)].map((g, level) => ({level, geometry: g.toGeometry(), tint: g.toGeometry(z => z < 7.5), fixed: g.toGeometry(z => z >= 7.5), tris: g.tris()}));
+  const lv = [K.build(o), K.lod(o, 1), K.lod(o, 2)].map((g, level) => ({level, geometry: g.toGeometry(), tint: g.toGeometry(z => z < 11.5), fixed: g.toGeometry(z => z >= 11.5), tris: g.tris()}));
   const res = {kind, era, rig: K.rig, parts: RIGS[K.rig].map(p => p[0]), clips: CLIP_SETS[K.rig] || [], tris: lv[0].tris, geometry: lv[0].geometry, tint: lv[0].tint, fixed: lv[0].fixed, lod: lv, headgear: o.toc || null};
   _cache[key] = res; return res;
 }
 // clave de geometría: las naciones con el mismo tocado (y bandera) comparten malla y lote
-function troopGeoKey(kind, era, nation) { const K = KINDS[kind], e = nearestEra(K, era), o = K.o(e, nation || 'GEN'); return [kind, e, o.toc || '', o.flagLayout || ''].join('|'); }
+function troopGeoKey(kind, era, nation) { const K = KINDS[kind], e = nearestEra(K, era), o = K.o(e, nation || 'GEN'); return [kind, e, o.toc || '', o.flagLayout || '', o.modelo || '', o.marca || '', o.tripulante || '', o.lmg || '', o.equipo || ''].join('|'); }
 
 /* ---------------- campo de tropas instanciadas (GPU) ---------------- */
 // TroopShared(naciones, {eras}): eras = épocas con fila de paleta (por defecto las 4; con muchos países, pasa solo la época actual)
 function TroopShared(nations, opts) {
   const baked = bakeClips(); this.baked = baked; this.nations = []; this.eras = (opts && opts.eras) || TROOP_ERAS.slice();
-  this.bonesU = {value: baked.tex}; this.bonesSizeU = {value: new THREE.Vector2(baked.W, baked.H)}; this.palU = {value: null}; this.palSizeU = {value: new THREE.Vector2(8, 1)};
+  this.bonesU = {value: baked.tex}; this.bonesSizeU = {value: new THREE.Vector2(baked.W, baked.H)}; this.fprU = {value: baked.FPR}; this.palU = {value: null}; this.palSizeU = {value: new THREE.Vector2(12, 1)};
   this.timeU = {value: 0}; this.blendU = {value: 0.22}; this.debugU = {value: 0};
   this.addNations(nations || ['GEN']);
 }
@@ -1124,7 +1132,7 @@ TroopShared.prototype.addNations = function (list) {
   list.forEach(n => { if (!this.nations.includes(n)) this.nations.push(n); }); if (!this.nations.includes('GEN')) this.nations.push('GEN');
   this.palEntries = []; this._row = {};
   this.nations.forEach(n => this.eras.forEach(e => ROLES.forEach(r => { this._row[n + e + r] = this.palEntries.length; this.palEntries.push([n, e, r]); })));
-  if (this.palTex) this.palTex.dispose(); this.palTex = makePaletteTex(this.palEntries); this.palU.value = this.palTex; this.palSizeU.value.set(8, 1 + this.palEntries.length);
+  if (this.palTex) this.palTex.dispose(); this.palTex = makePaletteTex(this.palEntries); this.palU.value = this.palTex; this.palSizeU.value.set(12, 1 + this.palEntries.length);
 };
 TroopShared.prototype.palRow = function (nation, era, rol) { const r = this._row[nation + era + (rol || 'linea')]; return r != null ? r : this._row['GEN' + era + (rol || 'linea')] || 0; };
 // setEras: cambia las épocas con paleta (p. ej. al pasar de 1855 a 1856) y rehace la textura
@@ -1175,12 +1183,12 @@ TroopLodSet.prototype.add = function (d, x, y, z, yaw, scale, nation, clip, o) {
 /* ---------------- reserva en CPU: una malla por parte ---------------- */
 function CpuBatch(kind, era, nation, cap, opts) {
   opts = opts || {}; const K = KINDS[kind], t = buildTroop(kind, era, {nation, role: opts.role}), g = t.lod[opts.lod || 0].geometry, parts = RIGS[t.rig].length, pa = g.getAttribute('aPart').array, P = g.getAttribute('position').array, N = g.getAttribute('normal').array, Co = g.getAttribute('color').array, Zo = g.getAttribute('aZone').array, Vr = g.getAttribute('aVar').array;
-  const pal = uniformPalette(nation, t.era, K.pal), zc = [pal.main, pal.trim, pal.accessory, pal.hat, pal.flag[0], pal.flag[1], pal.flag[2], pal.vehicle].map(h => new THREE.Color(h)), skin = new THREE.Color(SKIN[1]), coat = new THREE.Color(HORSE[0]);
+  const pal = uniformPalette(nation, t.era, K.pal), zc = [pal.main, pal.trim, pal.accessory, pal.hat, pal.flag[0], pal.flag[1], pal.flag[2], pal.vehicle, pal.mark[0], pal.mark[1], pal.mark[2], pal.vehicle2].map(h => new THREE.Color(h)), skin = new THREE.Color(SKIN[1]), coat = new THREE.Color(HORSE[0]);
   this.meshes = []; this.rig = t.rig; this.kind = kind; this.cap = cap; this.count = 0; this.parts = parts; this.tris = t.lod[opts.lod || 0].tris;
   for (let p = 0; p < parts; p++) {
     const idx = []; for (let v = 0; v < pa.length; v++) if (pa[v] === p) idx.push(v); if (!idx.length) { this.meshes.push(null); continue; }
     const gp = new THREE.BufferGeometry(), pp = new Float32Array(idx.length * 3), nn = new Float32Array(idx.length * 3), cc = new Float32Array(idx.length * 3);
-    idx.forEach((v, k) => { for (let j = 0; j < 3; j++) { pp[k * 3 + j] = P[v * 3 + j]; nn[k * 3 + j] = N[v * 3 + j]; } const z = Zo[v]; const c = Vr[v] === 1 ? skin : Vr[v] === 2 ? coat : z < 7.5 ? zc[z] : null; cc[k * 3] = c ? c.r : Co[v * 3]; cc[k * 3 + 1] = c ? c.g : Co[v * 3 + 1]; cc[k * 3 + 2] = c ? c.b : Co[v * 3 + 2]; });
+    idx.forEach((v, k) => { for (let j = 0; j < 3; j++) { pp[k * 3 + j] = P[v * 3 + j]; nn[k * 3 + j] = N[v * 3 + j]; } const z = Zo[v]; const c = Vr[v] === 1 ? skin : Vr[v] === 2 ? coat : z < 11.5 ? zc[z] : null; cc[k * 3] = c ? c.r : Co[v * 3]; cc[k * 3 + 1] = c ? c.g : Co[v * 3 + 1]; cc[k * 3 + 2] = c ? c.b : Co[v * 3 + 2]; });
     gp.setAttribute('position', new THREE.BufferAttribute(pp, 3)); gp.setAttribute('normal', new THREE.BufferAttribute(nn, 3)); gp.setAttribute('color', new THREE.BufferAttribute(cc, 3));
     const m = new THREE.InstancedMesh(gp, new THREE.MeshLambertMaterial({vertexColors: true, side: K.dobleCara ? THREE.DoubleSide : THREE.FrontSide}), cap); m.count = 0; m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); this.meshes.push(m);
   }
@@ -1257,8 +1265,433 @@ function troopStats() {
   return out;
 }
 
+
+/* ================= ÉPOCA E (1937–1945): soldados, motorizados, blindados y artillería ================= */
+// Mismo contrato que A–D: rig de partes rígidas, animación horneada, zonas de color. Nuevos: zonas M1–M3 (marca nacional) y VEH2
+// (segundo color de camuflaje), esqueletos 'vehiculo', 'semioruga' y 'blindado', y el canal 'pos' (traslación por parte en un clip).
+const CE = {goma: 0x262422, cristal: 0x2c3438, lona: 0x7c7656, oscuro: 0x34363a, faro: 0xd8d0b0, cantimplora: 0x4e5040, mascara: 0x5a5e52, proyectil: 0xb08a3a, caja: 0x5a4a30};
+
+/* ---------- naciones (época E) ---------- */
+// modelo: qué variante nacional de cada vehículo o arma usa la nación. marca: tipo y colores de la marca nacional (zonas M1–M3).
+const E_GER = {c: ['#6b6e58', '#3e4a3c', '#646656', '#5c6052'], toc: 'm35', veh: '#4b5156', veh2: '#4b5156', marca: {tipo: 'balken', c: ['#1a1a1a', '#f0ece2', '#1a1a1a']},
+  modelo: {equipo: 'ger', botas: true, lmg: 'mg34', camion: 'blitz', semioruga: 'sdkfz251', tanque_medio: 'pz4', cazacarros: 'stug', canon_at: 'pak36', obus: 'sfh18', tripulante: 'gorro_negro'},
+  nota: 'Wehrmacht 1939: guerrera M36 feldgrau con cuello verde botella, casco M35, botas altas, máscara antigás en bote. Vehículos gris panzer (RAL 7021) hasta 1943 y cruz de balcón (Balkenkreuz). Bandera: tricolor negra-blanca-roja sin esvástica (decisión de diseño; aprox.).'};
+const E_GBR = {c: ['#8a7a4e', '#7a6c44', '#8a7a4e', '#5e5c40'], toc: 'brodie', veh: '#5d6040', veh2: '#3c4230', marca: {tipo: 'roundel', c: ['#1e3a8a', '#f2f0ea', '#c8102e']},
+  modelo: {equipo: 'gbr', botas: false, lmg: 'bren', camion: 'bedford', semioruga: 'm3', tanque_medio: 'crucero', cazacarros: 'generico', canon_at: '2pdr', obus: 'bl6', tripulante: 'boina'},
+  nota: 'Battledress 1937 de sarga caqui, casco Brodie Mk II, polainas cortas. Vehículos Khaki Green No. 3 con manchas oscuras. Marca aprox.: escarapela (en 1940–41 se usó la franja blanca-roja-blanca). Semioruga M3 (préstamo y arriendo, 1942+) y cazacarros genérico: aprox.'};
+const E_SOV = {c: ['#8a8456', '#b02020', '#7e7a50', '#4f5a32'], toc: 'ssh', veh: '#4f5a32', veh2: '#4f5a32', marca: {tipo: 'estrella', c: ['#c8202a', '#f2f0ea', '#c8202a']},
+  modelo: {equipo: 'sov', botas: true, lmg: 'dp', camion: 'zis5', semioruga: 'm3', tanque_medio: 't34', cazacarros: 'su76', canon_at: '53k', obus: 'ml20', tripulante: 'casco_tanquista'},
+  nota: 'Gimnastiorka caqui verdoso, casco SSh-36/39, botas; capote enrollado en bandolera. Vehículos verde 4BO y estrella roja (en 1941 muchos sin marca). Semioruga: M3 de préstamo y arriendo (aprox.; el Ejército Rojo apenas tuvo semiorugas propios).'};
+NACIONES.GER = {nombre: 'Alemania (Wehrmacht)', bandera: 'horiz', veh: E_GER.veh, f: ['#141414', '#f2f0ea', '#c8202a'], E: E_GER};
+NACIONES.SOV = {nombre: 'Unión Soviética', bandera: 'mono', veh: E_SOV.veh, f: ['#c8202a', '#f0c020', '#c8202a'], E: E_SOV};
+NACIONES.PRU.E = E_GER; NACIONES.RUS.E = E_SOV; NACIONES.GBR.E = E_GBR;
+NACIONES.FRA.E = {c: ['#8a7e56', '#5a5440', '#8a7e56', '#6a6a4c'], toc: 'adrian', veh: '#6a6a44', veh2: '#8a6e48', marca: {tipo: 'roundel', c: ['#1f3f8f', '#f2f0ea', '#c8202a']},
+  modelo: {equipo: 'gbr', lmg: 'bren', camion: 'bedford', semioruga: 'm3', tanque_medio: 'somua', cazacarros: 'generico', canon_at: 'pak36', obus: 'sfh18', tripulante: 'casco_tanquista'},
+  nota: 'Caqui mostaza (1935) y casco Adrian M26; vehículos con camuflaje de tres tonos (aprox.). Somua S35; resto de modelos aprox. hasta la segunda entrega.'};
+NACIONES.USA.E = {c: ['#6e6646', '#5a5436', '#7a6e50', '#5a5a3a'], toc: 'm1', veh: '#4e5234', veh2: '#4e5234', marca: {tipo: 'estrella', c: ['#f2f0ea', '#f2f0ea', '#2a3c78']},
+  modelo: {equipo: 'gbr', lmg: 'bren', camion: 'bedford', semioruga: 'm3', tanque_medio: 'crucero', cazacarros: 'generico', canon_at: '2pdr', obus: 'bl6', tripulante: 'casco_tanquista'},
+  nota: 'Pardo oliva, casco M1 (1941), polainas de lona; estrella blanca. Modelos propios (Sherman, M3, GMC) en la segunda entrega.'};
+NACIONES.ITA.E = {c: ['#7a7c62', '#b02020', '#7a7c62', '#6c6e58'], toc: 'm33', veh: '#8a7e56', veh2: '#6a6a50', marca: {tipo: 'ninguna', c: ['#f2f0ea', '#b02020', '#008c45']}, modelo: {equipo: 'gbr'},
+  nota: 'Grigio-verde, casco M33; vehículos caqui sahariano. Sin marca nacional fija (marcas de unidad blancas y rojas): aprox.'};
+NACIONES.JPN.E = {c: ['#8a7e4a', '#b8262c', '#8a7e4a', '#7a6e48'], toc: 'gorra_cubrenuca', veh: '#8a7a50', veh2: '#5a5a3a', marca: {tipo: 'sol', c: ['#bc002d', '#f2f0ea', '#bc002d']}, modelo: {equipo: 'gbr'},
+  nota: 'Caqui amarillento M98, gorra de campaña con cubrenuca (o casco Tipo 90); tanques ocre con manchas verdes y pardas. Marca aprox.: sol rojo.'};
+NACIONES.POL = {nombre: 'Polonia', bandera: 'horiz', veh: '#6a6a44', f: ['#f2f0ea', '#dc143c', '#dc143c'],
+  E: {c: ['#7a7450', '#6a6440', '#7a7450', '#6a6a4a'], toc: 'm35', veh: '#6a6a44', veh2: '#8a6e48', marca: {tipo: 'ninguna', c: ['#f2f0ea', '#dc143c', '#f2f0ea']}, modelo: {equipo: 'gbr', botas: true},
+    nota: 'Caqui wz.36 y casco wz.31 (aprox.: forma de M35); vehículos con camuflaje de tres tonos. El águila de la gorra no se ve a esta escala: sin marca.'}};
+// variantes que solo cambian el color principal o la marca (reutilizan malla, modelos y animaciones)
+const E_DERIV = {CAN: ['Canadá', E_GBR, {}], AUS: ['Australia', E_GBR, {c: ['#8a7650', '#7a6c44', '#8a7650', '#5e5c40'], toc: 'sombrero'}], SAF: ['Sudáfrica', E_GBR, {c: ['#9a8a5a', '#7a6c44', '#9a8a5a', '#5e5c40']}],
+  HUN: ['Hungría', E_GER, {c: ['#7a6a48', '#5a5038', '#7a6a48', '#6a6450'], marca: {tipo: 'balken', c: ['#f2f0ea', '#1a1a1a', '#f2f0ea']}}], ROU: ['Rumanía', E_GER, {c: ['#7a7450', '#6a6440', '#7a7450', '#6a6a4a'], marca: {tipo: 'roundel', c: ['#002b7f', '#fcd116', '#ce1126']}}],
+  YUG: ['Yugoslavia', E_GER, {c: ['#6a6a52', '#5a5a44', '#6a6a52', '#5e6050'], toc: 'adrian', marca: {tipo: 'roundel', c: ['#c8202a', '#1f3f8f', '#f2f0ea']}}],
+  FIN: ['Finlandia', E_GER, {c: ['#7a7c74', '#5a5c54', '#7a7c74', '#5c6052'], marca: {tipo: 'ninguna', c: ['#f2f0ea', '#1f3f8f', '#f2f0ea']}}], TUR: ['Turquía', E_GER, {c: ['#7c7448', '#6a6440', '#7c7448', '#6a6a4a'], marca: {tipo: 'ninguna', c: ['#c81e2a', '#f2f0ea', '#c81e2a']}}],
+  CHN: ['China (República)', E_GER, {c: ['#6a7480', '#5a6470', '#6a7480', '#5c6052'], marca: {tipo: 'sol', c: ['#1f3f8f', '#f2f0ea', '#1f3f8f']}}], GEN: ['Genérico / neutrales', E_GER, {c: ['#6a6448', '#5a5440', '#646046', '#5e5c46'], marca: {tipo: 'ninguna', c: ['#f2f0ea', '#1a1a1a', '#f2f0ea']}}]};
+Object.keys(E_DERIV).forEach(tag => {
+  const [nombre, base, over] = E_DERIV[tag], e = Object.assign({}, base, {modelo: Object.assign({}, base.modelo)}, over, {nota: (over.nota || 'Variante: reutiliza la malla y los modelos de ' + (base === E_GBR ? 'Reino Unido' : 'Alemania') + '; solo cambia el color principal' + (over.marca ? ' y la marca' : '') + ' (aprox.).')});
+  if (!NACIONES[tag]) NACIONES[tag] = {nombre, bandera: 'horiz', veh: e.veh, f: ['#6a6448', '#e8e0c8', '#2a4a7a']};
+  NACIONES[tag].E = e;
+});
+NACIONES.FIN.f = ['#f2f0ea', '#1f3f8f', '#f2f0ea']; NACIONES.FIN.bandera = 'cruz'; NACIONES.CAN.f = ['#c8102e', '#f2f0ea', '#c8102e']; NACIONES.AUS.f = ['#1a2a6a', '#f2f0ea', '#c8102e']; NACIONES.HUN.f = ['#ce2939', '#f2f0ea', '#477050'];
+NACIONES.ROU.f = ['#002b7f', '#fcd116', '#ce1126']; NACIONES.ROU.bandera = 'vert'; NACIONES.YUG.f = ['#1f3f8f', '#f2f0ea', '#c8202a']; NACIONES.SAF.f = ['#e07020', '#f2f0ea', '#1f3f8f'];
+const ED = nat => uniformPalette(nat, 'E');
+const md = (nat, k, def) => (ED(nat).modelo || {})[k] || def;
+
+/* ---------- marca nacional (calcomanía en un plano) ---------- */
+// tipo: balken (cruz de balcón), roundel (escarapela), estrella, sol, ninguna. Se dibuja en el plano local XY mirando a +Z y se gira con yaw.
+function nationalMark(g, part, tipo, at, yaw, s) {
+  if (!tipo || tipo === 'ninguna') return;
+  const P = (x, y, z) => xf([[x, y, z]], at, [0, yaw, 0])[0];
+  const Q = (x0, y0, x1, y1, zone, z) => g.quad(P(x0, y0, z), P(x1, y0, z), P(x1, y1, z), P(x0, y1, z), part, zone, 0);
+  const D = (r, n, zone, z) => { const c = P(0, 0, z); for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2, b = (i + 1) / n * Math.PI * 2; g.tri(c, P(Math.cos(a) * r, Math.sin(a) * r, z), P(Math.cos(b) * r, Math.sin(b) * r, z), part, zone, 0); } };
+  const ST = (r, zone, z) => { const c = P(0, 0, z); for (let i = 0; i < 10; i++) { const a = Math.PI / 2 + i / 10 * Math.PI * 2, b = Math.PI / 2 + (i + 1) / 10 * Math.PI * 2, ra = i % 2 ? r * 0.42 : r, rb = i % 2 ? r : r * 0.42; g.tri(c, P(Math.cos(a) * ra, Math.sin(a) * ra, z), P(Math.cos(b) * rb, Math.sin(b) * rb, z), part, zone, 0); } };
+  if (tipo === 'balken') { Q(-s, -s * 0.34, s, s * 0.34, Z.M2, 0); Q(-s * 0.34, -s, s * 0.34, s, Z.M2, 0); Q(-s * 0.82, -s * 0.16, s * 0.82, s * 0.16, Z.M1, 0.006); Q(-s * 0.16, -s * 0.82, s * 0.16, s * 0.82, Z.M1, 0.006); }
+  else if (tipo === 'roundel') { D(s, 6, Z.M1, 0); D(s * 0.66, 6, Z.M2, 0.005); D(s * 0.33, 6, Z.M3, 0.01); }
+  else if (tipo === 'estrella') ST(s, Z.M1, 0);
+  else if (tipo === 'sol') D(s * 0.8, 8, Z.M1, 0);
+}
+
+/* ---------- soldado E: equipo, cascos, armas ---------- */
+function eKit(g, P, o) {
+  const st = o.equipo || 'gbr';
+  if (o.kitLigero) { g.tet(P.torso, Z.FIX, CE.cantimplora, [-0.2, -0.03, -0.06], 0.06); return; }
+  if (st === 'ger') { g.cyl(P.torso, Z.FIX, CE.mascara, [0.02, 0.0, -0.16], 0.055, 0.055, 0.26, 4, {rot: [0, 0, 80], top: true}); g.tet(P.torso, Z.FIX, CE.cantimplora, [-0.2, -0.03, -0.06], 0.06); }
+  else if (st === 'sov') { g.cyl(P.torso, Z.FIX, 0x6a6650, [0, 0.24, 0], 0.06, 0.06, 0.62, 4, {rot: [0, 0, -48], sz: 2.3}); g.tet(P.torso, Z.FIX, CE.cantimplora, [-0.2, -0.03, -0.06], 0.06); }
+  else { g.box(P.torso, Z.FIX, 0x7a7050, [0, 0.3, -0.16], [0.28, 0.22, 0.1]); g.tet(P.torso, Z.FIX, CE.cantimplora, [-0.2, -0.03, -0.06], 0.06); }
+}
+function headgearE(g, h, toc, o) {
+  const H = Z.HAT;
+  if (o && o.lite && /^(m35|ssh|m1|m33)$/.test(toc)) { g.cyl(h, H, 0, [0, 0.29, 0], toc === 'ssh' ? 0.19 : 0.168, 0.12, 0.16, 6, {top: true, dome: 0.05}); return; }
+  switch (toc) {
+    case 'm35': g.cyl(h, H, 0, [0, 0.3, 0], 0.152, 0.13, 0.13, 6, {top: true, dome: 0.05}); g.cyl(h, H, 0, [0, 0.215, -0.012], 0.172, 0.152, 0.05, 6); break;
+    case 'ssh': g.cyl(h, H, 0, [0, 0.31, 0], 0.148, 0.12, 0.14, 6, {top: true, dome: 0.05}); g.cyl(h, H, 0, [0, 0.235, 0], 0.2, 0.148, 0.03, 6); break;
+    case 'm1': g.cyl(h, H, 0, [0, 0.31, 0], 0.16, 0.13, 0.14, 6, {top: true, dome: 0.05}); g.cyl(h, H, 0, [0, 0.235, 0.0], 0.185, 0.16, 0.02, 6); break;
+    case 'm33': g.cyl(h, H, 0, [0, 0.31, 0], 0.15, 0.125, 0.14, 6, {top: true, dome: 0.05}); g.cyl(h, H, 0, [0, 0.235, 0], 0.175, 0.15, 0.025, 6); break;
+    case 'gorra_cubrenuca': g.cyl(h, H, 0, [0, 0.3, 0], 0.13, 0.135, 0.1, 6, {top: true}); visor(g, h, 0.255, 0.13);
+      g.quad([-0.13, 0.26, -0.06], [-0.13, 0.08, -0.1], [-0.13, 0.08, 0.06], [-0.13, 0.26, 0.06], h, H, 0); g.quad([0.13, 0.26, 0.06], [0.13, 0.08, 0.06], [0.13, 0.08, -0.1], [0.13, 0.26, -0.06], h, H, 0); g.quad([0.12, 0.26, -0.12], [0.12, 0.06, -0.15], [-0.12, 0.06, -0.15], [-0.12, 0.26, -0.12], h, H, 0); break;
+    case 'gorro_negro': g.box(h, Z.FIX, 0x1e1e20, [0, 0.29, 0], [0.24, 0.08, 0.27], {taper: 0.4, taperZ: 0.1}); break;
+    case 'boina': g.cyl(h, Z.FIX, 0x1e1e20, [0.02, 0.29, 0], 0.15, 0.13, 0.06, 6, {top: true, rot: [0, 0, -12]}); break;
+    case 'casco_tanquista': g.cyl(h, Z.FIX, 0x2e2c28, [0, 0.27, 0], 0.15, 0.13, 0.13, 6, {top: true, dome: 0.04}); break;
+  }
+}
+// ametralladoras ligeras (pivote en la culata, +Y hacia la boca; −Z es «arriba» al apuntar)
+function weaponE(g, a, w, o) {
+  if (w !== 'lmg') return;
+  const m = o.lmg || 'bren', D = 0x2a2a2a;
+  g.box(a, Z.FIX, m === 'dp' || m === 'bren' ? C.madera : D, [0, 0.16, 0.0], [0.05, 0.32, 0.1], {taper: 0.2, noTop: true});              // culata (8)
+  g.box(a, Z.FIX, D, [0, 0.52, -0.01], [0.06, 0.42, 0.08], {noTop: true});                                                               // cajón de mecanismos (8)
+  g.cyl(a, Z.FIX, m === 'mg34' ? 0x3a3a3a : D, [0, 0.98, -0.01], 0.028, 0.024, 0.52, 3);                                                   // cañón / camisa (6)
+  [1, -1].forEach(s => g.cyl(a, Z.FIX, D, [0.05 * s, 1.0, 0.12], 0.012, 0.012, 0.3, 3, {rot: [80, 0, 14 * s]}));                         // bípode (12)
+  if (m === 'bren') g.box(a, Z.FIX, D, [0, 0.6, -0.12], [0.04, 0.16, 0.14], {rot: [-25, 0, 0], noTop: true});                             // cargador curvo superior (8)
+  else if (m === 'dp') g.cyl(a, Z.FIX, D, [0, 0.55, -0.075], 0.13, 0.13, 0.03, 5, {rot: [90, 0, 0], top: true});                          // tambor plano (15)
+  else g.quad([0.035, 0.5, 0.04], [0.035, 0.4, 0.04], [0.12, 0.3, 0.2], [0.12, 0.42, 0.2], a, Z.FIX, C.laton);                             // cinta (MG34)
+}
+WEAPON_LOD.lmg = 1.24;
+
+/* ---------- piezas reutilizables de vehículos ---------- */
+const whl = (g, part, r, w, at) => g.cyl(part, Z.FIX, CE.goma, at || [0, 0, 0], r, r, w, 6, {rot: [0, 0, 90], top: true, bottom: true});
+// soldado sentado (busto): 8 + 10 + 15 triángulos
+function seated(g, part, at, yaw, toc) {
+  g.box(part, Z.MAIN, 0, [at[0], at[1] + 0.25, at[2]], [0.36, 0.5, 0.22], {noTop: true, rot: [0, yaw, 0]});
+  g.cyl(part, Z.FIX, C.piel, [at[0], at[1] + 0.6, at[2]], 0.1, 0.11, 0.2, 5, {vr: V.SKIN});
+  const b = toc === 'brodie' ? 0.2 : toc === 'ssh' || toc === 'm1' ? 0.17 : 0.16;
+  g.cyl(part, Z.HAT, 0, [at[0], at[1] + 0.73, at[2]], b, 0.08, 0.1, 5, {top: true});
+}
+// tripulante asomado por la escotilla
+function crewman(g, part, hat, dy) {
+  dy = dy || 0; const g2 = new GeoBuilder();
+  g2.box(part, Z.MAIN, 0, [0, -0.25, 0], [0.38, 0.46, 0.24], {noTop: true}); g2.cyl(part, Z.FIX, C.piel, [0, 0.12, 0], 0.11, 0.12, 0.24, 5, {vr: V.SKIN});
+  headgearE(g2, part, hat || 'casco_tanquista', {});
+  for (let i = 0; i < g2.p.length; i += 3) g2.p[i + 1] += dy;
+  ['p', 'n', 'part', 'zone', 'col', 'vr', 'fx'].forEach(k => { for (let i = 0; i < g2[k].length; i++) g[k].push(g2[k][i]); });      // cabeza a la altura estándar (y 0–0,25) para reutilizar los tocados
+}
+function decalCamo(g, part, at, yaw, w, h) {                          // mancha de camuflaje (zona VEH2; invisible si VEH2 = VEH)
+  const P = (x, y) => xf([[x, y, 0]], at, [0, yaw, 0])[0];
+  g.tri(P(-w, -h * 0.4), P(w * 0.7, -h), P(w, h * 0.3), part, Z.VEH2, 0); g.tri(P(-w, -h * 0.4), P(w, h * 0.3), P(-w * 0.4, h), part, Z.VEH2, 0);
+}
+
+/* ---------- esqueletos ---------- */
+RIGS.vehiculo = [['chasis', -1, [0, 0, 0]], ['caja', 0, [0, 0, 0]], ['ruedaDI', 0, [0.86, 0.45, 2.05]], ['ruedaDD', 0, [-0.86, 0.45, 2.05]], ['ruedaTI', 0, [0.86, 0.45, -1.6]], ['ruedaTD', 0, [-0.86, 0.45, -1.6]],
+  ['ruedaT2I', 0, [0.86, 0.45, -2.6]], ['ruedaT2D', 0, [-0.86, 0.45, -2.6]], ['tropas', 1, [0, 0, 0]]];
+RIGS.semioruga = [['casco', -1, [0, 0, 0]], ['ruedaI', 0, [0.82, 0.42, 2.05]], ['ruedaD', 0, [-0.82, 0.42, 2.05]], ['orugaI', 0, [0.82, 0, 0]], ['orugaD', 0, [-0.82, 0, 0]], ['tropas', 0, [0, 0, 0]], ['mg', 0, [0, 1.95, 1.0]]];
+RIGS.blindado = [['casco', -1, [0, 0, 0]], ['torreta', 0, [0, 1.6, 0]], ['canon', 1, [0, 0.62, 1.0]], ['mg', 0, [-0.45, 1.5, 2.3]], ['comandante', 1, [0, 1.15, -0.55]], ['orugaI', 0, [1.15, 0, 0]], ['orugaD', 0, [-1.15, 0, 0]]];
+
+/* ---------- camión con tropas ---------- */
+const TRUCK = {blitz: {hood: [1.12, 0.78, 1.3], hz: 2.25, taper: 0.14, cab: [1.95, 1.05, 1.2], six: false}, bedford: {hood: [1.22, 0.82, 1.25], hz: 2.28, taper: 0.02, cab: [2.0, 1.0, 1.2], six: false},
+  zis5: {hood: [1.0, 0.76, 1.55], hz: 2.15, taper: 0.2, cab: [1.9, 1.05, 1.15], six: false}, gmc: {hood: [1.15, 0.85, 1.3], hz: 2.25, taper: 0.08, cab: [2.0, 1.0, 1.2], six: true}};
+function buildTruck(o) {
+  const g = new GeoBuilder(), P = rigIndex('vehiculo'), M = TRUCK[o.modelo] || TRUCK.blitz, VZ = Z.VEH, ch = P.caja;
+  g.box(ch, Z.FIX, CE.oscuro, [0, 0.74, -0.2], [0.95, 0.18, 6.0], {noTop: true});                                      // largueros
+  g.box(ch, VZ, 0, [0, 0.95 + M.hood[1] / 2, M.hz], M.hood, {taper: M.taper, taperZ: 0.04});                             // capó
+  g.quad([-M.hood[0] / 2 + 0.05, 1.0, M.hz + M.hood[2] / 2 + 0.01], [M.hood[0] / 2 - 0.05, 1.0, M.hz + M.hood[2] / 2 + 0.01], [M.hood[0] / 2 - 0.08, 1.65, M.hz + M.hood[2] / 2 + 0.01], [-M.hood[0] / 2 + 0.08, 1.65, M.hz + M.hood[2] / 2 + 0.01], ch, Z.FIX, CE.oscuro);   // calandra
+  [1, -1].forEach(s => { g.box(ch, VZ, 0, [0.82 * s, 1.0, 2.05], [0.42, 0.08, 1.1], {rot: [0, 0, 0], taperZ: 0.2}); g.tet(ch, Z.FIX, CE.faro, [0.55 * s, 1.25, M.hz + M.hood[2] / 2 + 0.04], 0.07); });
+  const cz = M.hz - M.hood[2] / 2 - M.cab[2] / 2;
+  g.box(ch, VZ, 0, [0, 1.1 + M.cab[1] / 2, cz], M.cab, {taperZ: 0.05});                                                 // cabina
+  g.quad([-0.8, 1.72, cz + M.cab[2] / 2 + 0.01], [0.8, 1.72, cz + M.cab[2] / 2 + 0.01], [0.78, 2.05, cz + M.cab[2] / 2 - 0.02], [-0.78, 2.05, cz + M.cab[2] / 2 - 0.02], ch, Z.FIX, CE.cristal);
+  [1, -1].forEach(s => g.quad([s * (M.cab[0] / 2 + 0.01), 1.72, cz - 0.4 * s], [s * (M.cab[0] / 2 + 0.01), 1.72, cz + 0.4 * s], [s * (M.cab[0] / 2 + 0.01), 2.02, cz + 0.4 * s], [s * (M.cab[0] / 2 + 0.01), 2.02, cz - 0.4 * s], ch, Z.FIX, CE.cristal));
+  [1, -1].forEach(s => nationalMark(g, ch, o.marca, [s * (M.cab[0] / 2 + 0.02), 1.42, cz], s * 90, 0.17));
+  const bz0 = cz - M.cab[2] / 2 - 0.08, bl = 3.6, bz = bz0 - bl / 2;
+  g.box(ch, VZ, 0, [0, 1.25, bz], [2.2, 0.82, bl], {noTop: true});                                                       // caja de carga
+  g.quad([-1.08, 1.13, bz0], [1.08, 1.13, bz0], [1.08, 1.13, bz0 - bl], [-1.08, 1.13, bz0 - bl], ch, Z.FIX, C.madera);   // suelo
+  decalCamo(g, ch, [1.11, 1.38, bz - 0.4], 90, 0.6, 0.22); decalCamo(g, ch, [-1.11, 1.38, bz + 0.4], -90, 0.6, 0.22);
+  g.box(ch, Z.FIX, CE.lona, [0, 2.15, bz0 - 0.85], [2.24, 1.0, 1.7], {});                                                // lona plegada sobre la mitad delantera
+  [[-0.3, 0.75, -90], [-0.9, 0.75, -90], [-1.5, 0.75, -90], [-0.3, -0.75, 90], [-0.9, -0.75, 90], [-1.5, -0.75, 90]].forEach(([dz, x, y]) => seated(g, P.tropas, [x, 1.15, bz0 - 1.75 + dz], y, o.toc));
+  whl(g, P.ruedaDI, 0.45, 0.24); whl(g, P.ruedaDD, 0.45, 0.24); whl(g, P.ruedaTI, 0.45, M.six ? 0.24 : 0.4); whl(g, P.ruedaTD, 0.45, M.six ? 0.24 : 0.4);
+  if (M.six) { whl(g, P.ruedaT2I, 0.45, 0.24); whl(g, P.ruedaT2D, 0.45, 0.24); }
+  return g;
+}
+
+/* ---------- semioruga blindado ---------- */
+function buildHalftrack(o) {
+  const g = new GeoBuilder(), P = rigIndex('semioruga'), VZ = Z.VEH, m = o.modelo === 'm3' ? 'm3' : 'sdkfz251', c = P.casco;
+  if (m === 'sdkfz251') {
+    g.box(c, VZ, 0, [0, 1.1, 2.05], [1.5, 1.0, 1.7], {taper: 0.3, taperZ: 0.15, bottom: true});                                      // morro del motor en cuña
+    g.box(c, VZ, 0, [0, 1.25, -0.6], [2.0, 1.26, 3.7], {noTop: true, taper: 0.1});                                       // compartimento de tropa (costados inclinados)
+    g.box(c, VZ, 0, [0, 1.95, 0.95], [1.9, 0.22, 0.5], {rot: [-30, 0, 0]});                                              // placa del conductor
+  } else {
+    g.box(c, VZ, 0, [0, 1.1, 2.15], [1.3, 1.05, 1.6], {bottom: true}); g.cyl(c, Z.FIX, CE.oscuro, [0, 0.7, 3.05], 0.17, 0.17, 1.2, 5, {rot: [0, 0, 90], top: true, bottom: true});   // capó y rodillo delantero
+    g.box(c, VZ, 0, [0, 1.25, -0.55], [2.0, 1.3, 3.8], {noTop: true});
+    g.box(c, VZ, 0, [0, 1.85, 1.15], [2.0, 0.35, 0.12], {rot: [-10, 0, 0]});                                             // parabrisas blindado
+  }
+  g.quad([-0.98, 0.95, 1.2], [0.98, 0.95, 1.2], [0.98, 0.95, -2.45], [-0.98, 0.95, -2.45], c, Z.FIX, CE.oscuro);
+  [1, -1].forEach(s => { g.box(c, VZ, 0, [0.82 * s, 0.98, 2.05], [0.4, 0.06, 1.0], {}); nationalMark(g, c, o.marca, [s * 1.01, 1.45, -0.6], s * 90, 0.24); decalCamo(g, c, [s * 1.01, 1.4, 0.4], s * 90, 0.5, 0.2); });
+  const prof = [[0.75, 0.55], [0.45, 0.08], [-2.05, 0.08], [-2.4, 0.45], [-2.1, 0.8], [0.5, 0.8]];
+  ['orugaI', 'orugaD'].forEach((k, i) => { trackLoop(g, P[k], prof, 0.32, 0, Z.FIX, i ? -1 : 1, 0x45463f); [0.15, -0.55, -1.25, -1.95].forEach(z => g.disc(P[k], Z.FIX, 0x40423c, [(i ? -1 : 1) * 0.17, 0.4, z], 0.3, 6, {rot: [0, i ? 180 : 0, 0]})); });
+  whl(g, P.ruedaI, 0.42, 0.2); whl(g, P.ruedaD, 0.42, 0.2);
+  g.box(P.mg, VZ, 0, [0, 0.0, 0.05], [0.55, 0.42, 0.03]); g.cyl(P.mg, Z.FIX, 0x2a2a2a, [0, 0.05, 0.35], 0.03, 0.025, 0.8, 4, {rot: [90, 0, 0]});
+  [[-0.2, 0.55], [-0.95, 0.55], [-1.7, 0.55], [-0.2, -0.55], [-0.95, -0.55], [-1.7, -0.55]].forEach(([z, x]) => seated(g, P.tropas, [x, 1.05, z], x > 0 ? -90 : 90, o.toc));
+  return g;
+}
+
+/* ---------- tanque medio y cazacarros ---------- */
+// orugas (bandas animadas por el shader), ruedas de rodaje como discos en la cara exterior
+function tankRunning(g, P, prof, w, wheels, wr, sprocket) {
+  ['orugaI', 'orugaD'].forEach((k, i) => {
+    const s = i ? -1 : 1; trackLoop(g, P[k], prof, w, 0, Z.FIX, s, 0x45463f);
+    const yb = Math.min(...prof.map(q => q[1])) + wr - 0.03;
+    wheels.forEach(z => g.disc(P[k], Z.FIX, 0x3e403a, [s * (w / 2 + 0.01), yb, z], wr, wr > 0.38 ? 8 : 6, {rot: [0, i ? 180 : 0, 0]}));
+    if (sprocket) sprocket.forEach(([z, y, r]) => g.disc(P[k], Z.FIX, 0x34363a, [s * (w / 2 + 0.01), y, z], r, 6, {rot: [0, i ? 180 : 0, 0]}));
+  });
+}
+function buildMediumTank(o) {
+  const g = new GeoBuilder(), P = rigIndex('blindado'), VZ = Z.VEH, m = o.modelo || 'pz4', c = P.casco, t = P.torreta, gn = P.canon;
+  let hw = 1.33; const marks = (y, z, s, onTurret) => [1, -1].forEach(k => nationalMark(g, onTurret ? t : c, o.marca, onTurret ? [k * onTurret, y, z] : [k * hw, y, z], k * 90, s));
+  if (m === 't34') {
+    g.box(c, VZ, 0, [0, 0.8, -0.35], [2.0, 0.75, 5.9], {taperZ: 0.06});
+    g.box(c, VZ, 0, [0, 1.48, -0.6], [3.0, 0.62, 4.6], {taper: 0.22, taperZ: 0.05});                                     // costados inclinados
+    g.box(c, VZ, 0, [0, 1.2, 2.25], [2.6, 0.12, 1.7], {rot: [-30, 0, 0], noTop: false});                                 // glacis largo
+    g.cyl(t, VZ, 0, [0, 0.42, -0.1], 0.98, 0.78, 0.62, 6, {top: true, dome: 0.05, sz: 1.15});
+    g.box(gn, VZ, 0, [0, 0.0, 0.0], [0.55, 0.32, 0.3]); g.cyl(gn, VZ, 0, [0, 0, 1.3], 0.07, 0.06, 2.5, 6, {rot: [90, 0, 0], top: true});
+    g.cyl(c, Z.FIX, CE.oscuro, [-0.5, 1.3, 2.75], 0.06, 0.05, 0.25, 4, {rot: [60, 0, 0]});
+    tankRunning(g, P, [[2.95, 0.88], [2.65, 0.1], [-2.75, 0.1], [-3.05, 0.6], [-2.8, 0.88], [2.7, 0.92]], 0.5, [2.0, 1.0, 0.0, -1.0, -2.0], 0.41, [[2.75, 0.55, 0.32], [-2.75, 0.55, 0.25]]);
+    marks(0.45, -0.1, 0.22, 0.99);
+  } else if (m === 'crucero' || m === 'somua') {
+    g.box(c, VZ, 0, [0, 0.95, -0.2], [2.0, 0.9, 5.8], {});
+    g.box(c, VZ, 0, [0, 1.58, -0.3], [2.5, 0.4, 3.8], {taperZ: 0.1});
+    g.box(c, VZ, 0, [0, 1.28, 2.55], [2.0, 0.6, 0.6], {rot: [-35, 0, 0]});
+    if (m === 'somua') g.cyl(t, VZ, 0, [0, 0.48, -0.05], 0.8, 0.68, 0.72, 6, {top: true, dome: 0.08, sz: 1.2}); else g.box(t, VZ, 0, [0, 0.5, -0.05], [1.75, 0.66, 2.0], {taper: 0.28, taperZ: 0.25});
+    g.box(gn, VZ, 0, [0, -0.1, 0.0], [0.5, 0.36, 0.22]); g.cyl(gn, VZ, 0, [0, -0.1, 0.95], 0.045, 0.04, 1.8, 6, {rot: [90, 0, 0], top: true});
+    tankRunning(g, P, [[2.95, 1.12], [2.7, 0.12], [-2.75, 0.12], [-3.05, 0.65], [-2.85, 1.12], [2.75, 1.15]], 0.42, m === 'somua' ? [1.6, 0.8, 0.0, -0.8, -1.6] : [2.0, 0.65, -0.7, -2.05], m === 'somua' ? 0.3 : 0.46, [[2.8, 0.72, 0.3], [-2.75, 0.62, 0.25]]);
+    [1, -1].forEach(s => g.box(P[s > 0 ? 'orugaI' : 'orugaD'], VZ, 0, [0, 1.26, -0.05], [0.48, 0.06, 5.8], {}));
+    hw = 1.27; marks(1.15, -0.4, 0.26);
+  } else {                                                                                                                // pz4 (por defecto)
+    g.box(c, VZ, 0, [0, 0.95, 0.0], [1.9, 0.86, 5.6], {});
+    g.box(c, VZ, 0, [0, 1.62, -0.45], [2.62, 0.55, 4.0], {});
+    g.box(c, VZ, 0, [0, 1.62, 1.72], [1.95, 0.55, 0.36], {});                                                            // placa del conductor
+    g.box(c, VZ, 0, [0, 1.15, 2.85], [1.9, 0.55, 0.5], {rot: [-55, 0, 0]});
+    g.box(t, VZ, 0, [0, 0.62, -0.1], [1.75, 0.72, 2.2], {taper: 0.18, taperZ: 0.1});
+    g.cyl(t, VZ, 0, [0, 1.06, -0.95], 0.3, 0.28, 0.24, 6, {top: true});                                                   // cúpula
+    g.box(gn, VZ, 0, [0, 0.0, 0.0], [0.82, 0.42, 0.2]); g.cyl(gn, VZ, 0, [0, 0, 0.75], 0.075, 0.07, 1.3, 6, {rot: [90, 0, 0], top: true});
+    tankRunning(g, P, [[3.0, 1.15], [2.72, 0.15], [-2.6, 0.15], [-3.0, 0.7], [-2.85, 1.15], [2.85, 1.25]], 0.4, [1.6, 0.55, -0.5, -1.55], 0.3, [[2.78, 0.72, 0.34], [-2.7, 0.62, 0.24]]);
+    [1, -1].forEach(s => g.box(P[s > 0 ? 'orugaI' : 'orugaD'], VZ, 0, [0, 1.3, 0.0], [0.45, 0.05, 5.7], {}));
+    marks(1.62, -0.6, 0.26);
+  }
+  [1, -1].forEach(s => decalCamo(g, c, [s * 1.28, 1.25, 1.1], s * 90, 0.7, 0.28));
+  g.cyl(P.mg, Z.FIX, 0x2a2a2a, [0, 0, 0.15], 0.025, 0.022, 0.4, 4, {rot: [90, 0, 0]});
+  crewman(g, P.comandante, o.tripulante);
+  return g;
+}
+function buildTankDestroyer(o) {
+  const g = new GeoBuilder(), P = rigIndex('blindado'), VZ = Z.VEH, m = o.modelo || 'stug', c = P.casco, t = P.torreta, gn = P.canon;
+  g.box(c, VZ, 0, [0, 0.9, 0.0], [1.9, 0.8, 5.4], {});
+  g.box(c, VZ, 0, [0, 1.12, 2.7], [1.9, 0.5, 0.5], {rot: [-50, 0, 0]});
+  if (m === 'su76') {                                                                                                    // casamata abierta trasera, cañón largo de 76 mm
+    g.box(t, VZ, 0, [0, -0.05, -1.2], [2.3, 0.9, 2.4], {noTop: true, taper: 0.06}); g.quad([-1.1, -0.45, -0.05], [1.1, -0.45, -0.05], [1.1, -0.45, -2.35], [-1.1, -0.45, -2.35], t, Z.FIX, CE.oscuro);
+    g.box(gn, VZ, 0, [0, -0.62, -0.1], [0.6, 0.45, 0.12]); g.cyl(gn, VZ, 0, [0, -0.55, 1.0], 0.06, 0.05, 2.4, 6, {rot: [90, 0, 0], top: true});
+    seated(g, t, [0.5, -0.5, -1.5], 0, o.toc); seated(g, t, [-0.5, -0.5, -1.7], 0, o.toc);
+  } else {                                                                                                               // StuG III / casamata genérica: superestructura baja inclinada
+    g.box(t, VZ, 0, [0, -0.05, -0.3], [2.5, 0.55, 3.4], {taper: 0.14, taperZ: 0.12});
+    g.box(t, VZ, 0, [m === 'generico' ? 0 : -0.15, -0.1, 1.45], [0.85, 0.48, 0.5], {rot: [-25, 0, 0]});
+    g.box(gn, VZ, 0, [m === 'generico' ? 0 : -0.15, -0.62, 0.15], [0.5, 0.38, 0.25]); g.cyl(gn, VZ, 0, [m === 'generico' ? 0 : -0.15, -0.62, m === 'generico' ? 1.25 : 0.85], 0.075, 0.065, m === 'generico' ? 2.0 : 1.3, 6, {rot: [90, 0, 0], top: true});
+  }
+  tankRunning(g, P, [[2.85, 0.95], [2.55, 0.12], [-2.5, 0.12], [-2.85, 0.6], [-2.7, 0.95], [2.7, 1.0]], 0.38, [1.75, 1.0, 0.25, -0.5, -1.25, -2.0], 0.28, [[2.7, 0.62, 0.3], [-2.6, 0.55, 0.24]]);
+  [1, -1].forEach(s => { g.box(P[s > 0 ? 'orugaI' : 'orugaD'], VZ, 0, [0, 1.08, 0.0], [0.42, 0.05, 5.5], {}); nationalMark(g, t, o.marca, [s * (m === 'su76' ? 1.16 : 1.27), m === 'su76' ? -0.05 : -0.2, -0.5], s * 90, 0.24); decalCamo(g, c, [s * 0.96, 0.95, 1.2], s * 90, 0.6, 0.22); });
+  crewman(g, P.comandante, o.tripulante, m === 'su76' ? -0.95 : -0.88);
+  return g;
+}
+
+/* ---------- cañón antitanque y obús pesado ---------- */
+function buildCannonE(o) {
+  const g = new GeoBuilder(), P = rigIndex('canon'), m = o.modelo, pc = 0x5a5c48, pcD = 0x4a4c40;
+  const wheels = r => ['ruedaIz', 'ruedaDe'].forEach(k => g.cyl(P[k], Z.FIX, CE.goma, [0, 0, 0], r, r, 0.13, 6, {rot: [0, 0, 90], top: true, bottom: true}));
+  if (o.tipo === 'at') {                                                                                                  // 37–57 mm: bajo, escudo, mástiles abiertos
+    [1, -1].forEach(s => g.box(P.cureña, Z.FIX, pcD, [0.35 * s, 0.32, -0.95], [0.09, 0.09, 1.8], {rot: [-8, 14 * s, 0]}));
+    g.box(P.cureña, Z.FIX, C.hierro, [0, 0.42, 0.15], [1.1, 0.08, 0.1], {noFront: true, noBack: true});
+    const sh = m === '2pdr' ? [1.5, 0.75] : m === '53k' ? [1.3, 0.62] : [1.25, 0.55];
+    g.box(P.cureña, Z.FIX, pc, [0, 0.42 + sh[1] / 2, 0.42], [sh[0], sh[1], 0.035], {rot: [-12, 0, 0], taper: m === '53k' ? 0.15 : 0.05});
+    if (m === '2pdr') [[0, -0.7], [0.55, 0.45], [-0.55, 0.45]].forEach(([x, z]) => g.box(P.cureña, Z.FIX, pcD, [x * 0.6, 0.12, z * 0.6], [0.08, 0.08, 0.9], {rot: [0, Math.atan2(x, z) * 180 / Math.PI, 0]}));
+    g.box(P.tubo, Z.FIX, pcD, [0, -0.22, -0.25], [0.16, 0.16, 0.55], {bottom: true});                                   // cierre y cuna
+    g.cyl(P.tubo, Z.FIX, 0x3a3c38, [0, -0.2, m === '2pdr' ? 0.95 : 0.85], 0.045, 0.035, m === '2pdr' ? 1.9 : m === '53k' ? 2.0 : 1.6, 6, {rot: [90, 0, 0], top: true});
+    wheels(0.33);
+  } else {                                                                                                                // obús pesado 150–155 mm con munición apilada
+    const heavy = m === 'ml20' ? 1.2 : 1, el = m === 'bl6' ? 26 : 18;
+    if (m === 'bl6') g.box(P.cureña, Z.FIX, pcD, [0, 0.45, -1.6], [0.36, 0.22, 3.0], {rot: [-8, 0, 0]});
+    else [1, -1].forEach(s => g.box(P.cureña, Z.FIX, pcD, [0.45 * s, 0.4, -1.65], [0.14, 0.16, 3.2], {rot: [-7, 9 * s, 0]}));
+    g.box(P.cureña, Z.FIX, pc, [0, 0.82, 0.05], [0.7, 0.42, 1.2], {});
+    g.box(P.cureña, Z.FIX, C.hierro, [0, 0.66, 0.15], [1.42, 0.12, 0.14], {noFront: true, noBack: true});
+    if (m !== 'bl6') g.box(P.cureña, Z.FIX, pc, [0, 1.25, 0.55], [1.5 * heavy, 0.9, 0.04], {rot: [-8, 0, 0], taper: 0.1});   // escudo
+    g.cyl(P.tubo, Z.FIX, 0x3e403a, [0, 0.12, 1.35 * heavy], 0.11, 0.1, m === 'bl6' ? 2.4 : 3.9 * heavy, 6, {rot: [90 - el, 0, 0], top: true});
+    g.cyl(P.tubo, Z.FIX, pc, [0, 0.32, 0.6], 0.09, 0.09, 1.6, 6, {rot: [90 - el, 0, 0], top: true, bottom: true});      // recuperador
+    g.box(P.tubo, Z.FIX, 0x3e403a, [0, 0.0, -0.45], [0.36, 0.36, 0.5], {bottom: true});
+    if (m === 'ml20') { const L = 3.9 * heavy / 2; g.box(P.tubo, Z.FIX, 0x3e403a, [0, 0.12 + Math.sin(el * D2R) * L, 1.35 * heavy + Math.cos(el * D2R) * L], [0.3, 0.22, 0.35], {rot: [-el, 0, 0]}); }   // freno de boca
+    wheels(0.62);
+    g.box(P.cureña, Z.FIX, CE.caja, [1.5, 0.2, -1.4], [0.6, 0.4, 0.5], {});                                              // cajas y proyectiles apilados
+    [[1.3, -0.8], [1.5, -0.8]].forEach(([x, z]) => g.cyl(P.cureña, Z.FIX, CE.proyectil, [x, 0.3, z], 0.075, 0.05, 0.6, 4, {top: true}));
+  }
+  return g;
+}
+
+/* ---------- LOD de los vehículos E ---------- */
+function lodTruck(o, lvl) {
+  const g = new GeoBuilder(), P = rigIndex('vehiculo');
+  if (lvl === 2) { g.box(P.caja, Z.VEH, 0, [0, 1.15, -0.3], [2.2, 2.3, 6.4], {noTop: true}); g.quad([-1.1, 2.3, 2.9], [1.1, 2.3, 2.9], [1.1, 2.3, -3.5], [-1.1, 2.3, -3.5], P.caja, Z.FIX, CE.lona); return g; }
+  g.box(P.caja, Z.VEH, 0, [0, 1.3, 1.55], [1.95, 1.3, 2.7], {});
+  g.box(P.caja, Z.VEH, 0, [0, 1.25, -1.6], [2.2, 0.6, 3.6], {});
+  g.box(P.caja, Z.FIX, CE.lona, [0, 2.1, -0.9], [2.24, 1.0, 1.7], {});
+  g.box(P.tropas, Z.MAIN, 0, [0, 1.85, -2.35], [1.8, 0.7, 1.6], {noTop: true}); g.quad([-0.9, 2.2, -1.55], [0.9, 2.2, -1.55], [0.9, 2.2, -3.15], [-0.9, 2.2, -3.15], P.tropas, Z.HAT, 0);
+  ['ruedaDI', 'ruedaDD', 'ruedaTI', 'ruedaTD'].forEach(k => g.disc(P[k], Z.FIX, CE.goma, [0, 0, 0], 0.45, 5, {two: true}));
+  return g;
+}
+function lodHalftrack(o, lvl) {
+  const g = new GeoBuilder(), P = rigIndex('semioruga');
+  if (lvl === 2) { g.box(P.casco, Z.VEH, 0, [0, 0.95, -0.1], [2.1, 1.9, 5.6], {noTop: true}); g.quad([-1.05, 1.9, 2.7], [1.05, 1.9, 2.7], [1.05, 1.9, -2.9], [-1.05, 1.9, -2.9], P.casco, Z.MAIN, 0); return g; }
+  g.box(P.casco, Z.VEH, 0, [0, 1.3, 2.05], [1.5, 0.8, 1.7], {taper: 0.3}); g.box(P.casco, Z.VEH, 0, [0, 1.42, -0.6], [2.0, 0.92, 3.7], {});
+  ['orugaI', 'orugaD'].forEach(k => g.box(P[k], Z.FIX, C.oruga, [0, 0.45, -0.8], [0.32, 0.8, 3.1], {}));
+  g.disc(P.ruedaI, Z.FIX, CE.goma, [0, 0, 0], 0.42, 5, {two: true}); g.disc(P.ruedaD, Z.FIX, CE.goma, [0, 0, 0], 0.42, 5, {two: true});
+  g.box(P.tropas, Z.MAIN, 0, [0, 1.95, -0.95], [1.4, 0.4, 2.4], {});
+  return g;
+}
+function lodArmor(o, lvl) {
+  const g = new GeoBuilder(), P = rigIndex('blindado'), td = o.td;
+  if (lvl === 2) { g.box(P.casco, Z.VEH, 0, [0, 0.8, 0], [2.9, 1.6, 5.9], {taper: 0.12}); return g; }   // bajo y ancho: se distingue del camión (alto, con lona)
+  g.box(P.casco, Z.VEH, 0, [0, 1.15, 0], [2.7, 1.3, 5.7], {taperZ: 0.05});
+  if (td) g.box(P.torreta, Z.VEH, 0, [0, -0.05, -0.3], [2.4, 0.55, 3.2], {taper: 0.15}); else g.box(P.torreta, Z.VEH, 0, [0, 0.55, -0.1], [1.75, 0.72, 2.1], {taper: 0.2});
+  g.cyl(P.canon, Z.VEH, 0, [0, td ? -0.6 : 0, 1.0], 0.08, 0.07, 2.0, 3, {rot: [90, 0, 0]});
+  ['orugaI', 'orugaD'].forEach(k => g.box(P[k], Z.FIX, C.oruga, [0, 0.55, 0], [0.42, 1.0, 5.8], {taperZ: 0.12}));
+  return g;
+}
+
+/* ---------- catálogo E ---------- */
+['fusilero', 'artillero', 'obus'].forEach(k => KINDS[k].eras.push('E'));
+const _ofus = KINDS.fusilero.o;
+KINDS.fusilero.o = (era, nat, r) => era === 'E' ? Object.assign(_ofus(era, nat, r), {bayoneta: true, equipo: md(nat, 'equipo', 'gbr'), botas: md(nat, 'botas', false)}) : _ofus(era, nat, r);
+const _oart = KINDS.artillero.o;
+KINDS.artillero.o = (era, nat, rol) => era === 'E' ? Object.assign(_oart(era, nat, rol), {arma: {cargador: 'proyectil', municionero: 'proyectil', atacador: 'escobillon'}[rol] || 'ninguna', botas: md(nat, 'botas', false)}) : _oart(era, nat, rol);
+KINDS.artillero.roles = KINDS.artillero.roles.concat(['atacador', 'municionero']);
+const _oobus = KINDS.obus.o;
+KINDS.obus.o = (era, nat) => era === 'E' ? {era, tipo: 'obus_E', modelo: md(nat, 'obus', 'sfh18')} : _oobus(era, nat);
+const _bcannon = buildCannon;
+KINDS.obus.build = KINDS.canon.build = o => o.era === 'E' ? buildCannonE(o) : _bcannon(o);
+Object.assign(KINDS, {
+  ametrallador: {rig: 'soldado', clase: 'inf', pal: 'linea', eras: ['E'], nombre: 'Ametrallador (ametralladora ligera)', build: buildSoldier, lod: lodSoldier,
+    o: (era, nat) => ({era, toc: hg(nat, 'E', 'linea'), arma: 'lmg', lmg: md(nat, 'lmg', 'bren'), equipo: md(nat, 'equipo', 'gbr'), botas: md(nat, 'botas', false), mochila: false, cartucheras: false, kitLigero: true})},
+  camion: {rig: 'vehiculo', clase: 'mot', pal: 'linea', eras: ['E'], nombre: 'Camión de transporte con tropas', build: buildTruck, lod: lodTruck,
+    o: (era, nat) => ({era, modelo: md(nat, 'camion', 'blitz'), marca: ED(nat).markType, toc: hg(nat, 'E', 'linea')})},
+  semioruga: {rig: 'semioruga', clase: 'mech', pal: 'linea', eras: ['E'], nombre: 'Semioruga blindado con 6 soldados', build: buildHalftrack, lod: lodHalftrack,
+    o: (era, nat) => ({era, modelo: md(nat, 'semioruga', 'sdkfz251'), marca: ED(nat).markType, toc: hg(nat, 'E', 'linea')})},
+  tanque_medio: {rig: 'blindado', clase: 'arm', pal: 'linea', eras: ['E'], nombre: 'Tanque medio', build: buildMediumTank, lod: lodArmor,
+    o: (era, nat) => ({era, modelo: md(nat, 'tanque_medio', 'pz4'), marca: ED(nat).markType, tripulante: md(nat, 'tripulante', 'casco_tanquista')})},
+  cazacarros: {rig: 'blindado', clase: 'arm', pal: 'linea', eras: ['E'], nombre: 'Cañón de asalto / cazacarros', build: buildTankDestroyer, lod: (o, l) => lodArmor(Object.assign({td: true}, o), l),
+    o: (era, nat) => ({era, modelo: md(nat, 'cazacarros', 'stug'), marca: ED(nat).markType, tripulante: md(nat, 'tripulante', 'casco_tanquista'), toc: hg(nat, 'E', 'linea')})},
+  canon_at: {rig: 'canon', clase: 'art', pal: 'artilleria', eras: ['E'], nombre: 'Cañón antitanque', build: buildCannonE, lod: lodCannon, o: (era, nat) => ({era, tipo: 'at', modelo: md(nat, 'canon_at', 'pak36')})}
+});
+['ametrallador', 'camion', 'semioruga', 'tanque_medio', 'cazacarros', 'canon_at'].forEach(k => { if (!TROOP_KINDS.includes(k)) TROOP_KINDS.push(k); });
+
+/* ---------- animaciones E ---------- */
+// remapea el tiempo de un clip: el instante tFrom pasa a tTo (tramos lineales); sirve para sincronizar papeles con un ciclo nuevo
+function retime(c, dur, tFrom, tTo) {
+  const f = t => t <= tFrom ? t / tFrom * tTo : tTo + (t - tFrom) / (1 - tFrom) * (1 - tTo), o = cp(c); o.dur = dur;
+  const R = tr => tr && tr.forEach(k => { k[0] = f(k[0]); });
+  Object.values(o.tracks).forEach(R); R(o.root); if (o.hide) Object.values(o.hide).forEach(R); if (o.pos) Object.values(o.pos).forEach(R); (o.ev || []).forEach(e => { e[0] = f(e[0]); });
+  return o;
+}
+const PRONE = {pelvis: [[0, 88, 0, 0]], torso: [[0, -18, 0, 0]], cabeza: [[0, -58, 0, 0]], musloIz: [[0, 0, 0, 8]], musloDe: [[0, 0, 0, -8]], piernaIz: [[0, 12, 0, 0]], piernaDe: [[0, 8, 0, 0]]};
+const PRONE_ROOT = [[0, 0, -0.76, 0.45]], APUNTA_T = {P: [-0.12, 0.38, -0.05], R: [20, 0, 0]};
+Object.assign(CLIPS.soldado, {
+  tumbarse: mk(1.0, false, {pelvis: [[0, 0, 0, 0], [0.4, 0, 0, 0], [1, 88, 0, 0]], torso: [[0, 0, 0, 0], [0.4, 20, 0, 0], [1, -18, 0, 0]], cabeza: [[0, 0, 0, 0], [0.4, 10, 0, 0], [1, -58, 0, 0]],
+    musloIz: [[0, 0, 0, 0], [0.4, -85, 0, 4], [1, 0, 0, 8]], piernaIz: [[0, 0, 0, 0], [0.4, 85, 0, 0], [1, 12, 0, 0]], musloDe: [[0, 0, 0, 0], [0.4, -8, 0, -4], [1, 0, 0, -8]], piernaDe: [[0, 0, 0, 0], [0.4, 95, 0, 0], [1, 8, 0, 0]],
+    armaP: [[0].concat(ORDEN.P), [0.4, -0.12, -0.1, 0.3], [1].concat(APUNTA_T.P)], armaR: [[0, 0, 0, 0], [0.4, 60, 0, 0], [1].concat(APUNTA_T.R)], agarre: [[0, 0.92, -1], [0.3, 0.3, 0.75]]},
+    [[0.4, 'rodilla'], [0.9, 'cuerpo_a_tierra']], {root: [[0, 0, 0, 0], [0.4, 0, -0.36, 0], [1].concat(PRONE_ROOT[0].slice(1))]}),
+  disparar_tumbado: mk(2.4, true, Object.assign(cp(PRONE), {armaP: [[0].concat(APUNTA_T.P), [0.22].concat(APUNTA_T.P), [0.25, -0.12, 0.3, -0.05], [0.3].concat(APUNTA_T.P), [1].concat(APUNTA_T.P)], armaR: [[0].concat(APUNTA_T.R), [0.4, 20, 0, -14], [0.6, 20, 0, -14], [0.72].concat(APUNTA_T.R)],
+    agarre: [[0, 0.3, 0.75], [0.36, 0.5, 0.75], [0.62, 0.3, 0.75]]}), [[0.22, 'disparo'], [0.4, 'cerrojo_atras'], [0.56, 'cerrojo_adelante']], {root: cp(PRONE_ROOT)}),
+  disparar_rafaga: mk(1.2, true, Object.assign(cp(PRONE), {armaP: [0, 0.07, 0.14, 0.21, 0.28, 0.35, 0.42, 0.5, 1].map((t, i) => [t, -0.12, i < 7 && i % 2 ? 0.355 : 0.38, -0.05]), armaR: [[0].concat(APUNTA_T.R)],
+    agarre: [[0, 0.3, 0.1]], cabeza: [[0, -58, 0, 0]]}), [[0, 'rafaga'], [0.07, 'disparo'], [0.21, 'disparo'], [0.35, 'disparo'], [0.42, 'casquillos']], {root: cp(PRONE_ROOT)}),
+  avance_agachado: mk(0.8, true, {musloIz: [[0, -75, 0, 4], [0.5, -25, 0, 4], [1, -75, 0, 4]], piernaIz: [[0, 70, 0, 0], [0.25, 100, 0, 0], [0.5, 50, 0, 0], [1, 70, 0, 0]], musloDe: [[0, -25, 0, -4], [0.5, -75, 0, -4], [1, -25, 0, -4]], piernaDe: [[0, 50, 0, 0], [0.5, 70, 0, 0], [0.75, 100, 0, 0], [1, 50, 0, 0]],
+    torso: [[0, 35, 0, 0]], cabeza: [[0, -30, 0, 0]], armaP: [[0, -0.05, -0.15, 0.3]], armaR: [[0, 60, 0, 30]], agarre: [[0, 0.35, 0.85]]}, [[0, 'paso'], [0.5, 'paso']], {root: [[0, 0, -0.24, 0], [0.25, 0, -0.2, 0], [0.5, 0, -0.24, 0], [0.75, 0, -0.2, 0], [1, 0, -0.24, 0]]}),
+  lanzar_granada: mk(1.4, false, {brazoDe: [[0, 0, 0, -4], [0.35, 50, 0, -20], [0.55, -165, 0, -10], [0.8, -60, 0, -10], [1, 0, 0, -4]], antebrazoDe: [[0, -10, 0, 0], [0.35, -100, 0, 0], [0.55, -15, 0, 0], [1, -10, 0, 0]],
+    torso: [[0, 0, 0, 0], [0.35, -12, 30, 0], [0.55, 18, -20, 0], [1, 0, 0, 0]], cabeza: [[0, 0, 0, 0], [0.35, -10, -20, 0], [0.55, -10, 0, 0], [1, 0, 0, 0]],
+    musloIz: [[0, -20, 0, 0], [0.55, -35, 0, 0], [1, -4, 0, 2]], piernaIz: [[0, 15, 0, 0]], musloDe: [[0, 15, 0, 0], [0.55, 20, 0, 0], [1, 2, 0, -2]],
+    armaP: [[0, 0.3, -0.9, 0.12]], armaR: [[0, 0, 0, 0]], agarre: [[0, -1, 0.92]]}, [[0.55, 'lanzar']]),
+  cubrirse: cp(CLIPS.soldado.ponerse_a_cubierto), morir_1: cp(CLIPS.soldado.caer_muerto_atras), morir_2: cp(CLIPS.soldado.caer_muerto_adelante), cuerpo_a_cuerpo_bayoneta: cp(CLIPS.soldado.melee_2), recarga: cp(CLIPS.soldado.recargar_D),
+  disparar: cp(CLIPS.soldado.disparar_D),
+  srv_at_cargador: kneel(retime(CLIPS.soldado.srv_cargador, 3.0, 0.62, 0.45)), srv_at_apuntador: kneel(retime(CLIPS.soldado.srv_apuntador, 3.0, 0.62, 0.45)), srv_at_jefe: retime(CLIPS.soldado.srv_jefe, 3.0, 0.62, 0.45),
+  srv_E_cargador: retime(CLIPS.soldado.srv_cargador, 5.0, 0.62, 0.55), srv_E_atacador: retime(CLIPS.soldado.srv_escobillon, 5.0, 0.62, 0.55), srv_E_cierre: retime(CLIPS.soldado.srv_artillero, 5.0, 0.62, 0.55),
+  srv_E_apuntador: retime(CLIPS.soldado.srv_apuntador, 5.0, 0.62, 0.55),
+  srv_E_municionero: mk(5.0, true, {musloIz: [[0, 0, 0, 0], [0.1, -25, 0, 0], [0.2, 15, 0, 0], [0.3, -20, 0, 0], [0.4, -50, 0, 0], [0.5, -50, 0, 0], [0.6, 15, 0, 0], [0.7, -25, 0, 0], [0.8, 10, 0, 0], [0.9, 0, 0, 0]],
+    musloDe: [[0, 0, 0, 0], [0.1, 15, 0, 0], [0.2, -25, 0, 0], [0.3, 15, 0, 0], [0.4, -20, 0, 0], [0.5, -20, 0, 0], [0.6, -25, 0, 0], [0.7, 15, 0, 0], [0.8, -20, 0, 0], [0.9, 0, 0, 0]],
+    piernaIz: [[0, 0, 0, 0], [0.4, 60, 0, 0], [0.5, 60, 0, 0], [0.6, 10, 0, 0]], torso: [[0, 4, 0, 0], [0.4, 45, 0, 0], [0.5, 45, 0, 0], [0.6, 8, 0, 0], [1, 4, 0, 0]],
+    brazoDe: [[0, -50, 0, -10], [0.35, -20, 0, -10], [0.45, -60, 0, -10], [0.6, -55, 0, -14], [1, -50, 0, -10]], antebrazoDe: [[0, -70, 0, 0], [0.45, -20, 0, 0], [0.6, -75, 0, 0], [1, -70, 0, 0]],
+    brazoIz: [[0, -45, 0, 10], [0.45, -60, 0, 10], [0.6, -50, 0, 14], [1, -45, 0, 10]], antebrazoIz: [[0, -70, 0, 0], [0.45, -20, 0, 0], [0.6, -75, 0, 0], [1, -70, 0, 0]], arma: [[0, 0, 0, 0]]},
+    [[0.45, 'recoge_proyectil'], [0.92, 'entrega']], {root: [[0, 0, 0, 0], [0.38, 0, 0, -1.3], [0.52, 0, -0.12, -1.3], [0.9, 0, 0, 0], [1, 0, 0, 0]], pos: {}})
+});
+Object.values(CLIPS.soldado).forEach(c => { if (!c.tracks.armaP && !c.tracks.arma) Object.assign(c.tracks, arm(ORDEN, [0.92, -1])); });
+// cañón E: ciclos con retroceso del tubo por el canal pos
+Object.assign(CLIPS.canon, {
+  servicio_at: mk(3.0, true, {tubo: [[0, 2, 0, 0]]}, [[0.15, 'cargar'], [0.25, 'cierre'], [0.35, 'apuntar'], [0.45, 'fuego'], [0.47, 'retroceso'], [0.6, 'extraer_casquillo']], {pos: {tubo: [[0, 0, 0, 0], [0.44, 0, 0, 0], [0.47, 0, 0, -0.28], [0.65, 0, 0, 0], [1, 0, 0, 0]]}, root: [[0, 0, 0, 0], [0.44, 0, 0, 0], [0.48, 0, 0, -0.06], [0.7, 0, 0, 0], [1, 0, 0, 0]]}),
+  servicio_E: mk(5.0, true, {tubo: [[0, 0, 0, 0]], cureña: [[0, 0, 0, 0], [0.54, 0, 0, 0], [0.57, -1.2, 0, 0], [0.7, 0, 0, 0]]}, [[0.15, 'cargar'], [0.3, 'atacar'], [0.4, 'cierre'], [0.55, 'fuego'], [0.57, 'retroceso'], [0.75, 'extraer_casquillo']],
+    {pos: {tubo: [[0, 0, 0, 0], [0.54, 0, 0, 0], [0.57, 0, -0.18, -0.65], [0.8, 0, 0, 0], [1, 0, 0, 0]]}}),
+  elevar_antiaereo: mk(2.0, false, {tubo: [[0, 0, 0, 0], [1, -60, 0, 0]]}, [[1, 'elevado']])
+});
+CLIPS.vehiculo = {
+  ralenti: mk(1.0, true, {caja: [[0, 0, 0, 0.3], [0.25, 0.1, 0, -0.2], [0.5, 0, 0, 0.25], [0.75, -0.1, 0, -0.3], [1, 0, 0, 0.3]]}),
+  avanzar: mk(0.9, true, {ruedaDI: [[0, 0, 0, 0], [1, 360, 0, 0]], ruedaDD: [[0, 0, 0, 0], [1, 360, 0, 0]], ruedaTI: [[0, 0, 0, 0], [1, 360, 0, 0]], ruedaTD: [[0, 0, 0, 0], [1, 360, 0, 0]], ruedaT2I: [[0, 0, 0, 0], [1, 360, 0, 0]], ruedaT2D: [[0, 0, 0, 0], [1, 360, 0, 0]],
+    caja: [[0, 0.5, 0, 0.8], [0.5, -0.4, 0, -0.8], [1, 0.5, 0, 0.8]], tropas: [[0, 0, 0, 0], [0.25, 1.5, 0, 0], [0.5, 0, 0, 0], [0.75, 1.5, 0, 0], [1, 0, 0, 0]]}),
+  frenar: mk(0.8, false, {caja: [[0, 0, 0, 0], [0.3, 2.5, 0, 0], [0.6, -0.8, 0, 0], [1, 0, 0, 0]]}, [[0.3, 'frenazo']]),
+  descargar_tropas: mk(2.0, false, {caja: [[0, 0, 0, 0]]}, [[0.15, 'bajan'], [0.6, 'vacio']], {hide: {tropas: [[0, 1], [0.6, 0]]}}),
+  cargar_tropas: mk(2.0, false, {caja: [[0, 0, 0, 0]]}, [[0.1, 'suben'], [0.8, 'lleno']], {hide: {tropas: [[0, 0], [0.8, 1]]}}),
+  destruido: mk(1.5, false, {chasis: [[0, 0, 0, 0], [0.2, -6, 0, 8], [1, -3, 0, 10]], caja: [[0, 0, 0, 0], [1, 2, 0, 4]]}, [[0, 'explosion'], [0.3, 'humo']], {root: [[0, 0, 0, 0], [1, 0, -0.12, 0]], hide: {tropas: [[0, 0]]}}),
+  volcado: mk(1.5, false, {chasis: [[0, 0, 0, 0], [0.6, 0, 0, 50], [1, 0, 0, 92]]}, [[0, 'explosion'], [0.9, 'vuelco']], {root: [[0, 0, 0, 0], [0.6, -0.4, 0.5, 0], [1, -0.1, 1.08, 0]], hide: {tropas: [[0, 0]]}})
+};
+CLIPS.semioruga = {
+  ralenti: mk(1.0, true, {casco: [[0, 0, 0, 0.3], [0.5, 0, 0, -0.3], [1, 0, 0, 0.3]]}),
+  avanzar: mk(1.0, true, {casco: [[0, 0.6, 0, 0], [0.5, -0.6, 0, 0], [1, 0.6, 0, 0]], ruedaI: [[0, 0, 0, 0], [1, 360, 0, 0]], ruedaD: [[0, 0, 0, 0], [1, 360, 0, 0]], tropas: [[0, 0, 0, 0], [0.5, 1.2, 0, 0], [1, 0, 0, 0]]}, [], {tread: 1}),
+  frenar: mk(0.8, false, {casco: [[0, 0, 0, 0], [0.3, 2.0, 0, 0], [1, 0, 0, 0]]}, [[0.3, 'frenazo']]),
+  disparar_ametralladora: mk(1.2, true, {mg: [[0, 0, -20, 0], [0.5, 0, 20, 0], [1, 0, -20, 0]]}, [[0, 'rafaga'], [0.25, 'rafaga'], [0.5, 'rafaga'], [0.75, 'rafaga']], {pos: {mg: [0, 0.06, 0.12, 0.18, 0.25].map((t, i) => [t, 0, 0, i % 2 ? -0.03 : 0])}}),
+  descargar_tropas: mk(2.0, false, {casco: [[0, 0, 0, 0]]}, [[0.15, 'bajan'], [0.6, 'vacio']], {hide: {tropas: [[0, 1], [0.6, 0]]}}),
+  cargar_tropas: mk(2.0, false, {casco: [[0, 0, 0, 0]]}, [[0.1, 'suben'], [0.8, 'lleno']], {hide: {tropas: [[0, 0], [0.8, 1]]}}),
+  destruido: mk(1.5, false, {casco: [[0, 0, 0, 0], [0.2, -4, 0, 5], [1, -2, 0, 7]], mg: [[0, 0, 0, 0], [1, 30, 0, 40]]}, [[0, 'explosion'], [0.3, 'humo']], {root: [[0, 0, 0, 0], [1, 0, -0.1, 0]], hide: {tropas: [[0, 0]]}})
+};
+const HIDE_CMD = {comandante: [[0, 0]]};
+CLIPS.blindado = {
+  ralenti: mk(1.0, true, {casco: [[0, 0, 0, 0.2], [0.5, 0, 0, -0.2], [1, 0, 0, 0.2]], comandante: [[0, 0, 0, 0], [0.5, 0, 30, 0], [1, 0, 0, 0]]}),
+  avanzar: mk(1.2, true, {casco: [[0, 0.6, 0, 0], [0.5, -0.6, 0, 0], [1, 0.6, 0, 0]], comandante: [[0, 0, 0, 0]]}, [], {root: [[0, 0, 0, 0], [0.25, 0, 0.02, 0], [0.5, 0, 0, 0], [0.75, 0, 0.02, 0], [1, 0, 0, 0]], tread: 1}),
+  retroceder: mk(1.2, true, {casco: [[0, -0.6, 0, 0], [0.5, 0.6, 0, 0], [1, -0.6, 0, 0]]}, [], {tread: -1, hide: cp(HIDE_CMD)}),
+  girar_sobre_el_eje: mk(1.2, true, {casco: [[0, 0, 0, 0.6], [0.5, 0, 0, -0.6], [1, 0, 0, 0.6]]}, [], {tread: 1, pivote: true, hide: cp(HIDE_CMD)}),
+  girar_torreta: mk(6.0, true, {torreta: [[0, 0, 0, 0], [0.3, 0, 70, 0], [0.5, 0, 70, 0], [0.8, 0, -45, 0], [1, 0, 0, 0]]}, [[0.05, 'motor_torreta']], {hide: cp(HIDE_CMD)}),
+  disparar_canon: mk(3.0, true, {torreta: [[0, 0, 0, 0]], canon: [[0, -2, 0, 0], [0.3, -2, 0, 0], [0.32, -5, 0, 0], [0.5, -2, 0, 0], [1, -2, 0, 0]], casco: [[0, 0, 0, 0], [0.3, 0, 0, 0], [0.34, -1.6, 0, 0], [0.5, 0.4, 0, 0], [0.62, 0, 0, 0]]},
+    [[0.31, 'disparo'], [0.33, 'fogonazo'], [0.36, 'humo'], [0.7, 'extraer_casquillo']], {pos: {canon: [[0, 0, 0, 0], [0.3, 0, 0, 0], [0.32, 0, 0, -0.38], [0.55, 0, 0, 0], [1, 0, 0, 0]]}, hide: cp(HIDE_CMD)}),
+  disparar_ametralladora: mk(0.6, true, {mg: [[0, 0, -4, 0], [0.5, 0, 4, 0], [1, 0, -4, 0]]}, [[0, 'rafaga'], [0.17, 'disparo'], [0.33, 'disparo'], [0.5, 'disparo'], [0.67, 'disparo'], [0.83, 'disparo']], {hide: cp(HIDE_CMD)}),
+  inmovilizado: mk(4.0, true, {casco: [[0, 2, 0, 3]], torreta: [[0, 0, 0, 0], [0.4, 0, -25, 0], [0.8, 0, 20, 0], [1, 0, 0, 0]]}, [[0, 'humo_negro'], [0.5, 'humo_negro']], {hide: cp(HIDE_CMD)}),
+  incendiado: mk(2.0, true, {casco: [[0, 2, 0, 3]], torreta: [[0, 0, 12, 0]]}, [[0, 'fuego'], [0.25, 'humo_negro'], [0.5, 'fuego'], [0.75, 'humo_negro']], {hide: cp(HIDE_CMD)}),
+  destruido: mk(1.6, false, {torreta: [[0, 0, 0, 0], [0.2, -15, 40, 20], [1, -10, 35, 18]], canon: [[0, 0, 0, 0], [1, 14, 0, 0]], casco: [[0, 0, 0, 0], [0.2, -3, 0, 2], [1, 3, 0, 5]]}, [[0, 'explosion'], [0.25, 'incendio'], [0.6, 'carcasa_humeante']],
+    {pos: {torreta: [[0, 0, 0, 0], [0.2, 0.15, 0.6, -0.2], [1, 0.3, 0.1, -0.4]]}, root: [[0, 0, 0, 0], [1, 0, -0.12, 0]], hide: cp(HIDE_CMD)}),
+  comandante_asomado: mk(4.0, true, {comandante: [[0, 0, 0, 0], [0.3, 0, 45, 0], [0.6, 0, -45, 0], [1, 0, 0, 0]]}, [[0.3, 'observa']])
+};
+Object.keys(CLIPS).forEach(r => { CLIP_SETS[r] = Object.keys(CLIPS[r]); });
+
+/* ---------- grupos E ---------- */
+const _tgroup = troopGroup;
+troopGroup = function (name, era, estado, opts) {
+  opts = opts || {};
+  if (name === 'antitanque') { const f = estado === 'fuego'; return [{kind: 'canon_at', at: [0, 0, 0], clip: f ? 'servicio_at' : 'en_bateria'}, {kind: 'artillero', role: 'apuntador', at: [0.55, -0.7, 0], clip: f ? 'srv_at_apuntador' : 'idle'}, {kind: 'artillero', role: 'cargador', at: [-0.6, -0.75, 0], clip: f ? 'srv_at_cargador' : 'idle'}, {kind: 'artillero', role: 'jefe', at: [-1.4, -1.7, 0], clip: f ? 'srv_at_jefe' : 'idle'}]; }
+  if (name === 'bateria' && era === 'E') {
+    const f = estado === 'fuego';
+    return [{kind: 'obus', at: [0, 0, 0], clip: f ? 'servicio_E' : 'en_bateria'}, {kind: 'artillero', role: 'cargador', at: [0.9, -0.9, 90], clip: f ? 'srv_E_cargador' : 'idle'}, {kind: 'artillero', role: 'atacador', at: [-1.0, -1.4, -90], clip: f ? 'srv_E_atacador' : 'idle'},
+      {kind: 'artillero', role: 'artillero', at: [-0.9, -0.4, 90], clip: f ? 'srv_E_cierre' : 'idle'}, {kind: 'artillero', role: 'apuntador', at: [-0.75, 0.6, 0], clip: f ? 'srv_E_apuntador' : 'idle'}, {kind: 'artillero', role: 'municionero', at: [1.0, -0.6, 180], clip: f ? 'srv_E_municionero' : 'idle'}];
+  }
+  return _tgroup(name, era, estado, opts);
+};
+TROOP_GROUPS.antitanque = {nombre: 'Cañón antitanque con 3 servidores', estados: ['fuego', 'reposo']};
+
 const api = {TROOP_KINDS, TROOP_ERAS, KINDS, RIGS, CLIPS, NACIONES, ROLES, MAXP, buildTroop, poseTroop, blendPose, uniformPalette, troopStats, bakeClips, makeTroopMaterial, TroopShared, TroopBatch, TroopLodSet, CpuBatch,
-  TROOP_GROUPS, troopGroup, troopGeoKey, clipInfo, clipPhase, eventsBetween, exportClipsJSON, SKIN, HORSE};
+  TROOP_GROUPS, troopGroup, troopGeoKey, nationalMark, clipInfo, clipPhase, eventsBetween, exportClipsJSON, SKIN, HORSE};
 root.Troops3D = api;
 ['TROOP_KINDS', 'TROOP_ERAS', 'buildTroop', 'poseTroop', 'blendPose', 'uniformPalette', 'troopStats'].forEach(k => { root[k] = api[k]; });
 })(typeof window !== 'undefined' ? window : globalThis);

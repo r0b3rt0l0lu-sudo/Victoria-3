@@ -17,9 +17,9 @@
 'use strict';
 const THREE = root.THREE;
 const D2R = Math.PI / 180;
-const TROOP_ERAS = ['A', 'B', 'C', 'D'];
+const TROOP_ERAS = ['A', 'B', 'C', 'D', 'E'];
 const MAXP = 20;                                     // partes máximas por figura (ancho de la textura = MAXP × 3 texeles)
-const Z = {MAIN: 0, TRIM: 1, ACC: 2, HAT: 3, F1: 4, F2: 5, F3: 6, VEH: 7, FIX: 8};
+const Z = {MAIN: 0, TRIM: 1, ACC: 2, HAT: 3, F1: 4, F2: 5, F3: 6, VEH: 7, M1: 8, M2: 9, M3: 10, VEH2: 11, FIX: 12};   // M1–M3: marca nacional; VEH2: segundo color de camuflaje
 const V = {NONE: 0, SKIN: 1, HORSE: 2};
 // colores fijos (Lambert, pensados para luz cálida del noroeste)
 const C = {cuero: 0x5a3a22, cueroN: 0x26201c, correaB: 0xe8e2d0, madera: 0x7a5232, maderaO: 0x4e3420, acero: 0x8a9096, hierro: 0x3a3c40, laton: 0xc8a048,

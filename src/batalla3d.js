@@ -161,7 +161,7 @@ function b3Set(S, kind, era, tag, role) {
   const T = Troops3D, sh = R.t3.shared, key = kind + '|' + era + '|' + T.troopGeoKey(kind, era, tag) + '|' + (role || '');
   let set = S.sets[key];
   if (!set) {
-    const cls = /^(husar|lancero|dragon|coracero)$/.test(kind) ? 'cav' : /canon|obus|ametralladora|avantren|carro|carreta|artillero|tanque|mark1/.test(kind) ? 'art' : 'inf';
+    const cls = /^(husar|lancero|dragon|coracero)$/.test(kind) ? 'cav' : /canon|obus|ametralladora|avantren|carro|carreta|artillero|tanque|mark1|camion|semioruga|cazacarros/.test(kind) ? 'art' : 'inf';
     set = S.sets[key] = new T.TroopLodSet(sh, kind, era, tag, B3_CAP[cls].map(n => R.lowEnd ? n >> 1 : n), {role, dist: [75, 220]}); set.meshes.forEach(m => S.scene.add(m)); set.kind = kind;
   }
   return set;
@@ -203,7 +203,9 @@ function b3Fig(S, V, blk, f, era, tU, cp, ca) {
       _b3o.phase = h1; _b3o.h = 0; _b3o.bright = (h1 * 7.3) % 1; _b3o.skin = (h1 * 4) | 0; _b3o.horse = 0; _b3o.start = null; set.add(d3(x, y, z), x, y, z, yaw + (m.at[2] || 0) * Math.PI / 180, B3_S, tag, m.clip, _b3o); b3Sh(S, x, y, z, /canon|obus|avantren/.test(m.kind) ? 2.6 : 1.0); });
     return;
   }
-  const cav = blk.type === 'cav', tank = blk.type === 'tank', kind = tank ? 'tanque' : cav ? B3_CAV[blk.id % B3_CAV.length] : 'fusilero', set = b3Set(S, kind, era, tag, null);
+  const cav = blk.type === 'cav', tank = blk.type === 'tank', E = era === 'E', comp = E && typeof t3Comp === 'function' && blk.d ? t3Comp(blk.d, tag) : null;
+  const kind = tank ? (E ? (comp && comp.spg > comp.tank ? 'cazacarros' : 'tanque_medio') : 'tanque') : cav ? (E ? 'dragon' : B3_CAV[blk.id % B3_CAV.length]) : 'fusilero', set = b3Set(S, kind, era, tag, null);
+  const vk = E && !tank && !cav && comp ? (comp.mech > 3 ? 'semioruga' : comp.mot > 3 ? 'camion' : null) : null, vset = vk ? b3Set(S, vk, era, tag, null) : null, mgset = E && !tank && !cav && comp && comp.mg ? b3Set(S, 'ametrallador', era, tag, null) : null;
   const m = tank ? 1 : cav ? 2 : (R.lowEnd ? 2 : 6), sp = cav ? 2.9 : tank ? 0 : 1.65 * (blk.comp || 1);
   const dyingK = !f.alive && f.dying > 0;
   for (let j = 0; j < m; j++) {
@@ -212,7 +214,11 @@ function b3Fig(S, V, blk, f, era, tU, cp, ca) {
     let yaw = Math.PI / 2 - blk.hd + (h1 - 0.5) * 0.12, clip;
     if (dyingK) { clip = tank ? 'destruido' : _b3Cl[(h2 * 4) | 0]; _b3o.start = tU - (0.8 - f.dying) * 1.5; }
     else { if (f.flee > 0) yaw = Math.atan2(f.vx, f.vy); clip = b3Clip(blk, f, era, cav); }
-    set.add(d3(x, y, z), x, y, z, yaw, tank ? B3_S * 1.1 : B3_S, tag, clip, _b3o); b3Sh(S, x, y, z, tank ? 3.4 : cav ? 2.0 : 1.05);
+    let st2 = set;
+    if (E && !dyingK) { const mv = (blk.sp || 0) > 8, fr = blk.mode === 'fire' || blk.mode === 'artfire' || blk.mode === 'fixing' || blk.mode === 'skirmish';
+      if (tank) { clip = mv ? 'avanzar' : fr ? 'disparar_canon' : 'ralenti'; _b3o.tread = mv ? 1.6 : 0; } else { _b3o.tread = 0; if (vset && j === 0) { st2 = vset; clip = mv ? 'avanzar' : 'ralenti'; _b3o.tread = vk === 'semioruga' && mv ? 1.6 : 0; } else if (mgset && j === 1) { st2 = mgset; clip = fr && !mv ? 'disparar_rafaga' : mv ? 'marcha' : 'idle'; } else if (!cav && clip === 'disparar_D') clip = h2 < 0.35 ? 'disparar_tumbado' : 'disparar'; } }
+    else if (E) _b3o.tread = 0;
+    st2.add(d3(x, y, z), x, y, z, yaw, tank ? B3_S * 1.1 : B3_S, tag, clip, _b3o); b3Sh(S, x, y, z, tank ? 3.4 : cav ? 2.0 : 1.05);
   }
 }
 function b3Corpse(S, V, cpz, era, tU, ca) {

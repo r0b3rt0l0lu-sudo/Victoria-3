@@ -103,7 +103,7 @@ const NACIONES = {
 };
 function eraOf(obj, era) {                          // la época pedida o la más cercana definida
   if (!obj) return null; if (obj[era]) return obj[era];
-  const i = TROOP_ERAS.indexOf(era); for (let d = 1; d < 4; d++) { const a = TROOP_ERAS[i - d], b = TROOP_ERAS[i + d]; if (a && obj[a]) return obj[a]; if (b && obj[b]) return obj[b]; }
+  const i = TROOP_ERAS.indexOf(era); for (let d = 1; d < 5; d++) { const a = TROOP_ERAS[i - d], b = TROOP_ERAS[i + d]; if (a && obj[a]) return obj[a]; if (b && obj[b]) return obj[b]; }
   return null;
 }
 // uniformPalette(nación, época, papel) → {main, trim, accessory, hat, flag, headgear, vehicle, note}
@@ -111,7 +111,8 @@ function uniformPalette(nation, era, rol) {
   const n = NACIONES[nation] || NACIONES.GEN, base = eraOf(n, era) || eraOf(NACIONES.GEN, era);
   const R = rol && rol !== 'linea' && n.rol && n.rol[rol];
   // un papel usa su época o la más cercana anterior a D; en D (caqui/gris de campaña) solo si la define: todos visten como la línea
-  const r = R ? (R[era] || (era !== 'D' ? eraOf({A: R.A, B: R.B, C: R.C}, era) : null)) : null;
+  const r = R ? (R[era] || (era < 'D' ? eraOf({A: R.A, B: R.B, C: R.C}, era) : null)) : null;
   const e = r || base;
-  return {main: e.c[0], trim: e.c[1], accessory: e.c[2], hat: e.c[3], flag: n.f.slice(), flagLayout: n.bandera, headgear: e.toc, vehicle: n.veh || '#6a6c52', note: e.nota || ''};
+  const mk = e.marca || n.marca || {tipo: 'ninguna', c: ['#1c1c1c', '#e8e4d8', '#b02020']}, veh = e.veh || n.veh || '#6a6c52';
+  return {main: e.c[0], trim: e.c[1], accessory: e.c[2], hat: e.c[3], flag: (e.f || n.f).slice(), flagLayout: e.bandera || n.bandera, headgear: e.toc, vehicle: veh, vehicle2: e.veh2 || veh, mark: mk.c.slice(), markType: mk.tipo, modelo: e.modelo || {}, note: e.nota || ''};
 }

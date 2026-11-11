@@ -90,7 +90,7 @@ function spyMonth() {
     if (t === NONE) return; const c = G.C[t]; if (!c.ai || !c.states.length || c.rank > 30) return;
     const I = intelOf(c); if (I.lvl < 2 || Math.random() > 0.05 + 0.02 * (I.lvl - 2)) return;
     // objetivos: enemigos en guerra → sabotaje; rivales mal avenidos → rebeldes; potencias más avanzadas → robo de tecnología
-    const rivals = G.tags.filter(x => x !== NONE && x !== t && alive(x) && !sameSide(t, x) && (x !== G.player || rule('spy')));
+    const rivals = G.tags.filter(x => x !== NONE && x !== t && alive(x) && !sameSide(t, x) && (x !== G.player || (rule('spy') && typeof playerProvoked === 'function' && playerProvoked(t) && Math.random() < 0.4)));
     const war = rivals.filter(x => hostileTags(t, x)), bad = rivals.filter(x => relOf(t, x) < -10 && G.C[x].states.length >= 6 && Math.abs(G.C[x].rank - c.rank) <= 12);
     const adv = rivals.filter(x => G.C[x].rank < c.rank && G.C[x].techs.size > c.techs.size && spyTechPick(c, G.C[x]));
     let kind = null, to = null;

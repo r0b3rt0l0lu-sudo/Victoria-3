@@ -1,5 +1,5 @@
 /* ===== COALICIONES CONTRA EL EXPANSIONISMO: las potencias se alían para frenar a quien acumula infamia o conquistas ===== */
-const threatOf = c => c.infamy * 0.7 + (c.exp || 0) * 2;
+const threatOf = c => (c.infamy * 0.7 + (c.exp || 0) * 2) * (c.tag === G.player ? 0.7 : 1);       // contra el jugador las coaliciones tardan más en formarse
 const coalitionOf = tag => (G.coals || []).find(x => x.target === tag);
 const inCoalition = tag => (G.coals || []).find(x => x.members.includes(tag));
 function coalCandidate(tag, target) {

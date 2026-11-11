@@ -212,7 +212,7 @@ function screenToWorld(cx, cy) {
 }
 function worldToScreen(x, y, z) {
   const v = new THREE.Vector3(x, y, z).project(R.camera);
-  if (v.z > 1) return [-1e5, -1e5, v.z];            // detrás de la cámara (o más allá del plano lejano): la proyección saldría reflejada y pondría rótulos en sitios absurdos
+  if (v.z > 1 || v.z < -1) return [-1e5, -1e5, v.z];            // detrás de la cámara (o más allá del plano lejano): la proyección saldría reflejada y pondría rótulos en sitios absurdos
   return [(v.x * 0.5 + 0.5) * R.canvas.clientWidth, (-v.y * 0.5 + 0.5) * R.canvas.clientHeight, v.z];
 }
 function stateAtWorld(p) {
@@ -609,6 +609,7 @@ function frameCore_(t) {
     }
     R.renderMs = (R.renderMs || 10) * 0.9 + (performance.now() - t0) * 0.1;
     if (R.anim && R.renderMs > 45 && t > 8000) { R.anim = false; R.waterMesh.visible = false; R.cloudMesh.visible = false; if (typeof syncCamBtns === 'function') syncCamBtns(); }
+    { const c = R.cam, sig = c.tx.toFixed(3) + '|' + c.tz.toFixed(3) + '|' + c.dist.toFixed(2) + '|' + c.tilt.toFixed(3) + '|' + c.yaw.toFixed(3) + '|' + R.canvas.clientWidth + 'x' + R.canvas.clientHeight; if (sig !== R._lblSig) { R._lblSig = sig; R.labelsDirty = true; } }      // los rótulos y fichas siempre siguen a la cámara, aunque algún cambio no avisara
     if (R.labelsDirty) { updateLabels(); R.labelsDirty = false; }
     drawMinimap();
     R.dirty = false;

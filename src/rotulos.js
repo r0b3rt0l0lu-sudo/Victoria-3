@@ -196,7 +196,7 @@ const GFX_CSS = `#gfxpanel{position:fixed;right:64px;bottom:206px;width:250px;pa
 .atoken em{font-style:normal;font-size:10.5px;color:#e8d9a8;margin-left:1px}
 .maplabel,.statelabel,.citylabel{transition:opacity .25s}
 .statelabel{text-shadow:0 0 4px #000,0 0 3px #000,0 1px 2px #000}
-.citylabel.up{display:flex !important;flex-direction:column-reverse;align-items:center}.citylabel.up i{margin:1px auto 0}`;
+.citylabel.up{flex-direction:column-reverse;align-items:center}.citylabel.up:not([style*="display: none"]){display:flex !important}.citylabel.up i{margin:1px auto 0}`;
 
 const _graphicsTickRot = graphicsTick;
 graphicsTick = function (t) {

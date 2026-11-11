@@ -75,7 +75,7 @@ const PACTS20 = {alliance: [['USA', 'GBR'], ['USA', 'FRA'], ['USA', 'PRU'], ['US
     for (let i = 0; i < 20; i++) { advanceDay(); if (G.pendingEvent) G.pendingEvent = null; }
     G.date.d = 1; G.date.t -= 20;
     G.wars.slice().forEach(w => { try { endWar(w, null); } catch (e) { } }); G.wars = []; G.battles = [];
-    G.tags.forEach(x => { if (x !== NONE) { G.C[x].wars = []; G.C[x].lastWar = G.date.t; G.C[x].mob = (year === 1939 && ['PRU', 'BAV', 'GBR', 'FRA', 'RUS', 'SAR', 'JAP'].includes(x)) ? 2 : (year === 2020 && (G.C[x].rank || 99) <= 10) ? 1 : 0; } });
+    G.tags.forEach(x => { if (x !== NONE) { G.C[x].wars = []; G.C[x].lastWar = G.date.t; G.C[x].mob = (year === 1939 && ['PRU', 'BAV', 'GBR', 'FRA', 'RUS', 'SAR', 'JAP'].includes(x)) ? 2 : (G.C[x].rank || 99) <= 8 ? 1 : 0; } });
     G.tags.forEach(x => { if (!alive(x)) return; const cap = Math.min(Math.floor(divLimit(G.C[x]) * 0.7), 120); let n = countDivs(x); G.armies.filter(a => a.tag === x && !a.sea).forEach(a => { while (n > cap && a.divs.length) { a.divs.pop(); n--; } }); });
     G.armies = G.armies.filter(a => a.sea || (a.divs && a.divs.length));
     try { updateRanks(); } catch (e) { }

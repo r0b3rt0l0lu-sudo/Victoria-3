@@ -212,6 +212,7 @@ function screenToWorld(cx, cy) {
 }
 function worldToScreen(x, y, z) {
   const v = new THREE.Vector3(x, y, z).project(R.camera);
+  if (v.z > 1) return [-1e5, -1e5, v.z];            // detrás de la cámara (o más allá del plano lejano): la proyección saldría reflejada y pondría rótulos en sitios absurdos
   return [(v.x * 0.5 + 0.5) * R.canvas.clientWidth, (-v.y * 0.5 + 0.5) * R.canvas.clientHeight, v.z];
 }
 function stateAtWorld(p) {

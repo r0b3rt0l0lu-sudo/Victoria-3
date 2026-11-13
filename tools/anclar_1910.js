@@ -4,10 +4,10 @@
 const { chromium } = require('playwright'); const fs = require('fs'), zlib = require('zlib'), path = require('path');
 const T = {
   GBR: 'Jamaica,Guayana Británica,Bengala,Bihar y Awadh,Bombay,Madrás,Orissa y Nagpur,Mysore,Ceilán,Malaca y Singapur,Estados Malayos,Rajputana,Malwa,Gujarat,Sind,Baluchistán,Punyab,Cachemira,Hyderabad,Birmania,Assam,Nueva Gales del Sur,Victoria,Australia Occidental,Tasmania,Nueva Zelanda Norte,Nueva Zelanda Sur,Colonia del Cabo,Zululandia,Rodesia,Egipto,Nubia,Sudán,Alto Nilo,Darfur,Nigeria Sur,Sokoto,Bornu,Costa de Oro,Somalia,Yemen,Zanzíbar,Canadá Oriental,Canadá Occidental,Nueva Escocia,Tierras de la Bahía de Hudson,Columbia Británica',
-  FRA: 'Argelia,Túnez,Marruecos,Sáhara,Senegambia,Malí,Dahomey y Oyo,Madagascar,Camboya,Laos,Tonkín,Annam,Cochinchina,Córcega',
-  PRU: 'Lorena y Alsacia,Holstein,Namibia y Botsuana,Camerún,Tanganica,Nueva Guinea',
+  FRA: 'Saboya,Costa de Marfil,Guinea,Gabón,Chad,Argelia,Túnez,Marruecos,Sáhara,Senegambia,Malí,Dahomey y Oyo,Madagascar,Camboya,Laos,Tonkín,Annam,Cochinchina,Córcega',
+  PRU: 'Alsacia,Schleswig,Lorena y Alsacia,Holstein,Namibia y Botsuana,Camerún,Tanganica,Nueva Guinea',
   BEL: 'Congo',
-  SAR: 'Lombardía-Venecia,Libia,Fezzán,Cerdeña',
+  SAR: 'Eritrea,Lombardía-Venecia,Libia,Fezzán,Cerdeña',
   AUS: 'Bosnia,Dalmacia',
   USA: 'Texas,California,Nuevo México,Grandes Llanuras,Territorio de Oregón,Alaska Rusa,Hawái,Filipinas,Mindanao,Cuba,Puerto Rico',
   JAP: 'Corea del Norte,Corea del Sur,Taiwán',
@@ -33,7 +33,9 @@ const T = {
     Object.keys(T).forEach(tag => { if (!G.C[tag]) { miss.push(tag); return; } T[tag].split(',').forEach(nm => { const s = byName[nm]; if (!s) { miss.push(nm); return; } if (s.owner !== tag) { transferState(s, tag); log.push(nm + '→' + tag); } }); });
     // el resto del mundo vuelve a sus fronteras históricas (los países que la simulación había borrado reviven)
     const tabla = new Set(Object.values(T).join(',').split(',')), MERGE = {BAV: 'PRU', SAX: 'PRU', HAN: 'PRU', WUR: 'PRU', BAD: 'PRU', HES: 'PRU', MEC: 'PRU', TWS: 'SAR', PAP: 'SAR', TUS: 'SAR', EGY: 'GBR', KOR: 'JAP', TEX: 'USA'};
-    G.S.forEach(s => { if (tabla.has(s.name)) return; let o = MAP.seeds[s.id].owner; if (MERGE[o]) o = MERGE[o]; if (!o || !G.C[o] || o === s.owner) return; transferState(s, o); log.push(s.name + '↩' + o); });
+    const byN = {}; G.S.forEach(x => { byN[x.name] = x; });
+    const child = s => { const sd = MAP.seeds[s.id]; if (!sd.parent) return null; const par = MAP.seeds.find(q => q.name === sd.parent); return par && par.owner === sd.owner ? sd.parent : null; };      // los estados nuevos que heredan el dueño de su padre lo siguen
+    [false, true].forEach(pass => G.S.forEach(s => { if (tabla.has(s.name)) return; const pn = child(s); if (!!pn !== pass) return; let o = pn ? byN[pn].owner : MAP.seeds[s.id].owner; if (MERGE[o]) o = MERGE[o]; if (!o || !G.C[o] || o === s.owner) return; transferState(s, o); log.push(s.name + '↩' + o); }));
     G.tags.forEach(x => { const c = G.C[x]; if (x !== NONE && c.states.length) { c.wars = []; if (!c.states.includes(c.capital)) c.capital = c.states[0]; if (c.overlord && !alive(c.overlord)) c.overlord = null; } });
     // alianzas de 1910-1914: Entente (Reino Unido, Francia, Rusia, Japón), Tríplice (Alemania, Austria-Hungría, Italia) y el Imperio Otomano con Alemania
     G.pacts = G.pacts.filter(p => !['alliance', 'rival', 'guarantee'].includes(p.type));

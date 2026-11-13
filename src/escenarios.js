@@ -61,7 +61,7 @@ async function scenarioSwitch(year) {
     else {
       if (typeof DecompressionStream === 'undefined') throw new Error('Tu navegador no admite descomprimir las épocas (usa Chrome, Edge o Firefox recientes).');
       loadData(await scenUnzip(SCEN_DATA[year]));
-      updateRanks(); scenArmies(); if (year >= 1939) scenModernize(year);
+      updateRanks(); scenArmies(); if (typeof fleetsMerge === 'function') G.tags.forEach(t => { if (t !== NONE) fleetsMerge(t); }); if (year >= 1939) scenModernize(year);
       // el jugador empieza de cero: objetivos, logros y estadísticas de partida
       G.tags.forEach(t => { const c = G.C[t]; if (t === NONE) return; c.journalDone = {}; c.ach = {}; c.cnt = {}; c.start = {ind: c.stats.indLevels, lit: c.lit, soldiers: c.stats.soldiers, prestige: c.prestige, rank: c.rank}; });
       G.notifs = []; G.log = []; logMsg(`Comienza la partida en ${year}.`);

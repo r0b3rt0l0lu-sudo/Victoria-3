@@ -12,9 +12,9 @@ const R39 = {
   CAN: null, AUL: null, CUB: null, JAP: ['Imperio del Japón', 'japonés', null, null], CHN: ['China', 'chino', null, 'h2:#de2910:#de2910']
 };
 const T39 = {
-  PRU: 'Austria,Tirol,Estiria,Bohemia,Moravia', FRA: 'Lorena y Alsacia,Siria,Camerún', GBR: 'Tanganica,Nueva Guinea,Mesopotamia,Palestina', BAV: 'Polonia del Congreso,Galitzia,Posen', AUS: 'Hungría', SER: 'Serbia,Croacia,Bosnia,Dalmacia,Macedonia', WAL: 'Valaquia y Moldavia,Transilvania', KHI: 'Bulgaria',
+  PRU: 'Austria,Tirol,Estiria,Bohemia,Moravia,Eslovaquia', FRA: 'Lorena y Alsacia,Alsacia,Siria,Camerún', GBR: 'Tanganica,Nueva Guinea,Mesopotamia,Palestina,Ulster', BAV: 'Polonia del Congreso,Galitzia,Posen,Prusia Occidental', AUS: 'Hungría', SER: 'Serbia,Croacia,Bosnia,Dalmacia,Macedonia,Carniola,Montenegro', WAL: 'Valaquia y Moldavia,Transilvania,Bucovina,Besarabia', KHI: 'Bulgaria',
   SIK: 'Finlandia', CSA: 'Livonia y Estonia', TWS: 'Leinster,Munster y Connacht', EGY: 'Egipto', TUS: 'Nejd,Hiyaz', HES: 'Noruega,Noruega Norte', CAN: 'Canadá Oriental,Canadá Occidental,Nueva Escocia,Tierras de la Bahía de Hudson,Columbia Británica',
-  AUL: 'Nueva Gales del Sur,Victoria,Australia Occidental,Tasmania,Nueva Zelanda Norte,Nueva Zelanda Sur', ZUL: 'Colonia del Cabo,Zululandia,Rodesia,Namibia y Botsuana', CUB: 'Cuba', SAR: 'Etiopía', JAP: 'Liaoning,Heilongjiang,Zhili,Shandong,Jiangsu'
+  CAM: 'Belice', CUB: 'Cuba,Haití,Santo Domingo', AUL: 'Nueva Gales del Sur,Victoria,Australia Occidental,Tasmania,Nueva Zelanda Norte,Nueva Zelanda Sur', ZUL: 'Colonia del Cabo,Zululandia,Rodesia,Namibia y Botsuana', SAR: 'Etiopía,Istria y Trieste,Albania', JAP: 'Liaoning,Heilongjiang,Zhili,Shandong,Jiangsu,Jilin,Sajalín', OTT: 'Tracia', CUB: 'Cuba,Haití,Santo Domingo'
 };
 const R20 = {
   PRU: ['Alemania', 'alemán', '#4a4f57', 'h3:#111:#c00:#fc0'], AUS: ['Austria', 'austriaco', '#d9d6c4', 'h3:#ed2939:#fff:#ed2939'], RUS: ['Rusia', 'ruso', null, null], OTT: ['Turquía', 'turco', '#c0504a', 'disc:#e30a17:#fff'], SAR: ['Italia', 'italiano', null, null],
@@ -29,13 +29,13 @@ const R20 = {
   CHN: ['China', 'chino', null, 'h2:#de2910:#de2910'], JAP: ['Japón', 'japonés', null, null], USA: ['Estados Unidos', 'estadounidense', null, null]
 };
 const T20 = {
-  PRU: '', GBR: '', FRA: 'Lorena y Alsacia', BAV: 'Polonia del Congreso,Galitzia,Posen,Silesia,Prusia Oriental', AUS: 'Austria,Tirol,Estiria', HAN: 'Hungría', WUR: 'Bohemia,Moravia', SER: 'Serbia,Bosnia,Macedonia', PAP: 'Croacia,Dalmacia', WAL: 'Valaquia y Moldavia,Transilvania', KHI: 'Bulgaria',
+  PRU: '', GBR: 'Ulster', FRA: 'Lorena y Alsacia,Alsacia,Saboya', BAV: 'Polonia del Congreso,Galitzia,Posen,Silesia,Prusia Oriental,Prusia Occidental', AUS: 'Austria,Tirol,Estiria', HAN: 'Hungría', WUR: 'Bohemia,Moravia,Eslovaquia', SER: 'Serbia,Bosnia,Macedonia,Voivodina,Montenegro,Albania', PAP: 'Croacia,Dalmacia,Carniola', SAR: 'Istria y Trieste', OTT: 'Tracia', WAL: 'Valaquia y Moldavia,Transilvania,Bucovina,Besarabia', KHI: 'Bulgaria',
   SIK: 'Finlandia', CSA: 'Livonia y Estonia', SAX: 'Ucrania Occidental,Ucrania Oriental,Nueva Rusia', GEO: 'Georgia', BAD: 'Estepa Kazaja', BUK: 'Bujará,Jiva,Kokand', KOK: 'Turkmenia', MNG: 'Mongolia', TWN: 'Taiwán',
   HES: 'Bengala,Bihar y Awadh,Bombay,Madrás,Orissa y Nagpur,Mysore,Rajputana,Malwa,Gujarat,Hyderabad,Cachemira,Assam,Ceilán', MEC: 'Sind,Punyab,Baluchistán', TWS: 'Java,Sumatra Sur,Aceh,Borneo,Sulawesi,Nueva Guinea', RB2: 'Malaca y Singapur,Estados Malayos', BRM: 'Birmania',
   VIE: 'Tonkín,Annam,Cochinchina', KHM: 'Laos,Camboya', KOR: 'Corea del Sur', PRK: 'Corea del Norte', PHL: 'Filipinas,Mindanao', CUB: 'Cuba', TUS: 'Nejd,Hiyaz', SYR: 'Siria', IRQ: 'Mesopotamia', ISR: 'Palestina', YEM: 'Yemen',
-  EGY: 'Egipto,Nubia', SOK: 'Sudán,Darfur,Alto Nilo', TEX: 'Sokoto,Bornu,Nigeria Sur', ASH: 'Costa de Oro', ETH: 'Etiopía,Somalia', KEN: 'Zanzíbar', MDG: 'Madagascar', ZUL: 'Colonia del Cabo,Zululandia,Rodesia,Namibia y Botsuana', MOZ: 'Mozambique', RB1: 'Angola', COG: 'Congo',
-  ALG: 'Argelia', MOR: 'Marruecos,Sáhara', TUN: 'Túnez', LBY: 'Libia,Fezzán', HYD: 'Senegambia,Malí,Dahomey y Oyo', RB3: 'Leinster,Munster y Connacht', RB4: 'Noruega,Noruega Norte', CAN: 'Canadá Oriental,Canadá Occidental,Nueva Escocia,Tierras de la Bahía de Hudson,Columbia Británica',
-  AUL: 'Nueva Gales del Sur,Victoria,Australia Occidental,Tasmania,Nueva Zelanda Norte,Nueva Zelanda Sur'
+  EGY: 'Egipto,Nubia', SOK: 'Sudán,Darfur,Alto Nilo', TEX: 'Sokoto,Bornu,Nigeria Sur', ASH: 'Costa de Oro', ETH: 'Etiopía,Somalia,Eritrea', KEN: 'Zanzíbar,Tanganica,Uganda,Ruanda y Burundi', MDG: 'Madagascar', ZUL: 'Colonia del Cabo,Zululandia,Rodesia,Namibia y Botsuana', MOZ: 'Mozambique', RB1: 'Angola',
+  ALG: 'Argelia', MOR: 'Marruecos,Sáhara', TUN: 'Túnez', LBY: 'Libia,Fezzán', HYD: 'Senegambia,Malí,Dahomey y Oyo,Costa de Marfil,Guinea,Níger,Chad,Liberia,Sierra Leona', COG: 'Congo,Gabón', RB3: 'Leinster,Munster y Connacht', RB4: 'Noruega,Noruega Norte', CAN: 'Canadá Oriental,Canadá Occidental,Nueva Escocia,Tierras de la Bahía de Hudson,Columbia Británica',
+  CAM: 'Belice', CUB: 'Cuba,Haití,Santo Domingo', AUL: 'Nueva Gales del Sur,Victoria,Australia Occidental,Tasmania,Nueva Zelanda Norte,Nueva Zelanda Sur'
 };
 const PACTS39 = {alliance: [['GBR', 'FRA'], ['GBR', 'BAV'], ['FRA', 'BAV'], ['GBR', 'CAN'], ['GBR', 'AUL'], ['GBR', 'ZUL'], ['PRU', 'SAR'], ['PRU', 'AUS'], ['PRU', 'WAL'], ['PRU', 'KHI'], ['PRU', 'JAP']], rival: [['PRU', 'BAV'], ['PRU', 'GBR'], ['PRU', 'FRA'], ['RUS', 'PRU'], ['JAP', 'CHN'], ['JAP', 'USA'], ['SAR', 'FRA']], nonagg: [['PRU', 'RUS']], guarantee: [['GBR', 'BAV'], ['FRA', 'BAV']]};
 const PACTS20 = {alliance: [['USA', 'GBR'], ['USA', 'FRA'], ['USA', 'PRU'], ['USA', 'SAR'], ['USA', 'CAN'], ['USA', 'JAP'], ['USA', 'KOR'], ['USA', 'AUL'], ['USA', 'BAV'], ['GBR', 'FRA'], ['PRU', 'FRA'], ['RUS', 'CHN'], ['RUS', 'PRK']], rival: [['RUS', 'USA'], ['RUS', 'BAV'], ['RUS', 'SAX'], ['CHN', 'USA'], ['CHN', 'JAP'], ['HES', 'MEC'], ['PRK', 'KOR'], ['ISR', 'SYR'], ['ISR', 'PRS'], ['PRS', 'TUS'], ['CHN', 'HES']], nonagg: [], guarantee: [['USA', 'SAX'], ['USA', 'TWN'], ['GBR', 'SAX']]};
@@ -49,8 +49,12 @@ const PACTS20 = {alliance: [['USA', 'GBR'], ['USA', 'FRA'], ['USA', 'PRU'], ['US
     loadData(t);
     G.wars.slice().forEach(w => { try { endWar(w, null); } catch (e) { } }); G.wars = []; G.tags.forEach(x => { G.C[x].wars = []; });
     const miss = [], log = [], byName = {}; G.S.forEach(s => { byName[s.name] = s; });
+    // los estados nuevos del mapa siguen a su estado padre salvo que la tabla diga otra cosa
+    const listed = new Set(Object.values(cfg.T).join(',').split(',')), kids = [];
+    G.S.forEach(s => { const sd = MAP.seeds[s.id]; if (!sd.parent) return; const par = byName[sd.parent]; if (par && par.owner === s.owner && !listed.has(s.name)) kids.push([s, par]); });
     // 1. territorios (1910 → época)
     Object.keys(cfg.T).forEach(tag => { if (!G.C[tag]) { miss.push('TAG ' + tag); return; } cfg.T[tag].split(',').filter(Boolean).forEach(nm => { const s = byName[nm]; if (!s) { miss.push(nm); return; } if (s.owner !== tag) { transferState(s, tag); log.push(nm + '→' + tag); } }); });
+    kids.forEach(([k, par]) => { if (par.owner !== k.owner && G.C[par.owner]) { transferState(k, par.owner); log.push(k.name + '↪' + par.owner); } });
     // 2. nombres y banderas
     Object.keys(cfg.R).forEach(tag => { const r = cfg.R[tag], c = G.C[tag]; if (!c || !r) return; c.name = r[0]; c.adj = r[1]; if (r[2]) c.color = r[2]; if (r[3]) c.flagSpec = r[3]; });
     G.tags.forEach(x => { const c = G.C[x]; if (x !== NONE && c.states.length) { c.wars = []; c.claims = []; if (!c.states.includes(c.capital)) c.capital = c.states[0]; if (c.overlord && !alive(c.overlord)) c.overlord = null; c.capitalName = G.S[c.capital].name; } });

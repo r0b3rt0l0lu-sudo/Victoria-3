@@ -139,50 +139,50 @@ const JUNGLES = [
 /* ===== BIENES Y DATOS DE ESTADOS ===== */
 // tokens: c#=carbón i#=hierro u#=fibras U#=azúcar T#=té C#=café B#=tabaco F#=fruta w#=madera f#=pesca m#=ganado g#=grano
 const STATE_DATA = `
-Inglaterra del Sur|-1.2|51.3|GBR|5200|g2
+Inglaterra del Sur|-1.2|51.3|GBR|3411|g2
 Midlands|-1.7|52.6|GBR|3600|c8 i6
 Norte de Inglaterra|-2.2|53.7|GBR|4000|c10 u6
 Gales|-3.7|52.3|GBR|1100|c5 i4 m2
 Escocia|-4.2|56.3|GBR|2600|c5 i3 f2
-Leinster|-6.8|53.2|GBR|2200|g2 m2
+Leinster|-6.8|53.2|GBR|1540|g2 m2
 Munster y Connacht|-9|52.8|GBR|2700|m3 f1
 Canadá Oriental|-72|46.5|GBR|1000|w4 f2
-Canadá Occidental|-80|44.5|GBR|450|g3 w2
-Nueva Escocia|-63|45.8|GBR|300|f3 w2
+Canadá Occidental|-80|44.5|GBR|405|g3 w2
+Nueva Escocia|-63|45.8|GBR|270|f3 w2
 Tierras de la Bahía de Hudson|-96|55|GBR|100|w2
 Columbia Británica|-124|54|GBR|50|w3 f1
 Jamaica|-77.3|18.1|GBR|400|U4
-Guayana Británica|-58.5|5|GBR|100|U2
-Bengala|88|23.5|GBR|40000|g6 T2 u3
-Bihar y Awadh|83.5|26|GBR|35000|g6 u3
-Bombay|73.8|19.5|GBR|15000|u4 f1
-Madrás|79.5|13|GBR|15000|g3 u2
+Guayana Británica|-58.5|5|GBR|70|U2
+Bengala|88|23.5|GBR|26000|g6 T2 u3
+Bihar y Awadh|83.5|26|GBR|28000|g6 u3
+Bombay|73.8|19.5|GBR|8910|u4 f1
+Madrás|79.5|13|GBR|9562|g3 u2
 Orissa y Nagpur|80.5|21|GBR|9000|g2 c2 i1
 Mysore|76.5|13.5|GBR|3000|C2
 Ceilán|80.7|7.5|GBR|1200|T4
 Malaca y Singapur|102.2|3.5|GBR|300|f1
-Nueva Gales del Sur|149|-33|GBR|100|m4
-Victoria|144.5|-36.7|GBR|10|m2
-Australia Occidental|118|-30|GBR|3|m1
+Nueva Gales del Sur|149|-33|GBR|90|m4
+Victoria|144.5|-36.7|GBR|6|m2
+Australia Occidental|118|-30|GBR|2|m1
 Tasmania|146.5|-42|GBR|70|m2
 Colonia del Cabo|21.5|-33.2|GBR|200|m2
 Isla de Francia|2.3|48.8|FRA|5000|g3
-Normandía y Bretaña|-1.5|48.5|FRA|5000|g2 f2
+Normandía y Bretaña|-1.5|48.5|FRA|3000|g2 f2
 Aquitania|0|44.5|FRA|6000|g3 F2
 Provenza y Languedoc|4|43.7|FRA|5500|F3
-Lorena y Alsacia|6.5|48.5|FRA|3500|c2 i4
+Lorena y Alsacia|6.5|48.5|FRA|2100|c2 i4
 Flandes Francés|2.8|50.3|FRA|3000|c5 u2
 Lyon y Borgoña|4.8|46.2|FRA|4000|g2
-Argelia|3|35.5|FRA|2500|g2 m2
+Argelia|3|35.5|FRA|2375|g2 m2
 Córcega|9|42|FRA|200|m1
 Prusia Oriental|20.5|54.2|PRU|2300|g3
 Brandeburgo|13.4|52.5|PRU|2700|g2
-Pomerania|16|53.8|PRU|1500|g2 f1
-Silesia|17|51|PRU|2800|c5 i4 u2
+Pomerania|16|53.8|PRU|975|g2 f1
+Silesia|17|51|PRU|1820|c5 i4 u2
 Posen|17.2|52.3|PRU|1200|g3
 Sajonia Prusiana|11.8|51.9|PRU|1700|g3
 Westfalia|7.5|51.4|PRU|3500|c8 i5
-Renania|7|50.2|PRU|2400|c3 F1
+Renania|7|50.2|PRU|1920|c3 F1
 Baviera|11.5|48.6|BAV|4200|g3 m2
 Sajonia|13.5|51|SAX|1700|c2 u3
 Hannover|9.7|52.6|HAN|1600|g2 i1
@@ -190,124 +190,124 @@ Wurtemberg|9.2|48.6|WUR|1600|g2
 Baden|8.2|48.5|BAD|1300|F1
 Hesse|9|50.6|HES|1500|g1
 Mecklemburgo|11.8|53.7|MEC|600|g2 f1
-Holstein|9.7|54.2|DEN|800|g2 m2
+Holstein|9.7|54.2|DEN|520|g2 m2
 Austria|15.5|48.2|AUS|2400|g2
 Bohemia|15|49.8|AUS|4300|c4 i2 u3
 Moravia|17.4|49.4|AUS|2000|c2 g2
-Galitzia|22.5|49.8|AUS|4500|g3 i1
-Hungría|19.5|47.2|AUS|6000|g6 m3
+Galitzia|22.5|49.8|AUS|3825|g3 i1
+Hungría|19.5|47.2|AUS|3360|g6 m3
 Transilvania|24|46|AUS|2000|w3 i2
 Croacia|16.5|45.5|AUS|1500|g2
 Tirol|11.5|46.8|AUS|800|m2 w2
-Estiria|15|46.8|AUS|1700|i3 w2
-Lombardía-Venecia|10.5|45.4|AUS|4500|g4 u2
-Dalmacia|16.2|43.8|AUS|400|f2
+Estiria|15|46.8|AUS|1105|i3 w2
+Lombardía-Venecia|10.5|45.4|AUS|2700|g4 u2
+Dalmacia|16.2|43.8|AUS|280|f2
 Moscú|37.6|55.8|RUS|5000|g4 w3
 San Petersburgo|30.3|59.9|RUS|1800|w3 f1
-Livonia y Estonia|25|57.5|RUS|1700|g2 f2
+Livonia y Estonia|25|57.5|RUS|1020|g2 f2
 Polonia del Congreso|21|52.2|RUS|4000|g3
-Lituania y Bielorrusia|26|54|RUS|4500|g3 w3
+Lituania y Bielorrusia|26|54|RUS|2250|g3 w3
 Ucrania Occidental|30|50.4|RUS|4500|g6
 Ucrania Oriental|36|49.5|RUS|3500|g5 c3
-Nueva Rusia|31.5|46.7|RUS|1500|g4
+Nueva Rusia|31.5|46.7|RUS|788|g4
 Don y Kuban|40|47|RUS|1500|g3 m3
-Volga Medio|47|54.5|RUS|3500|g4
+Volga Medio|47|54.5|RUS|2450|g4
 Cáucaso Norte|44|43|RUS|2500|m3
-Georgia|44.5|41.7|RUS|900|F2
+Georgia|44.5|41.7|RUS|270|F2
 Finlandia|26|62|RUS|1400|w5 f1
-Arcángel|42|63.5|RUS|800|w4 f2
+Arcángel|42|63.5|RUS|560|w4 f2
 Urales|58.5|57|RUS|2500|i5 w3 c1
 Siberia Occidental|73|57|RUS|1500|w3 m2
 Siberia Central|93|57|RUS|800|w4
 Yakutia|125|62|RUS|300|w2
 Extremo Oriente Ruso|135|50|RUS|100|w3 f2
-Kamchatka|160|56|RUS|20|f2
+Kamchatka|160|56|RUS|16|f2
 Alaska Rusa|-150|62|RUS|50|f1
 Constantinopla|28.7|41.2|OTT|1800|g2 f1
-Anatolia Occidental|30|38.8|OTT|3500|g3 F2
-Anatolia Oriental|39|39.2|OTT|2500|m3 i1
-Siria|37|35.5|OTT|2500|g2 F2
-Mesopotamia|44|34|OTT|1200|g2
-Palestina|35.2|31.8|OTT|700|F2
-Macedonia|21.8|41.3|OTT|1500|g2
-Bulgaria|25|42.7|OTT|2000|g3
+Anatolia Occidental|30|38.8|OTT|2450|g3 F2
+Anatolia Oriental|39|39.2|OTT|1750|m3 i1
+Siria|37|35.5|OTT|2125|g2 F2
+Mesopotamia|44|34|OTT|840|g2
+Palestina|35.2|31.8|OTT|490|F2
+Macedonia|21.8|41.3|OTT|1050|g2
+Bulgaria|25|42.7|OTT|1500|g3
 Bosnia|18|44|OTT|900|m2
-Libia|15|31.5|OTT|800|m1
+Libia|15|31.5|OTT|480|m1
 Hiyaz|39.5|22|EGY|800|m1
 Egipto|31|29.5|EGY|3500|g5 u3
 Nubia|32.5|23|EGY|1500|g1
 Sudán|31|14.5|EGY|2500|m3
 Grecia|22.3|38.7|GRE|800|F3 f2
-Serbia|20.8|44|SER|700|m2
+Serbia|20.8|44|SER|595|m2
 Valaquia y Moldavia|26|45.3|WAL|3000|g4
 Túnez|9.5|35.5|TUN|1000|F2
 Marruecos|-6|33.5|MOR|4000|g3 m2
-Madrid|-3.7|40.4|SPA|3000|g3 m2
-Andalucía|-4.8|37.4|SPA|2500|F3 g2
+Madrid|-3.7|40.4|SPA|2100|g3 m2
+Andalucía|-4.8|37.4|SPA|1940|F3 g2
 Cataluña|1.5|41.7|SPA|1800|F1 u2
 Galicia y Asturias|-7|42.8|SPA|1800|f3 c2 w2
 Valencia|-0.8|39.2|SPA|1200|F3
-Aragón y Navarra|-1.2|42|SPA|1200|g2
-Cuba|-79.5|22|SPA|900|U6 B3
+Aragón y Navarra|-1.2|42|SPA|840|g2
+Cuba|-79.5|22|SPA|729|U6 B3
 Puerto Rico|-66.5|18.2|SPA|400|U2 C1
-Filipinas|121.5|15|SPA|3000|U3 B2
-Portugal|-8|39.5|POR|3000|F2 f2
+Filipinas|121.5|15|SPA|1950|U3 B2
+Portugal|-8|39.5|POR|2400|F2 f2
 Angola|14|-9|POR|100|C1
 Mozambique|35|-17|POR|200|m1
-Suecia|15.5|58|SWE|2800|i3 w5
+Suecia|15.5|58|SWE|2100|i3 w5
 Suecia Norte|19.5|64.5|SWE|300|i4 w4
 Noruega|9|60.5|SWE|800|w3 f4
 Noruega Norte|18|69|SWE|150|f4
 Dinamarca|10.5|56|DEN|1200|g4 m2
 Islandia|-19|64.9|DEN|55|f3
-Holanda|4.8|52.2|NET|1800|m3 f2
-Java|110|-7.5|NET|6000|U5 C4
+Holanda|4.8|52.2|NET|1148|m3 f2
+Java|110|-7.5|NET|3600|U5 C4
 Sumatra Sur|103|-3|NET|1000|C2 T1
 Bélgica|4.6|50.7|BEL|4000|c4 i3 u2
 Suiza|8.2|46.9|SWI|2200|m3
-Piamonte|7.7|45|SAR|3500|g3 F1
+Piamonte|7.7|45|SAR|2529|g3 F1
 Cerdeña|9|40|SAR|500|m2
-Nápoles|15|40.8|TWS|4500|g2 F3
+Nápoles|15|40.8|TWS|2678|g2 F3
 Sicilia|14|37.6|TWS|2000|F3 g2
-Estados Pontificios|12.5|42.5|PAP|3000|g2 F2
+Estados Pontificios|12.5|42.5|PAP|1950|g2 F2
 Toscana|11|43.6|TUS|1700|F2 i1
 Nueva Inglaterra|-71.5|43|USA|2200|f4 w2
 Nueva York|-75|42.7|USA|2500|g3 w2
 Pensilvania|-77.5|40.5|USA|1800|c5 i3
 Virginia y Carolinas|-79|36.5|USA|3500|B5 g2
-Georgia y Florida|-83|31.5|USA|1500|u6 F1
+Georgia y Florida|-83|31.5|USA|1200|u6 F1
 Alabama y Misisipi|-88|33|USA|1000|u6
 Luisiana|-91.5|31|USA|500|U3 u3
 Tennessee y Kentucky|-86|37|USA|1800|B3 m2
 Ohio e Indiana|-84.5|40|USA|2000|g5
 Illinois y Misuri|-90|40.5|USA|1200|g4 m3
-Grandes Llanuras|-100|42||300|m4
+Grandes Llanuras|-100|42||151|m4
 Territorio de Oregón|-121|45.5||100|w4 f2
 Texas|-98|31|TEX|50|m3 u1
-California|-120.5|36.5|MEX|40|m2
-Nuevo México|-107|35|MEX|100|m2
-Norte de México|-107|28.5|MEX|400|m2
+California|-120.5|36.5|MEX|32|m2
+Nuevo México|-107|35|MEX|70|m2
+Norte de México|-107|28.5|MEX|252|m2
 Nuevo León|-99.5|25.5|MEX|400|m2
 México Central|-99|19.5|MEX|4500|g3 c1
 Jalisco|-103|21|MEX|1500|g2
 Veracruz|-96.5|19|MEX|600|U2 B1
 Oaxaca y Chiapas|-96.5|17|MEX|1200|C1
-Yucatán|-89|20.5|MEX|500|u1
-Guatemala|-90.5|15|CAM|700|C2
+Yucatán|-89|20.5|MEX|475|u1
+Guatemala|-90.5|15|CAM|560|C2
 Honduras y Nicaragua|-85|13.5|CAM|600|m2
 Costa Rica|-84|10|CAM|100|C2
-Nueva Granada|-74|5|COL|1500|g1 C2
+Nueva Granada|-74|5|COL|1350|g1 C2
 Venezuela|-66.5|8|VEN|900|C2 m3
 Ecuador|-78.5|-1.5|ECU|600|F1
-Perú|-75|-10|PER|1700|i1 m2
-Bolivia|-65|-17|BOL|1000|i2
-Chile|-71|-33|CHL|1000|g2 i1
+Perú|-75|-10|PER|1275|i1 m2
+Bolivia|-65|-17|BOL|800|i2
+Chile|-71|-33|CHL|950|g2 i1
 Argentina|-62|-33|ARG|700|m6
 Buenos Aires|-58.5|-35|ARG|200|m4
 Paraguay|-58|-24|PAR|300|g1
 Uruguay|-56|-33|URU|100|m3
 Patagonia|-69|-45||50|m2
-Nordeste Brasileño|-38|-8|BRZ|1500|U5
+Nordeste Brasileño|-38|-8|BRZ|1200|U5
 Bahía|-41|-13|BRZ|800|U2 C1
 Minas Gerais|-44.5|-19|BRZ|800|i3
 Río de Janeiro|-43|-22|BRZ|500|C4
@@ -315,24 +315,24 @@ São Paulo|-48.5|-23.5|BRZ|400|C3
 Río Grande|-52|-29|BRZ|300|m5
 Pará|-49|-3|BRZ|200|w3
 Amazonas|-62|-4|BRZ|100|w3
-Mato Grosso|-56|-14|BRZ|50|m3
+Mato Grosso|-56|-14|BRZ|30|m3
 Zhili|116.4|39.9|CHN|30000|g5
 Shandong|118|36.5|CHN|28000|g5 c2
 Henan|113.5|34|CHN|23000|g5
-Shanxi|112.5|37.5|CHN|14000|c9 i3
-Shaanxi y Gansu|106.5|35|CHN|18000|g3 m2
-Jiangsu|119.5|32.5|CHN|30000|g5 u3
+Shanxi|112.5|37.5|CHN|12600|c9 i3
+Shaanxi y Gansu|106.5|35|CHN|17100|g3 m2
+Jiangsu|119.5|32.5|CHN|25500|g5 u3
 Zhejiang|120.2|29.5|CHN|25000|T3 g3
 Anhui|117|31.5|CHN|20000|g4
 Jiangxi|115.5|27.5|CHN|20000|T3 g3
 Hubei|113|30.5|CHN|28000|g5 i1
 Hunan|111.8|27.5|CHN|20000|g5 T1
 Fujian|118|25.5|CHN|15000|T4 f2
-Guangdong|113.5|23.2|CHN|20000|g4 f2 U2
+Guangdong|113.5|23.2|CHN|13160|g4 f2 U2
 Guangxi y Guizhou|107|25.5|CHN|13000|g2
 Yunnan|101.5|25|CHN|7000|T2 i1
 Sichuan|104.5|30.5|CHN|35000|g6
-Liaoning|123|41.5|CHN|2000|c3 i2
+Liaoning|123|41.5|CHN|1300|c3 i2
 Heilongjiang|127|46.5|CHN|1000|w3 g2
 Mongolia|105|46|CHN|1500|m5
 Xinjiang|86|42|CHN|1500|m3
@@ -345,7 +345,7 @@ Kansai|135.5|34.8|JAP|5000|g3
 Chubu|137|36|JAP|4000|u3 T1
 Tohoku|140.5|39|JAP|3000|g3 f2
 Chugoku y Shikoku|133|34.3|JAP|4000|f2 g2
-Kyushu|130.8|32.8|JAP|4000|c3 T1
+Kyushu|130.8|32.8|JAP|3920|c3 T1
 Hokkaido|142.5|43.2|JAP|100|f4 w3
 Siam|100.8|14.5|SIA|3500|g5
 Laos|103|18|SIA|600|w2
@@ -357,8 +357,8 @@ Birmania|96.2|19.5|BRM|3000|g4 w3
 Assam|93.5|26.5|BRM|800|T2
 Estados Malayos|102|5||1000|w3
 Aceh|97|4.5||600|w2
-Borneo|114|0.5||1000|w4
-Sulawesi|120.5|-2||1500|w2
+Borneo|114|0.5||900|w4
+Sulawesi|120.5|-2||1211|w2
 Nueva Guinea|140|-5||300|w3
 Mindanao|124.5|7.5||500|w2
 Nueva Zelanda Norte|175.5|-38||100|m3
@@ -369,14 +369,14 @@ Fars|52.5|30|PRS|1500|F2
 Jorasán|59|36.5|PRS|1500|m2
 Kermán|58|29|PRS|800|m1
 Juzestán|49|31.5|PRS|600|g1
-Kabul|69|34.5|AFG|2000|m3
+Kabul|69|34.5|AFG|1500|m3
 Herat|62.5|34.3|AFG|800|g1
 Kandahar|66|31.7|AFG|1000|m2
 Baluchistán|65.5|28||500|m1
 Sind|68.5|26||1000|g2 u2
 Bujará|64.5|39.8|BUK|2500|g2 m2
 Jiva|60.5|41.5|KHI|500|g1
-Kokand|71|40.5|KOK|3000|g2
+Kokand|71|40.5|KOK|1912|g2
 Turkmenia|59|38.5||500|m1
 Estepa Kazaja|68|48||1500|m4
 Punyab|74.5|31.5|SIK|4000|g5
@@ -389,28 +389,136 @@ Gujarat|72.5|22.5||5000|u3
 Nejd|45|25||600|m1
 Omán|57|23|OMA|500|f1
 Yemen|44|15||1000|C2 g1
-Zanzíbar|39.5|-6|OMA|400|U1
-Sáhara|10|23||500|m1
+Zanzíbar|39.5|-6|OMA|280|U1
+Sáhara|10|23||400|m1
 Fezzán|13|27||200|m1
-Senegambia|-15|14||2500|g2 f1
-Malí|-5|13||4000|g2 m2
-Costa de Oro|-1.5|7|ASH|2000|F1 w2
+Senegambia|-15|14||1912|g2 f1
+Malí|-5|13||3400|g2 m2
+Costa de Oro|-1.5|7|ASH|1330|F1 w2
 Dahomey y Oyo|3|8||3000|g2
 Sokoto|7|12|SOK|8000|g3 u2
-Bornu|14|12||3000|m2
+Bornu|14|12||2100|m2
 Nigeria Sur|7|5.5||4000|F2 w2
-Camerún|12|5||2000|w3
-Congo|22|-3||5000|w5
-Etiopía|39|9|ETH|8000|g4 m3 C2
+Camerún|12|5||1800|w3
+Congo|22|-3||4250|w5
+Etiopía|39|9|ETH|7200|g4 m3 C2
 Somalia|46|5||1000|m3
 Darfur|25|13||1500|m2
-Alto Nilo|33|3||2000|m2
-Tanganica|34|-6||3000|g1 m2
-Rodesia|30|-19||600|m2
+Alto Nilo|33|3||1200|m2
+Tanganica|34|-6||2400|g1 m2
+Rodesia|30|-19||408|m2
 Namibia y Botsuana|18|-23||300|m1
-Zululandia|30.5|-28|ZUL|500|m3
+Zululandia|30.5|-28|ZUL|350|m3
 Madagascar|47|-19|MDG|2500|g2 m2
 Hawái|-156|19.8||100|f1
+Anglia Oriental|0.8|52.4|GBR|1040|g3|Inglaterra del Sur
+Suroeste de Inglaterra|-3.8|50.7|GBR|749|g2 f1|Inglaterra del Sur
+Ulster|-6.6|54.7|GBR|660|c2 i2 g1|Leinster
+Alsacia|7.4|48.2|FRA|1400|c2 g2|Lorena y Alsacia
+Bretaña|-3.0|48.2|FRA|2000|f2 F1|Normandía y Bretaña
+Saboya|6.2|45.6|SAR|525|m2 w1|Piamonte
+Schleswig|9.4|54.8|DEN|280|g3|Holstein
+Prusia Occidental|18.6|53.8|PRU|525|g3|Pomerania
+Alta Silesia|18.2|50.3|PRU|980|c6 i4|Silesia
+Sarre|7.0|49.4|PRU|480|c5 i2|Renania
+Eslovaquia|19.2|48.7|AUS|1800|m2 g2|Hungría
+Voivodina|20.3|45.5|AUS|840|g4|Hungría
+Carniola|14.5|46.1|AUS|595|m2 w2|Estiria
+Istria y Trieste|13.9|45.4|AUS|120|F2 f1|Dalmacia
+Bucovina|25.8|48.1|AUS|675|w2 g1|Galitzia
+Besarabia|28.8|47.2|RUS|450|g3 F1|Nueva Rusia
+Crimea|34.0|45.1|RUS|262|F2 g1|Nueva Rusia
+Estonia|25.5|58.8|RUS|680|g2 f2|Livonia y Estonia
+Bielorrusia|28.3|53.6|RUS|2250|g3 w2|Lituania y Bielorrusia
+Armenia|44.5|40.2|RUS|450|m2 F1|Georgia
+Azerbaiyán Ruso|48.5|40.5|RUS|180|g2 u2|Georgia
+Carelia|33.5|62.3|RUS|240|w3|Arcángel
+Tartaristán|50.5|55.5|RUS|1050|g3|Volga Medio
+Kurdistán|43.2|37.5|OTT|750|m3|Anatolia Oriental
+Anatolia Central|33.5|39.5|OTT|1050|g3|Anatolia Occidental
+Líbano|35.8|33.9|OTT|375|F2 g1|Siria
+Transjordania|36.2|31.2|OTT|210|m1|Palestina
+Basora|47.2|31.0|OTT|360|g2 F1|Mesopotamia
+Albania|20.0|41.0|OTT|450|m2|Macedonia
+Tracia|26.6|41.6|OTT|500|g3|Bulgaria
+Montenegro|19.3|42.6||105|m2|Serbia
+Véneto|12.0|45.6|AUS|1800|g3|Lombardía-Venecia
+Liguria|8.9|44.4|SAR|446|F1 f1|Piamonte
+Emilia|11.2|44.5|PAP|1050|g4|Estados Pontificios
+Apulia|16.5|41.0|TWS|1350|F3 g2|Nápoles
+Calabria|16.3|39.2|TWS|472|F2 m1|Nápoles
+País Vasco|-2.5|43.1|SPA|360|i3 f2|Aragón y Navarra
+Extremadura|-6.2|39.0|SPA|500|g2|Andalucía
+Castilla la Vieja|-4.5|41.8|SPA|900|g4|Madrid
+Canarias|-15.6|28.3|SPA|60|F1|Andalucía
+Escania|13.5|56.0|SWE|700|g3|Suecia
+Frisia|6.0|53.0|NET|270|g2|Holanda
+Zelanda y Brabante|5.2|51.5|NET|382|g3 m1|Holanda
+Alentejo|-8.0|38.2|POR|600|g2 f1|Portugal
+Bangladesh|90.5|23.8|GBR|14000|g5 T2|Bengala
+Kerala|76.4|10.3|GBR|2250|U3 T2|Madrás
+Andhra|80.0|16.0|GBR|3188|g3|Madrás
+Delhi|77.2|28.6|GBR|7000|g4|Bihar y Awadh
+Maharashtra|75.2|19.8|GBR|6000|g3 u2|Bombay
+Goa|74.0|15.4|POR|90|F2|Bombay
+Hainan|109.8|19.2|CHN|1200|T3|Guangdong
+Jilin|126.0|43.5|CHN|700|g2 w2|Liaoning
+Shanghái|121.4|31.3|CHN|4500|g4|Jiangsu
+Qinghai|97.0|36.0|CHN|900|m2|Shaanxi y Gansu
+Mongolia Interior|111.0|41.2|CHN|1400|m3|Shanxi
+Cantón y Hong Kong|113.4|22.8|CHN|5640|T3 U2|Guangdong
+Ryukyu|127.8|26.3|JAP|80|T1|Kyushu
+Sajalín|143.0|50.5|RUS|4|f2 w2|Kamchatka
+Java Oriental|112.7|-7.8|NET|2400|U4 C3|Java
+Molucas|128.0|-3.6||225|U2|Sulawesi
+Borneo Norte|116.0|5.3||100|w3 U1|Borneo
+Visayas|123.5|10.4|SPA|1050|U3 B1|Filipinas
+Timor|125.0|-9.0|POR|64|m1|Sulawesi
+Tayikistán|70.5|38.5|KOK|750|m2|Kokand
+Kirguistán|75.0|41.5||338|m3|Kokand
+Afganistán Norte|67.0|36.7|AFG|500|g2|Kabul
+Costa de Marfil|-5.0|6.5||600|F2 w2|Costa de Oro
+Liberia|-9.5|6.5||70|F1 w2|Costa de Oro
+Sierra Leona|-12.0|8.5||250|F1 w2|Senegambia
+Guinea|-11.5|10.5||338|g1 w1|Senegambia
+Níger|8.0|16.0||600|m2|Malí
+Chad|18.0|15.0||900|m2|Bornu
+Gabón|11.8|-0.6||200|w4|Camerún
+Katanga|27.0|-10.0||750|m3 i2|Congo
+Uganda|32.5|1.5||800|g3 C2|Alto Nilo
+Kenia|37.5|0.0||120|g2 m2|Zanzíbar
+Ruanda y Burundi|29.8|-2.5||600|g3|Tanganica
+Malaui|34.0|-13.0||90|g2|Rodesia
+Zambia|27.0|-14.0||102|m3 g1|Rodesia
+Transvaal|28.0|-26.0||150|m5 g2|Zululandia
+Eritrea|38.8|15.5||800|g1|Etiopía
+Cirenaica|21.0|32.0|OTT|320|F1 g1|Libia
+Sáhara Argelino|3.0|28.0|FRA|125|m2|Argelia
+Mauritania|-11.0|20.0||100|m1|Sáhara
+Terranova|-56.0|48.5|GBR|30|f3|Nueva Escocia
+Prairies|-105.0|52.0|GBR|45|g3 w2|Canadá Occidental
+Florida|-81.5|28.0|USA|300|F3 U2|Georgia y Florida
+Dakota y Minnesota|-97.0|46.0||90|g3|Grandes Llanuras
+Colorado|-105.0|39.0||42|m3|Grandes Llanuras
+Montana|-109.0|46.8||17|m3 w1|Grandes Llanuras
+Arizona|-111.5|34.0|MEX|30|m3|Nuevo México
+Nevada y Utah|-114.0|39.5|MEX|8|m3|California
+Baja California|-112.0|28.0|MEX|40|m1|Norte de México
+Sonora|-110.5|29.3|MEX|108|m3 g1|Norte de México
+Belice|-88.7|17.2|GBR|25|w2|Yucatán
+Haití|-72.6|19.0||90|U3 C2|Cuba
+Santo Domingo|-70.0|18.8||81|U2 B1|Cuba
+Panamá|-80.0|8.8|COL|150|w2 F1|Nueva Granada
+El Salvador|-89.0|13.8|CAM|140|C2|Guatemala
+Guayana Holandesa|-55.5|4.5|NET|30|U2|Guayana Británica
+Arica y Atacama|-69.5|-23.0|CHL|50|m3 i2|Chile
+Santa Cruz|-62.0|-17.5|BOL|200|g2|Bolivia
+Perú Norte|-79.0|-6.0|PER|425|F2|Perú
+Maranhão|-45.0|-4.5|BRZ|300|U3|Nordeste Brasileño
+Goiás|-49.0|-16.0|BRZ|20|g1 m2|Mato Grosso
+Queensland|145.0|-23.0|GBR|10|U2 m3|Nueva Gales del Sur
+Australia del Sur|135.0|-30.5|GBR|4|g2 m2|Victoria
+Territorio del Norte|133.0|-19.0|GBR|1|m1|Australia Occidental
 `.trim();
 
 /* ===== PAÍSES ===== */

@@ -210,6 +210,7 @@ function saveData() {
 }
 function loadData(text) {
   const d = JSON.parse(text, (k, v) => v && v.__set ? new Set(v.__set) : v);
+  if (d.S && d.S.length !== MAP.seeds.length) throw new Error('Esta partida es de una versión anterior del mapa (otro número de estados) y ya no es compatible.');
   createWorld(d.player);
   d.S.forEach((o, i) => Object.assign(G.S[i], o));
   G.tags.forEach(t => { if (d.C[t]) Object.assign(G.C[t], d.C[t]); });

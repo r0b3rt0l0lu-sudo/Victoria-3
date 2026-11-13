@@ -312,7 +312,7 @@ function buildMap() {
       }
       if (!found) console.warn('Estado sin tierra:', f[0]);
     }
-    seeds.push({name: f[0], px, py, owner: f[3], pop: +f[4] || 0, res: f[5] || ''});
+    seeds.push({name: f[0], px, py, owner: f[3], pop: +f[4] || 0, res: f[5] || '', parent: f[6] || ''});
   });
   MAP.seeds = seeds;
   MAP.stateOf = assignStates(land, h, seeds);

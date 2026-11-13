@@ -45,6 +45,8 @@ function recalcMods(c) {
   c.techs.forEach(id => { const t = TECH[id]; for (const k in t.fx) m[k] = (m[k] || 0) + t.fx[k]; });
   (c.traits || []).forEach(id => { const t = typeof TRAITS !== 'undefined' && TRAITS[id]; if (t) for (const k in t.fx) m[k] = (m[k] || 0) + t.fx[k]; });
   if (c.natMods) for (const k in c.natMods) m[k] = (m[k] || 0) + c.natMods[k];
+  if (c.regMods) for (const k in c.regMods) m[k] = (m[k] || 0) + c.regMods[k];
+  if (typeof ecoMods === 'function') { const e = ecoMods(c); if (e) for (const k in e) m[k] = (m[k] || 0) + e[k]; }
   c.mods = m;
   return m;
 }
@@ -317,9 +319,10 @@ function econA(i0, i1) {
     const s = S[si];
     const c = C[s.owner];
     stateStaffing(s, c);
-    const dm = G.fx.demand * c.fx.demand;
+    const dm = G.fx.demand * c.fx.demand * (c.eco && c.eco.ration ? 1 - c.eco.ration * 0.08 : 1);
     const taxR = TAX_LEVELS[c.taxLevel] * (s.owner === NONE ? 0 : c.stats.taxEff);
     const ctax = 1 + (s.owner === NONE ? 0 : c.consTax * 0.04 * c.stats.taxEff);
+    const sub = c.eco && c.eco.foodSub ? EC_SUB[c.eco.foodSub] : 0; s.sub = sub;
     BUILDINGS.forEach(b => {
       const L = s.b[b.id]; if (!L || !b.out) return;
       const stg = s.stg[b.id] * (s.ut[b.id] ?? 1);
@@ -336,7 +339,7 @@ function econA(i0, i1) {
       for (let i = 0; i < LADDER.length; i++) {
         const l = LADDER[i];
         const want = N * l.q * mult;
-        const cost = want * price[l.g] * ctax;
+        const cost = want * price[l.g] * ctax * (sub && EC_STAPLE[l.g] ? 1 - sub : 1);
         let frac = 1;
         if (budget >= cost) budget -= cost; else { frac = cost > 0 ? budget / cost : 0; budget = 0; }
         items.push({g: l.g, want, buy: want * frac});
@@ -419,9 +422,10 @@ function econB(i0, i1) {
       for (const p in b.workers) incNext[p] += wage * emp * b.workers[p];
       empTot += emp;
       const agri = grp === 'Agricultura' || grp === 'Plantaciones' || b.id === 'logging';
-      incNext.aristocrats += owners * (agri ? 0.75 : 0.2);
-      incNext.capitalists += owners * (agri ? 0.25 : 0.8);
-      cs.ownerInc += owners;
+      const soF = agri || !c.eco || !c.eco.state ? 0 : EC_STATE[c.eco.state], ow2 = owners * (1 - soF); cs.tax += owners * soF;          // industria estatal: parte de los beneficios va al Estado
+      incNext.aristocrats += ow2 * (agri ? 0.75 : 0.2);
+      incNext.capitalists += ow2 * (agri ? 0.25 : 0.8);
+      cs.ownerInc += ow2;
       gdp += va;
       s.bva = s.bva || {}; s.bva[b.id] = va / L;
       s.bwage = s.bwage || {}; s.bwage[b.id] = wage;
@@ -433,10 +437,11 @@ function econB(i0, i1) {
       let spent = 0, sol = 0;
       pl.items.forEach((it, i) => {
         const got = it.buy * R[it.g];
-        spent += got * price[it.g] * s.ctax;
+        const sb = s.sub && EC_STAPLE[it.g] ? s.sub : 0;
+        spent += got * price[it.g] * s.ctax * (1 - sb);
         const frac = it.want > 0 ? got / it.want : 1;
         sol += LADDER[i].w * Math.min(1, frac);
-        cs.ctax += got * price[it.g] * (s.ctax - 1);
+        cs.ctax += got * price[it.g] * (s.ctax - 1 - s.ctax * sb);
       });
       s.sol[p] = 25 * sol / LADDER_W;
       const leftover = Math.max(0, pl.b0 - spent);
@@ -647,7 +652,7 @@ function pickInvestment(c) {
       let iv = 0; for (const g in b.inputs) iv += b.inputs[g] * G.price[g];
       const va = b.outAmt * G.price[b.out] - iv;
       const un = clamp(s.unemp / Math.max(1, popTotal(s) * WF), 0, 1);
-      const v = va * (0.8 + Math.random() * 0.4) * (0.55 + un) * (s.stg[b.id] > 0.6 || (b.grp === 'Agricultura') ? 1 : 0.7);
+      const v = va * (0.8 + Math.random() * 0.4) * (0.55 + un) * (s.stg[b.id] > 0.6 || (b.grp === 'Agricultura') ? 1 : 0.7) * (typeof ecoPrio === 'function' ? ecoPrio(c, b) : 1);
       if (v > bestV) { bestV = v; best = {state: s.id, bld: b.id}; }
     });
   }

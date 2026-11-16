@@ -25,7 +25,7 @@ function avUsable() { return typeof nv3Usable === 'function' && nv3Usable() && t
 /* ---------- composición de la escena ---------- */
 function avDemo() {
   const me_ = G.C[G.player], foe = G.tags.filter(t => t !== NONE && t !== G.player && alive(t) && G.C[t].rank <= 12).sort((a, b) => relOf(G.player, a) - relOf(G.player, b))[0] || G.tags.find(t => t !== G.player && alive(t));
-  return {reg: -1, demo: true, a: G.player, b: foe, day: 1, lossA: 3, lossB: 5, A: [{type: 'bomber', n: 40, tag: G.player, mission: 'strat'}, {type: 'fighter', n: 50, tag: G.player, mission: 'sup'}], B: [{type: 'fighter', n: 60, tag: foe, mission: 'intc'}], log: ['Demostración: oleada de bombarderos escoltada contra un objetivo defendido.']};
+  return {reg: -1, demo: true, cond: 'clear', a: G.player, b: foe, day: 1, lossA: 3, lossB: 5, A: [{type: 'bomber', n: 40, tag: G.player, mission: 'strat'}, {type: 'fighter', n: 50, tag: G.player, mission: 'sup'}], B: [{type: 'fighter', n: 60, tag: foe, mission: 'intc'}], log: ['Demostración: oleada de bombarderos escoltada contra un objetivo defendido.']};
 }
 function avBuild(rec) {
   const rnd1 = Math.random, sim = {planes: [], aa: [], bombs: [], t: 0, kills: {A: 0, B: 0}, rec, targetHP: 1}, tot = {A: 0, B: 0};
@@ -36,8 +36,8 @@ function avBuild(rec) {
   ['A', 'B'].forEach(side => rec[side].forEach(sq => {
     const bomber = sq.type === 'bomber', n = clamp(Math.round(sq.n / (bomber ? 6 : 6)), 2, bomber ? 7 : 10), dir = side === 'A' ? 1 : -1;
     for (let i = 0; i < n; i++) {
-      const row = i % 3, col = Math.floor(i / 3), x = -dir * (700 + col * 60 + (bomber ? 0 : 160)) + (rnd1() - 0.5) * 40, z = (row - 1) * 70 + (rnd1() - 0.5) * 30 + (side === 'A' ? -60 : 60) * (bomber ? 0 : 1), y = bomber ? 230 + (rnd1() - 0.5) * 30 : 280 + (rnd1() - 0.5) * 80;
-      sim.planes.push({id: sim.planes.length, side, tag: sq.tag, type: sq.type, bomber, x, y, z, yaw: dir > 0 ? Math.PI / 2 : -Math.PI / 2, hx: x, hz: z, hy: y, state: 'fly', hp: bomber ? 1.6 : 1, v: bomber ? 55 : 80, bombs: bomber && side === atk ? 4 : 0, ph: rnd1(), fire: -9, clipT: 0, turn: 0, lastYaw: 0, tgt: null, cd: rnd1() * 2, role: bomber ? 'bomber' : (side === atk || !atk ? 'escort' : 'inter')});
+      const row = i % 3, col = Math.floor(i / 3), x = -dir * (700 + col * 60 + (bomber ? 0 : 160)) + (rnd1() - 0.5) * 40, z = (row - 1) * 70 + (rnd1() - 0.5) * 30 + (side === 'A' ? -60 : 60) * (bomber ? 0 : 1), y = bomber ? (sq.tac === 'high' ? 380 : sq.tac === 'low' ? 110 : 250) + (rnd1() - 0.5) * 30 : 280 + (rnd1() - 0.5) * 80;
+      sim.planes.push({id: sim.planes.length, side, tag: sq.tag, type: sq.type, bomber, x, y, z, yaw: dir > 0 ? Math.PI / 2 : -Math.PI / 2, hx: x, hz: z, hy: y, state: 'fly', hp: bomber ? 1.6 : 1, v: bomber ? 55 : 80, bombs: bomber && side === atk ? 4 : 0, ph: rnd1(), fire: -9, clipT: 0, turn: 0, lastYaw: 0, tgt: null, cd: rnd1() * 2, role: bomber ? 'bomber' : sq.tac === 'escort' ? 'escort' : sq.tac === 'sweep' ? 'sweep' : sq.tac === 'intercept' ? 'inter' : (side === atk || !atk ? 'escort' : 'inter')});
     }
   }));
   if (atk) { const def = atk === 'A' ? 'B' : 'A', defTag = (rec[def][0] || {}).tag; if (defTag) for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2 + 0.6; sim.aa.push({tag: defTag, x: Math.cos(a) * 70, z: Math.sin(a) * 70, yaw: a, aimT: null, cd: rnd1(), fire: -9, side: def}); } }
@@ -61,10 +61,10 @@ function avStep(dt) {
     if (p.role === 'bomber') { want = Math.atan2(-p.x * 0.0, 1) + (p.side === 'A' ? Math.PI / 2 : -Math.PI / 2); if (p.bombs > 0 && Math.abs(p.x) < 28 && Math.abs(p.z) < 130) { p.dropping = 1; } }
     else {
       let tg = p.tgt && p.tgt.state === 'fly' ? p.tgt : null; p.cd -= dt;
-      if (!tg || p.cd < 0) { p.cd = 1.5 + Math.random(); let best = null, bd = 1e9; live.forEach(q => { if (q.side === p.side) return; const d = avDist(p, q) * (p.role === 'escort' && q.bomber ? 1.6 : 1) * (p.role === 'inter' && q.bomber ? 0.7 : 1); if (d < bd) { bd = d; best = q; } }); p.tgt = best; tg = best; }
+      if (!tg || p.cd < 0) { p.cd = 1.5 + Math.random(); let best = null, bd = 1e9; live.forEach(q => { if (q.side === p.side) return; const d = avDist(p, q) * (p.role === 'escort' && q.bomber ? 1.6 : 1) * (p.role === 'inter' && q.bomber ? 0.7 : 1) * (p.role === 'sweep' && q.bomber ? 1.5 : 1); if (d < bd) { bd = d; best = q; } }); p.tgt = best; tg = best; }
       if (tg) { want = Math.atan2(tg.x - p.x, tg.z - p.z); const d = avDist(p, tg); p.dy = clamp((tg.y - p.y) * 0.01, -0.5, 0.5);
         if (d < 190 && Math.abs(nv3Ang(want - p.yaw)) < 0.22 && p.fire < sim.t - 0.9) { p.fire = sim.t; p.burst = 6; }
-      } else { want = Math.atan2(-p.x * 0.3, -p.z * 0.3 + 1) ; }
+      } else if (p.role === 'escort') { const bm = sim.planes.find(q => q.side === p.side && q.bomber && q.state === 'fly'); want = bm ? Math.atan2(bm.x + (p.id % 2 ? 70 : -70) - p.x, bm.z + 30 - p.z) : p.yaw; } else { want = Math.atan2(-p.x * 0.3, -p.z * 0.3 + 1); }
     }
     if (p.burst > 0) { p.burst -= dt * 10; const tg = p.tgt; if (tg && tg.state === 'fly') { avPart('tracer', p.x, p.y, p.z, Math.sin(p.yaw) * 380 + (Math.random() - .5) * 18, (tg.y - p.y) * 1.2, Math.cos(p.yaw) * 380 + (Math.random() - .5) * 18, 0.28); if (p.burst <= 0.2 && Math.random() < 0.16 * sim.lossK[p.side] * (tg.bomber ? 1.25 : 1)) avHit(tg, 0.55 * (tg.bomber ? 0.75 : 1.15)); } }
     const dyaw = clamp(nv3Ang(want - p.yaw), -1, 1) * Math.min(1, dt * (p.bomber ? 0.5 : 2.2)); p.yaw += dyaw; p.turn += (dyaw / Math.max(dt, 1e-3) - p.turn) * Math.min(1, dt * 4);
@@ -85,9 +85,9 @@ function avStep(dt) {
 function avHit(p, dmg) { if (p.state !== 'fly') return; p.hp -= dmg; avPart('flash', p.x, p.y, p.z, 0, 0, 0, 0.25); if (p.hp <= 0) { p.state = 'burn'; p.burn = 0; p.spin = (Math.random() - .5) * 1.6; p.pit = 0; AV.banner = {text: `💥 ¡Impacto en un ${p.bomber ? 'bombardero' : 'caza'} de ${G.C[p.tag] ? G.C[p.tag].name : '?'}!`, side: p.side, age: 0}; } else if (Math.random() < 0.5) avPart('smoke', p.x, p.y, p.z, 0, 2, 0, 2, {dark: 1}); }
 /* ---------- escena ---------- */
 function avScene() {
-  const S = {scene: new THREE.Scene(), parts: [], sets: {}, st: new Map()}, mood = (AV.rec.reg * 7 + 3 + (AV.rec.a ? AV.rec.a.charCodeAt(0) : 0)) % 3, skyC = [0x9fc2dc, 0xb2b6ba, 0xdcae88][mood], fogC = [0xc9dbe8, 0xc3c6c8, 0xe9cba6][mood];
-  S.scene.background = new THREE.Color(skyC); S.scene.fog = new THREE.Fog(fogC, 700, 3600);
-  const sun = new THREE.DirectionalLight(mood === 2 ? 0xffc890 : 0xfff3dc, 0.95); sun.position.set(-400, mood === 2 ? 220 : 600, -300); S.scene.add(sun, new THREE.AmbientLight(0xffffff, 0.6), new THREE.HemisphereLight(0xd6e8ff, 0x4a5a3a, 0.4));
+  const S = {scene: new THREE.Scene(), parts: [], sets: {}, st: new Map()}, cd = AV.rec.cond || 'clear', mood = cd === 'cloud' ? 1 : cd === 'storm' ? 1 : (AV.rec.reg * 7 + 3 + (AV.rec.a ? AV.rec.a.charCodeAt(0) : 0)) % 3, skyC = cd === 'night' ? 0x0b1220 : cd === 'storm' ? 0x58626a : [0x9fc2dc, 0xb2b6ba, 0xdcae88][mood], fogC = cd === 'night' ? 0x0b1220 : cd === 'storm' ? 0x58626a : [0xc9dbe8, 0xc3c6c8, 0xe9cba6][mood];
+  S.scene.background = new THREE.Color(skyC); S.scene.fog = cd === 'storm' || cd === 'cloud' ? new THREE.Fog(fogC, 300, 1800) : new THREE.Fog(fogC, 700, 3600);
+  const sun = new THREE.DirectionalLight(mood === 2 ? 0xffc890 : 0xfff3dc, 0.95); sun.position.set(-400, mood === 2 ? 220 : 600, -300); if (cd === 'night') { sun.intensity = 0.2; sun.color.setHex(0x8fa8d8); } else if (cd === 'storm') sun.intensity = 0.4; S.scene.add(sun, new THREE.AmbientLight(0xffffff, 0.6), new THREE.HemisphereLight(0xd6e8ff, 0x4a5a3a, 0.4));
   const gnd = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000, 1, 1), new THREE.MeshLambertMaterial({color: 0x6f7a50})); gnd.rotation.x = -Math.PI / 2; S.scene.add(gnd);
   for (let i = 0; i < 90; i++) { const f = new THREE.Mesh(new THREE.PlaneGeometry(60 + Math.random() * 160, 40 + Math.random() * 100), new THREE.MeshLambertMaterial({color: [0x7f8a58, 0x8a8a5a, 0x66744a, 0x9a9468][i % 4]})); f.rotation.x = -Math.PI / 2; f.rotation.z = Math.random() * 3; f.position.set((Math.random() - .5) * 2600, 0.15, (Math.random() - .5) * 2600); S.scene.add(f); }
   // objetivo: fábrica con naves, chimeneas y depósitos

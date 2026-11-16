@@ -14,7 +14,7 @@ const AIR_MISSIONS = {
   strat: {name: 'Bombardeo estratégico', icon: '💣', desc: 'Reduce la producción de los edificios de los estados enemigos de la región.'},
   intc: {name: 'Intercepción', icon: '🛡️', desc: 'Derriba bombarderos enemigos y protege tu región.'}
 };
-const sqPower = s => s.n * (1 + 0.18 * (s.gen || 0)) * (1 + Math.min(0.3, (s.xp || 0) * 0.002));
+const sqPower = s => s.n * (1 + 0.18 * (s.gen || 0)) * (1 + Math.min(0.3, (s.xp || 0) * 0.002)) * (typeof airTacPow === 'function' ? airTacPow(s) : 1);
 const airTypesOf = c => Object.keys(AIR_TYPES).filter(k => hasTech(c, AIR_TYPES[k].tech));
 
 /* ---------- cálculos por región ---------- */
@@ -67,7 +67,7 @@ function airDay() {
       const pa = fa.reduce((n, s) => n + sqPower(s) * (s.type === 'fighter' ? (s.mission === 'sup' || s.mission === 'intc' ? 1 : .5) : .25), 0) * (1 + docMod(a, 'air'));
       const pb = fb.reduce((n, s) => n + sqPower(s) * (s.type === 'fighter' ? (s.mission === 'sup' || s.mission === 'intc' ? 1 : .5) : .25), 0) * (1 + docMod(b, 'air'));
       if (pa <= 0 || pb <= 0) return;
-      const hit = (sq, foeP, ownP, tag) => sq.forEach(s => { const exposed = s.type === 'bomber' && s.mission === 'strat' ? 1.4 : s.mission === 'sup' || s.mission === 'intc' ? 1 : 0.6; const k = clamp(0.012 * foeP / Math.max(30, ownP + 30), 0, 0.06) * exposed * (0.8 + Math.random() * 0.4); const lost = Math.min(s.n, Math.max(s.n > 0 && Math.random() < k * s.n ? 1 : 0, Math.round(s.n * k))); s.n -= lost; s.lost = (s.lost || 0) + lost; s.xp = (s.xp || 0) + 0.4; xpGain(tag, 'air', 0.025); });
+      const hit = (sq, foeP, ownP, tag) => sq.forEach(s => { const exposed = s.type === 'bomber' && s.mission === 'strat' ? 1.4 : s.mission === 'sup' || s.mission === 'intc' ? 1 : 0.6; const tx = typeof airTacExposed === 'function' ? airTacExposed(s, +r) : 1; const k = clamp(0.012 * foeP / Math.max(30, ownP + 30), 0, 0.06) * exposed * tx * (0.8 + Math.random() * 0.4); const lost = Math.min(s.n, Math.max(s.n > 0 && Math.random() < k * s.n ? 1 : 0, Math.round(s.n * k))); s.n -= lost; s.lost = (s.lost || 0) + lost; s.xp = (s.xp || 0) + 0.4; xpGain(tag, 'air', 0.025); });
       hit(fa, pb * (1 + docMod(b, 'intc')), pa, a); hit(fb, pa * (1 + docMod(a, 'intc')), pb, b);
     }));
     // bombardeo estratégico: reduce la producción de los estados enemigos de la región
@@ -76,7 +76,7 @@ function airDay() {
       const states = airReg(+r).states.filter(sid => { const o = G.S[sid].owner; return o !== NONE && hostileTags(s.tag, o); }); if (!states.length) return;
       const foe = states.map(sid => G.S[sid].owner), fpow = airHostileFighters(s.tag, +r), prot = clamp(fpow / Math.max(1, fpow + sqPower(s)), 0, 0.8);
       const sid = states[(G.date.t + s.id) % states.length], S = G.S[sid];
-      S.bomb = Math.min(0.5, (S.bomb || 0) + 0.0012 * sqPower(s) * (1 + docMod(s.tag, 'bomb')) * (1 - prot)); S.bombT = G.date.t; void foe;
+      S.bomb = Math.min(0.5, (S.bomb || 0) + 0.0012 * sqPower(s) * (1 + docMod(s.tag, 'bomb')) * (1 - prot) * (typeof airBombK === 'function' ? airBombK(s, +r) : 1)); if (typeof airFlak === 'function') airFlak(s, +r, states); S.bombT = G.date.t; void foe;
       s.xp = (s.xp || 0) + 0.15; xpGain(s.tag, 'air', 0.015);
     });
   }

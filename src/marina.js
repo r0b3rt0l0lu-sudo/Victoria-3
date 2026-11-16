@@ -241,6 +241,7 @@ function navyHtml() {
     <div class="kv sm"><span>Casco · Poder</span><b>${Math.round(avg * 100)}% · ${f1(fleetPower(f))}</b></div><div class="kv sm"><span>Almirante</span><b>${f.adm.name} (nivel ${f.adm.lvl})</b></div>
     <div class="btnrow"><select data-act="fldock" data-id="${f.id}" data-tip="Lleva la flota a un puerto: allí se repara mucho más rápido (más con astilleros) y queda a salvo, pero no vigila ni protege la zona."><option value="">${f.port != null ? '⚓ Atracada: zarpar o cambiar de puerto…' : '⚓ Llevar a puerto…'}</option>${ps.map(id => `<option value="${id}" ${f.port === id ? 'disabled' : ''}>${G.S[id].name}${(G.S[id].b.shipyard || 0) >= 0.1 ? ' · astillero ' + G.S[id].b.shipyard.toFixed(1) : ''}</option>`).join('')}</select>
     <select data-act="flmove" data-id="${f.id}">${zoneOpts(f.tr ? f.tr.to : f.zone)}</select>
+    ${typeof ntacSelect === 'function' ? ntacSelect(f) : ''}
     <select data-act="flmis" data-id="${f.id}">${Object.keys(NAV_MISSIONS).map(k => `<option value="${k}" ${f.mission === k ? 'selected' : ''}>${NAV_MISSIONS[k].icon} ${NAV_MISSIONS[k].name}</option>`).join('')}</select>
     ${f.mission === 'blockade' || f.mission === 'raid' ? `<select data-act="fltgt" data-id="${f.id}"><option value="">— cualquier enemigo —</option>${G.tags.filter(o => o !== NONE && hostileTags(G.player, o) && alive(o)).map(o => `<option value="${o}" ${f.target === o ? 'selected' : ''}>${G.C[o].name}</option>`).join('')}</select>` : ''}</div></div>`; };
   const q = M.nq.filter(x => x.tag === G.player);

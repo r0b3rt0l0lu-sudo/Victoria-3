@@ -20,7 +20,7 @@ const hashD = (a, b, c) => { let h = (a * 374761393 + b * 668265263 + c * 127412
 function navCond(z, day) { const r = hashD(z + 11, G.date.y * 372 + G.date.m * 31 + G.date.d, 7 + (day || 0)); return r < 0.52 ? 'clear' : r < 0.74 ? 'haze' : r < 0.86 ? 'storm' : 'night'; }
 const hasRadar = tag => G.C[tag] && hasTech(G.C[tag], 'radar');
 function tacOf(fleets) { let best = null, bp = -1; fleets.forEach(f => { const p = fleetPower(f, 'att'); if (p > bp) { bp = p; best = f; } }); return (best && best.tac) || 'standard'; }
-const shipsOf = fl => [].concat(...fl.map(f => f.ships));
+const tcShipsOf = fl => [].concat(...fl.map(f => f.ships));
 const countT = (ships, types) => ships.filter(s => types.includes(s.t)).length;
 function ntacSelect(f) { return `<select data-act="fltac" data-id="${f.id}" data-tip="<b>Táctica en combate</b><br>${Object.keys(NTAC).map(k => NTAC[k].i + ' ' + NTAC[k].n + ': ' + NTAC[k].d).join('<br>').replace(/"/g, '&quot;')}">${Object.keys(NTAC).map(k => `<option value="${k}" ${(f.tac || 'standard') === k ? 'selected' : ''}>${NTAC[k].i} ${NTAC[k].n}</option>`).join('')}</select>`; }
 Object.assign(ACT, {
@@ -29,7 +29,7 @@ Object.assign(ACT, {
 });
 /* ---------- el combate naval ---------- */
 navalBattle = function (z, a, fa, pa, b, fb, pb) {
-  const day = (mx().nb && mx().nb[z] ? mx().nb[z].day : 0) + 1, cond = navCond(z, Math.floor(day / 3)), SA = shipsOf(fa), SB = shipsOf(fb), tA = tacOf(fa), tB = tacOf(fb), ra = hasRadar(a), rb = hasRadar(b), log = [];
+  const day = (mx().nb && mx().nb[z] ? mx().nb[z].day : 0) + 1, cond = navCond(z, Math.floor(day / 3)), SA = tcShipsOf(fa), SB = tcShipsOf(fb), tA = tacOf(fa), tB = tacOf(fb), ra = hasRadar(a), rb = hasRadar(b), log = [];
   { const M0 = mx(); fa.concat(fb).forEach(f => f.ships.forEach(s => { if (!s.id) s.id = M0.nsid = (M0.nsid || 0) + 1; })); }
   const admK = fl => 1 + 0.03 * ((fl.reduce((n, f) => Math.max(n, f.adm.lvl), 1)) - 1);
   // eficacia de cada bando

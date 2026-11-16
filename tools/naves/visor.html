@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Visor naves3d</title>
+<style>
+:root{--bg:#12181d;--panel:#1b232a;--text:#e8e0c8;--dim:#a89f88;--gold:#c9a24a;--goldd:#6b5726}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/1.4 system-ui,sans-serif}
+#app{display:grid;grid-template-columns:280px 1fr;height:100%}
+#side{background:linear-gradient(var(--panel),var(--bg));border-right:1px solid var(--goldd);padding:12px;overflow:auto}
+h1{font:700 18px Georgia,serif;margin:0 0 10px;color:var(--gold)}
+label{display:block;margin:9px 0 3px;color:var(--dim);font-size:12px}
+select,input[type=range]{width:100%}select{background:#1d262d;color:var(--text);border:1px solid var(--goldd);border-radius:5px;padding:5px}
+button{margin-top:8px;width:100%;padding:7px;background:linear-gradient(#e8cf85,#a6832f);color:#1d1606;border:0;border-radius:5px;font:700 13px Georgia,serif;cursor:pointer}
+#view{position:relative}canvas{display:block;width:100%;height:100%}
+#hud{position:absolute;left:10px;top:10px;background:rgba(18,24,29,.85);border:1px solid var(--goldd);border-radius:6px;padding:6px 10px;color:var(--dim);max-width:560px}
+#ev{position:absolute;right:10px;top:10px;background:rgba(18,24,29,.85);border:1px solid var(--goldd);border-radius:6px;padding:6px 10px;color:var(--gold);min-width:140px;font-family:ui-monospace,monospace;font-size:12px}
+.row{display:flex;gap:6px}.row>*{flex:1}
+@media (max-width:700px){#app{grid-template-columns:1fr;grid-template-rows:auto 60vh}#side{max-height:40vh}}
+</style></head><body><div id="app">
+<div id="side"><h1>naves3d</h1>
+<label>Unidad</label><select id="kind"></select>
+<label>Nación</label><select id="nat"><option>GBR</option><option>GER</option><option>JPN</option><option>USA</option><option>FRA</option><option>ITA</option><option>SOV</option><option value="ZON">zonas (depuración)</option></select>
+<label>Clip</label><select id="clip"></select>
+<label>LOD</label><select id="lod"><option value="0">LOD0</option><option value="1">LOD1</option><option value="2">LOD2</option></select>
+<label>Rumbo de torres / torretas: <span id="yv"></span></label><input id="yaw" type="range" min="-180" max="180" value="40">
+<label>Elevación: <span id="ev2"></span></label><input id="elev" type="range" min="-10" max="85" value="15">
+<label><input id="rest" type="checkbox"> reposo (sin blanco)</label>
+<label>Velocidad de hélice (rad/s)</label><input id="spin" type="range" min="0" max="160" value="40">
+<button id="replay">Repetir clip</button>
+<button id="fleet">Flota de prueba (24 buques + 80 aviones)</button>
+</div>
+<div id="view"><canvas id="c"></canvas><div id="hud"></div><div id="ev"></div></div></div>
+<script src="three.min.js"></script><script src="naves3d.js"></script>
+<script>
+const N = naves3d, $ = s => document.querySelector(s);
+N.NAVES_NAC.ZON = {nombre: 'Zonas', band: '#2a9a3a', '2': {mar: {c: ['#d23a2a', '#e8902a', '#7a3aa8', '#e8d23a'], ens: ['vert', '#2ac8d8', '#1a8a9a', '#0a4a5a']}, aire: {c: ['#d23a2a', '#e8902a', '#7a3aa8', '#e8d23a'], marca: ['roundel', '#1a3ad8', '#6a8aff', '#0a1a6a'], id: '#ff5ac8'}, tierra: {c: ['#d23a2a', '#e8902a', '#7a3aa8', '#e8d23a']}}};
+const canvas = $('#c'), R = new THREE.WebGLRenderer({canvas, antialias: true}); R.outputColorSpace = THREE.SRGBColorSpace; R.setPixelRatio(Math.min(2, devicePixelRatio));
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#9fb0b8'); scene.fog = new THREE.Fog('#9fb0b8', 900, 4000);
+const sun = new THREE.DirectionalLight(0xfff0d8, 0.85); sun.position.set(-60, 90, 40); scene.add(sun); scene.add(new THREE.AmbientLight(0xffffff, 0.78));
+const sea = new THREE.Mesh(new THREE.PlaneGeometry(8000, 8000), new THREE.MeshLambertMaterial({color: 0x46677a, transparent: true, opacity: 0.8})); sea.rotation.x = -Math.PI / 2; scene.add(sea);
+const ground = new THREE.Mesh(new THREE.CircleGeometry(6, 32), new THREE.MeshLambertMaterial({color: 0x8a8460})); ground.rotation.x = -Math.PI / 2; ground.position.y = 0.01; scene.add(ground);
+const cam = new THREE.PerspectiveCamera(35, 1, 0.1, 9000);
+const shared = new N.NaveShared(['GBR', 'GER', 'JPN', 'USA', 'FRA', 'ITA', 'SOV', 'ZON']);
+Object.keys(N.NAVE_KINDS).forEach(k => $('#kind').add(new Option(N.NAVE_KINDS[k].nombre, k)));
+let batch = null, info = null, t0 = 0, orbit = {th: 0.8, ph: 0.35, r: 100}, fleet = null, lastPh = 0;
+function setup() {
+  if (batch) { scene.remove(batch.mesh); batch.dispose(); }
+  const k = $('#kind').value, n = $('#nat').value; info = N.buildNave(k, '2', {nation: n});
+  const prev = $('#clip').value; $('#clip').innerHTML = ''; info.clips.forEach(c => $('#clip').add(new Option(c, c))); if (info.clips.includes(prev)) $('#clip').value = prev;
+  batch = new N.NaveBatch(shared, k, '2', n, 1, {lod: +$('#lod').value}); scene.add(batch.mesh);
+  const air = info.rig === 'avion', aa = info.rig === 'aa'; sea.visible = !aa; ground.visible = aa;
+  batch.add(0, air ? 30 : 0, 0, 0, 1, n, $('#clip').value, {phase: 0, start: shared.U.uTime.value, bright: 0.5}); t0 = shared.U.uTime.value;
+  const L = info.longitud || 6; orbit.r = Math.max(8, L * 1.3); cam.far = Math.max(2000, L * 30); cam.updateProjectionMatrix();
+  aim(); hud();
+}
+function aim() { const y = +$('#yaw').value * Math.PI / 180, e = $('#rest').checked ? -1 : +$('#elev').value * Math.PI / 180; $('#yv').textContent = $('#yaw').value + '°'; $('#ev2').textContent = $('#rest').checked ? 'reposo' : $('#elev').value + '°';
+  if (batch && batch.mesh.count) { batch.setAim(0, y, e, y, e); batch.setSpin(0, +$('#spin').value); } }
+function hud() { const l = info.lod.map(x => x.tris).join(' / '), K = N.NAVE_KINDS[info.kind]; $('#hud').innerHTML = `<b style="color:#e8e0c8">${K.nombre}</b> · ${info.modelo} · ${l} triángulos (límite ${K.lim.join(' / ')})<br>${info.nota}`; }
+['#kind', '#nat', '#lod'].forEach(s => $(s).onchange = setup);
+$('#clip').onchange = () => { batch.setClip(0, $('#clip').value, shared.U.uTime.value, true); t0 = shared.U.uTime.value; };
+$('#replay').onclick = () => { batch.setClip(0, $('#clip').value, shared.U.uTime.value, false); t0 = shared.U.uTime.value; };
+['#yaw', '#elev', '#rest', '#spin'].forEach(s => $(s).oninput = aim);
+let drag = null; canvas.onpointerdown = e => { drag = [e.clientX, e.clientY]; canvas.setPointerCapture(e.pointerId); }; canvas.onpointerup = () => { drag = null; };
+canvas.onpointermove = e => { if (!drag) return; orbit.th -= (e.clientX - drag[0]) * 0.008; orbit.ph = Math.min(1.5, Math.max(-1.2, orbit.ph + (e.clientY - drag[1]) * 0.006)); drag = [e.clientX, e.clientY]; };
+canvas.onwheel = e => { e.preventDefault(); orbit.r *= Math.exp(e.deltaY * 0.001); };
+$('#fleet').onclick = () => {
+  if (fleet) { fleet.forEach(s => s.meshes.forEach(m => scene.remove(m))); fleet = null; return; }
+  fleet = []; const units = []; [['acorazado', 6], ['destructor', 8], ['submarino', 4], ['portaaviones', 6], ['caza', 50], ['bombardero_pesado', 30]].forEach(([k, n]) => { for (let i = 0; i < n; i++) { const nat = ['GBR', 'GER', 'JPN'][i % 3]; let s = fleet.find(f => f.key === k + nat); if (!s) { s = new N.NaveLodSet(shared, k, '2', nat, 64); s.key = k + nat; s.meshes.forEach(m => scene.add(m)); fleet.push(s); } const air = N.NAVE_KINDS[k].clase === 'aereo'; units.push({s, nat, air, x: (Math.random() - 0.5) * 2400, z: (Math.random() - 0.5) * 1600, y: air ? 150 + Math.random() * 200 : 0, yaw: Math.random() * 6.28, clip: air ? 'vuelo_nivelado' : 'navegar_marejada', ph: Math.random()}); } });
+  fleet.units = units; orbit.r = 2200;
+};
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now; shared.update(shared.U.uTime.value + dt);
+  const w = canvas.clientWidth, h = canvas.clientHeight; if (canvas.width !== Math.floor(w * R.getPixelRatio())) { R.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
+  const tg = new THREE.Vector3(0, info && info.rig === 'avion' ? 30 : info && info.rig === 'aa' ? 1 : 5, 0);
+  cam.position.set(tg.x + orbit.r * Math.cos(orbit.ph) * Math.sin(orbit.th), tg.y + orbit.r * Math.sin(orbit.ph), tg.z + orbit.r * Math.cos(orbit.ph) * Math.cos(orbit.th)); cam.lookAt(tg);
+  if (fleet) { fleet.forEach(s => s.begin()); const T = shared.U.uTime.value; fleet.units.forEach(u => { u.x += Math.sin(u.yaw) * (u.air ? 1 : 0.13); u.z += Math.cos(u.yaw) * (u.air ? 1 : 0.13); u.yaw += u.air ? 0.004 : 0.0005; const d = cam.position.distanceTo(new THREE.Vector3(u.x, u.y, u.z)) / (u.air ? 8 : 1); u.s.add(d, u.x, u.y, u.z, u.yaw, u.air ? 3 : 0.45, u.nat, u.clip, {phase: u.ph, bright: 0.5, aim: [Math.sin(T * 0.3 + u.ph * 6) * 2, 0.2, T % 6.28, 0.6], spin: 140, roll: 0.2}); }); }
+  if (batch && info) { const c = $('#clip').value, ci = N.clipInfo(info.kind, c); if (ci) { const ph = N.clipPhase(info.kind, c, shared.U.uTime.value, ci.loop ? 0 : t0); N.eventsBetween(info.kind, c, lastPh, ph, n => { $('#ev').textContent = '▸ ' + n; }); lastPh = ph; } }
+  R.render(scene, cam); requestAnimationFrame(loop);
+}
+setup(); requestAnimationFrame(loop);
+</script></body></html>

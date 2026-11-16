@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Hoja naves3d</title>
+<style>
+html,body{margin:0;background:#e9e4d6;font-family:Georgia,serif;color:#2a2620}
+#wrap{position:relative}
+canvas{display:block}
+.lb{position:absolute;font:11.5px/1.25 system-ui,sans-serif;color:#2a2620;pointer-events:none;text-shadow:0 0 3px #fffaf0}
+.lb b{font-weight:700}
+.rh{position:absolute;font:600 13px Georgia,serif;color:#3a3226;writing-mode:vertical-rl;transform:rotate(180deg);text-align:center}
+.ch{position:absolute;font:600 13px Georgia,serif;color:#3a3226;text-align:center}
+.tt{position:absolute;left:16px;top:10px;font:700 20px Georgia,serif;color:#2a2620}
+.st{position:absolute;left:16px;top:36px;font:12.5px system-ui,sans-serif;color:#5a5242}
+.ft{position:absolute;left:16px;font:11.5px system-ui,sans-serif;color:#5a5242;max-width:1800px}
+</style></head><body><div id="wrap"><canvas id="c"></canvas></div>
+<script src="three.min.js"></script><script src="naves3d.js"></script><script src="troops3d.js"></script>
+<script>
+// banderas de muestra (el juego usa b3FlagTex(tag) → flagSVG): ensign británico, alemán sin esvástica (decisión de diseño) y japonés
+function demoFlag(tag) {
+  const cv = document.createElement('canvas'); cv.width = 192; cv.height = 120; const g = cv.getContext('2d'), W = 192, H = 120;
+  if (tag === 'GBR') { g.fillStyle = '#f2f0ea'; g.fillRect(0, 0, W, H); g.fillStyle = '#c8102e'; g.fillRect(W * 0.46, 0, W * 0.08, H); g.fillRect(0, H * 0.43, W, H * 0.14); g.fillStyle = '#1e2a6a'; g.fillRect(0, 0, W * 0.46, H * 0.43);
+    g.strokeStyle = '#f2f0ea'; g.lineWidth = 9; g.beginPath(); g.moveTo(0, 0); g.lineTo(W * 0.46, H * 0.43); g.moveTo(W * 0.46, 0); g.lineTo(0, H * 0.43); g.stroke(); g.strokeStyle = '#c8102e'; g.lineWidth = 3; g.stroke();
+    g.fillStyle = '#f2f0ea'; g.fillRect(W * 0.19, 0, W * 0.08, H * 0.43); g.fillRect(0, H * 0.16, W * 0.46, H * 0.11); g.fillStyle = '#c8102e'; g.fillRect(W * 0.21, 0, W * 0.04, H * 0.43); g.fillRect(0, H * 0.185, W * 0.46, H * 0.06); }
+  else if (tag === 'GER') { ['#141414', '#f2f0ea', '#c8202a'].forEach((c, i) => { g.fillStyle = c; g.fillRect(0, i * H / 3, W, H / 3 + 1); }); }
+  else if (tag === 'JPN') { g.fillStyle = '#f2f0ea'; g.fillRect(0, 0, W, H); const cx = W * 0.42, cy = H / 2; g.fillStyle = '#bc002d'; for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2, b = a + Math.PI / 32; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(a) * 300, cy + Math.sin(a) * 300); g.lineTo(cx + Math.cos(b) * 300, cy + Math.sin(b) * 300); g.fill(); } g.beginPath(); g.arc(cx, cy, H * 0.28, 0, 7); g.fill(); }
+  else { g.fillStyle = '#888'; g.fillRect(0, 0, W, H); }
+  return cv;
+}
+const N = naves3d, T = window.Troops3D;
+const canvas = document.getElementById('c'), R = new THREE.WebGLRenderer({canvas, antialias: true, preserveDrawingBuffer: true}); R.outputColorSpace = THREE.SRGBColorSpace; R.setPixelRatio(1); R.autoClear = false;
+N.NAVES_NAC.ZON = {nombre: 'Zonas', band: '#2a9a3a', '2': {mar: {c: ['#d23a2a', '#e8902a', '#7a3aa8', '#e8d23a'], ens: ['vert', '#2ac8d8', '#1a8a9a', '#0a4a5a']}, aire: {c: ['#d23a2a', '#e8902a', '#7a3aa8', '#e8d23a'], marca: ['roundel', '#1a3ad8', '#6a8aff', '#0a1a6a'], id: '#ff5ac8'}, tierra: {c: ['#d23a2a', '#e8902a', '#7a3aa8', '#e8d23a']}}};
+const shared = new N.NaveShared(['GBR', 'GER', 'JPN', 'USA', 'FRA', 'ITA', 'SOV', 'ZON'], {flagSource: t => t === 'ZON' ? null : demoFlag(t)});
+const tshared = T ? new T.TroopShared(['GBR', 'GER', 'JPN'], {eras: ['E']}) : null;
+function lights(s) { const sun = new THREE.DirectionalLight(0xfff0d8, 0.85); sun.position.set(-60, 90, 40); s.add(sun); s.add(new THREE.AmbientLight(0xffffff, 0.78)); }
+const VIEWS = {'34': [0.9, 0.5, 1.0], perfil: [-1, 0.06, 0.0001], planta: [0.0001, 1, 0], frente: [0, 0.12, 1], popa34: [-0.9, 0.55, -1], abajo: [0.0001, -1, 0], perfilb: [1, 0.06, 0.0001]};
+const cells = [];
+// spec = {title, sub, cols: [títulos], rows: [títulos], cw, ch, x0, y0, cells: [{r, c, kind, nation, view, clip, t, aim, lod, label, zones, sea, troops: [{kind, role, clip, x, z, yaw, t}], zoom, fit, pitch, roll}] , foot}
+function build(spec) {
+  const W = spec.x0 + spec.cols.length * spec.cw + 10, H = spec.y0 + spec.rows.length * spec.ch + (spec.footH || 60);
+  R.setSize(W, H); const wrap = document.getElementById('wrap'); wrap.style.width = W + 'px'; wrap.style.height = H + 'px';
+  const add = (cls, html, css) => { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; Object.assign(d.style, css); wrap.appendChild(d); };
+  add('tt', spec.title, {}); add('st', spec.sub || '', {});
+  spec.cols.forEach((t, i) => add('ch', t, {left: spec.x0 + i * spec.cw + 'px', top: spec.y0 - 22 + 'px', width: spec.cw + 'px'}));
+  spec.rows.forEach((t, i) => add('rh', t, {left: '8px', top: spec.y0 + i * spec.ch + 'px', height: spec.ch + 'px', width: '20px'}));
+  if (spec.foot) add('ft', spec.foot, {top: spec.y0 + spec.rows.length * spec.ch + 8 + 'px'});
+  spec.cells.forEach(c => {
+    if (c.troop) { const scene = new THREE.Scene(); lights(scene); const tci = T.clipInfo(c.troop, c.clip); const tb = new T.TroopBatch(tshared, c.troop, 'E', c.nation, 1, {lod: c.lod || 0}); tb.add(0, 0, 0, (c.yaw || 0) * Math.PI / 180, 1, c.nation, c.clip, {phase: c.t || 0, start: 0, h: 0, bright: 0.5}); scene.add(tb.mesh);
+      if (c.ground !== false) { const gr = new THREE.Mesh(new THREE.CircleGeometry(4, 24), new THREE.MeshLambertMaterial({color: 0x8a8460})); gr.rotation.x = -Math.PI / 2; gr.position.y = (c.gy || 0) - 0.01; scene.add(gr); }
+      const bx = c.box || [-0.6, 0, -0.6, 0.6, 1.9, 0.6], bb = new THREE.Box3(new THREE.Vector3(bx[0], bx[1], bx[2]), new THREE.Vector3(bx[3], bx[4], bx[5])), tgt = bb.getCenter(new THREE.Vector3());
+      const v = VIEWS[c.view || '34'], cam = new THREE.PerspectiveCamera(24, spec.cw / spec.ch, 0.05, 500), dir = new THREE.Vector3(v[0], v[1], v[2]).normalize(), sz = bb.getSize(new THREE.Vector3()).length();
+      cam.position.copy(tgt).addScaledVector(dir, sz * 1.25 / Math.tan(12 * Math.PI / 180) / 2); cam.lookAt(tgt);
+      cells.push({c, scene, cam, time: 0, x: spec.x0 + c.c * spec.cw, y: spec.y0 + c.r * spec.ch, w: spec.cw, h: spec.ch, H, tt: tci && !tci.loop ? (c.t || 0) * tci.dur : 0});
+      if (c.label) add('lb', c.label, {left: spec.x0 + c.c * spec.cw + 6 + 'px', top: spec.y0 + c.r * spec.ch + spec.ch - 34 + 'px', width: spec.cw - 12 + 'px'}); return; }
+    const scene = new THREE.Scene(); lights(scene); const info = N.buildNave(c.kind, c.era || '2', {nation: c.nation}), b = new N.NaveBatch(shared, c.kind, c.era || '2', c.nation, 1, {lod: c.lod || 0}); scene.add(b.mesh);
+    const ci = N.clipInfo(c.kind, c.clip || (info.rig === 'buque' ? 'fondeado' : info.rig === 'avion' ? 'vuelo_nivelado' : 'reposo'));
+    b.add(0, 0, 0, 0, 1, c.nation, c.clip || (info.rig === 'buque' ? 'fondeado' : info.rig === 'avion' ? 'vuelo_nivelado' : 'reposo'), {start: 0, phase: 0, bright: 0.5, aim: c.aim, spin: c.spin != null ? c.spin : undefined, pitch: c.pitch, roll: c.roll});
+    if (c.zones) shared.U.uDebug.value = 0;
+    const L = info.longitud || 4, Bm = info.manga || 4, isShip = info.rig === 'buque', size = Math.max(L, Bm);
+    if (isShip && c.sea !== false) { const sea = new THREE.Mesh(new THREE.PlaneGeometry(size * 3, size * 3), new THREE.MeshBasicMaterial({color: 0x47677a, transparent: true, opacity: 0.55, depthWrite: false})); sea.rotation.x = -Math.PI / 2; sea.position.y = 0.05; sea.renderOrder = 2; scene.add(sea); }
+    if (c.troops && tshared) c.troops.forEach(tp => { const tb = new T.TroopBatch(tshared, tp.kind, 'E', c.nation, 1, {role: tp.role}); tb.add(tp.x, 0, tp.z, (tp.yaw || 0) * Math.PI / 180, 1, c.nation, tp.clip || 'idle', {phase: tp.t || 0, start: 0, h: 0, bright: 0.5, skin: c.nation === 'JPN' ? 1 : 0}); scene.add(tb.mesh); });
+    if (c.ground) { const gr = new THREE.Mesh(new THREE.CircleGeometry(size * 0.9, 24), new THREE.MeshLambertMaterial({color: 0x8a8460})); gr.rotation.x = -Math.PI / 2; gr.position.y = -0.02; scene.add(gr); }
+    const v = VIEWS[c.view || '34'], cam = new THREE.PerspectiveCamera(c.fov || 24, spec.cw / spec.ch, 0.1, 5000), dir = new THREE.Vector3(v[0], v[1], v[2]).normalize();
+    const gg = info.lod[0].geometry; gg.computeBoundingBox(); const bb = gg.boundingBox.clone(); if (isShip) bb.min.y = Math.max(bb.min.y, -2);
+    const tgt = bb.getCenter(new THREE.Vector3()); if (c.tz != null) tgt.z = c.tz; if (c.ty != null) tgt.y = c.ty;
+    cam.position.copy(tgt).addScaledVector(dir, 100); if (c.view === 'planta' || c.view === 'abajo') cam.up.set(c.view === 'abajo' ? -1 : 1, 0, 0); cam.lookAt(tgt); cam.updateMatrixWorld();
+    const th = Math.tan(cam.fov / 2 * Math.PI / 180), tw = th * cam.aspect, inv = cam.matrixWorldInverse; let need = 0;
+    for (let i = 0; i < 8; i++) { const p = new THREE.Vector3(i & 1 ? bb.max.x : bb.min.x, i & 2 ? bb.max.y : bb.min.y, i & 4 ? bb.max.z : bb.min.z).applyMatrix4(inv); const zc = 100 + p.z; need = Math.max(need, zc + Math.abs(p.x) / tw, zc + Math.abs(p.y) / th); }
+    const d = need * 1.12 / (c.zoom || 1); cam.position.copy(tgt).addScaledVector(dir, d); cam.lookAt(tgt);
+    const dur = ci ? ci.dur : 1; cells.push({c, scene, cam, b, time: (c.t || 0) * dur, x: spec.x0 + c.c * spec.cw, y: spec.y0 + c.r * spec.ch, w: spec.cw, h: spec.ch, H, zones: c.zones, tt: c.tt || 0 });
+    if (c.label) add('lb', c.label, {left: spec.x0 + c.c * spec.cw + 6 + 'px', top: spec.y0 + c.r * spec.ch + spec.ch - 34 + 'px', width: spec.cw - 12 + 'px'});
+  });
+  render();
+}
+function render() {
+  R.setScissorTest(false); R.setClearColor(0xe9e4d6); R.clear(); R.setScissorTest(true);
+  cells.forEach(k => { const y = k.H - k.y - k.h; R.setViewport(k.x + 2, y + 2, k.w - 4, k.h - 4); R.setScissor(k.x + 2, y + 2, k.w - 4, k.h - 4); R.setClearColor(k.c.bg || (k.c.sky ? 0xc9d6dc : 0xdcdccf)); R.clear();
+    shared.U.uTime.value = k.time; shared.U.uDebug.value = k.zones ? 1 : 0; if (tshared) tshared.timeU.value = k.tt; R.render(k.scene, k.cam); });
+}
+window.build = build;
+</script></body></html>

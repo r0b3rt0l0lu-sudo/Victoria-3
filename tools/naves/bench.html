@@ -1,0 +1,27 @@
+<!doctype html><html><head><meta charset="utf-8"><title>bench naves3d</title></head><body style="margin:0;background:#888">
+<canvas id="c" width="1280" height="720"></canvas>
+<script src="three.min.js"></script><script src="naves3d.js"></script>
+<script>
+const N = naves3d, R = new THREE.WebGLRenderer({canvas: document.getElementById('c')}); R.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene(); scene.add(new THREE.AmbientLight(0xffffff, 0.8)); const sun = new THREE.DirectionalLight(0xffffff, 0.8); sun.position.set(-1, 2, 1); scene.add(sun);
+const cam = new THREE.PerspectiveCamera(45, 16 / 9, 1, 20000); cam.position.set(0, 900, 1800); cam.lookAt(0, 0, 0);
+const t0 = performance.now(); const shared = new N.NaveShared(['GBR', 'GER', 'JPN']); const tBake = performance.now() - t0;
+const NAT = ['GBR', 'GER', 'JPN'], sets = {}, units = [];
+const plan = [['acorazado', 6], ['destructor', 8], ['submarino', 4], ['portaaviones', 6], ['caza', 50], ['bombardero_pesado', 30]];
+const t1 = performance.now();
+plan.forEach(([k, n]) => { for (let i = 0; i < n; i++) { const nat = NAT[i % 3], key = k + nat; if (!sets[key]) { sets[key] = new N.NaveLodSet(shared, k, '2', nat, 64); sets[key].meshes.forEach(m => scene.add(m)); }
+  const air = N.NAVE_KINDS[k].clase === 'aereo'; units.push({set: sets[key], k, nat, air, x: (Math.random() - 0.5) * 2400, z: (Math.random() - 0.5) * 1600, y: air ? 150 + Math.random() * 200 : 0, yaw: Math.random() * 6.28, sp: air ? 60 : 8, clip: air ? (i % 4 ? 'vuelo_nivelado' : 'viraje_izquierda') : (i % 3 ? 'navegar_marejada' : 'fuego_artilleria'), ph: Math.random()}); } });
+const tBuild = performance.now() - t1;
+let cpu = [], gpu = [], frames = 0, time = 0;
+function frame() {
+  const a = performance.now(); time += 1 / 60; shared.update(time);
+  for (const k in sets) sets[k].begin();
+  for (const u of units) { u.x += Math.sin(u.yaw) * u.sp / 60; u.z += Math.cos(u.yaw) * u.sp / 60; u.yaw += u.air ? 0.004 : 0.0005;
+    const d = window.forceLod0 ? 0 : Math.hypot(u.x - cam.position.x, u.y - cam.position.y, u.z - cam.position.z) / (u.air ? 8 : 1);
+    const li = u.set.add(d, u.x, u.y, u.z, u.yaw, u.air ? 3 : 0.45, u.nat, u.clip, {phase: u.ph, start: 0, bright: 0.5, aim: [Math.sin(time * 0.3 + u.ph * 6) * 2, 0.2, time % 6.28, 0.6], spin: u.air ? 140 : 0, roll: u.air ? 0.2 : 0}); }
+  const b = performance.now(); R.render(scene, cam); const c = performance.now(); cpu.push(b - a); gpu.push(c - b); frames++;
+}
+window.runBench = n => { cpu = []; gpu = []; for (let i = 0; i < n; i++) frame(); const avg = v => v.reduce((s, x) => s + x, 0) / v.length; const lv = [0, 0, 0]; Object.values(sets).forEach(s => s.batches.forEach((b, l) => { lv[l] += b.mesh.count; }));
+  return {bakeMs: +tBake.toFixed(1), buildMs: +tBuild.toFixed(1), instancias: units.length, lotes: Object.keys(sets).length * 3, cpuMsMedio: +avg(cpu).toFixed(3), cpuMsMax: +Math.max(...cpu).toFixed(3), renderMsMedio_swiftshader: +avg(gpu).toFixed(1),
+    drawCalls: R.info.render.calls, triangulos: R.info.render.triangles, porLOD: lv, texHuesos: shared.baked.W + '×' + shared.baked.H + ' (' + (shared.baked.bytes / 1048576).toFixed(2) + ' MB)', programas: R.info.programs.length}; };
+</script></body></html>

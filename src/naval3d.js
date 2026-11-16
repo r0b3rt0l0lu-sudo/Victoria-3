@@ -4,7 +4,7 @@
    Se dibuja con el renderizador del mapa en una esquina y se copia al lienzo del panel (igual que el visor 3D de tierra); el HUD 2D va encima.
    Cámara: arrastrar = girar · botón derecho = mover · rueda = zoom · doble clic = vista inicial. Se activa con el botón «Vista 3D» (comparte opción con la batalla terrestre). */
 const N3 = {S: null, active: false, cam: {yaw: 0, pit: 0.3, d: 300, tx: 0, tz: 0}, drag: null, lt: 0, auto: true};
-const N3_Z = 3.6, N3_Z0 = 170;               // y del visor 2D → profundidad (z) del mundo 3D
+const N3_Z = 5.5, N3_Z0 = 170;               // y del visor 2D → profundidad (z) del mundo 3D
 const n3W = (x, y) => [x - NV_W / 2, (y - N3_Z0) * N3_Z];
 function n3Mat(c, o) { return new THREE.MeshStandardMaterial(Object.assign({color: c, roughness: 0.75, metalness: 0.15}, o || {})); }
 function n3Shared() {

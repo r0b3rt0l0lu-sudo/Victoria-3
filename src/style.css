@@ -878,3 +878,5 @@ body.pl.win-open #menu,body.pl.win-open #camctl,body.pl.win-open #mapctl{display
 .tabs-g{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}.tabs-g .gtab{flex:1 1 auto;min-width:96px;font-weight:700;letter-spacing:.04em}
 .tabs-sub{display:flex;gap:4px;flex-wrap:wrap;padding:6px 8px;margin-bottom:10px;background:rgba(0,0,0,.18);border-radius:8px}
 body.phone .tabs-g{overflow-x:auto;flex-wrap:nowrap}body.phone .tabs-g .gtab{flex:none}
+#airpanel{position:fixed;left:50%;top:2.5vh;transform:translateX(-50%);width:min(1240px,96vw);max-height:95vh;overflow-y:auto;background:linear-gradient(180deg,rgba(24,34,44,.98),rgba(16,22,30,.98));border:1px solid #4a7a9a;border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,.75);display:none;padding:12px;z-index:37}
+#airpanel.open{display:block}#airpanel canvas{width:100%;height:auto;display:block;border-radius:6px;background:#9fc2dc}

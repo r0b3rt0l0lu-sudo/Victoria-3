@@ -33,25 +33,29 @@ navalBattle = function (z, a, fa, pa, b, fb, pb) {
   { const M0 = mx(); fa.concat(fb).forEach(f => f.ships.forEach(s => { if (!s.id) s.id = M0.nsid = (M0.nsid || 0) + 1; })); }
   const admK = fl => 1 + 0.03 * ((fl.reduce((n, f) => Math.max(n, f.adm.lvl), 1)) - 1);
   // eficacia de cada bando
-  const eff = (own, ownTag, ownT, foeT, foeRadar, ownRadar, fl) => {
+  const eff = (own, ownTag, ownT, foeT, foeRadar, ownRadar, fl, foeShips) => {
     let att = NTAC[ownT].att, rec = NTAC[ownT].rec; const adm = admK(fl);
     if (cond === 'haze') { if (ownT === 'distance') att *= ownRadar ? 1 : 0.8; att *= ownRadar && !foeRadar ? 1.12 : 1; }
     if (cond === 'storm') att *= 0.8;
     if (cond === 'night') { att *= ownRadar ? (foeRadar ? 0.95 : 1.2) : (foeRadar ? 0.7 : 0.85); if (ownT === 'distance' && !ownRadar) att *= 0.8; }
+    const bigOwn = countT(own, ['bb', 'dread', 'ironclad']), bigFoe = countT(foeShips, ['bb', 'dread', 'ironclad']);
+    if (ownT === 'distance' && bigOwn > bigFoe) { att *= 1.12; rec *= 0.9; }                       // más artillería pesada: la distancia favorece
+    if (ownT === 'aggressive' && cond !== 'haze' && bigFoe > bigOwn + 1 && foeT !== 'torpedo') { rec *= 1.1; }
+    if (ownT === 'aggressive' && (cond === 'haze' || cond === 'night') && !foeRadar) { att *= 1.1; rec *= 0.95; }       // cerrar con mala visibilidad sorprende
     if (ownT === 'distance' && foeT === 'aggressive') { rec = 1; att *= 0.85; }                       // el que cierra anula la ventaja de la distancia
     if (ownT === 'aggressive' && foeT === 'distance') { rec *= 1.1; }                               // pero paga por acercarse
     att *= adm; if (ownT !== 'standard') { att = 1 + (att - 1) * adm; rec = 1 + (rec - 1) / adm; }
     return {att, rec};
   };
-  const eA = eff(SA, a, tA, tB, rb, ra, fa), eB = eff(SB, b, tB, tA, ra, rb, fb);
+  const eA = eff(SA, a, tA, tB, rb, ra, fa, SB), eB = eff(SB, b, tB, tA, ra, rb, fb, SA);
   // portaaviones: sin operaciones aéreas con tormenta o de noche
   const carrierK = cond === 'storm' ? 0.3 : cond === 'night' ? 0.35 : cond === 'haze' ? 0.8 : 1;
   const powAdj = (fl, k) => fl.reduce((n, f) => n + f.ships.reduce((m, s) => m + shipPow(s, 'att') * (s.t === 'carrier' ? carrierK : 1), 0) * (1 + 0.04 * ((f.adm && f.adm.lvl) || 1) - 0.04) * (1 + docMod(f.tag, 'nav')), 0) * k;
   const paA = powAdj(fa, eA.att), pbB = powAdj(fb, eB.att);
   // torpedos y antisubmarina
-  const torpPow = (S, T, tac) => { const dd = countT(S, ['destroyer']), sb = countT(S, ['sub']); const base = dd * 0.8 + sb * 1.1; const m = tac === 'torpedo' ? 1 : tac === 'aggressive' ? 0.5 : tac === 'standard' ? 0.25 : tac === 'distance' ? 0.1 : 0; return base * m * (cond === 'night' ? 1.3 : cond === 'storm' ? 0.4 : cond === 'haze' ? 1 : 0.9); };
+  const torpPow = (S, T, tac, foeTacArg) => { const dd = countT(S, ['destroyer']), sb = countT(S, ['sub']); const base = (dd * 0.8 + sb * 1.1) * (foeTacArg === 'distance' ? 0.5 : foeTacArg === 'evade' ? 0.4 : 1); const m = tac === 'torpedo' ? 1 : tac === 'aggressive' ? 0.5 : tac === 'standard' ? 0.25 : tac === 'distance' ? 0.1 : 0; return base * m * (cond === 'night' ? 1.3 : cond === 'storm' ? 0.4 : cond === 'haze' ? 1 : 0.9); };
   const escortsOf = S => countT(S, ['destroyer', 'cruiser']);
-  const torpA = torpPow(SA, SB, tA), torpB = torpPow(SB, SA, tB);
+  const torpA = torpPow(SA, SB, tA, tB), torpB = torpPow(SB, SA, tB, tA);
   // daño
   const defA = fa.reduce((n, f) => n + fleetPower(f, 'def'), 0), defB = fb.reduce((n, f) => n + fleetPower(f, 'def'), 0), M = mx();
   let torpHitsA = 0, torpHitsB = 0, fires = 0;
@@ -62,7 +66,7 @@ navalBattle = function (z, a, fa, pa, b, fb, pb) {
       const T = SHIP_TYPES[s.t]; let rec = e.rec; if (evading) rec = Math.random() < catchP ? NTAC.evade.rec : 0.2;
       let k = clamp(0.05 * foeAtt / Math.max(10, ownDef) * (6 / (6 + T.def)) * (0.7 + Math.random() * 0.6) * (1 - docMod(tag, 'navdef')) * rec, 0, 0.26);
       // torpedos contra buques grandes (los escoltas del bando atacado reducen la probabilidad)
-      if (torpPower > 0 && NAV_BIG[s.t] && s.t !== 'cruiser') { const p = clamp(0.045 * torpPower / (1 + ownEsc * 0.55), 0, 0.5); if (Math.random() < p) { const dmg = 0.18 + Math.random() * 0.3; k += dmg; torpHits++; } }
+      if (torpPower > 0 && NAV_BIG[s.t] && s.t !== 'cruiser') { const p = clamp(0.085 * torpPower / (1 + ownEsc * 0.55), 0, 0.6); if (Math.random() < p) { const dmg = 0.18 + Math.random() * 0.3; k += dmg; torpHits++; } }
       // impactos críticos: incendio y, en buques grandes casi destruidos, polvorín
       if (k > 0.015 && Math.random() < (NAV_BIG[s.t] ? 0.05 : 0.03) * (foeTac === 'aggressive' ? 1.5 : 1)) { s.fire = 3 + Math.floor(Math.random() * 3); fires++; k += 0.05; if (NAV_BIG[s.t] && s.hp - k < 0.3 && Math.random() < 0.18) k += 1; }
       s.hp -= k; if (s.hp <= 0.04) { sunk++; return false; } return true; }));

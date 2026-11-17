@@ -243,5 +243,5 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - `src/eventos3.js`: 26 acontecimientos históricos 1839–1939 con opciones; la IA aplica `ai` (índice de opción).
 - Pendiente de verificar con GPU real: visores 3D (probados en SwiftShader). El bloqueo puede ser severo en guerras mundiales con muchos beligerantes: vigilar en simulaciones largas.
 
-## Movilización: tope de levas y territorio conquistado
-- `LEVY_MAX` = 10 levas simultáneas por país (movilización total y levas manuales). Los estados cedidos en tratados de paz (`peace.js`, `markConq`) quedan marcados (`s.conq`, `s.home`; guardados) y durante 10 años no admiten levas ni reclutamiento (`isConq`); si vuelven a su dueño original se limpia la marca. Probado: ruso con 6 estados marcados → 10 levas, ninguna en ellos, errores explicados en la interfaz.
+## Movilización: levas según población y estados ocupados
+- Tope de levas simultáneas `levyCap(c)` = población/5 M, entre 3 y 20 (RUS 99 M → 20, USA 69 M → 14, Dinamarca → 3). Un estado ocupado por el enemigo (`s.occ` > 0,05 o la provincia capital en manos hostiles) no puede alzar levas ni reclutar (`isOcc`, en `spawnLevies`, `canLevy` y `canRecruit`). Probado con Rusia en 1939 y 6 estados ocupados: 20 levas, ninguna en ellos.

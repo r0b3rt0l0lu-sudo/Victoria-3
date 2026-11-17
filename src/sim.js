@@ -202,7 +202,7 @@ function initRelations() {
 /* ---------- guardado y carga ---------- */
 const SAVE_KEY = 'victoria-replica-save-v1';
 function saveData() {
-  const SK = ['owner', 'pops', 'b', 'cap', 'ut', 'inc', 'sol', 'solAvg', 'extra', 'gdp', 'unemp', 'unempU', 'bva', 'bwage', 'employed', 'taxPaid', 'infra', 'res', 'popBase', 'home', 'conq'];
+  const SK = ['owner', 'pops', 'b', 'cap', 'ut', 'inc', 'sol', 'solAvg', 'extra', 'gdp', 'unemp', 'unempU', 'bva', 'bwage', 'employed', 'taxPaid', 'infra', 'res', 'popBase'];
   const S = G.S.map(s => { const o = {}; SK.forEach(k => o[k] = s[k]); return o; });
   const C = {};
   G.tags.forEach(t => { const c = G.C[t]; C[t] = JSON.parse(JSON.stringify(c, (k, v) => v instanceof Set ? {__set: [...v]} : v)); });

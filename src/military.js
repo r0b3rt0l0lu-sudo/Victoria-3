@@ -535,17 +535,17 @@ function sideStrength(list) { let t = 0; list.forEach(tag => armiesOf(tag).forEa
 /* ---------- reclutamiento ---------- */
 function recruitCost(c, type) { return Math.round(DIVS[type].cost * moneyPerPoint(c) * (1 + (typeof docMod === 'function' ? docMod(c.tag, 'cost') : 0))); }
 /* ---------- levas de campesinos (movilización total) ---------- */
-const LEVY_MAX = 10;                                          // máximo de levas simultáneas por país
-const CONQ_DAYS = 3650;                                       // un estado conquistado no aporta tropas durante 10 años
-function markConq(s, prev, tag) { if (prev === NONE || tag === NONE || !G.C[tag]) return; if (s.home === undefined) s.home = prev; s.conq = tag === s.home ? null : {by: tag, t: G.date.t}; }
-const isConq = (c, s) => !!(s && s.conq && s.conq.by === c.tag && G.date.t - s.conq.t < CONQ_DAYS);
+const LEVY_MAX = 20;                                          // tope absoluto de levas simultáneas
+const levyCap = c => clamp(Math.round((c.stats.pop || 0) / 5e6), 3, LEVY_MAX);     // proporcional a la población: ~15 M → 3, ~50 M → 10, ≥100 M → 20
+// un estado (total o parcialmente) ocupado por el enemigo no puede alzar levas ni reclutar
+const isOcc = s => !!s && ((s.occ || 0) > 0.05 || (G.P[stateCapitalProv(s.id)] && G.P[stateCapitalProv(s.id)].by && hostileTags(s.owner, G.P[stateCapitalProv(s.id)].by)));
 function spawnLevies(c) {
   let made = 0; const have = new Set(); G.armies.forEach(a => { if (a.tag === c.tag && a.levy) have.add(provState(a.loc)); });
   let total = levyCount(c.tag);
   c.states.forEach(sid => {
-    if (total >= LEVY_MAX || have.has(sid)) return; const s = G.S[sid]; if (isConq(c, s) || (s.occ || 0) >= 0.5 || (s.pops.peasants || 0) < MEN_PER_DIV * 2) return;
+    if (total >= levyCap(c) || have.has(sid)) return; const s = G.S[sid]; if (isOcc(s) || (s.pops.peasants || 0) < MEN_PER_DIV * 2) return;
     const pid = stateCapitalProv(sid); const by = G.P[pid].by; if (by && hostileTags(c.tag, by)) return;
-    const k = Math.min(LEVY_MAX - total, (s.pops.peasants || 0) > MEN_PER_DIV * 14 ? 2 : 1), divs = [];
+    const k = Math.min(levyCap(c) - total, (s.pops.peasants || 0) > MEN_PER_DIV * 14 ? 2 : 1), divs = [];
     for (let i = 0; i < k; i++) { const d = mkDivision('inf', 0); d.lv = true; d.s = 0.8; d.o = DIVS.inf.org * 0.6; divs.push(d); }
     s.pops.peasants -= MEN_PER_DIV * 0.6 * k;
     const a = mkArmy(c.tag, pid, divs, `Leva de ${s.name}`); a.levy = true; a.mode = 'hold'; a.gen = newGeneral(1, c.tag); total += k; made += k;
@@ -558,8 +558,8 @@ function disbandLevies(c) {
 }
 function canLevy(c, sid) {
   const s = G.S[sid]; if (!s || s.owner !== c.tag) return 'Ese estado no es tuyo.';
-  if (isConq(c, s)) return 'No se pueden alzar levas en territorio conquistado (hasta 10 años después de la conquista).';
-  if (levyCount(c.tag) >= Math.min(LEVY_MAX, Math.max(3, Math.floor(divLimit(c) * 0.5)))) return levyCount(c.tag) >= LEVY_MAX ? `Máximo de ${LEVY_MAX} levas simultáneas.` : 'Demasiadas levas: sube la movilización para poder alzar más.';
+  if (isOcc(s)) return 'El enemigo ocupa este estado: no se pueden alzar levas en él.';
+  if (levyCount(c.tag) >= Math.min(levyCap(c), Math.max(3, Math.floor(divLimit(c) * 0.5)))) return levyCount(c.tag) >= levyCap(c) ? `Máximo de ${levyCap(c)} levas simultáneas para tu población.` : 'Demasiadas levas: sube la movilización para poder alzar más.';
   if ((s.pops.peasants || 0) < MEN_PER_DIV * 2) return 'No hay suficientes campesinos.';
   if (c.treasury < levyCost(c)) return 'No tienes fondos suficientes.';
   return null;
@@ -575,7 +575,7 @@ function canRecruit(c, sid, type) {
   const s = G.S[sid];
   if (!s || s.owner !== c.tag) return 'Ese estado no es tuyo.';
   if (!(s.b.barracks >= 1)) return 'El estado necesita Cuarteles.';
-  if (isConq(c, s)) return 'No se puede reclutar en territorio conquistado (hasta 10 años después de la conquista).';
+  if (isOcc(s)) return 'El enemigo ocupa este estado: no se puede reclutar en él.';
   const eqm = typeof eqCheck === 'function' ? eqCheck(c, type) : null; if (eqm) return eqm;
   if (countDivs(c.tag) >= divLimit(c)) return `Has alcanzado el máximo de divisiones (${divLimit(c)}). Construye más cuarteles.`;
   if ((s.pops.peasants || 0) < MEN_PER_DIV * 6) return 'No hay suficiente población en el estado.';

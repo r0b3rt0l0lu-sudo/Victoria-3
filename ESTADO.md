@@ -242,3 +242,6 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - `src/guerra_total.js`: bloqueo comercial (acecho vs. escoltas, repartido entre enemigos), hundimiento de submarinos, bombardeo estratégico sobre la moral, convoyes escoltados y movilización total.
 - `src/eventos3.js`: 26 acontecimientos históricos 1839–1939 con opciones; la IA aplica `ai` (índice de opción).
 - Pendiente de verificar con GPU real: visores 3D (probados en SwiftShader). El bloqueo puede ser severo en guerras mundiales con muchos beligerantes: vigilar en simulaciones largas.
+
+## Movilización: tope de levas y territorio conquistado
+- `LEVY_MAX` = 10 levas simultáneas por país (movilización total y levas manuales). Los estados cedidos en tratados de paz (`peace.js`, `markConq`) quedan marcados (`s.conq`, `s.home`; guardados) y durante 10 años no admiten levas ni reclutamiento (`isConq`); si vuelven a su dueño original se limpia la marca. Probado: ruso con 6 estados marcados → 10 levas, ninguna en ellos, errores explicados en la interfaz.

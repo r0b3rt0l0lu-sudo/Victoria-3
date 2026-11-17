@@ -54,7 +54,7 @@ function applyConference(c) {
   const w = c.w, W = G.C[c.winner], L = G.C[c.loseLead], gained = [], notes = [];
   c.opts.forEach(o => {
     if (!c.pick.has(o.id)) return;
-    if (o.type === 'state') { const s = G.S[o.sid]; if (!loseAllHas(c, s.owner)) return; const r = c.recip[o.sid] || c.winner; transferState(s, r); gained.push(s.name + (r !== c.winner ? ` (para ${G.C[r].name})` : '')); }
+    if (o.type === 'state') { const s = G.S[o.sid]; if (!loseAllHas(c, s.owner)) return; const r = c.recip[o.sid] || c.winner; { const _p = s.owner; transferState(s, r); markConq(s, _p, r); } gained.push(s.name + (r !== c.winner ? ` (para ${G.C[r].name})` : '')); }
     else if (o.type === 'reps') { const ind = Math.min(Math.max(0, L.treasury), L.stats.income * o.weeks); L.treasury -= ind; W.treasury += ind; notes.push(`reparaciones de ${money(ind)}`); }
     else if (o.type === 'humil') { W.prestige += 12; L.prestige = Math.max(0, L.prestige - 12); cnt(W, 'humiliations'); notes.push('humillación'); }
     else if (o.type === 'trade') { L.tradeLoss = Math.min(0.25, (L.tradeLoss || 0) + 0.06); makePact('trade', c.winner, c.loseLead, {forced: true}); notes.push('concesiones comerciales'); }
@@ -108,7 +108,7 @@ function settleLegacy(w, winner) {
     const full = Math.abs(w.score) >= 85;
     let gained = [];
     if (cb.terr) {
-      w.targets.forEach(sid => { const s = G.S[sid]; if (s && s.owner === w.def && (full || (s.occ || 0) >= 0.5 || w.score >= 60)) { transferState(s, w.att); gained.push(s.name); } });
+      w.targets.forEach(sid => { const s = G.S[sid]; if (s && s.owner === w.def && (full || (s.occ || 0) >= 0.5 || w.score >= 60)) { const _p = s.owner; transferState(s, w.att); markConq(s, _p, w.att); gained.push(s.name); } });
       A.prestige += 6 + gained.length * 4; cnt(A, 'statesGained', gained.length);
     } else if (w.cb === 'humiliate') {
       const ind = Math.min(Math.max(0, D.treasury), D.stats.income * 8); D.treasury -= ind; A.treasury += ind;
@@ -130,7 +130,7 @@ function settleLegacy(w, winner) {
     const ind = Math.min(Math.max(0, A.treasury), A.stats.income * 4); A.treasury -= ind; D.treasury += ind;
     D.prestige += 8; A.prestige = Math.max(0, A.prestige - 10); A.legitimacy -= 5;
     const regained = [];
-    G.S.filter(s => s.owner === w.att && (s.occ || 0) >= 0.5 && w.defAll.includes(s.occBy)).sort((x, y) => y.popBase - x.popBase).slice(0, 3).forEach(s => { transferState(s, w.def); regained.push(s.name); });
+    G.S.filter(s => s.owner === w.att && (s.occ || 0) >= 0.5 && w.defAll.includes(s.occBy)).sort((x, y) => y.popBase - x.popBase).slice(0, 3).forEach(s => { { const _p = s.owner; transferState(s, w.def); markConq(s, _p, w.def); } regained.push(s.name); });
     notify('war', `${D.name} ha repelido la invasión de ${A.name}${regained.length ? ' y se anexiona ' + regained.join(', ') : ''}.`, w.cTargets[0] ?? w.targets[0]);
     addRel(w.att, w.def, 10); cnt(D, 'defended'); cnt(D, 'warsWon'); cnt(D, 'statesGained', regained.length);
   }

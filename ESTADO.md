@@ -234,3 +234,11 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - Épocas **1939** (invasión de Polonia, 1-sep-1939) y **2020**: `tools/anclar_epoca.js <año> escenarios/1910.b64 escenarios/<año>.b64` parte del mundo de 1910, fija fronteras por nombre de estado, reutiliza países dormidos para naciones nuevas (Polonia, India, Israel…; `src/paises_epoca.js` añade 18 etiquetas nuevas), reparte tecnologías por rango, pone alianzas/rivalidades y (1939) declara la guerra. `scenModernize` (escenarios.js) renueva divisiones y flotas al cargar. Limitaciones: mapa de 272 estados basado en 1836 (fronteras aproximadas), economía sin petróleo ni bienes modernos, gobiernos/leyes heredados de la simulación.
 
 **Actualización:** se eliminó la era moderna: ya no existen la era 5, la época de 2020 ni sus tecnologías, batallones y buques (superportaaviones, submarino nuclear, destructor lanzamisiles, carro moderno, misiles). Quedan la era 4 y la época de 1939.
+
+## Tácticas, campañas, guerra total, eventos y hot-seat
+- `src/tacticas2.js`: torpedos (p = 0,2·fuerza/(1+0,35·escoltas)), artillería pesada a distancia, bruma/noche con y sin radar; test (`scratchpad/tc.js`, 200 ensayos): con torpedos el rival pierde 0,56 de casco/día frente a 0,33 con línea estándar; evasiva 0,11. Aire: bombardeo bajo pierde 12 bombarderos (alto 5,3; sin escolta 8,8; tormenta 4,2) en 12 días.
+- `src/aire3d.js`: las luces ambiente/hemisférica se atenúan de noche (0,22) y con tormenta (0,65). Comprobado el visor naval de noche y tormenta (estelas de torpedos visibles).
+- `src/campanas.js`: campañas con metas relativas a una «foto» inicial (`c.camp`), victoria/derrota/parcial y puntuación; hot-seat (`G.hs`, turnos de 1/3/12 meses, pantalla opaca); menú ☰ con 🎯, 👥 y 🌐. Se guarda vía `saveExtra`/`loadExtra`.
+- `src/guerra_total.js`: bloqueo comercial (acecho vs. escoltas, repartido entre enemigos), hundimiento de submarinos, bombardeo estratégico sobre la moral, convoyes escoltados y movilización total.
+- `src/eventos3.js`: 26 acontecimientos históricos 1839–1939 con opciones; la IA aplica `ai` (índice de opción).
+- Pendiente de verificar con GPU real: visores 3D (probados en SwiftShader). El bloqueo puede ser severo en guerras mundiales con muchos beligerantes: vigilar en simulaciones largas.

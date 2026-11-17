@@ -161,3 +161,5 @@ Para el estado actual completo véase `ESTADO.md`.
 - Mapa (`tropas3d_mapa.js`): época E desde 1937; uniformes por país del escenario de 1939 (BAV=Polonia, AUS=Hungría, AUL=Australia…, el «AUS» del módulo es Australia y se remapea); cada división se dibuja según los batallones de su plantilla (tanques, cazacarros, semioruga, camión, ametralladores, fusileros, artillería con servidores). Vehículos reducidos a 0,45 en el mapa.
 - Visor de batalla 3D (`batalla3d.js`): bloques `tank` → tanque medio/cazacarros con orugas; infantería con camión/semioruga/ametrallador según la plantilla; disparo `disparar`/`disparar_tumbado` en E.
 - Comprobado (SwiftShader): 1836, 1910 y 1939 sin errores en consola; capturas del mapa en 1939 (tanques, camiones, cañones AT, caballería) y de una batalla 3D con tanques. No comprobado: GPU real, sombras (siguen desactivadas), eventos de humo/fogonazo de los vehículos, `juego-ligero.html`.
+
+- Tácticas navales/aéreas afinadas, visores de noche/tormenta, campañas con objetivos, hot-seat, guerra total (bloqueo, convoyes, Blitz, movilización) y 26 eventos históricos nuevos. Manual: sección «★ Tácticas, campañas y guerra total».

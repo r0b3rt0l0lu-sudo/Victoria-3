@@ -66,7 +66,7 @@ navalBattle = function (z, a, fa, pa, b, fb, pb) {
       const T = SHIP_TYPES[s.t]; let rec = e.rec; if (evading) rec = Math.random() < catchP ? NTAC.evade.rec : 0.2;
       let k = clamp(0.05 * foeAtt / Math.max(10, ownDef) * (6 / (6 + T.def)) * (0.7 + Math.random() * 0.6) * (1 - docMod(tag, 'navdef')) * rec, 0, 0.26);
       // torpedos contra buques grandes (los escoltas del bando atacado reducen la probabilidad)
-      if (torpPower > 0 && NAV_BIG[s.t] && s.t !== 'cruiser') { const p = clamp(0.085 * torpPower / (1 + ownEsc * 0.55), 0, 0.6); if (Math.random() < p) { const dmg = 0.18 + Math.random() * 0.3; k += dmg; torpHits++; } }
+      if (torpPower > 0 && NAV_BIG[s.t] && s.t !== 'cruiser') { const p = clamp(0.2 * torpPower / (1 + ownEsc * 0.35), 0, 0.7); if (Math.random() < p) { const dmg = 0.25 + Math.random() * 0.4; k += dmg; torpHits++; } }
       // impactos críticos: incendio y, en buques grandes casi destruidos, polvorín
       if (k > 0.015 && Math.random() < (NAV_BIG[s.t] ? 0.05 : 0.03) * (foeTac === 'aggressive' ? 1.5 : 1)) { s.fire = 3 + Math.floor(Math.random() * 3); fires++; k += 0.05; if (NAV_BIG[s.t] && s.hp - k < 0.3 && Math.random() < 0.18) k += 1; }
       s.hp -= k; if (s.hp <= 0.04) { sunk++; return false; } return true; }));

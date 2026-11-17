@@ -376,6 +376,18 @@ const MANUAL = [
 </tbody></table>`}
 ];
 
+MANUAL.push({id: 'tact2', title: '★ Tácticas, campañas y guerra total', html: `
+<h4>Tácticas navales</h4>
+<p>Cada flota tiene una <b>táctica</b> (se elige en Marina y en el panel de la batalla): <b>línea de batalla</b>, <b>ataque cerrado</b>, <b>mantener la distancia</b>, <b>torpedos</b> y <b>romper el contacto</b>. Importan la <b>condición del mar</b> (despejado, bruma, tormenta, noche), el <b>radar</b>, el almirante y los portaaviones (sin aviones con tormenta o de noche). Los torpedos de destructores y submarinos son muy eficaces contra buques grandes con pocas escoltas; la distancia favorece a quien tiene más acorazados; cerrar con mala visibilidad sorprende al rival sin radar.</p>
+<h4>Tácticas aéreas</h4>
+<p>Cada escuadrón elige <b>altitud y método</b> (alta, baja, nocturna…, con o sin escolta). El bombardeo a baja cota es más preciso pero la antiaérea cobra más bombarderos; sin escolta, los cazas enemigos los diezman; la tormenta reduce las pérdidas pero también la precisión.</p>
+<h4>Campañas</h4>
+<p>☰ → 🎯 <b>Campaña</b>: acepta una campaña con metas y plazo (Ascenso, Hegemonía, Imperio, Paz próspera, Sobrevivir…, y campañas históricas por país: unificar Alemania o Italia, la Restauración Meiji, Destino manifiesto, Pax Britannica, la Segunda Guerra Mundial…). Al cumplir todas las metas ganas; si vence el plazo se puntúa el porcentaje cumplido.</p>
+<h4>Guerra total</h4>
+<p>☰ → 🌐 <b>Guerra total</b>: los submarinos, destructores y cruceros de una flota fuera de puerto estrangulan el comercio marítimo del enemigo (<i>bloqueo</i>); las escoltas y el radar lo reducen y hunden submarinos. Los <b>convoyes escoltados</b> refuerzan las escoltas por un 1 % de los ingresos. Los bombarderos estratégicos minan la moral civil. La <b>movilización total</b> da industria militar a costa de la producción civil.</p>
+<h4>Eventos históricos y hot-seat</h4>
+<p>Más de veinte acontecimientos (guerra del opio, emancipación de los siervos, Compromiso austro-húngaro, Conferencia de Berlín, Sarajevo, Crac del 29, Anschluss, pacto Mólotov–Ribbentrop…) con decisiones. ☰ → 👥 <b>Hot-seat</b>: varios jugadores humanos por turnos de 1, 3 o 12 meses; una pantalla opaca oculta el mapa al cambiar de jugador.</p>`});
+
 WINDOWS.manual = {title: 'Manual del juego', icon: '📖', render() {
   const sec = MANUAL.find(m => m.id === UI.manualSec) || MANUAL[0];
   return `<div class="manual"><nav>${MANUAL.map(m => `<button class="${m.id === sec.id ? 'on' : ''}" data-act="msec" data-id="${m.id}">${m.title}</button>`).join('')}</nav><article class="scrollable manbody"><h2>${sec.title}</h2>${sec.html}</article></div>`;

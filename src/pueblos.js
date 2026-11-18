@@ -61,6 +61,7 @@ function provTowns(pid) {
 }
 // pueblo donde se libra una batalla concreta (se fija al empezar y se guarda en la batalla)
 function battleSite(b) {
+  if (b.road && typeof roadSite === 'function') return roadSite(b);
   const T = provTowns(b.prov); if (b.site === undefined) b.site = Math.floor(hash2(b.id * 31 + 7, b.prov, 3310) * T.length) % T.length;
   return T[b.site];
 }

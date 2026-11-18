@@ -548,7 +548,7 @@ function drawOrders() {
 function updateMarkers() {
   if (!R.markerRoot) return;
   const want = [];
-  G.battles.forEach(b => { if (G.S[b.state] && provVisible(b.prov)) want.push({id: 'bt' + b.id, state: b.state, prov: b.prov, ch: '⚔️', cls: 'war battle'}); });
+  G.battles.forEach(b => { if (G.S[b.state] && provVisible(b.prov)) want.push({id: 'bt' + b.id, state: b.state, prov: b.prov, at: typeof battleAt === 'function' ? battleAt(b) : null, ch: '⚔️', cls: 'war battle'}); });
   const me = G.C[G.player];
   if (me && me.capital >= 0) want.push({id: 'cap', state: me.capital, ch: '★', cls: 'cap'});
   if (me && me.colonizing) want.push({id: 'col', state: me.colonizing.state, ch: '⚓', cls: 'col'});
@@ -559,7 +559,7 @@ function updateMarkers() {
   for (const k in R.mk) if (!ids.has(k)) { R.mk[k].remove(); delete R.mk[k]; }
   want.forEach(w => {
     let el = R.mk[w.id]; if (!el) { el = document.createElement('div'); el.className = 'marker ' + w.cls; el.textContent = w.ch; if (w.id.startsWith('bt')) { el.dataset.act = 'selbattle'; el.dataset.id = w.id.slice(2); el.dataset.tip = '<b>Batalla en curso</b><br>Haz clic para abrir el panel de batalla.'; } R.markerRoot.appendChild(el); R.mk[w.id] = el; }
-    const c = w.prov !== undefined ? [MAP.provs[w.prov].lon, MAP.provs[w.prov].lat] : stateCenter(G.S[w.state]); const p = worldToScreen(c[0], 0.6, -c[1]);
+    const c = w.at || (w.prov !== undefined ? [MAP.provs[w.prov].lon, MAP.provs[w.prov].lat] : stateCenter(G.S[w.state])); const p = worldToScreen(c[0], 0.6, -c[1]);
     if (w.tip) el.dataset.tip = w.tip;
     el.style.transform = `translate(-50%,-100%) translate(${p[0].toFixed(1)}px,${p[1].toFixed(1)}px)`; el._bx = w.id.startsWith('bt') ? p[0] : null; el._by = p[1] - 17;
   });

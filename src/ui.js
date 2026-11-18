@@ -1082,7 +1082,7 @@ window.onFrame = function (t) {
       try { advanceDay(); } catch (e) { reportErr('simulación', e); } n++;                 // un fallo puntual de un día no detiene la partida
       if (n >= 1 && performance.now() - tb > (typeof simBudgetMs === 'function' ? simBudgetMs() : 14)) { UI.acc = Math.min(UI.acc, dayMs() * 1.5); break; }       // presupuesto de tiempo: el resto de días pasa al siguiente fotograma
       if (G.date.m !== m0 && R.mode !== 'political' && R.mode !== 'terrain') R.needPaint = true;
-      if (G.date.m !== m0 && G.date.m === 0) doSave(true);
+      if (G.date.m !== m0 && typeof autoSaveTick === 'function') autoSaveTick(true);
       if (G.pendingEvent) break;
     }
     if (n) { R.labelsDirty = true; if (UI.selArmy) renderArmyPanel(); }

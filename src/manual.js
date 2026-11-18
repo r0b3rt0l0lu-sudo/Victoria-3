@@ -388,6 +388,14 @@ MANUAL.push({id: 'tact2', title: '★ Tácticas, campañas y guerra total', html
 <h4>Eventos históricos y hot-seat</h4>
 <p>Más de veinte acontecimientos (guerra del opio, emancipación de los siervos, Compromiso austro-húngaro, Conferencia de Berlín, Sarajevo, Crac del 29, Anschluss, pacto Mólotov–Ribbentrop…) con decisiones. ☰ → 👥 <b>Hot-seat</b>: varios jugadores humanos por turnos de 1, 3 o 12 meses; una pantalla opaca oculta el mapa al cambiar de jugador.</p>`});
 
+MANUAL.push({id: 'ind2', title: '★ Industria, combates en ruta y guardado', html: `
+<h4>🏭 Industria</h4>
+<p>Abre <b>Industria</b> (barra inferior o tecla <b>0</b>). <b>Construir</b> recomienda dónde conviene levantar cada edificio según la rentabilidad (valor añadido a los precios de hoy; 1,00 = normal) y el paro, y permite construir en cualquier estado con su coste real; la cola de obras se puede reordenar o cancelar. <b>Impulso</b> ofrece programas temporales (obras públicas, fomento industrial, modernización agraria, formación técnica, estímulo fiscal) que se pagan con tesoro e influencia. <b>Resumen</b> muestra fábricas, paro y cuellos de botella.</p>
+<h4>⚔️ Combate en ruta</h4>
+<p>Si dos ejércitos enemigos se cruzan en sentidos opuestos por el mismo camino, ya no se ignoran: combaten <b>en ese punto del camino</b> (marcador sobre la ruta y escenario «camino en marcha», con setos y una venta). Los ejércitos que lleguen a cualquiera de las dos provincias del camino se suman a la batalla. Las sedes de batalla incluyen ahora desfiladeros, castillos en colinas, calzadas entre marismas, llanuras abiertas, canteras y ruinas, oasis y pasos nevados, cada uno con su propio objetivo.</p>
+<h4>💾 Guardado</h4>
+<p>Las partidas se guardan ahora en IndexedDB (mucho más espacio) con verificación. El <b>autoguardado</b> se hace cada 3 meses de juego, cada 2 minutos reales y al cerrar o ocultar la pestaña (aparece «💾 Autoguardado»). Hay 5 ranuras manuales más la automática con su copia anterior, y puedes exportar la partida a un archivo desde 💾 Partidas.</p>`});
+
 WINDOWS.manual = {title: 'Manual del juego', icon: '📖', render() {
   const sec = MANUAL.find(m => m.id === UI.manualSec) || MANUAL[0];
   return `<div class="manual"><nav>${MANUAL.map(m => `<button class="${m.id === sec.id ? 'on' : ''}" data-act="msec" data-id="${m.id}">${m.title}</button>`).join('')}</nav><article class="scrollable manbody"><h2>${sec.title}</h2>${sec.html}</article></div>`;

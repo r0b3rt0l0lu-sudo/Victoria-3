@@ -65,3 +65,8 @@ Object.assign(ACT, {
 function twMenus() { menuBtn('tm-tw', '🌐', 'Guerra total', 'totalwar', '<b>Guerra total</b><br>Bloqueo submarino, convoyes, bombardeo de ciudades y movilización.'); }
 const _histMonthTw = histMonth;
 histMonth = function () { _histMonthTw(); try { twMonth(); } catch (e) { console.warn('tw', e); } };
+
+// el estado de la guerra total (bloqueos y presión de bombardeos) se guarda con la partida
+const _saveExtraTw = saveExtra, _loadExtraTw = loadExtra;
+saveExtra = function () { const o = _saveExtraTw(); o.tw = G.tw || {}; return o; };
+loadExtra = function (x) { _loadExtraTw(x); G.tw = (x && x.tw) || {}; };

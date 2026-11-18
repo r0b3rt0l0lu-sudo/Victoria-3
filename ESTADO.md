@@ -245,3 +245,9 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 
 ## Movilización: levas según población y estados ocupados
 - Tope de levas simultáneas `levyCap(c)` = población/5 M, entre 3 y 20 (RUS 99 M → 20, USA 69 M → 14, Dinamarca → 3). Un estado ocupado por el enemigo (`s.occ` > 0,05 o la provincia capital en manos hostiles) no puede alzar levas ni reclutar (`isOcc`, en `spawnLevies`, `canLevy` y `canRecruit`). Probado con Rusia en 1939 y 6 estados ocupados: 20 levas, ninguna en ellos.
+
+## Combate en ruta, zonas de combate, almacén de partidas e industria
+- `src/combate_ruta.js`: `stepMove` envuelto; dos ejércitos hostiles en sentidos opuestos por la misma arista combaten cuando sus avances suman ≥ 1 (batalla con `road = {from, to, t}`, mecánicamente en la provincia más cercana, marcador en `battleAt`, sede `roadSite`); los que llegan a cualquiera de las dos provincias se suman (`createBattles` envuelto). Probado: PRU/BAV chocan el día 2 y el visor muestra «la venta del camino».
+- `src/zonas.js`: 8 sedes nuevas (desfiladero, fortaleza, calzada, llanura, pedregal, camino, oasis, ventisca) con terreno y objetivos propios; `provTowns` filtra por bioma. Comprobadas sin errores en el visor 2D.
+- `src/almacen.js`: partidas en IndexedDB con verificación de escritura, marca `-idb` y metadatos en localStorage (fallback a localStorage); autoguardado cada 3 meses, 2 min reales y al ocultar la pestaña; `G.tw` y la IA de los humanos del hot-seat se restauran al cargar. Con una batalla abierta la partida pesa ~3,2 MB en JSON (el terreno de la batalla `b.tf` se guarda); comprimida ~1 MB.
+- `src/industria.js`: ventana 🏭 Industria (tecla 0): recomendador de obras por rentabilidad y paro, constructor por estado, cola reordenable, 5 programas de impulso (`c.prog`, vía `ecoMods`) y resumen industrial.

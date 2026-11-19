@@ -58,9 +58,9 @@ b3Pan = function (dx, dy, h) { if (SOLD.on) { SOLD.yaw += dx * 0.006; SOLD.pit =
 const _b3FrameS = b3Frame;
 b3Frame = function (V, b, g, lines, all) {
   _b3FrameS(V, b, g, lines, all); if (!SOLD.on) return; const blk = soldBlock(V); if (!blk) return; const sl = soldSlots(blk), n = sl.findIndex(p => p[0] === SOLD.fi && p[1] === SOLD.j) + 1;
-  g.save(); g.textAlign = 'center'; g.fillStyle = 'rgba(8,12,16,.72)'; g.fillRect(BV_W / 2 - 330, 8, 660, 30); g.fillStyle = '#f2e6bf'; g.font = '600 15px sans-serif';
-  g.fillText(`🪖 ${SOLD.fp ? 'Primera' : 'Tercera'} persona · soldado ${n || '—'}/${sl.length} · ${blk.a ? blk.a.name : ''} (${G.C[blk.tag] ? G.C[blk.tag].name : ''}) · ${blk.mode || ''}`, BV_W / 2, 28);
-  g.font = '12px sans-serif'; g.fillStyle = 'rgba(8,12,16,.7)'; g.fillRect(8, BV_H - 50, 640, 20); g.fillStyle = '#d9d2bc'; g.textAlign = 'left'; g.fillText('Q/E: otro soldado · R: otro regimiento · V: 1.ª/3.ª persona · arrastrar: mirar · rueda: distancia · Esc o X: salir', 14, BV_H - 36);
+  g.save(); g.textAlign = 'center'; g.fillStyle = 'rgba(8,12,16,.72)'; g.fillRect(BV_W / 2 - 420, 52, 840, 36); g.fillStyle = '#f2e6bf'; g.font = '600 20px sans-serif';
+  g.fillText(`🪖 ${SOLD.fp ? 'Primera' : 'Tercera'} persona · soldado ${n || '—'}/${sl.length} · ${blk.a ? blk.a.name : ''} (${G.C[blk.tag] ? G.C[blk.tag].name : ''}) · ${blk.mode || ''}`, BV_W / 2, 77);
+  g.font = '16px sans-serif'; g.fillStyle = 'rgba(8,12,16,.75)'; g.fillRect(8, BV_H - 62, 860, 26); g.fillStyle = '#d9d2bc'; g.textAlign = 'left'; g.fillText('Q/E: otro soldado · R: otro regimiento · V: 1.ª/3.ª persona · arrastrar: mirar · rueda: distancia · Esc o X: salir', 14, BV_H - 44);
   if (SOLD.fp) { g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(BV_W / 2 - 10, BV_H / 2); g.lineTo(BV_W / 2 - 3, BV_H / 2); g.moveTo(BV_W / 2 + 3, BV_H / 2); g.lineTo(BV_W / 2 + 10, BV_H / 2); g.moveTo(BV_W / 2, BV_H / 2 - 10); g.lineTo(BV_W / 2, BV_H / 2 - 3); g.moveTo(BV_W / 2, BV_H / 2 + 3); g.lineTo(BV_W / 2, BV_H / 2 + 10); g.stroke(); }
   g.restore();
 };

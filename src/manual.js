@@ -396,6 +396,14 @@ MANUAL.push({id: 'ind2', title: '★ Industria, combates en ruta y guardado', ht
 <h4>💾 Guardado</h4>
 <p>Las partidas se guardan ahora en IndexedDB (mucho más espacio) con verificación. El <b>autoguardado</b> se hace cada 3 meses de juego, cada 2 minutos reales y al cerrar o ocultar la pestaña (aparece «💾 Autoguardado»). Hay 5 ranuras manuales más la automática con su copia anterior, y puedes exportar la partida a un archivo desde 💾 Partidas.</p>`});
 
+MANUAL.push({id: 'soldado', title: '★ Mapa v2, tropas v4 y vista de soldado', html: `
+<h4>🗺️ Mapa v2</h4>
+<p>Costas de Natural Earth (islas, golfos, lagos), ríos reales con grosor por importancia, fronteras de estado que siguen ríos y cordilleras, relieve sombreado y un estilo alternativo <b>Atlas del siglo XIX</b> (☀ Vista y gráficos → Estilo del mapa). Las partidas y escenarios anteriores siguen funcionando.</p>
+<h4>🪖 Tropas v4</h4>
+<p>Soldados, jinetes, artillería y vehículos con modelos más detallados y animación de marcha, carrera y galope basada en biomecánica real. La distancia de máximo detalle del visor de batalla es ahora de 45 m.</p>
+<h4>🪖 Ver como soldado</h4>
+<p>En el visor de batalla 3D, el botón <b>🪖 Ver como soldado</b> pone la cámara en un soldado o jinete de un regimiento. <b>Q / E</b> cambia de soldado, <b>R</b> de regimiento, <b>V</b> alterna primera y tercera persona, arrastrar el ratón mira alrededor, la rueda cambia la distancia y <b>Esc</b> o <b>X</b> sale. Solo es una cámara: no cambia el resultado de la batalla.</p>`});
+
 WINDOWS.manual = {title: 'Manual del juego', icon: '📖', render() {
   const sec = MANUAL.find(m => m.id === UI.manualSec) || MANUAL[0];
   return `<div class="manual"><nav>${MANUAL.map(m => `<button class="${m.id === sec.id ? 'on' : ''}" data-act="msec" data-id="${m.id}">${m.title}</button>`).join('')}</nav><article class="scrollable manbody"><h2>${sec.title}</h2>${sec.html}</article></div>`;

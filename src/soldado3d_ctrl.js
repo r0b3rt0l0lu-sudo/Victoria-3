@@ -59,7 +59,7 @@ function ctrlFire(S, V, blk, O, D) {
   const c = SOLD.ctrl, era = t3Era(), tU = performance.now() / 1000; c.cd = CTRL_RELOAD[era] || 1.6; c.fireT = tU; c.shots++; c.kick = 0.07;
   const spread = (c.ads ? 0.004 : 0.016) * (c.mv ? (c.run ? 3 : 1.8) : 1) * (c.kneel ? 0.6 : 1); let dx = D.x + (Math.random() - 0.5) * spread, dy = D.y + (Math.random() - 0.5) * spread, dz = D.z + (Math.random() - 0.5) * spread; const L = Math.hypot(dx, dy, dz); dx /= L; dy /= L; dz /= L;
   const DD = {x: dx, y: dy, z: dz}, mx = O.x + dx * 2.2, mz = O.z + dz * 2.2;
-  bvPart(V, {k: 'flash', x: mx, y: mz, life: 0.14}); bvPart(V, {k: 'smoke', x: mx + dx * 1.5, y: mz + dz * 1.5, life: 1.6});
+  bvPart(V, {k: 'flash', x: O.x + dx * 4, y: O.z + dz * 4, life: 0.1}); bvPart(V, {k: 'smoke', x: O.x + dx * 11 - dz * 2, y: O.z + dz * 11 + dx * 2, life: 1.3});          // el humo se forma más adelante para no tapar la mira
   const hit = ctrlRay(S, O, DD, 260), tEnd = hit ? hit.t : 200;
   for (let i = 1; i <= 6; i++) { const u = tEnd * i / 6; bvPart(V, {k: 'flash', x: O.x + dx * u, y: O.z + dz * u, life: 0.05 + i * 0.012}); }          // trazadora
   if (!hit) { const gx = O.x + dx * 120, gz = O.z + dz * 120; bvPart(V, {k: 'dust', x: gx, y: gz, life: 0.8}); return; }
@@ -108,8 +108,8 @@ function ctrlCam(S, ov) {
   const c = SOLD.ctrl, cam = S.cam, gy = b3H(S.tf, ov.x, ov.z), yaw = c.cyaw, pit = clamp(c.pitch + c.kick, -1.35, 1.35), cp = Math.cos(pit), fx = Math.cos(yaw) * cp, fy = Math.sin(pit), fz = Math.sin(yaw) * cp;
   const bob = c.mv ? Math.sin(c.t * (c.run ? 13 : 8)) * (c.run ? 0.09 : 0.05) : Math.sin(c.t * 1.6) * 0.012;
   if (ov.dead) { const k = Math.min(1, (performance.now() - c.deadAt) / 700); cam.position.set(ov.x, gy + 2.55 - k * 2.0, ov.z); cam.lookAt(ov.x + Math.cos(yaw) * 5, gy + 0.4, ov.z + Math.sin(yaw) * 5); cam.fov = 40; cam.near = 0.3; return; }
-  const eye = c.kneel ? 1.75 : 2.62;
-  if (SOLD.fp) { const px = ov.x + Math.cos(yaw) * 0.55, pz = ov.z + Math.sin(yaw) * 0.55; cam.position.set(px, Math.max(gy + eye + bob, b3H(S.tf, px, pz) + 1.2), pz); cam.lookAt(px + fx * 30, cam.position.y + fy * 30, pz + fz * 30); cam.fov = c.ads ? 22 : 42; cam.near = 0.3; }
+  const eye = c.kneel ? 1.7 : 2.5;
+  if (SOLD.fp) { const px = ov.x + Math.cos(yaw) * 0.12, pz = ov.z + Math.sin(yaw) * 0.12; cam.position.set(px, Math.max(gy + eye + bob, b3H(S.tf, px, pz) + 1.2), pz); cam.lookAt(px + fx * 30, cam.position.y + fy * 30, pz + fz * 30); cam.fov = c.ads ? 22 : 42; cam.near = 0.12; }
   else { const d = 6.5, bx = ov.x - Math.cos(yaw) * d - Math.sin(yaw) * 1.3, bz = ov.z - Math.sin(yaw) * d + Math.cos(yaw) * 1.3, by = Math.max(b3H(S.tf, bx, bz) + 1.2, gy + 3.4 + fy * -3); cam.position.set(bx, by, bz); cam.lookAt(ov.x + fx * 25, gy + 2.4 + fy * 25, ov.z + fz * 25); cam.fov = c.ads ? 30 : 42; cam.near = 0.5; }
 }
 // figuras que dibuja el modo control: el soldado manejado y los abatidos (una vez por fotograma, en la primera llamada a b3Fig)

@@ -40,6 +40,7 @@ function soldCamera(S, V, dt) {
   const ov = SOLD.ctrl && typeof ctrlStep === 'function' ? ctrlStep(S, V, blk, dt) : null;      // fase 2: el soldado lo maneja el jugador
   const px = ov ? ov.x : SOLD.pos.x, pz = ov ? ov.z : SOLD.pos.z, gy = b3H(S.tf, px, pz), a = ov ? ov.aim : Math.atan2(w.fz, w.fx) + SOLD.yaw, dx = Math.cos(a), dz = Math.sin(a), cam = S.cam;
   B3.hide = SOLD.fp || SOLD.ctrl ? {bid: blk.id, fi: SOLD.fi, j: SOLD.j} : null;
+  if (ov) { ctrlCam(S, ov); cam.updateMatrixWorld(); B3.cam.tx = ov.x; B3.cam.tz = ov.z; return true; }
   if (SOLD.fp) {
     const eye = gy + (ov ? ov.eye : 2.55), lx = px + dx * 0.35, lz = pz + dz * 0.35; cam.position.set(lx, Math.max(eye, b3H(S.tf, lx, lz) + 1.6), lz);
     cam.lookAt(lx + dx * 30, cam.position.y + Math.sin(SOLD.pit) * 30 - 0.4, lz + dz * 30);
@@ -53,7 +54,7 @@ const _b3CameraS = b3Camera;
 b3Camera = function (S, V, dt) { if (SOLD.on) { if (!B3.active || !B3.S) { SOLD.on = false; B3.hide = null; } else if (soldCamera(S, V, dt)) return; } return _b3CameraS(S, V, dt); };
 // mirar alrededor con el arrastre del ratón (en lugar de desplazar la cámara)
 const _b3PanS = b3Pan;
-b3Pan = function (dx, dy, h) { if (SOLD.on && SOLD.ctrl) { SOLD.ctrl.cyaw += dx * 0.006; SOLD.pit = clamp(SOLD.pit - dy * 0.004, -0.5, 0.8); return; } if (SOLD.on) { SOLD.yaw += dx * 0.006; SOLD.pit = clamp(SOLD.pit - dy * 0.004, -0.5, 0.8); return; } return _b3PanS(dx, dy, h); };
+b3Pan = function (dx, dy, h) { if (SOLD.on && SOLD.ctrl) { SOLD.ctrl.cyaw += dx * 0.006; SOLD.ctrl.pitch = clamp(SOLD.ctrl.pitch - dy * 0.004, -1.3, 1.3); return; } if (SOLD.on) { SOLD.yaw += dx * 0.006; SOLD.pit = clamp(SOLD.pit - dy * 0.004, -0.5, 0.8); return; } return _b3PanS(dx, dy, h); };
 // (la figura seguida no se dibuja en primera persona: lo comprueba b3Fig con B3.hide)
 // HUD de la vista de soldado, encima del dibujado 3D
 const _b3FrameS = b3Frame;

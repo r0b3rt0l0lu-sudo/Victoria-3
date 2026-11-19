@@ -157,7 +157,8 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
       if (blk.type === 'cav' && V.over.t < 16 && blk.d.s > 0.2) { let tg = null, bd = 1e9; all.forEach(o => { if (o.side === side || o.role === 'reserve') return; const dd = Math.hypot(o.x - blk.x, o.y - blk.y); if (dd < bd) { bd = dd; tg = o; } }); if (tg) { mode = 'gallop'; tx = tg.x; ty = tg.y; spd = F.spd * 2.3; path = [[blk.x, blk.y], [tx, ty]]; } }
     }
   } else if (b.prep) { mode = 'deploy'; spd = F.spd * 5;
-  } else if (blk.brk > 0) { mode = 'retreat'; tx = home.x - dir * 210; spd = F.spd * 1.5;
+  } else if (blk.brk > 0 && (V.retreatAll && V.retreatAll[side])) { mode = 'retreat'; tx = home.x - dir * 210; spd = F.spd * 1.5;
+  } else if (blk.brk > 0) { mode = 'hold'; tx = blk.x; ty = blk.y; spd = 0;                // aturdido por una carga o un golpe: se queda en su puesto (desorganizado), no huye por su cuenta
   } else if (blk.d.cust && blk.d.cust.fort && !(blk.d.plan && blk.d.plan.k !== 'target') && tacFortAlive(b, blk.d.cust.fort)) { mode = (blk.foe && Math.hypot(blk.foe.x - blk.x, blk.foe.y - blk.y) < 190 && blk.foe.role !== 'reserve') ? 'fire' : 'hold'; spd = F.spd * 3; blk.garr = true;
   } else if ((pp = bvPlanStep(V, b, blk, dt, all, home)) !== null) { mode = pp.mode; tx = pp.tx; ty = pp.ty; spd = F.spd * pp.k; path = pp.path;
   } else if (blk.role === 'reserve') {
@@ -168,9 +169,9 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
   } else {
     // ---- bloque de línea: su estrategia se traduce en una orden propia para cada uno ----
     const flankers = blk.isFlk = (() => { if (st !== 'flank' && !(man && man.kind === 'flank') && !(od && od.k === 'flank')) return false; if (od && od.k === 'flank') return true; const hasCav = all.some(o => o.side === side && o.role === 'line' && o.type === 'cav'); return blk.type === 'cav' || blk.type === 'tank' || (!hasCav && st === 'flank' && blk.nLane >= 3 && (blk.lane === 0 || blk.lane === blk.nLane - 1)); })();
-    if (od && od.k === 'withdraw') { mode = 'retreat'; tx = home.x - dir * 140; spd = F.spd * 1.2; }
-    else if (V.gas && V.gas.side !== side && V.gas.t < 5 && Math.sin(blk.ph * 5 + blk.id) > 0.1) { mode = 'recoil'; tx = L - dir * 70; spd = F.spd * 1.5; if (Math.random() < dt * 3) { const fs = blk.figs.filter(f => f.alive && !f.flee); if (fs.length) bvFlee(V, blk, fs[Math.floor(Math.random() * fs.length)], 0.6); } }
-    else if (V.panic[side] > 0 && Math.sin(blk.ph * 7 + blk.id) > 0.45) { mode = 'recoil'; tx = L - dir * 120; spd = F.spd * 3; }
+    if ((od && od.k === 'withdraw') || (V.retreatAll && V.retreatAll[side])) { mode = 'retreat'; tx = home.x - dir * (V.retreatAll && V.retreatAll[side] ? 260 : 140); spd = F.spd * 1.2; }
+    else if (V.gas && V.gas.side !== side && V.gas.t < 5 && Math.sin(blk.ph * 5 + blk.id) > 0.1) { mode = 'hold'; tx = blk.x; ty = blk.y; spd = 0; if (Math.random() < dt * 3) { const fs = blk.figs.filter(f => f.alive && !f.flee); if (fs.length) bvFlee(V, blk, fs[Math.floor(Math.random() * fs.length)], 0.6); } }
+    else if (V.panic[side] > 0 && Math.sin(blk.ph * 7 + blk.id) > 0.45) { mode = 'hold'; tx = blk.x; ty = blk.y; spd = 0; }       // el pánico del flanco no hace retroceder a nadie: se aguanta el puesto
     else if (false) { }
     else if (flankers && foe) {
       const edgeTop = blk.lane < blk.nLane / 2 || blk.type === 'cav' && blk.lane === 0, ey = edgeTop ? 26 : BV_H - 24, xm = (L + LE) / 2;
@@ -185,7 +186,7 @@ function bvStepBlock(V, b, blk, dt, lines, all) {
       mode = 'charge'; spd = F.spd * (blk.type === 'cav' ? 2.6 : 3.4); if (foe && foe.role !== 'reserve') { [tx, ty] = contact(foe); path = [[blk.x, blk.y], [tx, ty]]; } else tx = LE;
     } else if (st === 'skirmish') {
       const T = 8, ph = ((t + blk.ph * 2) % T) / T; spd = F.spd * 1.6;
-      if (ph < 0.42) { mode = 'skirmish'; tx = home.x + dir * 24; } else if (ph < 0.6) { mode = 'fire'; tx = blk.x; } else { mode = 'retreat'; tx = home.x - dir * 30; spd = F.spd * 1.2; }
+      if (ph < 0.42) { mode = 'skirmish'; tx = home.x + dir * 24; } else if (ph < 0.6) { mode = 'fire'; tx = blk.x; } else { mode = 'fire'; tx = blk.x; }                 // los tiradores no se repliegan: sostienen el fuego en su sitio
       ty = home.y + Math.sin(t * 1.1 + blk.ph) * 6;
     } else if (st === 'barrage') { mode = b.day <= 3 ? 'hold' : 'advance'; if (dist < 150) mode = 'fire'; }
     else if (st === 'hold') { mode = att ? (dist < 160 ? 'fire' : 'advance') : 'hold'; if (!att && dist < 160) mode = 'fire'; if (mode === 'fire' && att && typeof bvWantsAssault === 'function' && bvWantsAssault(V, b, blk, st, att, foe, dt)) { mode = 'charge'; spd = F.spd * 1.9; [tx, ty] = contact(foe); path = [[blk.x, blk.y], [tx, ty]]; blk.asl = true; } }

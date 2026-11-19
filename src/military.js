@@ -372,7 +372,13 @@ function battleDay(b) {
   const A2 = b.A.map(armyById).filter(Boolean), B2 = b.B.map(armyById).filter(Boolean);
   const oA = A2.length ? sideStats(b, b.A, true).org : 0, oB = B2.length ? sideStats(b, b.B, true).org : 0;
   if (!A2.length || !B2.length) { endBattle(b, A2.length ? 'A' : 'B'); return; }
-  const th = list => list.some(a => a.mode === 'hold') ? 0.08 : (typeof morRetreatTh === 'function' ? morRetreatTh(list) : 0.18);       // «mantener posición» resiste hasta el final
+  // Los ejércitos no se retiran por su cuenta: aguantan hasta que se desploma su organización (≈ 6 %, ≈ 4 % si tienen orden de mantener la posición) o hasta que el mando
+  // ORDENA la retirada (botón «Ordenar retirada» del jugador, o la IA cuando todo está perdido: mucha inferioridad y poca organización durante varios días).
+  const th = list => list.some(a => a.mode === 'hold') ? 0.04 : (typeof morRetreatTh === 'function' ? Math.max(0.04, Math.min(0.07, morRetreatTh(list) * 0.4)) : 0.06);
+  { const aiDesp = (own, foe, list) => !list.some(a => a.tag === G.player) && b.day >= 6 && own < 0.22 && own < foe * 0.45 && Math.random() < 0.06;
+    if ((b.retreatA || b.retreatB) && b.day >= 2) { b.orderly = true; endBattle(b, b.retreatA ? 'B' : 'A'); return; }
+    if (aiDesp(oA, oB, A2)) { b.retreatA = true; b.orderly = true; endBattle(b, 'B'); return; }
+    if (aiDesp(oB, oA, B2)) { b.retreatB = true; b.orderly = true; endBattle(b, 'A'); return; } }
   { const actN = list => list.reduce((n, a) => n + a.divs.filter(d => (typeof divFrac === 'function' ? divFrac(d) : 1) > 0).length, 0); if (!actN(A2)) { endBattle(b, 'B'); return; } if (!actN(B2)) { endBattle(b, 'A'); return; } }
   if (b.day >= 4 && (oA < th(A2) || oB < th(B2))) endBattle(b, oA < oB ? 'B' : 'A');
 }
@@ -393,7 +399,7 @@ function endBattle(b, winner) {
   const win = (winner === 'A' ? b.A : b.B).map(armyById).filter(Boolean), lose = (winner === 'A' ? b.B : b.A).map(armyById).filter(Boolean);
   win.forEach(a => { a.battle = null; a.rest = 0; a.gen.xp += 8; gainXp(a.tag, 1.5); if (a.gen.xp >= a.gen.lvl * 30 && a.gen.lvl < 5) { a.gen.xp = 0; a.gen.lvl++; const k = pick(['atk', 'def', 'log']); a.gen[k] = Math.min(5, a.gen[k] + 1); if (a.tag === G.player) notify('war', `${a.gen.name} sube a nivel ${a.gen.lvl}.`); } });
   win.forEach(a => { if (typeof armyMor === 'function') a.mor = Math.min(1, armyMor(a) + 0.06); });
-  lose.forEach(a => { a.battle = null; gainXp(a.tag, 0.5); retreatArmy(a, b); generalFate(a, b); if (typeof armyMor === 'function') a.mor = Math.max(0, armyMor(a) - 0.12); });
+  lose.forEach(a => { a.battle = null; gainXp(a.tag, 0.5); retreatArmy(a, b); if (!b.orderly) generalFate(a, b); if (typeof armyMor === 'function') a.mor = Math.max(0, armyMor(a) - (b.orderly ? 0.04 : 0.12)); });
   if (typeof battlePrisoners === 'function') battlePrisoners(b, winner, win, lose);
   if (typeof battleSummary === 'function') battleSummary(b, winner, win, lose);
   const wt = win[0] ? win[0].tag : null, lt = lose[0] ? lose[0].tag : null;

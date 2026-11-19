@@ -209,8 +209,9 @@ function b3Fig(S, V, blk, f, era, tU, cp, ca) {
   const m = tank ? 1 : cav ? 2 : (R.lowEnd ? 2 : 6), sp = cav ? 2.9 : tank ? 0 : 1.65 * (blk.comp || 1);
   const dyingK = !f.alive && f.dying > 0;
   for (let j = 0; j < m; j++) {
-    if (B3.hide && B3.hide.bid === blk.id && B3.hide.fi === f.i && B3.hide.j === j) continue;          // vista de soldado en primera persona (soldado3d.js)
-    const lx = tank || cav ? 0 : R.lowEnd ? 0 : (j < 3 ? -0.5 : 0.5) * sp * 1.1, ly = tank ? 0 : cav ? (j ? sp : -sp) : R.lowEnd ? (j ? sp / 2 : -sp / 2) : ((j % 3) - 1) * sp, x = f.x + c * lx - s * ly, z = f.y + s * lx + c * ly, y = b3H(tf, x, z);
+    if (typeof b3Hid === 'function' && b3Hid(blk.id, f.i, j)) continue;          // soldado seguido o abatido (soldado3d.js)
+    const lx = tank || cav ? 0 : R.lowEnd ? 0 : (j < 3 ? -0.5 : 0.5) * sp * 1.1, ly = tank ? 0 : cav ? (j ? sp : -sp) : R.lowEnd ? (j ? sp / 2 : -sp / 2) : ((j % 3) - 1) * sp;
+    let x = f.x + c * lx - s * ly, z = f.y + s * lx + c * ly, y = b3H(tf, x, z);
     const h1 = hash2(blk.id * 131 + f.i, j, 11), h2 = hash2(blk.id * 131 + f.i, j, 13); _b3o.phase = h1; _b3o.h = (h2 - 0.5) * 0.12; _b3o.bright = (h1 * 7.3) % 1; _b3o.skin = (h2 * 4) | 0; _b3o.horse = (h1 * 4) | 0; _b3o.start = null;
     let yaw = Math.PI / 2 - blk.hd + (h1 - 0.5) * 0.12, clip;
     if (dyingK) { clip = tank ? 'destruido' : _b3Cl[(h2 * 4) | 0]; _b3o.start = tU - (0.8 - f.dying) * 1.5; }
@@ -219,6 +220,7 @@ function b3Fig(S, V, blk, f, era, tU, cp, ca) {
     if (E && !dyingK) { const mv = (blk.sp || 0) > 8, fr = blk.mode === 'fire' || blk.mode === 'artfire' || blk.mode === 'fixing' || blk.mode === 'skirmish';
       if (tank) { clip = mv ? 'avanzar' : fr ? 'disparar_canon' : 'ralenti'; _b3o.tread = mv ? 1.6 : 0; } else { _b3o.tread = 0; if (vset && j === 0) { st2 = vset; clip = mv ? 'avanzar' : 'ralenti'; _b3o.tread = vk === 'semioruga' && mv ? 1.6 : 0; } else if (mgset && j === 1) { st2 = mgset; clip = fr && !mv ? 'disparar_rafaga' : mv ? 'marcha' : 'idle'; } else if (!cav && clip === 'disparar_D') clip = h2 < 0.35 ? 'disparar_tumbado' : 'disparar'; } }
     else if (E) _b3o.tread = 0;
+    if (!tank && !cav && !dyingK && typeof b3Free === 'function') { const o = b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2); if (o) { x = o.x; z = o.z; y = b3H(tf, x, z); yaw = o.yaw; clip = o.clip; if ('start' in o) _b3o.start = o.start; } }          // movimiento libre cerca de la cámara (soldado3d_ctrl.js)
     st2.add(d3(x, y, z), x, y, z, yaw, tank ? B3_S * 1.1 : B3_S, tag, clip, _b3o); b3Sh(S, x, y, z, tank ? 3.4 : cav ? 2.0 : 1.05);
   }
 }

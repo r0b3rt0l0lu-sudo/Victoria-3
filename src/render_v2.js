@@ -20,7 +20,7 @@ initRenderer = function (canvas) {
       const hi = document.createElement('canvas'); hi.width = base.width; hi.height = base.height;
       const fill = document.createElement('canvas'); fill.width = MAP_W; fill.height = MAP_H;
       const tex = new THREE.CanvasTexture(hi); tex.anisotropy = R.tex.anisotropy; tex.colorSpace = R.tex.colorSpace; tex.generateMipmaps = true; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter;
-      Object.assign(R.v2, {base, hi, hctx: hi.getContext('2d'), fill, fctx: fill.getContext('2d'), fimg: fill.getContext('2d').createImageData(MAP_W, MAP_H), tex, ready: true});
+      Object.assign(R.v2, {base, hi, hctx: hi.getContext('2d', {willReadFrequently: true}), fill, fctx: fill.getContext('2d'), fimg: fill.getContext('2d').createImageData(MAP_W, MAP_H), tex, ready: true});
       R.mesh.traverse(o => { if (o.isMesh && o.material && o.material.map === R.tex) { o.material.map = tex; o.material.needsUpdate = true; } });
       R.tex.dispose(); R.tex = tex; R.cv = hi;                       // el minimapa y rendimiento.js usan R.cv / R.tex
       fullRepaint();

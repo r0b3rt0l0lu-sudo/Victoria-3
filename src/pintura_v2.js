@@ -230,7 +230,7 @@ function pv2PaintTile(g, x0, y0, s, w, h, opt) {
 // 2 = 4096×1640 «medio», 4 = 8192×3280 «alto» si la GPU admite texturas de 8192) por franjas de 1024 px para no bloquear un fotograma largo.
 // Devuelve una promesa; onStrip(y0, y1) permite subir a la GPU solo la franja pintada (texSubImage2D) si se quiere.
 function pv2PaintTexture(cv, scale, opt, onStrip) {
-  cv.width = Math.round(MAP_W * scale); cv.height = Math.round(MAP_H * scale); const g = cv.getContext('2d'), T = 1024;
+  cv.width = Math.round(MAP_W * scale); cv.height = Math.round(MAP_H * scale); const g = cv.getContext('2d', {willReadFrequently: true}), T = 1024;
   const jobs = []; for (let y = 0; y < cv.height; y += T) for (let x = 0; x < cv.width; x += T) jobs.push([x, y]);
   return new Promise(ok => { const step = () => { const t0 = performance.now();
     while (jobs.length && performance.now() - t0 < 12) { const [x, y] = jobs.shift(), w = Math.min(T, cv.width - x), h = Math.min(T, cv.height - y);
@@ -239,7 +239,7 @@ function pv2PaintTexture(cv, scale, opt, onStrip) {
 }
 // repinta solo la caja de un estado (cambio de dueño): x0..x1, y0..y1 en píxeles lógicos
 function pv2RepaintRegion(cv, scale, x0, y0, x1, y1, opt) {
-  const g = cv.getContext('2d'), px0 = Math.max(0, Math.floor((x0 - 3) * scale)), py0 = Math.max(0, Math.floor((y0 - 3) * scale)), px1 = Math.min(cv.width, Math.ceil((x1 + 4) * scale)), py1 = Math.min(cv.height, Math.ceil((y1 + 4) * scale));
+  const g = cv.getContext('2d', {willReadFrequently: true}), px0 = Math.max(0, Math.floor((x0 - 3) * scale)), py0 = Math.max(0, Math.floor((y0 - 3) * scale)), px1 = Math.min(cv.width, Math.ceil((x1 + 4) * scale)), py1 = Math.min(cv.height, Math.ceil((y1 + 4) * scale));
   g.save(); g.translate(px0, py0); g.beginPath(); g.rect(0, 0, px1 - px0, py1 - py0); g.clip(); pv2PaintTile(g, px0 / scale, py0 / scale, scale, px1 - px0, py1 - py0, opt); g.restore();
   return [px0, py0, px1 - px0, py1 - py0];
 }

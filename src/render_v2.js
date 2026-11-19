@@ -62,7 +62,7 @@ function v2Compose(x0, y0, w, h, partial) {
 function v2TexSub(X, Y, W, H) {
   try {
     const r = R.renderer, gl = r.getContext(), p = r.properties.get(R.v2.tex); if (!p.__webglTexture || !(gl instanceof WebGL2RenderingContext)) return false;
-    const img = R.v2.hctx.getImageData(X, Y, W, H);
+    let img; if (W * H > 0) { const t = R.v2.sub || (R.v2.sub = document.createElement('canvas')); if (t.width < W || t.height < H) { t.width = Math.max(t.width, W); t.height = Math.max(t.height, H); R.v2.subg = null; } const tg = R.v2.subg || (R.v2.subg = t.getContext('2d')); tg.clearRect(0, 0, W, H); tg.drawImage(R.v2.hi, X, Y, W, H, 0, 0, W, H); img = tg.getImageData(0, 0, W, H); }          // región pequeña en un lienzo auxiliar (evita leer el lienzo grande)
     r.state.bindTexture(gl.TEXTURE_2D, p.__webglTexture);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, R.v2.tex.flipY); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
     gl.texSubImage2D(gl.TEXTURE_2D, 0, X, R.v2.tex.flipY ? R.v2.hi.height - Y - H : Y, W, H, gl.RGBA, gl.UNSIGNED_BYTE, img);
@@ -90,3 +90,9 @@ function v2SetStyle(style) {
   if (!R.v2.ready) return Promise.resolve(false); R.v2.style = style;
   return pv2PaintTexture(R.v2.base, R.v2.scale, {style, season: 'verano', quality: R.quality, layers: {politico: false, fronteras: false, provincias: false, rutas: false, relieve: true}, reliefK: R.v2.reliefK}).then(() => { fullRepaint(); return true; });
 }
+
+// las repintadas de estados se agrupan: varias órdenes sobre el mismo estado en un mismo instante se hacen una sola vez y con presupuesto de tiempo
+const _v2RepaintNow = repaintState, V2PEND = new Set(); let v2PendT = 0;
+function v2Flush() { v2PendT = 0; const t0 = performance.now(); for (const id of V2PEND) { V2PEND.delete(id); try { _v2RepaintNow(id); } catch (e) { console.warn('repaint v2', e); } if (performance.now() - t0 > 40) break; } if (V2PEND.size) v2PendT = setTimeout(v2Flush, 30); }
+repaintState = function (id) { if (!R.v2.ready || id < 0) return _v2RepaintNow(id); V2PEND.add(id); if (!v2PendT) v2PendT = setTimeout(v2Flush, 30); };
+const _v2FullNow = fullRepaint; fullRepaint = function () { V2PEND.clear(); return _v2FullNow.apply(this, arguments); };

@@ -30,9 +30,8 @@ function ctrlStart() {
   if (blk.type === 'cav') { toast('🎮', 'El control manual solo está disponible para infantería. Elige un soldado de a pie (tecla R).'); return; }
   SOLD.ctrl = {x: w.x, z: w.z, hd: blk.hd, cyaw: blk.hd, pitch: 0, kick: 0, kneel: false, flag: false, cd: 0, fireT: -99, clip: 'idle', clipT: null, shots: 0, hits: 0, kills: 0, dead: false, deadAt: 0, lt: now, mv: false, run: false, t: 0, hitT: -9, oldTs: V.ts};
   SOLD.fp = true; V.ts = (V.ts === undefined || V.ts > 0.3) ? CTRL_SLOW : V.ts;           // el combate se ralentiza para poder jugar
-  try { const el = ctrlLockEl(); if (el && el.requestPointerLock) el.requestPointerLock(); } catch (e) { }
   try { renderBattlePanel(); } catch (e) { }
-  toast('🎮', 'Control en primera persona: ratón apunta · clic dispara · clic derecho apunta con precisión · WASD mueve · Mayús corre · Z rodillas · F estandarte · Tab observar');
+  toast('🎮', 'Control en primera persona: haz clic en el campo para capturar el ratón (apuntas con él; clic dispara, clic derecho apunta con precisión) · WASD mueve · Mayús corre · Z rodillas · F estandarte · Tab observar');
 }
 function ctrlExit(why) {
   const c = SOLD.ctrl; if (!c) return; SOLD.ctrl = null; SOLD.yaw = 0; const V = R.bviz; if (V && c.oldTs !== undefined) V.ts = c.oldTs; else if (V) delete V.ts;

@@ -9,7 +9,7 @@ const ORDEN = {P: [-0.27, -0.95, 0.1], R: [0, 0, 0]}, APUNTA = {P: [-0.15, 0.38,
 const SABLE_BAJO = {P: [-0.27, -0.1, 0.08], R: [180, 0, 0]};
 const arm = (A, g) => ({armaP: [[0].concat(A.P)], armaR: [[0].concat(A.R)], agarre: [[0].concat(g)]});
 const legsStand = {musloIz: [[0, -4, 0, 2]], musloDe: [[0, 2, 0, -2]]};
-const KNEEL = {musloIz: [[0, -85, 0, 4]], piernaIz: [[0, 85, 0, 0]], musloDe: [[0, -8, 0, -4]], piernaDe: [[0, 95, 0, 0]]};
+const KNEEL = {pieDe: [[0, 72, 0, 0]], musloIz: [[0, -85, 0, 4]], piernaIz: [[0, 85, 0, 0]], musloDe: [[0, -8, 0, -4]], piernaDe: [[0, 95, 0, 0]]};
 const CROUCH = {musloIz: [[0, -78, 0, 8]], piernaIz: [[0, 118, 0, 0]], musloDe: [[0, -62, 0, -8]], piernaDe: [[0, 112, 0, 0]]};
 const HIDE_ARMA = {arma: [[0, 0]]};
 function mk(dur, loop, tracks, ev, extra) { return Object.assign({dur, loop, tracks, ev: ev || []}, extra || {}); }

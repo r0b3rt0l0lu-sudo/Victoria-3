@@ -62,12 +62,32 @@ function nationalMark(g, part, tipo, at, yaw, s) {
 }
 
 /* ---------- soldado E: equipo, cascos, armas ---------- */
-function eKit(g, P, o) {
-  const st = o.equipo || 'gbr';
-  if (o.kitLigero) { g.tet(P.torso, Z.FIX, CE.cantimplora, [-0.2, -0.03, -0.06], 0.06); return; }
-  if (st === 'ger') { g.cyl(P.torso, Z.FIX, CE.mascara, [0.02, 0.0, -0.16], 0.055, 0.055, 0.26, 4, {rot: [0, 0, 80], top: true}); g.tet(P.torso, Z.FIX, CE.cantimplora, [-0.2, -0.03, -0.06], 0.06); }
-  else if (st === 'sov') { g.cyl(P.torso, Z.FIX, 0x6a6650, [0, 0.24, 0], 0.06, 0.06, 0.62, 4, {rot: [0, 0, -48], sz: 2.3}); g.tet(P.torso, Z.FIX, CE.cantimplora, [-0.2, -0.03, -0.06], 0.06); }
-  else { g.box(P.torso, Z.FIX, 0x7a7050, [0, 0.3, -0.16], [0.28, 0.22, 0.1]); g.tet(P.torso, Z.FIX, CE.cantimplora, [-0.2, -0.03, -0.06], 0.06); }
+function eKit(g, P, o) {   // v4: correaje de 1939–45 por escuela (fuentes: manuales de equipo Wehrmacht 1939, British Pattern 1937, RKKA 1936; M1910/M1923 EE. UU.)
+  const st = o.equipo || 'gbr', F = Z.FIX, T = P.torso, web = st === 'ger' ? 0x2e2620 : st === 'sov' ? 0x5a4a32 : st === 'usa' ? 0x8a8058 : 0x9a9068;
+  const can = () => { g.loft(T, F, CE.cantimplora, [[-0.08, 0.05, 0.035], [0.0, 0.06, 0.04], [0.08, 0.05, 0.035]], 6, {at: [-0.19, -0.06, -0.07], capA: true, capB: true, p: 2.4}); g.loft(T, F, 0x3a3428, [[0.075, 0.045, 0.03], [0.1, 0.04, 0.026]], 6, {at: [-0.19, -0.06, -0.07], capB: true}); };
+  if (o.kitLigero) { can(); g.loft(T, F, web, [[0.0, 0.172, 0.112], [0.05, 0.174, 0.114]], 8, {p: 3, flatN: true}); return; }
+  const strapsY = (w, front) => [1, -1].forEach(s => { g.strap(T, F, web, [[0.09 * s, 0.03, 0.124], [0.11 * s, 0.25, 0.13], [0.12 * s, 0.44, 0.08], [0.1 * s, 0.47, -0.04], front ? [0.08 * s, 0.3, -0.12] : [0.02, 0.25, -0.12]], w, [0, 0, 1]); });
+  if (st === 'ger') {
+    strapsY(0.03); [1, -1].forEach(s => [0.06, 0.12].forEach(x => g.box(T, F, 0x2e2620, [s * (x + 0.0), 0.0, 0.135], [0.055, 0.085, 0.045], {bottom: true, rot: [-6, 0, 0]})));   // 2×3 cartucheras K98
+    g.loft(T, F, CE.mascara, [[-0.13, 0.055, 0.055], [-0.09, 0.06, 0.06], [0.12, 0.06, 0.06], [0.14, 0.05, 0.05]], 8, {axis: 'y', at: [0.08, -0.05, -0.16], rot: [0, 0, 10], capA: true, capB: true});   // portacaretas acanalado
+    g.box(T, F, 0x6a6448, [-0.15, -0.08, -0.1], [0.07, 0.17, 0.2], {bottom: true});                                         // bolsa de pan
+    g.box(T, F, 0x3a3c38, [0.19, -0.14, -0.06], [0.03, 0.2, 0.13], {rot: [0, 0, 6]}); g.tube(T, F, 0x6a5038, [0.19, -0.05, -0.06], [0.19, 0.15, -0.06], [[0, 0.016], [1, 0.016]], 4);   // pala
+    can();
+  } else if (st === 'sov') {
+    { const pts = []; for (let i = 0; i <= 10; i++) { const a = i / 10 * Math.PI * 2; pts.push(xf([[Math.cos(a) * 0.235, 0, Math.sin(a) * 0.17]], [0, 0.25, 0], [0, 0, -42])[0]); }   // capote enrollado en bandolera (skatka)
+      for (let i = 0; i < 10; i++) g.tube(T, F, 0x6a6650, pts[i], pts[i + 1], [[0, 0.055], [1, 0.055]], 6); }
+    [1, -1].forEach(s => g.box(T, F, web, [0.1 * s, 0.0, 0.135], [0.08, 0.08, 0.045], {bottom: true}));
+    g.box(T, F, 0x6a6448, [-0.16, -0.08, -0.1], [0.08, 0.17, 0.18], {bottom: true}); can();
+  } else if (st === 'usa') {
+    g.loft(T, F, web, [[-0.02, 0.18, 0.122], [0.05, 0.182, 0.124]], 8, {p: 3, flatN: true});                                  // cinto de cartuchos con bolsillos
+    for (let i = 0; i < 5; i++) { const a = -0.9 + i * 0.45; g.box(T, F, web, [Math.sin(a) * 0.17, 0.0, Math.cos(a) * 0.12 + 0.012], [0.05, 0.075, 0.03], {rot: [0, a / D2R, 0], bottom: true}); }
+    strapsY(0.03, true); g.box(T, F, web, [0, 0.3, -0.16], [0.24, 0.26, 0.09], {bottom: true}); can();                         // mochila de combate
+  } else {
+    strapsY(0.045, true); [1, -1].forEach(s => g.box(T, F, web, [0.1 * s, 0.24, 0.155], [0.12, 0.16, 0.07], {bottom: true, rot: [-4, 0, 0]}));   // cartucheras P37 al pecho
+    g.loft(T, F, web, [[0.0, 0.172, 0.114], [0.06, 0.174, 0.116]], 8, {p: 3, flatN: true});
+    g.box(T, F, web, [0, 0.3, -0.17], [0.28, 0.24, 0.11], {bottom: true}); g.box(T, F, 0x7a7050, [0, 0.43, -0.2], [0.29, 0.03, 0.12]);   // mochila pequeña
+    can();
+  }
 }
 function headgearE(g, h, toc, o) {
   const H = Z.HAT;
@@ -99,19 +119,30 @@ function weaponE(g, a, w, o) {
 WEAPON_LOD.lmg = 1.24;
 
 /* ---------- piezas reutilizables de vehículos ---------- */
-const whl = (g, part, r, w, at) => g.cyl(part, Z.FIX, CE.goma, at || [0, 0, 0], r, r, w, 6, {rot: [0, 0, 90], top: true, bottom: true});
+// rueda con neumático (banda y flancos redondeados), llanta de disco y cubo — v4
+const whl = (g, part, r, w, at) => { at = at || [0, 0, 0]; const h = w / 2, o = {axis: 'x', at, n: 12};
+  g.loft(part, Z.FIX, CE.goma, [[-h, r * 0.7, r * 0.7], [-h * 0.8, r * 0.95, r * 0.95], [0, r, r], [h * 0.8, r * 0.95, r * 0.95], [h, r * 0.7, r * 0.7]], 12, {axis: 'x', at});
+  [1, -1].forEach(s => { g.loft(part, Z.VEH, 0, [[h * s * 0.98, r * 0.7, r * 0.7], [h * s * 0.55, r * 0.15, r * 0.15]], 10, {axis: 'x', at, inside: true, nrm: [s, 0, 0]});
+    g.loft(part, Z.FIX, CE.oscuro, [[h * s * 0.55, r * 0.14, r * 0.14], [h * s * 1.02, r * 0.09, r * 0.09]], 6, {axis: 'x', at, capB: true}); }); void o; };
 // soldado sentado (busto): 8 + 10 + 15 triángulos
-function seated(g, part, at, yaw, toc) {
-  g.box(part, Z.MAIN, 0, [at[0], at[1] + 0.25, at[2]], [0.36, 0.5, 0.22], {noTop: true, rot: [0, yaw, 0]});
-  g.cyl(part, Z.FIX, C.piel, [at[0], at[1] + 0.6, at[2]], 0.1, 0.11, 0.2, 5, {vr: V.SKIN});
-  const b = toc === 'brodie' ? 0.2 : toc === 'ssh' || toc === 'm1' ? 0.17 : 0.16;
-  g.cyl(part, Z.HAT, 0, [at[0], at[1] + 0.73, at[2]], b, 0.08, 0.1, 5, {top: true});
+function seated(g, part, at, yaw, toc) {   // v4: busto modelado con cabeza, cara y casco nacional
+  const t = new GeoBuilder(), r = [0, yaw || 0, 0];
+  t.loft(part, Z.MAIN, 0, [[0.0, 0.16, 0.1], [0.25, 0.17, 0.11, 0, 0.01], [0.42, 0.165, 0.1], [0.5, 0.1, 0.07], [0.53, 0.05, 0.05]], 8, {capB: true, p: 3});
+  [1, -1].forEach(s => { t.tube(part, Z.MAIN, 0, [0.19 * s, 0.44, 0], [0.21 * s, 0.2, 0.1], [[0, 0.055], [1, 0.045]], 6); t.tube(part, Z.MAIN, 0, [0.21 * s, 0.2, 0.1], [0.1 * s, 0.17, 0.33], [[0, 0.045], [1, 0.04]], 6, {capB: true}); });
+  // la cabeza se construye en y 0–0,3: se sube al cuello del busto
+  const head = new GeoBuilder(); soldierHead(head, part, {toc: toc || 'm35'});
+  const body = t;
+  for (let i = 0; i < head.p.length; i += 3) head.p[i + 1] += 0.53;
+  [body, head].forEach(src => { const pp = xf(Array.from({length: src.p.length / 3}, (_, i) => [src.p[i * 3], src.p[i * 3 + 1], src.p[i * 3 + 2]]), at, r), nn = xf(Array.from({length: src.n.length / 3}, (_, i) => [src.n[i * 3], src.n[i * 3 + 1], src.n[i * 3 + 2]]), [0, 0, 0], r);
+    pp.forEach(q => g.p.push(q[0], q[1], q[2])); nn.forEach(q => g.n.push(q[0], q[1], q[2])); ['part', 'zone', 'col', 'vr', 'fx'].forEach(k => { for (let i = 0; i < src[k].length; i++) g[k].push(src[k][i]); }); });
 }
 // tripulante asomado por la escotilla
 function crewman(g, part, hat, dy) {
   dy = dy || 0; const g2 = new GeoBuilder();
-  g2.box(part, Z.MAIN, 0, [0, -0.25, 0], [0.38, 0.46, 0.24], {noTop: true}); g2.cyl(part, Z.FIX, C.piel, [0, 0.12, 0], 0.11, 0.12, 0.24, 5, {vr: V.SKIN});
-  headgearE(g2, part, hat || 'casco_tanquista', {});
+  g2.loft(part, Z.MAIN, 0, [[-0.5, 0.16, 0.1], [-0.2, 0.17, 0.11, 0, 0.01], [-0.06, 0.165, 0.1], [0.0, 0.1, 0.07], [0.03, 0.05, 0.05]], 8, {capB: true, p: 3});
+  [1, -1].forEach(s => g2.tube(part, Z.MAIN, 0, [0.19 * s, -0.06, 0], [0.24 * s, -0.3, 0.06], [[0, 0.055], [1, 0.05]], 6));
+  const hd = new GeoBuilder(); soldierHead(hd, part, {toc: hat || 'casco_tanquista'}); 
+  ['p', 'n', 'part', 'zone', 'col', 'vr', 'fx'].forEach(k => { for (let i = 0; i < hd[k].length; i++) g2[k].push(hd[k][i]); });
   for (let i = 0; i < g2.p.length; i += 3) g2.p[i + 1] += dy;
   ['p', 'n', 'part', 'zone', 'col', 'vr', 'fx'].forEach(k => { for (let i = 0; i < g2[k].length; i++) g[k].push(g2[k][i]); });      // cabeza a la altura estándar (y 0–0,25) para reutilizar los tocados
 }
@@ -179,7 +210,10 @@ function tankRunning(g, P, prof, w, wheels, wr, sprocket) {
   ['orugaI', 'orugaD'].forEach((k, i) => {
     const s = i ? -1 : 1; trackLoop(g, P[k], prof, w, 0, Z.FIX, s, 0x45463f);
     const yb = Math.min(...prof.map(q => q[1])) + wr - 0.03;
-    wheels.forEach(z => g.disc(P[k], Z.FIX, 0x3e403a, [s * (w / 2 + 0.01), yb, z], wr, wr > 0.38 ? 8 : 6, {rot: [0, i ? 180 : 0, 0]}));
+    wheels.forEach(z => { const x = s * (w / 2 + 0.02);   // v4: rueda de rodaje con banda de goma, disco y tapacubos
+      g.loft(P[k], Z.FIX, CE.goma, [[x - 0.06 * s, wr, wr], [x, wr, wr]], 10, {axis: 'x', at: [0, yb, z]});
+      g.loft(P[k], Z.FIX, CE.goma, [[x, wr, wr], [x + 0.0005 * s, wr * 0.8, wr * 0.8]], 10, {axis: 'x', at: [0, yb, z], nrm: [s, 0, 0]});
+      g.loft(P[k], Z.VEH, 0, [[x + 0.0005 * s, wr * 0.8, wr * 0.8], [x + 0.03 * s, wr * 0.3, wr * 0.3]], 10, {axis: 'x', at: [0, yb, z], capB: true, nrm: [s, 0, 0]}); });
     if (sprocket) sprocket.forEach(([z, y, r]) => g.disc(P[k], Z.FIX, 0x34363a, [s * (w / 2 + 0.01), y, z], r, 6, {rot: [0, i ? 180 : 0, 0]}));
   });
 }
@@ -335,7 +369,7 @@ function retime(c, dur, tFrom, tTo) {
   Object.values(o.tracks).forEach(R); R(o.root); if (o.hide) Object.values(o.hide).forEach(R); if (o.pos) Object.values(o.pos).forEach(R); (o.ev || []).forEach(e => { e[0] = f(e[0]); });
   return o;
 }
-const PRONE = {pelvis: [[0, 88, 0, 0]], torso: [[0, -18, 0, 0]], cabeza: [[0, -58, 0, 0]], musloIz: [[0, 0, 0, 8]], musloDe: [[0, 0, 0, -8]], piernaIz: [[0, 12, 0, 0]], piernaDe: [[0, 8, 0, 0]]};
+const PRONE = {pieIz: [[0, 78, 0, 10]], pieDe: [[0, 78, 0, -10]], pelvis: [[0, 88, 0, 0]], torso: [[0, -18, 0, 0]], cabeza: [[0, -58, 0, 0]], musloIz: [[0, 0, 0, 8]], musloDe: [[0, 0, 0, -8]], piernaIz: [[0, 12, 0, 0]], piernaDe: [[0, 8, 0, 0]]};
 const PRONE_ROOT = [[0, 0, -0.76, 0.45]], APUNTA_T = {P: [-0.12, 0.38, -0.05], R: [20, 0, 0]};
 Object.assign(CLIPS.soldado, {
   tumbarse: mk(1.0, false, {pelvis: [[0, 0, 0, 0], [0.4, 0, 0, 0], [1, 88, 0, 0]], torso: [[0, 0, 0, 0], [0.4, 20, 0, 0], [1, -18, 0, 0]], cabeza: [[0, 0, 0, 0], [0.4, 10, 0, 0], [1, -58, 0, 0]],

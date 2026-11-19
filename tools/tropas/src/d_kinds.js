@@ -51,7 +51,7 @@ function lodRider(o, lvl) {
   g.box(P.torso, Z.MAIN, 0, [0, 0.22, 0], [0.38, 0.46, 0.23]);                                                 // 10
   g.octa(P.cabeza, Z.FIX, C.piel, [0, 0.12, 0.005], 0.125, {ry: 0.14, vr: V.SKIN});                           // 8
   if (o.toc) lodHat(g, P.cabeza, o.toc);                                                                       // 10
-  g.cyl(P.brazoIz, Z.MAIN, 0, [0, -0.15, 0.1], 0.05, 0.06, 0.4, 3, {rot: [-35, 0, 0]});                        // 6
+  g.cyl(P.brazoIz, Z.MAIN, 0, [0, -0.2, 0.02], 0.05, 0.06, 0.4, 3);                        // 6
   g.cyl(P.brazoDe, Z.MAIN, 0, [0, -0.26, 0], 0.05, 0.06, 0.56, 3);                                            // 6
   lodWeapon(g, P.arma, {husar: 'sable', coracero: 'sable', dragon: 'sable', lancero: 'lanza', general: 'sable', ayudante: 'sable', mariscal: 'baston', estandarte: 'astil_jinete'}[o.tipo || 'husar'], o);   // 6–12
   return g;

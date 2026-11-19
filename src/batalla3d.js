@@ -162,7 +162,7 @@ function b3Set(S, kind, era, tag, role) {
   let set = S.sets[key];
   if (!set) {
     const cls = /^(husar|lancero|dragon|coracero)$/.test(kind) ? 'cav' : /canon|obus|ametralladora|avantren|carro|carreta|artillero|tanque|mark1|camion|semioruga|cazacarros/.test(kind) ? 'art' : 'inf';
-    set = S.sets[key] = new T.TroopLodSet(sh, kind, era, tag, B3_CAP[cls].map(n => R.lowEnd ? n >> 1 : n), {role, dist: [75, 220]}); set.meshes.forEach(m => S.scene.add(m)); set.kind = kind;
+    set = S.sets[key] = new T.TroopLodSet(sh, kind, era, tag, B3_CAP[cls].map(n => R.lowEnd ? n >> 1 : n), {role, dist: [45, 220]}); set.meshes.forEach(m => S.scene.add(m)); set.kind = kind;
   }
   return set;
 }
@@ -209,6 +209,7 @@ function b3Fig(S, V, blk, f, era, tU, cp, ca) {
   const m = tank ? 1 : cav ? 2 : (R.lowEnd ? 2 : 6), sp = cav ? 2.9 : tank ? 0 : 1.65 * (blk.comp || 1);
   const dyingK = !f.alive && f.dying > 0;
   for (let j = 0; j < m; j++) {
+    if (B3.hide && B3.hide.bid === blk.id && B3.hide.fi === f.i && B3.hide.j === j) continue;          // vista de soldado en primera persona (soldado3d.js)
     const lx = tank || cav ? 0 : R.lowEnd ? 0 : (j < 3 ? -0.5 : 0.5) * sp * 1.1, ly = tank ? 0 : cav ? (j ? sp : -sp) : R.lowEnd ? (j ? sp / 2 : -sp / 2) : ((j % 3) - 1) * sp, x = f.x + c * lx - s * ly, z = f.y + s * lx + c * ly, y = b3H(tf, x, z);
     const h1 = hash2(blk.id * 131 + f.i, j, 11), h2 = hash2(blk.id * 131 + f.i, j, 13); _b3o.phase = h1; _b3o.h = (h2 - 0.5) * 0.12; _b3o.bright = (h1 * 7.3) % 1; _b3o.skin = (h2 * 4) | 0; _b3o.horse = (h1 * 4) | 0; _b3o.start = null;
     let yaw = Math.PI / 2 - blk.hd + (h1 - 0.5) * 0.12, clip;

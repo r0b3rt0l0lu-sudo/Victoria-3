@@ -2,21 +2,42 @@
 /* ---------------- evaluación de poses (sin estado; sin asignaciones en el bucle) ---------------- */
 const _e = new THREE.Euler(), _q = new THREE.Quaternion(), _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _s = new THREE.Vector3(1, 1, 1), _pm = new THREE.Matrix4();
 function smooth(t) { return t * t * (3 - 2 * t); }
+// v4: interpolación cúbica monótona (Fritsch–Carlson) por canal. Sin sobreoscilación: dos claves iguales siguen siendo una pausa.
+// En los bucles (_loopCur) la tangente atraviesa el cierre t = 1 → 0, así que el ciclo no «frena» al dar la vuelta.
+var _loopCur = false;
+function _slope(tr, k, i, loop) {
+  const N = tr.length, v = tr[k][i + 1], D = loop ? tr[N - 1][i + 1] - tr[0][i + 1] : 0;   // D ≠ 0: giro continuo (rueda) → se «desenrolla» el cierre
+  let p = k - 1, q = k + 1, tp, tq, vp, vq;
+  if (p < 0) { if (!loop) return 0; p = N - 2; tp = tr[p][0] - 1; vp = tr[p][i + 1] - D; } else { tp = tr[p][0]; vp = tr[p][i + 1]; }
+  if (q >= N) { if (!loop) return 0; q = 1; tq = tr[q][0] + 1; vq = tr[q][i + 1] + D; } else { tq = tr[q][0]; vq = tr[q][i + 1]; }
+  const h0 = tr[k][0] - tp, h1 = tq - tr[k][0]; if (h0 <= 1e-6 || h1 <= 1e-6) return 0;
+  const d0 = (v - vp) / h0, d1 = (vq - v) / h1;
+  if (d0 * d1 <= 0) return 0;
+  const w1 = 2 * h1 + h0, w2 = h1 + 2 * h0; return (w1 + w2) / (w1 / d0 + w2 / d1);
+}
 function sampleTrack(tr, t, out, n) {                  // tr: [[t, a, b, c...]] ordenado; t en [0,1]
   if (!tr || !tr.length) { for (let i = 0; i < n; i++) out[i] = 0; return out; }
   if (tr.length === 1 || t <= tr[0][0]) { for (let i = 0; i < n; i++) out[i] = tr[0][i + 1]; return out; }
-  for (let k = 0; k < tr.length - 1; k++) {
+  const N = tr.length, loop = _loopCur && tr[0][0] <= 1e-6 && tr[N - 1][0] >= 1 - 1e-6;
+  for (let k = 0; k < N - 1; k++) {
     const a = tr[k], b = tr[k + 1];
-    if (t <= b[0]) { const u = smooth((t - a[0]) / Math.max(1e-6, b[0] - a[0])); for (let i = 0; i < n; i++) out[i] = a[i + 1] + (b[i + 1] - a[i + 1]) * u; return out; }
+    if (t <= b[0]) {
+      const h = Math.max(1e-6, b[0] - a[0]), u = (t - a[0]) / h, u2 = u * u, u3 = u2 * u;
+      const h00 = 2 * u3 - 3 * u2 + 1, h10 = u3 - 2 * u2 + u, h01 = -2 * u3 + 3 * u2, h11 = u3 - u2;
+      for (let i = 0; i < n; i++) {
+        out[i] = h00 * a[i + 1] + h01 * b[i + 1] + h * (h10 * _slope(tr, k, i, loop) + h11 * _slope(tr, k + 1, i, loop));
+      }
+      return out;
+    }
   }
-  const l = tr[tr.length - 1]; for (let i = 0; i < n; i++) out[i] = l[i + 1]; return out;
+  const l = tr[N - 1]; for (let i = 0; i < n; i++) out[i] = l[i + 1]; return out;
 }
 const _r3 = [0, 0, 0], _t3 = [0, 0, 0], _t1 = [0];
 function sampleStep(tr, t, out, n) { let k = 0; for (let i = 0; i < tr.length; i++) if (tr[i][0] <= t + 1e-6) k = i; for (let i = 0; i < n; i++) out[i] = tr[k][i + 1]; return out; }
 // poseTroop(tipo o esqueleto, clip, fase, salida Float32Array(MAXP*16)) → matrices de cada parte en el espacio de la figura
 function poseTroop(kindOrRig, clipName, phase, out) {
   const rig = RIGS[kindOrRig] ? kindOrRig : KINDS[kindOrRig].rig, parts = RIGS[rig], clip = (CLIPS[rig] || {})[clipName] || {tracks: {}};
-  out = out || new Float32Array(MAXP * 16); const t = clip.loop === false ? Math.min(1, Math.max(0, phase)) : phase - Math.floor(phase);
+  out = out || new Float32Array(MAXP * 16); const t = clip.loop === false ? Math.min(1, Math.max(0, phase)) : phase - Math.floor(phase); _loopCur = clip.loop !== false;
   for (let i = 0; i < parts.length; i++) {
     const name = parts[i][0], par = parts[i][1], off = parts[i][2];
     sampleTrack(clip.tracks[name], t, _r3, 3);
@@ -31,6 +52,7 @@ function poseTroop(kindOrRig, clipName, phase, out) {
     _m.toArray(out, i * 16);
   }
   if (clip.tracks.armaP) ikWeapon(parts, clip, t, out);
+  if (!clip.chute) for (let i = 0; i < parts.length; i++) if (parts[i][0] === 'paracaidas') { const o = i * 16; out[o] = out[o + 1] = out[o + 2] = out[o + 4] = out[o + 5] = out[o + 6] = out[o + 8] = out[o + 9] = out[o + 10] = 0; }
   if (clip.hide) for (const name in clip.hide) {               // parte oculta: escala 0 alrededor de su pivote
     sampleStep(clip.hide[name], t, _t1, 1); if (_t1[0] > 0.5) continue;
     for (let i = 0; i < parts.length; i++) if (parts[i][0] === name) { const o = i * 16; out[o] = out[o + 1] = out[o + 2] = out[o + 4] = out[o + 5] = out[o + 6] = out[o + 8] = out[o + 9] = out[o + 10] = 0; }
@@ -67,7 +89,8 @@ function ik2(S, T, pole, l1, l2, out, iu, il) {
 function blendPose(a, b, k, out) { out = out || new Float32Array(a.length); for (let i = 0; i < a.length; i++) out[i] = a[i] + (b[i] - a[i]) * k; return out; }
 
 /* ---------------- horneado (textura de huesos) ---------------- */
-// Una fila por fotograma; MAXP × 3 texeles RGBA float por fila (matriz 3×4 por parte). Bucles a 16 fps, no-bucles a 24 fps, ≤ 96 fotogramas por clip.
+// Una fila por fotograma; MAXP × 3 texeles RGBA float por fila (matriz 3×4 por parte). v4: 30 fps, ≤ 240 fotogramas por clip (TROOP_BAKE).
+const TROOP_BAKE = {fps: 30, max: 240};
 let _baked = null;
 function bakeClips() {
   if (_baked) return _baked;
@@ -77,7 +100,7 @@ function bakeClips() {
     index[rig] = {};
     Object.keys(CLIPS[rig]).forEach(cn => {
       const c = CLIPS[rig][cn]; if (!c) return;
-      const frames = Math.max(2, Math.min(96, Math.round(c.dur * (c.loop === false ? 24 : 16))));
+      const frames = Math.max(2, Math.min(TROOP_BAKE.max, Math.round(c.dur * TROOP_BAKE.fps)));
       index[rig][cn] = {row, frames, dur: c.dur, loop: c.loop !== false, tread: c.tread || 0, ev: c.ev || []};
       for (let f = 0; f < frames; f++) { const ph = c.loop === false ? f / (frames - 1) : f / frames; rows.push(poseTroop(rig, cn, ph)); }
       row += frames;
@@ -279,7 +302,7 @@ function troopGroup(name, era, estado, opts) {
       : [['jefe', 'srv_jefe', [-1.6, 0.4, 0]], ['cargador', 'srv_cargador', [0.9, -0.2, 90]], ['apuntador', 'srv_apuntador', [-0.35, -1.7, 0]], ['artillero', 'srv_artillero', [-0.9, -0.6, 90]]];
     return [{kind: p, at: [0, 0, 0], clip: f ? sv : m ? 'remolque' : 'en_bateria'}].concat(crew.map(([role, c, at]) => ({kind: 'artillero', role, at: m ? [at[0] > 0 ? 1.0 : -1.0, at[1] - 1.5, 0] : at, clip: f ? c : m ? 'marcha' : 'idle'})));
   }
-  if (name === 'ametralladora') { const f = estado === 'fuego'; return [{kind: 'ametralladora', at: [0, 0, 0], clip: f ? 'fuego_mg' : 'en_bateria'}, {kind: 'artillero', role: 'tirador_mg', at: [0, era === 'D' ? -0.95 : -1.45, 0], clip: f ? 'srv_mg_tirador' : 'idle'}, {kind: 'artillero', role: 'municion', at: [0.75, era === 'D' ? -0.5 : -0.9, -40], clip: f ? 'srv_mg_municion' : 'idle'}]; }
+  if (name === 'ametralladora') { const f = estado === 'fuego'; return [{kind: 'ametralladora', at: [0, 0, 0], clip: f ? (era >= 'D' ? 'fuego_maxim' : 'fuego_mg') : 'en_bateria'}, {kind: 'artillero', role: 'tirador_mg', at: [0, era === 'D' ? -0.95 : -1.45, 0], clip: f ? 'srv_mg_tirador' : 'idle'}, {kind: 'artillero', role: 'municion', at: [0.75, era === 'D' ? -0.5 : -0.9, -40], clip: f ? 'srv_mg_municion' : 'idle'}]; }
   if (name === 'general') { const c = {reposo: 'idle', marcha: 'paso', carga: 'galope_de_mando', observar: 'observar_catalejo'}[estado] || 'idle'; return [{kind: 'general', at: [0, 0, 0], clip: c}, {kind: 'ayudante', at: [1.6, -1.2, 0], clip: c === 'galope_de_mando' ? 'galope' : c === 'observar_catalejo' ? 'idle' : c}]; }
   if (name === 'mariscal') { const c = estado === 'marcha' ? 'paso' : 'idle'; return [{kind: 'mariscal', at: [0, 0, 0], clip: c}, {kind: 'estandarte', at: [-1.5, -1.3, 0], clip: c}]; }
   if (name === 'camilla') return [{kind: 'sanitario', role: 'delante', at: [0, 1.3, 0], clip: 'camilla_delante'}, {kind: 'sanitario', role: 'detras', at: [0, 1.3 - 2.62, 0], clip: 'camilla_detras'}];
@@ -300,12 +323,12 @@ function eventsBetween(kind, clip, ph0, ph1, cb) {
 }
 function exportClipsJSON() {
   const r = (k, v) => typeof v === 'number' ? Math.round(v * 1000) / 1000 : v;
-  return JSON.stringify({version: 2, fps: {bucle: 16, sinBucle: 24}, convenciones: 'pistas [t, rx, ry, rz] en grados (Euler XYZ); raíz [t, x, y, z] en metros; eventos [t, nombre]; agarre [t, y mano derecha, y mano izquierda]; hide [t, visible]', partes: RIGS, clips: CLIPS}, r);
+  return JSON.stringify({version: 2, fps: {bucle: TROOP_BAKE.fps, sinBucle: TROOP_BAKE.fps}, interpolacion: 'cubica monotona (Fritsch-Carlson), bucles cerrados', convenciones: 'pistas [t, rx, ry, rz] en grados (Euler XYZ); raíz [t, x, y, z] en metros; eventos [t, nombre]; agarre [t, y mano derecha, y mano izquierda]; hide [t, visible]', partes: RIGS, clips: CLIPS}, r);
 }
 
 /* ---------------- estadísticas ---------------- */
 function troopStats() {
-  const out = [], LIM = {inf: [220, 60, 10], cav: [420, 120, 10], art: [700, null, null], tank: [600, null, null]};
+  const out = [], LIM = {inf: [1250, 60, 10], cav: [2050, 120, 10], art: [1000, null, null], tank: [1400, null, null], tren: [3200, null, null], mot: [3000, null, null], mech: [3000, null, null], arm: [1600, null, null]};   // v4: LOD0 detallado (solo de cerca)
   TROOP_KINDS.forEach(k => KINDS[k].eras.forEach(e => {
     const roles = KINDS[k].roles ? [KINDS[k].roles[0]] : [undefined];
     roles.forEach(role => { const t = buildTroop(k, e, {nation: 'GEN', role}); const verts = t.lod[0].tris * 3;

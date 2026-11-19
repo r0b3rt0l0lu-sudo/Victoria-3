@@ -402,7 +402,9 @@ MANUAL.push({id: 'soldado', title: '★ Mapa v2, tropas v4 y vista de soldado', 
 <h4>🪖 Tropas v4</h4>
 <p>Soldados, jinetes, artillería y vehículos con modelos más detallados y animación de marcha, carrera y galope basada en biomecánica real. La distancia de máximo detalle del visor de batalla es ahora de 45 m.</p>
 <h4>🪖 Ver como soldado</h4>
-<p>En el visor de batalla 3D, el botón <b>🪖 Ver como soldado</b> pone la cámara en un soldado o jinete de un regimiento. <b>Q / E</b> cambia de soldado, <b>R</b> de regimiento, <b>V</b> alterna primera y tercera persona, arrastrar el ratón mira alrededor, la rueda cambia la distancia y <b>Esc</b> o <b>X</b> sale. Solo es una cámara: no cambia el resultado de la batalla.</p>`});
+<p>En el visor de batalla 3D, el botón <b>🪖 Ver como soldado</b> pone la cámara en un soldado o jinete de un regimiento. <b>Q / E</b> cambia de soldado, <b>R</b> de regimiento, <b>V</b> alterna primera y tercera persona, arrastrar el ratón mira alrededor, la rueda cambia la distancia y <b>Esc</b> o <b>X</b> sale. Por sí sola es una cámara: no cambia el resultado de la batalla.</p>
+<h4>🎮 Tomar el control del soldado (fase 2)</h4>
+<p>Dentro de la vista de soldado, <b>C</b> (o «🎮 Tomar el control») te deja manejar a un soldado de infantería: <b>WASD</b> mover, <b>Mayús</b> correr, arrastrar el ratón para apuntar, <b>Espacio</b> disparar (recarga según la época), <b>Z</b> ponerse de rodillas (más preciso y menos expuesto), <b>F</b> coger el estandarte cerca del centro del regimiento, <b>Tab</b> o <b>C</b> volver a observar. No puedes alejarte más de 90 unidades de tu regimiento. Los efectos son pequeños y con tope: cada impacto quita 14 hombres al regimiento enemigo (máximo 30 impactos por batalla) y sube algo la moral del tuyo; con el estandarte la moral del regimiento sube despacio, pero si el abanderado cae pierde moral. Bajo fuego o en cuerpo a cuerpo tu soldado puede caer (≈ 1 % por segundo, menos de rodillas): entonces pasas a otro soldado.</p>`});
 
 WINDOWS.manual = {title: 'Manual del juego', icon: '📖', render() {
   const sec = MANUAL.find(m => m.id === UI.manualSec) || MANUAL[0];

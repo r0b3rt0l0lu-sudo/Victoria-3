@@ -41,7 +41,7 @@ function ctrlFire(V, blk) {
 }
 function ctrlStep(S, V, blk, dt) {
   const c = SOLD.ctrl, now = performance.now(), rdt = clamp((now - c.lt) / 1000, 0, 0.1), tU = now / 1000; c.lt = now; c.cd = Math.max(0, c.cd - rdt);
-  if (c.dead) { c.deadT += rdt; if (c.deadT > 2.4) { ctrlExit('dead'); return null; } return {x: c.x, z: c.z, aim: c.cyaw, eye: 0.9}; }
+  if (c.dead) { if (now - c.deadAt > 2400) { ctrlExit('dead'); return null; } return {x: c.x, z: c.z, aim: c.cyaw, eye: 0.9}; }
   const f = (CK.w ? 1 : 0) - (CK.s ? 1 : 0), r = (CK.d ? 1 : 0) - (CK.a ? 1 : 0), aim = c.cyaw; c.mv = !!(f || r); c.run = !!(CK.shift && c.mv && !c.kneel);
   if (c.mv) { const sp = c.kneel ? 0.9 : c.run ? 9 : 3.2; let vx = Math.cos(aim) * f - Math.sin(aim) * r, vz = Math.sin(aim) * f + Math.cos(aim) * r; const L = Math.hypot(vx, vz) || 1; c.x += vx / L * sp * rdt; c.z += vz / L * sp * rdt; c.face = Math.atan2(vz, vx); }
   const dx0 = c.x - blk.x, dz0 = c.z - blk.y, Rr = Math.hypot(dx0, dz0); c.edge = Rr > CTRL_LEASH; if (c.edge) { c.x = blk.x + dx0 / Rr * CTRL_LEASH; c.z = blk.y + dz0 / Rr * CTRL_LEASH; }
@@ -53,7 +53,7 @@ function ctrlStep(S, V, blk, dt) {
   if (c.flag) { if (Math.hypot(c.x - blk.x, c.z - blk.y) < 40) blk.mm = Math.min(1, (blk.mm !== undefined ? blk.mm : 0.8) + 0.006 * rdt); }
   // riesgo: bajo fuego o en melé hay probabilidad de caer
   const era = t3Era(); let danger = false; V.blocks.forEach(k => { if (danger || k.side === blk.side || k.type === 'art') return; const d = Math.hypot(k.x - c.x, k.y - c.z); if ((k.mode === 'fire' || k.mode === 'skirmish') && d < 170) danger = true; else if ((k.mode === 'charge' || k.mode === 'melee' || k.mode === 'gallop') && d < 60) danger = true; });
-  if (danger && Math.random() < 0.012 * rdt * (c.kneel ? 0.55 : 1) * (c.run ? 0.8 : 1) * (c.flag ? 1.6 : 1)) { c.dead = true; c.deadT = 0; c.fireT = -99; c.clip = 'caer_muerto_adelante'; c.clipT = tU; if (c.flag) { blk.mm = Math.max(0, (blk.mm !== undefined ? blk.mm : 0.8) - 0.12); c.flag = false; } }
+  if (danger && Math.random() < 0.012 * rdt * (c.kneel ? 0.55 : 1) * (c.run ? 0.8 : 1) * (c.flag ? 1.6 : 1)) { c.dead = true; c.deadAt = now; c.fireT = -99; c.clip = 'caer_muerto_adelante'; c.clipT = tU; if (c.flag) { blk.mm = Math.max(0, (blk.mm !== undefined ? blk.mm : 0.8) - 0.12); c.flag = false; } }
   else {
     const fireClip = era === 'A' ? 'disparar_A' : era === 'B' ? 'disparar_B' : 'disparar_D', since = tU - c.fireT;
     if (since < 0.8) { c.clip = c.kneel ? 'disparar_rodilla_A' : fireClip; c.clipT = c.fireT; } else if (since < 2.2 && c.cd > 0 && !c.mv) { c.clip = 'recargar_A'; c.clipT = c.fireT + 0.8; }

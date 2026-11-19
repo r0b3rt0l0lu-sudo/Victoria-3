@@ -3,16 +3,13 @@
 const NOPROV = 65535;
 const OCC_DAYS = 8;            // días que debe mantenerse una provincia sin defensores para ocuparla
 
-function buildProvinces() {
-  const t0 = performance.now();
-  const W = MAP_W, H = MAP_H, N = W * H, land = MAP.land, so = MAP.stateOf;
-  const provOf = new Uint16Array(N).fill(NOPROV);
-  const provs = [];
-  const off = MAP.pixOff, ord = MAP.pixOrder;
+// método v1 (semillas por punto más lejano + Lloyd) para un estado sin semillas v1
+function _provsAutoState(sid, provOf, provs) {
+  const W = MAP_W, N = W * MAP_H, land = MAP.land, so = MAP.stateOf, off = MAP.pixOff, ord = MAP.pixOrder;
   const nb8 = [1, -1, W, -W, W + 1, W - 1, -W + 1, -W - 1];
-  const queue = new Int32Array(N);
-  for (let sid = 0; sid < MAP.stats.length; sid++) {
-    const st = MAP.stats[sid], n = off[sid + 1] - off[sid]; if (!n) continue;
+  const queue = new Int32Array(off[sid + 1] - off[sid] + 16);
+
+    const st = MAP.stats[sid], n = off[sid + 1] - off[sid]; if (!n) return;
     const want = clamp(Math.round(n / 650), 2, 9);
     // muestra de píxeles para elegir semillas (farthest-point + Lloyd)
     const step = Math.max(1, Math.floor(n / 500)), sample = [];
@@ -60,6 +57,56 @@ function buildProvinces() {
     }
     st.provs = []; for (let p = base; p < provs.length; p++) st.provs.push(p);
   }
+
+// v2: las provincias se siembran en el píxel representativo de las provincias del mapa v1 (PROV_SEEDS_V1) y crecen con coste
+// anisótropo (los ríos de orden ≥ 3 hacen de límite) dentro de su estado. Mismo número de provincias por estado y mismos ids que en v1:
+// las partidas guardadas y los escenarios (que guardan ids de provincia) siguen valiendo. Sin PROV_SEEDS_V1 se usa el método v1.
+function buildProvinces() {
+  const t0 = performance.now();
+  const W = MAP_W, H = MAP_H, N = W * H, land = MAP.land, so = MAP.stateOf;
+  const provOf = new Uint16Array(N).fill(NOPROV);
+  const provs = [];
+  const off = MAP.pixOff, ord = MAP.pixOrder;
+  const v1 = provSeedsV1(), bySt = {};
+  if (v1) v1.forEach((p, id) => { (bySt[p.s] = bySt[p.s] || []).push({id, px: p.px, py: p.py}); });
+  const rm = MAP.riverMask || new Uint8Array(N), cost = new Float32Array(N).fill(1e9);
+  let hk = new Float32Array(1 << 16), hi = new Int32Array(1 << 16), hs = 0;
+  const push = (k, i) => { if (hs >= hk.length) { const a = new Float32Array(hk.length * 2); a.set(hk); hk = a; const b = new Int32Array(hi.length * 2); b.set(hi); hi = b; }
+    let p = hs++; while (p > 0) { const q = (p - 1) >> 1; if (hk[q] <= k) break; hk[p] = hk[q]; hi[p] = hi[q]; p = q; } hk[p] = k; hi[p] = i; };
+  const pop = () => { const r = hi[0]; hs--; if (hs > 0) { const k = hk[hs], i = hi[hs]; let p = 0; for (;;) { let c = p * 2 + 1; if (c >= hs) break; if (c + 1 < hs && hk[c + 1] < hk[c]) c++; if (hk[c] >= k) break; hk[p] = hk[c]; hi[p] = hi[c]; p = c; } hk[p] = k; hi[p] = i; } return r; };
+  const RC = [1, 1, 1.4, 4, 6, 8, 9];
+  let snapped = 0, moved = 0;
+  for (let sid = 0; sid < MAP.stats.length; sid++) {
+    const st = MAP.stats[sid], n = off[sid + 1] - off[sid]; if (!n) { st.provs = []; continue; }
+    const base = provs.length, list = bySt[sid];
+    if (!list || !list.length) { _provsAutoState(sid, provOf, provs); continue; }
+    // semillas v1 → píxel más cercano del estado v2 (distintos entre sí)
+    const used = new Set(), seeds = [];
+    list.forEach(sd => {
+      let best = -1, bd = 1e18;
+      for (let k = off[sid]; k < off[sid + 1]; k++) { const i = ord[k]; if (used.has(i)) continue; const d = (i % W - sd.px) ** 2 + (((i / W) | 0) - sd.py) ** 2; if (d < bd) { bd = d; best = i; } }
+      used.add(best); seeds.push(best); if (bd > 0) moved++; snapped++;
+    });
+    hs = 0;
+    seeds.forEach((i, k) => { provs.push({s: sid}); provOf[i] = base + k; cost[i] = 0; push(0, i); });
+    while (hs > 0) {
+      const i = pop(), c = cost[i], p = provOf[i], x = i % W;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue; let nx = x + dx; if (nx < 0) nx = W - 1; else if (nx >= W) nx = 0;
+        const j = i - x + nx + dy * W; if (j < 0 || j >= N || !land[j] || so[j] !== sid) continue;
+        const nc = c + (dx && dy ? 1.4142 : 1) * RC[rm[j]];
+        if (nc < cost[j]) { cost[j] = nc; provOf[j] = p; push(nc, j); }
+      }
+    }
+    // islas del estado sin semilla: a la provincia más cercana (no se crean provincias nuevas)
+    for (let k = off[sid]; k < off[sid + 1]; k++) {
+      const i = ord[k]; if (provOf[i] !== NOPROV) continue;
+      const x = i % W, y = (i / W) | 0; let b = 0, bd = 1e18; seeds.forEach((s, q) => { const d = (s % W - x) ** 2 + (((s / W) | 0) - y) ** 2; if (d < bd) { bd = d; b = q; } });
+      provOf[i] = base + b;
+    }
+    st.provs = []; for (let p = base; p < provs.length; p++) st.provs.push(p);
+  }
+  MAP.provSeedStats = {sembradas: snapped, desplazadas: moved, v1: v1 ? v1.length : 0};
   // métricas y adyacencia
   const P = provs.length;
   provs.forEach((p, id) => { p.id = id; p.area = 0; p.sx = 0; p.sy = 0; p.biomes = new Float32Array(9); p.coast = 0; p.nb = new Set(); });

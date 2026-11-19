@@ -1,4 +1,5 @@
-/* ===== GENERACIÓN PROCEDURAL DEL MAPA ===== */
+/* ===== GENERACIÓN DEL MAPA v2 (mapa_v2): costas, lagos y ríos de Natural Earth, relieve real, biomas por cubierta del suelo y fronteras orgánicas =====
+   Sustituye a src/mapgen.js. Depende de geo_v2.js + geo_v2_data.js + cover_v2_data.js (+ prov_seeds_v2.js), elev_data.js y de STATE_DATA (geo.js). */
 const MAP = {};   // se rellena en buildMap()
 
 function hash2(x, y, s) {
@@ -26,18 +27,30 @@ const yToLat = y => LAT_TOP - y / MAP_H * (LAT_TOP - LAT_BOT);
 const BIOME = {OCEAN:0, GRASS:1, FOREST:2, DESERT:3, STEPPE:4, TUNDRA:5, JUNGLE:6, MOUNTAIN:7, SNOW:8};
 const BIOME_COL = [[0,0,0],[122,148,86],[70,106,66],[218,194,138],[170,166,104],[152,162,142],[50,106,68],[132,122,108],[234,238,242]];
 
+
+/* ---------- v2: tierra a partir de los contornos de Natural Earth ---------- */
+// Se rasteriza con antialias y umbral del 45 % de cobertura; las islas menores que un píxel que contienen la semilla de un estado,
+// o cuya superficie es ≥ 0,3 píxeles, conservan al menos un píxel (para que ninguna isla con nombre desaparezca).
+function _ring(g, a) { for (let k = 0; k < a.length; k += 2) { const x = lonToX(a[k]), y = latToY(a[k + 1]); k ? g.lineTo(x, y) : g.moveTo(x, y); } g.closePath(); }
 function rasterLand() {
-  const cv = document.createElement('canvas'); cv.width = MAP_W; cv.height = MAP_H;
-  const g = cv.getContext('2d');
-  g.fillStyle = '#fff'; g.fillRect(0, 0, MAP_W, MAP_H);
-  const path = (p) => { g.beginPath(); for (let i = 0; i < p.length; i += 2) { const x = lonToX(p[i]), y = latToY(p[i + 1]); i ? g.lineTo(x, y) : g.moveTo(x, y); } g.closePath(); };
-  g.fillStyle = '#000';
-  LAND_POLYS.forEach(p => { path(p); g.fill(); });
-  g.fillStyle = '#fff';
-  SEA_POLYS.forEach(p => { path(p); g.fill(); });
-  const d = g.getImageData(0, 0, MAP_W, MAP_H).data;
-  const land = new Uint8Array(MAP_W * MAP_H);
-  for (let i = 0; i < land.length; i++) land[i] = d[i * 4] < 140 ? 1 : 0;
+  const geo = geoV2(), W = MAP_W, H = MAP_H, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d', {willReadFrequently: true});
+  g.fillStyle = '#000'; g.fillRect(0, 0, W, H); g.fillStyle = '#fff';
+  g.beginPath(); geo.land.forEach(a => _ring(g, a)); g.fill('nonzero');
+  g.fillStyle = '#000'; g.beginPath(); geo.seas.forEach(a => _ring(g, a)); geo.lakes.forEach(a => _ring(g, a)); g.fill('nonzero');
+  const d = g.getImageData(0, 0, W, H).data, land = new Uint8Array(W * H);
+  for (let i = 0; i < land.length; i++) land[i] = d[i * 4] >= 115 ? 1 : 0;
+  // islotes: un píxel como mínimo
+  let kept = 0;
+  geo.land.forEach(a => {
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, A = 0, cx = 0, cy = 0;
+    for (let k = 0; k < a.length; k += 2) { const x = lonToX(a[k]), y = latToY(a[k + 1]); if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      const k2 = (k + 2) % a.length, xb = lonToX(a[k2]), yb = latToY(a[k2 + 1]), c = x * yb - xb * y; A += c; cx += (x + xb) * c; cy += (y + yb) * c; }
+    if (x1 - x0 > 3 && y1 - y0 > 3) return;
+    A /= 2; if (Math.abs(A) < 0.3) return; const px = Math.min(W - 1, Math.max(0, Math.floor(Math.abs(A) > 1e-6 ? cx / (6 * A) : (x0 + x1) / 2))), py = Math.min(H - 1, Math.max(0, Math.floor(Math.abs(A) > 1e-6 ? cy / (6 * A) : (y0 + y1) / 2)));
+    if (!land[py * W + px]) { land[py * W + px] = 1; kept++; }
+  });
+  MAP.islandsKept = kept;
   return land;
 }
 
@@ -62,178 +75,128 @@ function chamfer(mask, target) {
   return dist;
 }
 
+/* ---------- v2: altura de juego a partir de la elevación real (ELEV, 512×205) ---------- */
+// MAP.height conserva su escala: ~0,1–0,4 llanuras, > 1,8 montaña, > 3,4 − 0,02·|lat| nieve; mar < 0.
+// Además MAP.elevM (metros, Float32) y MAP.slope (m/píxel) para el reparto de estados y la pintura.
+let _ELEVU = null;
+function _elevArrays() { if (_ELEVU) return _ELEVU; const dec = v => v instanceof Uint8Array ? v : _b64bytes(v); _ELEVU = {m: dec(ELEV.m), r: dec(ELEV.r)}; return _ELEVU; }   // base64 (archivo único) o binario (web por carpetas)
+function elevMeters(x, y) {   // x, y en píxeles del mapa lógico → {m, r} en metros (bilineal)
+  const E = _elevArrays(), fx = (x + 0.5) * ELEV.w / MAP_W - 0.5, fy = Math.min(ELEV.h - 1.001, Math.max(0, (y + 0.5) * ELEV.h / MAP_H - 0.5)), x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
+  const g = (arr, i, j) => arr[j * ELEV.w + ((i % ELEV.w) + ELEV.w) % ELEV.w];
+  const bil = arr => (g(arr, x0, y0) * (1 - tx) + g(arr, x0 + 1, y0) * tx) * (1 - ty) + (g(arr, x0, y0 + 1) * (1 - tx) + g(arr, x0 + 1, y0 + 1) * tx) * ty;
+  return {m: bil(E.m) * 25, r: bil(E.r) * 10};
+}
 function buildHeight(land) {
   const W = MAP_W, H = MAP_H, N = W * H;
-  const dLand = chamfer(land, 1);                       // para tierra: distancia al mar
-  const dSea = chamfer(land, 0);                        // para mar: distancia a la tierra
-  const h = new Float32Array(N);
-  const mount = new Float32Array(N);                    // aporte montañoso
-  const kx = W / 360, ky = H / (LAT_TOP - LAT_BOT);
-  // cordilleras
-  MOUNTAINS.forEach(([pts, r, ht]) => {
-    for (let s = 0; s < pts.length - 2; s += 2) {
-      const ax = pts[s], ay = pts[s + 1], bx = pts[s + 2], by = pts[s + 3];
-      const x0 = Math.max(0, Math.floor(lonToX(Math.min(ax, bx) - r * 3))), x1 = Math.min(W - 1, Math.ceil(lonToX(Math.max(ax, bx) + r * 3)));
-      const y0 = Math.max(0, Math.floor(latToY(Math.max(ay, by) + r * 3))), y1 = Math.min(H - 1, Math.ceil(latToY(Math.min(ay, by) - r * 3)));
-      const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1e-6;
-      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-        const lon = xToLon(x), lat = yToLat(y);
-        let t = ((lon - ax) * dx + (lat - ay) * dy) / L2; t = Math.max(0, Math.min(1, t));
-        const px = ax + t * dx - lon, py = ay + t * dy - lat;
-        const d2 = (px * px + py * py) / (r * r);
-        if (d2 > 9) continue;
-        const v = ht * Math.exp(-d2) * (0.75 + 0.5 * vnoise(x / 9, y / 9, 3));
-        const i = y * W + x; if (v > mount[i]) mount[i] = v;
-      }
-    }
-  });
-  PLATEAUS.forEach(([lon, lat, rx, ry, ht]) => {
-    const x0 = Math.max(0, Math.floor(lonToX(lon - rx * 2))), x1 = Math.min(W - 1, Math.ceil(lonToX(lon + rx * 2)));
-    const y0 = Math.max(0, Math.floor(latToY(lat + ry * 2))), y1 = Math.min(H - 1, Math.ceil(latToY(lat - ry * 2)));
-    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-      const a = (xToLon(x) - lon) / rx, b = (yToLat(y) - lat) / ry;
-      const v = ht * Math.exp(-(a * a + b * b) * 1.2) * (0.8 + 0.4 * vnoise(x / 14, y / 14, 7));
-      const i = y * W + x; if (v > mount[i]) mount[i] = v;
-    }
-  });
-  if (wkOn()) h.set(wkHeight(land, dLand, dSea, mount)); else      // WebAssembly (wasm/kernels.c) o, si no está, el mismo cálculo en JS
+  const dLand = chamfer(land, 1), dSea = chamfer(land, 0);
+  const h = new Float32Array(N), em = new Float32Array(N), mount = new Float32Array(N);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const i = y * W + x;
     if (land[i]) {
-      const inland = smooth(0, 38, dLand[i]);
-      const n = fbm(x / 70, y / 70, 11, 5);
-      const m = mount[i];
-      h[i] = 0.10 + 0.25 * inland + (n - 0.5) * (0.35 + 0.5 * Math.min(1, m)) + m + (fbm(x / 12, y / 12, 21, 3) - 0.5) * 0.12 * (0.3 + Math.min(1, m));
-      if (h[i] < 0.06) h[i] = 0.06;
-    } else {
-      h[i] = -0.04 - 0.55 * smooth(0, 60, dSea[i]) - (fbm(x / 90, y / 90, 5, 3) - 0.5) * 0.12;
-    }
+      const e = elevMeters(x, y); let m = e.m;
+      if (m < 8) m = 8 + Math.min(1, dLand[i] / 6) * 40;                            // la costa real y la malla de 0,7° no coinciden: orilla baja
+      const rough = Math.max(e.r, m * 0.05), n = fbm(x / 9, y / 9, 21, 3) - 0.5, ridge = 1 - Math.abs(2 * fbm(x / 22, y / 22, 79, 3) - 1);
+      m = Math.max(2, m + n * rough * 1.6 + (ridge - 0.55) * rough * 1.2);
+      em[i] = m; const k = Math.pow(m / 1000, 0.85);
+      h[i] = 0.08 + 0.18 * smooth(0, 30, dLand[i]) + 1.15 * k; mount[i] = Math.max(0, 1.15 * k - 0.6);
+    } else h[i] = -0.04 - 0.55 * smooth(0, 60, dSea[i]) - (fbm(x / 90, y / 90, 5, 3) - 0.5) * 0.12;
   }
-  MAP.dLand = dLand; MAP.dSea = dSea; MAP.mount = mount;
+  const slope = new Float32Array(N);
+  for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) { const i = y * W + x; if (!land[i]) continue; slope[i] = Math.hypot(em[i + 1] - em[i - 1], em[i + W] - em[i - W]) * 0.5; }
+  MAP.dLand = dLand; MAP.dSea = dSea; MAP.mount = mount; MAP.elevM = em; MAP.slope = slope;
   return h;
 }
 
-function inEllipse(list, lon, lat, wob) {
-  for (let k = 0; k < list.length; k++) {
-    const e = list[k]; const a = (lon - e[0]) / e[2], b = (lat - e[1]) / e[3];
-    if (a * a + b * b + wob < 1) return true;
-  }
-  return false;
-}
-
+/* ---------- v2: biomas a partir de la cubierta del suelo de Natural Earth + altitud + latitud ---------- */
+const COVER_TO_BIOME = [0, 1, 2, 3, 4, 5, 6, 1, 8];
 function buildBiomes(land, h) {
-  const W = MAP_W, H = MAP_H, N = W * H;
-  if (wkOn()) return wkBiomes(land, h);
-  const biome = new Uint8Array(N);
+  const W = MAP_W, H = MAP_H, N = W * H, cov = coverV2(), biome = new Uint8Array(N), em = MAP.elevM;
   for (let y = 0; y < H; y++) {
-    const lat = yToLat(y);
+    const lat = yToLat(y), alat = Math.abs(lat);
     for (let x = 0; x < W; x++) {
-      const i = y * W + x;
-      if (!land[i]) continue;
-      const lon = xToLon(x);
-      const wob = (fbm(x / 40, y / 40, 31, 4) - 0.5) * 0.9;
-      const moist = fbm(x / 110, y / 110, 41, 4);
-      const alat = Math.abs(lat);
-      const hh = h[i];
-      let b = BIOME.GRASS;
-      if (inEllipse(STEPPES, lon, lat, wob)) b = BIOME.STEPPE;
-      if (alat < 62 && moist > 0.55 && b === BIOME.GRASS && alat > 38) b = BIOME.FOREST;
-      if (alat >= 52 && alat < 66 && b !== BIOME.STEPPE && moist > 0.4 && lat > 0) b = BIOME.FOREST;
-      if (alat > 62 && lat > 0 || (lat < -50)) b = BIOME.TUNDRA;
-      if (alat > 74 || (lon < -20 && lon > -75 && lat > 60 && lat < 84 && (lat > 66 || hh > 1))) b = BIOME.SNOW;
-      if (inEllipse(JUNGLES, lon, lat, wob)) b = BIOME.JUNGLE;
-      if (alat < 6 && moist > 0.42) b = BIOME.JUNGLE;
-      if (inEllipse(DESERTS, lon, lat, wob)) b = BIOME.DESERT;
-      if (b === BIOME.GRASS && alat < 35 && moist < 0.38) b = BIOME.STEPPE;
-      if (b === BIOME.GRASS && alat < 25 && moist > 0.62) b = BIOME.FOREST;
-      if (hh > 1.8) b = BIOME.MOUNTAIN;
-      if (hh > 3.4 - alat * 0.02) b = BIOME.SNOW;
+      const i = y * W + x; if (!land[i]) continue;
+      let b = COVER_TO_BIOME[cov[i]] || BIOME.GRASS;
+      if (cov[i] === 0) b = alat > 66 ? BIOME.TUNDRA : alat < 10 ? BIOME.JUNGLE : BIOME.GRASS;     // costa de la máscara sin dato de cubierta
+      const moist = fbm(x / 60, y / 60, 41, 4);
+      // bosques templados de 1836–1945 (más extensos que en la cubierta actual, que muestra campos de cultivo)
+      if (b === BIOME.GRASS && alat > 40 && alat < 64 && moist > 0.56) b = BIOME.FOREST;
+      if (b === BIOME.GRASS && alat < 12 && moist > 0.6) b = BIOME.JUNGLE;
+      const m = em[i], snowLine = alat < 30 ? 4800 : 4800 - (alat - 30) * 85;
+      if (m > 1700 + Math.max(0, 30 - alat) * 15 && b !== BIOME.SNOW) b = BIOME.MOUNTAIN;
+      if (m > snowLine) b = BIOME.SNOW;
+      if (alat > 78) b = BIOME.SNOW;
       biome[i] = b;
     }
   }
+  MAP.cover = cov;
   return biome;
 }
 
+/* ---------- colores del terreno (2048×820, compatibilidad con render.js) ---------- */
+// La pintura de calidad está en pintura_v2.js (teselas, relieve sombreado de Natural Earth); aquí solo el color base del mapa lógico.
 function buildTerrainColors(land, h, biome) {
-  const W = MAP_W, H = MAP_H;
-  const tc = wkOn() ? wkTerrain(land, h, biome, MAP.dSea) : new Uint8ClampedArray(W * H * 4);
-  if (!wkOn()) for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const i = y * W + x;
-    const xm = x > 0 ? x - 1 : x, xp = x < W - 1 ? x + 1 : x, ym = y > 0 ? y - 1 : y, yp = y < H - 1 ? y + 1 : y;
+  const W = MAP_W, H = MAP_H, tc = new Uint8ClampedArray(W * H * 4), em = MAP.elevM;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x, xm = x > 0 ? x - 1 : x, xp = x < W - 1 ? x + 1 : x, ym = y > 0 ? y - 1 : y, yp = y < H - 1 ? y + 1 : y;
     let r, g, b;
     if (land[i]) {
-      const c = BIOME_COL[biome[i]];
-      const nz = (fbm(x / 6, y / 6, 51, 3) - 0.5) * 26 + (fbm(x / 26, y / 26, 53, 3) - 0.5) * 30;
+      const c = BIOME_COL[biome[i]], nz = (fbm(x / 6, y / 6, 51, 3) - 0.5) * 18 + (fbm(x / 26, y / 26, 53, 3) - 0.5) * 20;
       r = c[0] + nz; g = c[1] + nz; b = c[2] + nz * 0.8;
-      const hh = h[i];
-      const mt = smooth(1.1, 2.2, hh), sn = smooth(2.9, 3.8, hh - Math.abs(yToLat(y)) * 0.01);
-      const mc = BIOME_COL[BIOME.MOUNTAIN], sc = BIOME_COL[BIOME.SNOW];
-      if (biome[i] !== BIOME.SNOW && biome[i] !== BIOME.DESERT) { r += (mc[0] - r) * mt * .8; g += (mc[1] - g) * mt * .8; b += (mc[2] - b) * mt * .8; }
-      r += (sc[0] - r) * sn; g += (sc[1] - g) * sn; b += (sc[2] - b) * sn;
-      // sombreado de relieve (luz del noroeste)
-      const sh = (h[ym * W + xm] - h[yp * W + xp]) * 55 + (h[ym * W + x] - h[yp * W + x]) * 25;
-      const k = 1 + Math.max(-0.4, Math.min(0.4, sh * 0.5));
-      r *= k; g *= k; b *= k;
+      const sh = ((em[ym * W + xm] || em[i]) - (em[yp * W + xp] || em[i])) * 0.0011;
+      const k = 1 + Math.max(-0.35, Math.min(0.35, sh)); r *= k; g *= k; b *= k;
     } else {
-      const d = MAP.dSea[i];
-      const t = smooth(0, 55, d);
+      const d = MAP.dSea[i], t = smooth(0, 55, d);
       r = 70 + (22 - 70) * t; g = 128 + (52 - 128) * t; b = 150 + (84 - 150) * t;
-      const nz = (fbm(x / 20, y / 20, 61, 3) - 0.5) * 10; r += nz; g += nz; b += nz;
-      if (d < 2.2) { r += 30; g += 30; b += 24; }      // espuma costera
+      if (d < 2.2) { r += 30; g += 30; b += 24; }
     }
     const o = i * 4; tc[o] = r; tc[o + 1] = g; tc[o + 2] = b; tc[o + 3] = 255;
   }
   addRivers(tc, land, h);
   return tc;
 }
-// Ríos: nacen en zonas altas y siguen la máxima pendiente hasta el mar
+
+/* ---------- v2: ríos reales (Natural Earth 1:50m) ---------- */
+// MAP.riverPaths: listas de píxeles de tierra de la fuente a la desembocadura (como en v1). Nuevo: MAP.riverOrder (1–6), MAP.riverName,
+// MAP.riverVec (polilíneas en grados, misma orientación) y MAP.riverMask (orden máximo por píxel).
 function addRivers(tc, land, h) {
-  const W = MAP_W, H = MAP_H, N8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
-  const seen = new Uint8Array(W * H); let made = 0; MAP.riverPaths = [];   // trazados (píxeles de tierra) para dibujar los ríos como cintas
-  for (let y = 8; y < H - 8; y += 7) for (let x = 8; x < W - 8; x += 7) {
-    const i0 = y * W + x; if (!land[i0] || h[i0] < 0.85 || hash2(x, y, 91) > 0.16) continue;
-    const path = []; let cx = x, cy = y, ok = false, last = -1;
-    for (let step = 0; step < 1100; step++) {
-      const ci = cy * W + cx; path.push(ci);
-      if (!land[ci]) { ok = true; break; }
-      if (seen[ci] === 2) { ok = true; break; }
-      let bi = -1, bv = 1e9;
-      for (let d = 0; d < 8; d++) {
-        const nx = cx + N8[d][0], ny = cy + N8[d][1]; if (nx < 1 || ny < 1 || nx >= W - 1 || ny >= H - 1) continue;
-        const ni = ny * W + nx; if (ni === last) continue;
-        const v = h[ni] + (hash2(nx, ny, 5 + step % 7) - 0.5) * 0.02 + (path.length > 6 && path.indexOf(ni) >= 0 ? 5 : 0);
-        if (v < bv) { bv = v; bi = d; }
-      }
-      if (bi < 0) break;
-      last = ci; cx += N8[bi][0]; cy += N8[bi][1];
+  const geo = geoV2(), W = MAP_W, H = MAP_H, mask = new Uint8Array(W * H), em = MAP.elevM, dL = MAP.dLand;
+  MAP.riverPaths = []; MAP.riverOrder = []; MAP.riverName = []; MAP.riverVec = [];
+  const elevAtPx = (x, y) => { const xi = Math.max(0, Math.min(W - 1, x | 0)), yi = Math.max(0, Math.min(H - 1, y | 0)), i = yi * W + xi; return land[i] ? em[i] + dL[i] * 2 : -50; };
+  geo.rivers.forEach((a, r) => {
+    const n = a.length / 2; if (n < 2) return;
+    // orientar río abajo: el extremo más bajo (o en el mar) es la desembocadura
+    const e0 = elevAtPx(lonToX(a[0]), latToY(a[1])), e1 = elevAtPx(lonToX(a[a.length - 2]), latToY(a[a.length - 1]));
+    let pts = a; if (e0 < e1) { pts = new Float32Array(a.length); for (let k = 0; k < n; k++) { pts[k * 2] = a[(n - 1 - k) * 2]; pts[k * 2 + 1] = a[(n - 1 - k) * 2 + 1]; } }
+    const path = []; let last = -1;
+    for (let k = 0; k < n - 1; k++) {
+      const x0 = lonToX(pts[k * 2]), y0 = latToY(pts[k * 2 + 1]), x1 = lonToX(pts[k * 2 + 2]), y1 = latToY(pts[k * 2 + 3]), st = Math.max(1, Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) * 2));
+      for (let s = 0; s <= st; s++) { const x = Math.floor(x0 + (x1 - x0) * s / st), y = Math.floor(y0 + (y1 - y0) * s / st); if (x < 0 || y < 0 || x >= W || y >= H) continue; const i = y * W + x;
+        if (i !== last) { if (last >= 0 && (last % W) !== x && ((last / W) | 0) !== y) { const c = ((last / W) | 0) * W + x; if (land[c]) path.push(c); }   // 4-conexo: sin huecos en diagonal
+          last = i; if (land[i]) path.push(i); } }
     }
-    if (!ok || path.length < 40) continue;
-    made++; MAP.riverPaths.push(path.filter(ci => land[ci]));
-    path.forEach((ci, k) => {
-      if (!land[ci]) return; seen[ci] = 2;
-      const w = k > path.length * 0.55 ? 2 : 1, t = Math.min(1, 0.45 + k / path.length * 0.5) * 0.25;   // tenue: el río se dibuja como cinta (agua.js)
-      for (let dy = 0; dy < w; dy++) for (let dx = 0; dx < w; dx++) {
-        const j = ci + dy * W + dx; if (!land[j]) continue; const o = j * 4;
-        tc[o] += (62 - tc[o]) * t; tc[o + 1] += (118 - tc[o + 1]) * t; tc[o + 2] += (170 - tc[o + 2]) * t;
-      }
-    });
-  }
-  MAP.rivers = made;
+    if (path.length < 3) return;
+    const o = geo.riverOrder[r]; path.forEach(i => { if (o > mask[i]) mask[i] = o; });
+    MAP.riverPaths.push(path); MAP.riverOrder.push(o); MAP.riverName.push(geo.riverName[r]); MAP.riverVec.push(pts);
+    path.forEach((i, k) => { const t = 0.08 + 0.04 * o, q = i * 4; tc[q] += (62 - tc[q]) * t; tc[q + 1] += (118 - tc[q + 1]) * t; tc[q + 2] += (170 - tc[q + 2]) * t; });
+  });
+  MAP.riverMask = mask; MAP.rivers = MAP.riverPaths.length;
 }
 
-// Asignación de estados mediante Dijkstra multi-fuente restringido a la tierra
-function assignStates(land, h, seeds) {
-  const W = MAP_W, H = MAP_H, N = W * H;
-  const owner = new Int16Array(N).fill(-1);
-  const cost = new Float32Array(N).fill(1e9);
-  const wgt = new Float32Array(N);
+/* ---------- v2: reparto de estados con coste anisótropo ---------- */
+// Dijkstra multifuente desde las 380 semillas, solo por tierra. El coste de entrar en un píxel crece con la pendiente (las cordilleras
+// frenan el avance y la frontera queda en la cresta) y es mucho mayor en los ríos de orden ≥ 3 (los frentes se detienen en la orilla y
+// la frontera sigue el río). Las islas sin semilla se asignan al estado más cercano por mar.
+const STATE_COST = {base: 1, noise: 0.22, slope: 1 / 70, slopeMax: 9, alt: 0.6, river: [0, 0, 3, 28, 42, 56, 70]};
+function assignStates(land, h, seeds, bias) {
+  if (bias === undefined && typeof STATE_BIAS_V2 !== 'undefined' && STATE_BIAS_V2.length === seeds.length) bias = STATE_BIAS_V2;
+  const W = MAP_W, H = MAP_H, N = W * H, C = STATE_COST, rm = MAP.riverMask, sl = MAP.slope, em = MAP.elevM;
+  const owner = new Int16Array(N).fill(-1), cost = new Float32Array(N).fill(1e9), wgt = new Float32Array(N);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const i = y * W + x;
-    wgt[i] = (0.72 + 0.9 * fbm(x / 28, y / 28, 71, 3)) * (1 + Math.max(0, h[i]) * 0.22);
+    const i = y * W + x; if (!land[i]) continue;
+    const lat = Math.cos(yToLat(y) * Math.PI / 180);                                           // equirrectangular: a latitudes altas un píxel mide menos
+    wgt[i] = (C.base + C.noise * (fbm(x / 28, y / 28, 71, 3) - 0.5)) * (0.55 + 0.45 * lat) + Math.min(C.slopeMax, sl[i] * C.slope) + C.alt * em[i] / 1000 + C.river[rm[i]];
   }
-  // montículo binario con claves de coste
-  let cap = 1 << 22, hk = new Float32Array(cap), hi = new Int32Array(cap), hs = 0;
-  let hl = new Int16Array(cap);
+  let cap = 1 << 22, hk = new Float32Array(cap), hi = new Int32Array(cap), hl = new Int16Array(cap), hs = 0;
   function push(k, i, s) {
     if (hs >= cap) { cap *= 2; const nk = new Float32Array(cap); nk.set(hk); hk = nk; const ni = new Int32Array(cap); ni.set(hi); hi = ni; const nl = new Int16Array(cap); nl.set(hl); hl = nl; }
     let p = hs++;
@@ -242,82 +205,73 @@ function assignStates(land, h, seeds) {
   }
   let popK = 0, popI = 0, popS = 0;
   function pop() {
-    popK = hk[0]; popI = hi[0]; popS = hl[0];
-    hs--;
-    if (hs > 0) {
-      const k = hk[hs], i = hi[hs], s = hl[hs]; let p = 0;
+    popK = hk[0]; popI = hi[0]; popS = hl[0]; hs--;
+    if (hs > 0) { const k = hk[hs], i = hi[hs], s = hl[hs]; let p = 0;
       for (;;) { let c = p * 2 + 1; if (c >= hs) break; if (c + 1 < hs && hk[c + 1] < hk[c]) c++; if (hk[c] >= k) break; hk[p] = hk[c]; hi[p] = hi[c]; hl[p] = hl[c]; p = c; }
-      hk[p] = k; hi[p] = i; hl[p] = s;
-    }
+      hk[p] = k; hi[p] = i; hl[p] = s; }
   }
-  seeds.forEach((s, id) => { const i = s.py * W + s.px; cost[i] = 0; owner[i] = id; push(0, i, id); });
+  // sesgo por estado (STATE_BIAS_V2, calibrado con tools/calibrar_estados.js para que cada estado conserve aprox. su superficie de v1)
+  const lock = new Uint8Array(N); seeds.forEach((s, id) => { const i = s.py * W + s.px, b = bias ? bias[id] : 0; cost[i] = b; owner[i] = id; lock[i] = 1; push(b, i, id); });
   while (hs > 0) {
-    pop(); const i = popI, c = popK, s = popS;
-    if (c > cost[i]) continue;
+    pop(); const i = popI, c = popK, s = popS; if (c > cost[i]) continue;
     const x = i % W, y = (i / W) | 0;
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
       if (!dx && !dy) continue;
-      const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
-      const j = ny * W + nx; if (!land[j]) continue;
+      let nx = x + dx; const ny = y + dy; if (ny < 0 || ny >= H) continue;
+      if (nx < 0) nx = W - 1; else if (nx >= W) nx = 0;                                           // el mapa da la vuelta en ±180° (Chukotka–Alaska no, pero sí Rusia/Fiyi)
+      const j = ny * W + nx; if (!land[j] || lock[j]) continue;
       const nc = c + (dx && dy ? 1.4142 : 1) * wgt[j];
       if (nc < cost[j]) { cost[j] = nc; owner[j] = s; push(nc, j, s); }
     }
   }
-  // islas sin semilla: asignar a la semilla más cercana
-  const seen = new Uint8Array(N);
-  const stack = new Int32Array(N);
-  for (let i0 = 0; i0 < N; i0++) {
-    if (!land[i0] || owner[i0] >= 0 || seen[i0]) continue;
-    let sp = 0, cnt = 0, sx = 0, sy = 0; const comp = [];
-    stack[sp++] = i0; seen[i0] = 1;
-    while (sp) {
-      const i = stack[--sp]; comp.push(i); const x = i % W, y = (i / W) | 0; cnt++; sx += x; sy += y;
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-        const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
-        const j = ny * W + nx; if (land[j] && owner[j] < 0 && !seen[j]) { seen[j] = 1; stack[sp++] = j; }
-      }
-    }
-    const cx = sx / cnt, cy = sy / cnt; let best = 0, bd = 1e12;
-    seeds.forEach((s, id) => { const d = (s.px - cx) ** 2 + (s.py - cy) ** 2; if (d < bd) { bd = d; best = id; } });
-    for (let k = 0; k < comp.length; k++) owner[comp[k]] = best;
+  // islas sin semilla: estado más cercano por mar (BFS multifuente desde toda la tierra asignada, cruzando el agua)
+  const q = new Int32Array(N), lab = new Int16Array(N).fill(-1); let qh = 0, qt = 0;
+  for (let i = 0; i < N; i++) if (owner[i] >= 0) { lab[i] = owner[i]; q[qt++] = i; }
+  let orphan = 0; for (let i = 0; i < N; i++) if (land[i] && owner[i] < 0) orphan++;
+  MAP.orphanPx = orphan;
+  if (orphan) {
+    while (qh < qt) { const i = q[qh++], x = i % W; const nb = [x > 0 ? i - 1 : i + W - 1, x < W - 1 ? i + 1 : i - W + 1, i - W, i + W];
+      for (const j of nb) { if (j < 0 || j >= N || lab[j] >= 0) continue; lab[j] = lab[i]; q[qt++] = j; } }
+    for (let i = 0; i < N; i++) if (land[i] && owner[i] < 0) owner[i] = lab[i];
   }
+  MAP.stateCost = cost;
   return owner;
 }
 
 function buildMap() {
-  const t0 = performance.now();
+  const t0 = performance.now(), T = {};
   const W = MAP_W, H = MAP_H, N = W * H;
-  const land = rasterLand();
-  MAP.land = land;
-  const h = buildHeight(land);
-  MAP.height = h;
-  MAP.biome = buildBiomes(land, h);
-  MAP.terrainCol = buildTerrainColors(land, h, MAP.biome);
-
-  // semillas de estados
-  const lines = STATE_DATA.split('\n');
-  const seeds = [];
-  lines.forEach(line => {
+  let t = performance.now(); const land = rasterLand(); MAP.land = land; T.tierra = performance.now() - t;
+  t = performance.now(); const h = buildHeight(land); MAP.height = h; T.altura = performance.now() - t;
+  t = performance.now(); MAP.biome = buildBiomes(land, h); T.biomas = performance.now() - t;
+  t = performance.now(); MAP.terrainCol = buildTerrainColors(land, h, MAP.biome); T.colorRios = performance.now() - t;
+  // semillas de estados (mismo orden y nombres que STATE_DATA). Si la coordenada cae en el agua o en un islote mientras hay una masa de
+  // tierra mayor a ≤ 6 píxeles, la semilla se mueve a esa masa (p. ej. Dinamarca: 10,5° E 56° N cae en la bahía de Aarhus).
+  const comp = new Int32Array(N).fill(-1), csize = [], stk = new Int32Array(N);
+  for (let i0 = 0; i0 < N; i0++) { if (!land[i0] || comp[i0] >= 0) continue; const c = csize.length; let sp = 0, n = 0; stk[sp++] = i0; comp[i0] = c;
+    while (sp) { const i = stk[--sp], x = i % W; n++; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const nx = x + dx, j = i + dx + dy * W; if (nx < 0 || nx >= W || j < 0 || j >= N || !land[j] || comp[j] >= 0) continue; comp[j] = c; stk[sp++] = j; } }
+    csize.push(n); }
+  const seeds = [], missing = [];
+  STATE_DATA.split('\n').forEach(line => {
     const f = line.split('|');
-    let px = Math.round(lonToX(+f[1])), py = Math.round(latToY(+f[2]));
-    px = Math.max(0, Math.min(W - 1, px)); py = Math.max(0, Math.min(H - 1, py));
-    if (!land[py * W + px]) {
-      let found = false;
-      for (let r = 1; r < 60 && !found; r++) {
-        for (let dy = -r; dy <= r && !found; dy++) for (let dx = -r; dx <= r && !found; dx++) {
-          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-          const x = px + dx, y = py + dy; if (x < 0 || y < 0 || x >= W || y >= H) continue;
-          if (land[y * W + x]) { px = x; py = y; found = true; }
-        }
+    let px = Math.max(0, Math.min(W - 1, Math.round(lonToX(+f[1])))), py = Math.max(0, Math.min(H - 1, Math.round(latToY(+f[2]))));
+    const i0 = py * W + px, here = land[i0] ? csize[comp[i0]] : 0;
+    if (here < 60) {
+      let best = -1, bs = -1e18;
+      for (let r = 1; r <= 60 && (best < 0 || r <= 6); r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const x = px + dx, y = py + dy; if (x < 0 || y < 0 || x >= W || y >= H) continue; const j = y * W + x; if (!land[j]) continue;
+        const sc = Math.log(csize[comp[j]] + 1) * 4 - Math.hypot(dx, dy) - (MAP.dLand && false ? 0 : 0);
+        if (sc > bs) { bs = sc; best = j; }
       }
-      if (!found) console.warn('Estado sin tierra:', f[0]);
+      if (best >= 0 && (here === 0 || csize[comp[best]] > here * 4)) { px = best % W; py = (best / W) | 0; }
+      else if (!here) { missing.push(f[0]); console.warn('Estado sin tierra:', f[0]); }
     }
+    // un píxel tierra adentro para que la semilla no quede en la orilla
     seeds.push({name: f[0], px, py, owner: f[3], pop: +f[4] || 0, res: f[5] || '', parent: f[6] || ''});
   });
-  MAP.seeds = seeds;
-  MAP.stateOf = assignStates(land, h, seeds);
-
-  // métricas por estado
+  MAP.seeds = seeds; MAP.seedsMissing = missing;
+  t = performance.now(); MAP.stateOf = assignStates(land, h, seeds); T.estados = performance.now() - t;
   const S = seeds.length;
   const st = seeds.map(() => ({area: 0, sx: 0, sy: 0, x0: W, x1: 0, y0: H, y1: 0, biomes: new Float32Array(9), coast: 0, neigh: new Set()}));
   const so = MAP.stateOf;
@@ -331,15 +285,16 @@ function buildMap() {
     if (y < H - 1 && land[i + W] && so[i + W] !== so[i]) { s.neigh.add(so[i + W]); st[so[i + W]].neigh.add(so[i]); }
   }
   MAP.stats = st;
-  // listas de píxeles por estado
   const off = new Int32Array(S + 1);
   for (let s = 0; s < S; s++) off[s + 1] = off[s] + st[s].area;
   const pos = off.slice(0, S), order = new Int32Array(off[S]);
   for (let i = 0; i < N; i++) if (land[i]) order[pos[so[i]]++] = i;
   MAP.pixOff = off; MAP.pixOrder = order;
   MAP.edge = new Uint8Array(N);
-  buildProvinces(); buildBorderLines();
-  console.log('Mapa generado en', Math.round(performance.now() - t0), 'ms; estados:', S);
+  t = performance.now(); buildProvinces(); T.provincias = performance.now() - t;
+  t = performance.now(); if (typeof buildBorderLines === 'function') buildBorderLines(); T.bordes = performance.now() - t;
+  MAP.genMs = Math.round(performance.now() - t0); MAP.genT = T; MAP.v = 2;
+  console.log('Mapa v2 generado en', MAP.genMs, 'ms; estados:', S, '; provincias:', MAP.provs.length);
 }
 
 // Bordes de estado (1) y de país (2). owners: array estado->id de país (0 = sin dueño)

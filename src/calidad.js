@@ -51,6 +51,7 @@ function perfPanelHtml() {
   <div class="pf-row"><span>Límite de fotogramas</span>${perfSeg('cap', [[0, 'Libre'], [60, '60'], [30, '30']], R.fpsCap || 0)}</div>
   <div class="pf-row"><span>Sombras</span>${perfSeg('sh', [['auto', 'Auto'], ['1', 'Sí'], ['0', 'No']], R.shadowsUser == null ? 'auto' : R.shadowsUser ? 1 : 0)}</div>
   <div class="pf-row"><span>Tropas en el mapa</span>${perfSeg('fig', [['3d', '3D'], ['simple', 'Sencillas'], ['off', 'Ocultas']], R.figMode || '3d')}</div>
+  <div class="pf-row"><span>Estilo del mapa</span>${perfSeg('mapst', [['actual', 'Actual'], ['atlas', 'Atlas s. XIX']], (R.v2 && R.v2.style) || 'actual')}</div>
   <label class="pf-tog"><input type="checkbox" data-pf="anim" ${R.anim ? 'checked' : ''}> Agua y nubes animadas</label>
   <label class="pf-tog"><input type="checkbox" data-pf="show" ${PERF.show ? 'checked' : ''}> Contador en pantalla <small>(F3)</small></label>
   <div class="pf-stats" id="pf-stats"></div>
@@ -93,7 +94,7 @@ Object.assign(ACT, {
   perfset: d => {
     const k = d.k, v = d.v;
     if (k === 'q') { if (v === 'auto') { R.qualityManual = false; R._aqDone = false; R.resUser = null; try { localStorage.removeItem('victoria-autoq'); } catch (e) { } toast('🎞️', 'Calidad automática: se medirá de nuevo el rendimiento.'); autoQualityInit(); } else { R.qualityManual = true; R.resScale = 1; applyQuality(v, 'Calidad gráfica: ' + v); } saveMapPrefs(); }
-    else if (k === 'cap') R.fpsCap = +v; else if (k === 'sh') { R.shadowsUser = v === 'auto' ? null : v === '1'; perfApply(); } else if (k === 'fig') { R.figMode = v; perfApply(); }
+    else if (k === 'mapst') { if (typeof v2SetStyle === 'function' && R.v2 && R.v2.ready) { try { localStorage.setItem('victoria-mapstyle', v); } catch (e) { } toast('🗺️', v === 'atlas' ? 'Estilo atlas del siglo XIX: repintando el mapa…' : 'Estilo actual: repintando el mapa…'); v2SetStyle(v).then(() => { R.dirty = true; perfRedraw(); }); } else toast('⚠️', 'El mapa aún se está preparando.'); } else if (k === 'cap') R.fpsCap = +v; else if (k === 'sh') { R.shadowsUser = v === 'auto' ? null : v === '1'; perfApply(); } else if (k === 'fig') { R.figMode = v; perfApply(); }
     perfSave(); R.dirty = true; perfRedraw();
   },
   perfcopy: () => {
@@ -130,3 +131,6 @@ const _perfCss = document.createElement('style'); _perfCss.textContent = `
 @media (max-width:1280px){#perfpanel{max-height:calc(100vh - 330px)}}
 @media (max-width:640px){#perfpanel{right:8px;left:8px;width:auto;bottom:8px;max-height:calc(100vh - 140px)}}`;
 document.head.appendChild(_perfCss);
+
+// estilo del mapa recordado entre partidas
+setTimeout(() => { try { const st = localStorage.getItem('victoria-mapstyle'); if (st === 'atlas' && typeof v2SetStyle === 'function' && R.v2 && R.v2.ready && R.v2.style !== 'atlas') v2SetStyle('atlas').then(() => { R.dirty = true; }); } catch (e) { } }, 6000);

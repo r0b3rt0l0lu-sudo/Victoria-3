@@ -49,8 +49,9 @@ function buildRiverRibbons() {
   const pos = [], side = [], par = [], idx = []; let v = 0;
   const into = new Uint8Array(MAP_W * MAP_H);                                   // cauces ya dibujados: un afluente que llega engorda al principal
   MAP.riverPaths.forEach(path => path.forEach(ci => { into[ci] = Math.min(255, into[ci] + 1); }));
-  for (const path of MAP.riverPaths) {
-    if (path.length < 6) continue;
+  for (let pk = 0; pk < MAP.riverPaths.length; pk++) {
+    const path = MAP.riverPaths[pk];
+    if (path.length < 6 || (MAP.riverOrder && MAP.riverOrder[pk] < 3)) continue;        // los ríos menores ya están pintados en la textura del mapa (v2)
     // centro de los píxeles, cada 2, y dos pasadas de Chaikin para curvas suaves
     let p = []; for (let k = 0; k < path.length; k += 2) p.push([path[k] % MAP_W + 0.5, ((path[k] / MAP_W) | 0) + 0.5, k / path.length, into[path[k]]]);
     const last = path[path.length - 1]; p.push([last % MAP_W + 0.5, ((last / MAP_W) | 0) + 0.5, 1, into[last]]);

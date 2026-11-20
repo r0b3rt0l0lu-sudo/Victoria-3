@@ -76,3 +76,6 @@ document.addEventListener('keydown', e => {
 }, true);
 const soldBtn = () => typeof b3On === 'function' && b3On() && R.bviz ? `<button data-act="soldier" class="${SOLD.on ? 'on' : ''}" data-tip="<b>Ver como soldado</b><br>La cámara sigue a un soldado de un regimiento (tercera o primera persona). Q/E cambia de soldado, R de regimiento, V cambia de vista, Esc sale.">🪖 ${SOLD.on ? 'Salir del soldado' : 'Ver como soldado'}</button>${typeof ctrlBtn === 'function' ? ctrlBtn() : ''}` : '';
 ACT.soldier = () => { if (SOLD.on) soldStop(); else soldStart(); };
+
+// si el visor de batalla se cierra o la batalla acaba con la vista de soldado activa, se sale limpiamente
+setInterval(() => { if (SOLD.on && (!B3.active || !B3.S || !R.bviz)) { try { soldStop(); } catch (e) { SOLD.on = false; SOLD.ctrl = null; B3.hide = null; } } }, 600);

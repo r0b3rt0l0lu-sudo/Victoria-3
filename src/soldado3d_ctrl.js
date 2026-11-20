@@ -44,10 +44,10 @@ function ctrlVMStep(c, rdt, era) {
 }
 function ctrlLockEl() { return document.querySelector('canvas[width="1920"]'); }
 function ctrlStart() {
-  const V = R.bviz, blk = soldBlock(V); if (!SOLD.on || !blk) return; const f = blk.figs.find(q => q.i === SOLD.fi); if (!f) return; const w = soldWorld(B3.S, blk, f, SOLD.j), now = performance.now();
+  const V = R.bviz, blk = soldBlock(V); if (!SOLD.on || !blk || !B3.S) return; const f = blk.figs.find(q => q.i === SOLD.fi); if (!f) return; const w = soldWorld(B3.S, blk, f, SOLD.j), now = performance.now();
   if (blk.type === 'cav') { toast('🎮', 'El control manual solo está disponible para infantería. Elige un soldado de a pie (tecla R).'); return; }
   SOLD.ctrl = {x: w.x, z: w.z, hd: blk.hd, cyaw: blk.hd, pitch: 0, kick: 0, kneel: false, flag: false, cd: 0, fireT: -99, clip: 'idle', clipT: null, shots: 0, hits: 0, kills: 0, dead: false, deadAt: 0, lt: now, mv: false, run: false, t: 0, hitT: -9, oldTs: V.ts};
-  SOLD.fp = true; SOLD.lookDx = SOLD.lookDy = 0; ctrlVM(blk, t3Era()); V.ts = (V.ts === undefined || V.ts > 0.3) ? CTRL_SLOW : V.ts;           // el combate se ralentiza para poder jugar
+  SOLD.fp = true; SOLD.lookDx = SOLD.lookDy = 0; if (ctrlVM(blk, t3Era())) SOLD.vm.play('idle_vm', {blend: 0}); V.ts = (V.ts === undefined || V.ts > 0.3) ? CTRL_SLOW : V.ts;           // el combate se ralentiza para poder jugar
   try { renderBattlePanel(); } catch (e) { }
   toast('🎮', 'Control en primera persona: haz clic en el campo para capturar el ratón (apuntas con él; clic dispara, clic derecho apunta con precisión) · WASD mueve · Mayús corre · Z rodillas · F estandarte · Tab observar');
 }

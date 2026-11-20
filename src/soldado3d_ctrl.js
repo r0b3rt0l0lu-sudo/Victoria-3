@@ -15,9 +15,9 @@
    EFECTOS EN LA BATALLA (pequeños y con tope): 14 hombres menos al regimiento enemigo por impacto (30 impactos como máximo por batalla), +0,004 de moral propia por impacto;
    el estandarte sube 0,006/s la moral del regimiento si estás a < 40 unidades de él y, si el abanderado cae, el regimiento pierde 0,12. */
 const CK = {w: 0, a: 0, s: 0, d: 0, shift: 0, space: 0, fire: 0, ads: 0};
-const CTRL_RELOAD = {A: 3.2, B: 2.6, C: 2.0, D: 1.6, E: 1.0}, HERO_MEN = 14, HERO_CAP = 30, CTRL_WALK = 14, CTRL_RUN = 30, CTRL_SLOW = 0.25;
+const CTRL_RELOAD = {A: 3.2, B: 2.6, C: 2.0, D: 1.6, E: 1.0}, HERO_MEN = 14, HERO_CAP = 30, CTRL_WALK = 2.4, CTRL_RUN = 6.5, CTRL_KNEEL = 1.1, CTRL_SLOW = 0.1;
 const angLerp = (a, b, k) => { const d = ((b - a + Math.PI) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI; return a + d * k; };
-SOLD.vis = new Map(); SOLD.visNew = new Map(); SOLD.shooters = []; SOLD.shootNew = [];
+SOLD.vis = new Map(); SOLD.visNew = new Map(); SOLD.shots = []; SOLD.shotNew = []; SOLD.suppress = null;
 const IDLE_VAR = ['mirar_alrededor', 'vigilar', 'senal', 'hablar', 'fumar', 'beber', 'atarse_bota', 'recolocar_mochila', 'estirarse', 'idle_preparado'];
 const ctrlFireClip = era => era === 'A' ? 'disparar_A' : era === 'B' ? 'disparar_B' : 'disparar_D';
 // ¿hay que ocultar esta figura? (el hueco del soldado seguido o un soldado abatido)
@@ -70,8 +70,9 @@ function ctrlRay(S, O, D, maxT) {
     const qx = O.x + D.x * t - p.x, qy = O.y + D.y * t - (ay + sS), qz = O.z + D.z * t - p.z; if (Math.hypot(qx, qy, qz) > 0.85) return;
     if (best && t >= best.t) return;
     for (let u = 6; u < t; u += 6) { if (b3H(S.tf, O.x + D.x * u, O.z + D.z * u) > O.y + D.y * u) return; }          // el terreno tapa el disparo
-    best = {t, p, key, head: sS > 2.0};
+    best = {t, p, key, head: sS > 2.0, ay: ay + sS};
   });
+  if (best) { const cb = covBlock(S, O.x, O.y, O.z, best.p.x, best.ay, best.p.z); if (cb) return {blocked: cb, t: cb.t * best.t, x: cb.x, y: cb.y, z: cb.z}; }
   return best;
 }
 function ctrlFire(S, V, blk, O, D) {
@@ -82,6 +83,8 @@ function ctrlFire(S, V, blk, O, D) {
   bvPart(V, {k: 'flash', x: O.x + dx * 4, y: O.z + dz * 4, life: 0.1}); bvPart(V, {k: 'smoke', x: O.x + dx * 30 - dz * 3, y: O.z + dz * 30 + dx * 3, life: 1.1});          // el humo se forma más adelante para no tapar la mira
   const hit = ctrlRay(S, O, DD, 260), tEnd = hit ? hit.t : 200;
   for (let i = 1; i <= 6; i++) { const u = tEnd * i / 6; bvPart(V, {k: 'flash', x: O.x + dx * u, y: O.z + dz * u, life: 0.05 + i * 0.012}); }          // trazadora
+  SOLD.suppress = {x: hit && hit.p ? hit.p.x : O.x + dx * 120, z: hit && hit.p ? hit.p.z : O.z + dz * 120, t: tU};          // los soldados cercanos al disparo se ponen a cubierto
+  if (hit && hit.blocked) { bvPart(V, {k: 'spark', x: hit.x, y: hit.z, life: 0.4, hot: true}); bvPart(V, {k: 'dust', x: hit.x, y: hit.z, life: 0.8}); return; }
   if (!hit) { const gx = O.x + dx * 120, gz = O.z + dz * 120; bvPart(V, {k: 'dust', x: gx, y: gz, life: 0.8}); return; }
   c.hits++; c.hitT = tU; const p = hit.p, blkE = p.blk;
   const kill = hit.head || Math.random() < 0.7, front = (Math.sin(p.yaw) * dx + Math.cos(p.yaw) * dz) < 0, side = (Math.cos(p.yaw) * dz - Math.sin(p.yaw) * dx), r = Math.random();
@@ -97,12 +100,15 @@ function ctrlFire(S, V, blk, O, D) {
 }
 function ctrlStep(S, V, blk, dt) {
   const c = SOLD.ctrl, now = performance.now(), rdt = clamp((now - c.lt) / 1000, 0, 0.1), tU = now / 1000; c.lt = now; c.t += rdt; c.cd = Math.max(0, c.cd - rdt); c.kick *= Math.exp(-rdt * 9);
-  SOLD.vis = SOLD.visNew; SOLD.visNew = new Map(); SOLD.shooters = SOLD.shootNew; SOLD.shootNew = [];
+  SOLD.vis = SOLD.visNew; SOLD.visNew = new Map();
   if (c.dead) { if (now - c.deadAt > 2600) { ctrlExit('dead'); return null; } ctrlVMStep(c, rdt, t3Era()); return {x: c.x, z: c.z, dead: true}; }
   const f = (CK.w ? 1 : 0) - (CK.s ? 1 : 0), r = (CK.d ? 1 : 0) - (CK.a ? 1 : 0), aim = c.cyaw; c.mv = !!(f || r); c.run = !!(CK.shift && c.mv && !c.kneel); c.ads = !!CK.ads;
-  const ts = Math.max(0.2, V.ts === undefined ? 1 : V.ts);                           // se mueve con el tiempo del combate (con el combate en pausa, a ×0,2)
-  if (c.mv) { const sp = (c.kneel ? 4 : c.run ? CTRL_RUN : CTRL_WALK) * (c.ads ? 0.55 : 1) * ts; let vx = Math.cos(aim) * f - Math.sin(aim) * r, vz = Math.sin(aim) * f + Math.cos(aim) * r; const L = Math.hypot(vx, vz) || 1; c.x += vx / L * sp * rdt; c.z += vz / L * sp * rdt; c.face = Math.atan2(vz, vx); }
+  // velocidades reales (u/s ≈ 0,6 m/s por unidad): marcha 2,4 (1,4 m/s), carrera 6,5 (3,9 m/s), de rodillas 1,1; atrás ×0,7 y de lado ×0,85; apuntando ×0,5
+  if (c.mv) { const sp = (c.kneel ? CTRL_KNEEL : c.run ? CTRL_RUN : CTRL_WALK) * (c.ads ? 0.5 : 1) * (f < 0 ? 0.7 : (!f && r ? 0.85 : 1)); let vx = Math.cos(aim) * f - Math.sin(aim) * r, vz = Math.sin(aim) * f + Math.cos(aim) * r; const L = Math.hypot(vx, vz) || 1; c.x += vx / L * sp * rdt; c.z += vz / L * sp * rdt; c.face = Math.atan2(vz, vx); }
+  { const q = covPush(S, c.x, c.z, 0.9); c.x = q[0]; c.z = q[1]; }
   c.x = clamp(c.x, 6, BV_W - 6); c.z = clamp(c.z, 6, BV_H - 6);
+  c.peek = c.kneel && (CK.ads || tU - c.fireT < 0.8);                                   // de rodillas detrás de una cobertura solo asomas la cabeza al apuntar o disparar
+  c.head = c.kneel ? (c.peek ? 2.3 : 1.45) : 2.55;
   // el cuerpo gira con retardo respecto de la cámara (en primera persona la cámara manda)
   const diff = Math.abs(((aim - c.hd + Math.PI) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI);
   c.turn = !c.mv && diff > 0.5; c.hd = angLerp(c.hd, (c.mv && !SOLD.fp) ? c.face : aim, Math.min(1, rdt * (CK.fire || CK.space ? 14 : 5)));
@@ -111,11 +117,14 @@ function ctrlStep(S, V, blk, dt) {
   if (c.flag && Math.hypot(c.x - blk.x, c.z - blk.y) < 40) blk.mm = Math.min(1, (blk.mm !== undefined ? blk.mm : 0.8) + 0.006 * rdt);
   // los soldados abatidos heridos acaban cayendo
   if (V.klist) V.klist.forEach(e => { if (e.wound && tU - e.t0 > 3) { e.wound = false; e.clip = e.dClip === 'muerte_adelante' ? 'muerte_costado_iz' : e.dClip; e.t0 = tU; } else if (!e.wound && !e.still && tU - e.t0 > e.dur + 0.4) { e.still = true; e.clip = e.corpse; } });
-  // enemigos que te disparan (cada uno, hacia una vez cada 5–8 s mientras te encara)
-  const era = t3Era(); let died = false;
-  SOLD.shooters.forEach(sh => { if (died || Math.random() > rdt / 6.2) return;
-    bvPart(V, {k: 'flash', x: sh.x, y: sh.z, life: 0.12}); for (let i = 1; i <= 4; i++) bvPart(V, {k: 'flash', x: sh.x + (c.x - sh.x) * i / 5, y: sh.z + (c.z - sh.z) * i / 5, life: 0.05 + i * 0.012});
-    const pHit = clamp(0.028 - sh.dd / 5200, 0.006, 0.028) * (c.kneel ? 0.6 : 1) * (c.run ? 0.75 : 1) * (c.flag ? 1.5 : 1); if (Math.random() < pHit) died = true; });
+  // disparos de los soldados enemigos (cada soldado dispara una vez cada varios segundos: ver npc_combate.js); una cobertura entre el tirador y tú los detiene
+  const era = t3Era(); let died = false; const gyP = b3H(S.tf, c.x, c.z); SOLD.shots = SOLD.shotNew; SOLD.shotNew = [];
+  SOLD.shots.forEach(sh => { if (died) return;
+    const ty = gyP + c.head * 0.85, blkd = covBlock(S, sh.x, sh.y, sh.z, c.x, ty, c.z), brg = Math.atan2(sh.z - c.z, sh.x - c.x);
+    bvPart(V, {k: 'flash', x: sh.x, y: sh.z, life: 0.12}); for (let i = 1; i <= 4; i++) bvPart(V, {k: 'flash', x: sh.x + ((blkd ? blkd.x : c.x) - sh.x) * i / 5, y: sh.z + ((blkd ? blkd.z : c.z) - sh.z) * i / 5, life: 0.05 + i * 0.012});
+    if (blkd) { bvPart(V, {k: 'spark', x: blkd.x, y: blkd.z, life: 0.4, hot: true}); bvPart(V, {k: 'dust', x: blkd.x, y: blkd.z, life: 0.7}); c.coverT = tU; c.hurt = {ang: brg, t: tU, blk: true}; c.kick += 0.012; return; }
+    c.hurt = {ang: brg, t: tU, blk: false}; c.kick += 0.02;
+    const pHit = clamp(0.03 - sh.dd / 6000, 0.006, 0.03) * (c.kneel ? (c.peek ? 0.8 : 0.5) : 1) * (c.run ? 0.75 : 1) * (c.flag ? 1.5 : 1); if (Math.random() < pHit) died = true; });
   if (died) { c.dead = true; c.deadAt = now; c.clip = 'muerte_adelante'; c.clipT = tU; if (c.flag) { blk.mm = Math.max(0, (blk.mm !== undefined ? blk.mm : 0.8) - 0.12); c.flag = false; } }
   else {
     const since = tU - c.fireT, fc = ctrlFireClip(era);
@@ -131,7 +140,7 @@ function ctrlCam(S, ov) {
   const c = SOLD.ctrl, cam = S.cam, gy = b3H(S.tf, ov.x, ov.z), yaw = c.cyaw, pit = clamp(c.pitch + c.kick, -1.35, 1.35), cp = Math.cos(pit), fx = Math.cos(yaw) * cp, fy = Math.sin(pit), fz = Math.sin(yaw) * cp;
   const bob = c.mv ? Math.sin(c.t * (c.run ? 13 : 8)) * (c.run ? 0.09 : 0.05) : Math.sin(c.t * 1.6) * 0.012;
   if (ov.dead) { const k = Math.min(1, (performance.now() - c.deadAt) / 700); cam.position.set(ov.x, gy + 2.55 - k * 2.0, ov.z); cam.lookAt(ov.x + Math.cos(yaw) * 5, gy + 0.4, ov.z + Math.sin(yaw) * 5); cam.fov = 40; cam.near = 0.3; return; }
-  const eye = c.kneel ? 1.7 : 2.5;
+  const eye = c.head || 2.5;
   if (SOLD.fp) { const px = ov.x + Math.cos(yaw) * 0.12, pz = ov.z + Math.sin(yaw) * 0.12, vm = SOLD.vm; cam.position.set(px, Math.max(gy + eye + bob, b3H(S.tf, px, pz) + 1.2), pz); cam.lookAt(px + fx * 30, cam.position.y + fy * 30, pz + fz * 30); cam.near = 0.12;
     if (vm) { const D2R = Math.PI / 180, co = vm.camOut; cam.rotateX(co.rx * D2R); cam.rotateY(co.ry * D2R); cam.rotateZ(co.rz * D2R); cam.fov = 42 * co.fov; S.scene.onAfterRender = (r, sc, cm) => { try { vm.render(r, cm); } catch (e) { S.scene.onAfterRender = function () { }; console.warn('viewmodel', e); } }; } else { cam.fov = c.ads ? 22 : 42; S.scene.onAfterRender = function () { }; } }
   else { S.scene.onAfterRender = function () { }; const d = 6.5, bx = ov.x - Math.cos(yaw) * d - Math.sin(yaw) * 1.3, bz = ov.z - Math.sin(yaw) * d + Math.cos(yaw) * 1.3, by = Math.max(b3H(S.tf, bx, bz) + 1.2, gy + 3.4 + fy * -3); cam.position.set(bx, by, bz); cam.lookAt(ov.x + fx * 25, gy + 2.4 + fy * 25, ov.z + fz * 25); cam.fov = c.ads ? 30 : 42; cam.near = 0.5; }
@@ -145,33 +154,6 @@ b3Fig = function (S, V, blk, f, era, tU, cp, ca) {
   if (V.klist) V.klist.forEach(e => { const set = b3Set(S, 'fusilero', e.era, e.tag, null); draw(set, e.x, e.z, e.yaw, e.clip, e.wound ? null : e.t0, e.tag); });
   const c = SOLD.on && SOLD.ctrl; if (c && me && !SOLD.fp) draw(b3Set(S, 'fusilero', era, me.tag, null), c.x, c.z, Math.PI / 2 - c.hd, c.clip, c.clipT, me.tag);
 };
-// movimiento libre de los soldados cerca de la cámara; los enemigos te ven, se te acercan, te encaran y te disparan
-function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
-  if (!SOLD.on) return null; const V = R.bviz; if (!V) return null; const d0 = Math.hypot(x - ca.x, z - ca.z); if (d0 > 260) return null;
-  const me = SOLD._meT === tU ? SOLD._me : (SOLD._meT = tU, SOLD._me = soldBlock(V)); if (!me) return null; const enemy = blk.side !== me.side, key = blk.id + ':' + f.i + ':' + j, sp = blk.sp || 0, mode = blk.mode;
-  if (mode === 'rout' || f.flee > 0) { if (enemy) SOLD.visNew.set(key, {x, z, yaw, blk}); return null; }
-  const T = 3.5 + h1 * 3.2, tt = tU + h2 * 20, seg = Math.floor(tt / T), fr = (tt % T) / T, amp = sp > 8 ? 0.4 : (mode === 'fire' || mode === 'skirmish') ? 3.4 : mode === 'hold' ? 1.4 : (mode === 'charge' || mode === 'melee') ? 0.6 : 2.2;
-  const rn = (s, k) => (hash2(blk.id * 131 + f.i + j * 7, s, k) - 0.5) * 2 * amp, k = Math.min(1, fr * 5), ease = k * k * (3 - 2 * k);
-  const ox = rn(seg - 1, 31) + (rn(seg, 31) - rn(seg - 1, 31)) * ease, oz = rn(seg - 1, 32) + (rn(seg, 32) - rn(seg - 1, 32)) * ease, moving = k < 1 && sp <= 8;
-  let nx = x + ox, nz = z + oz, nyaw = yaw, nclip = clip, start; const o = {};
-  const T3 = window.Troops3D, era = t3Era();
-  if (moving) { const mx = rn(seg, 31) - rn(seg - 1, 31), mz = rn(seg, 32) - rn(seg - 1, 32), L = Math.hypot(mx, mz); if (L > 0.15) {
-    const fx = Math.sin(yaw), fz = Math.cos(yaw), dot = (mx * fx + mz * fz) / L, side = (-mx * Math.cos(yaw) + mz * Math.sin(yaw)) / L;           // paso adelante, atrás o de lado respecto a hacia dónde mira
-    if (dot > 0.6) { nyaw = Math.atan2(mx, mz); nclip = 'marcha'; } else if (dot < -0.6) nclip = 'paso_atras'; else nclip = side > 0 ? 'paso_lateral_de' : 'paso_lateral_iz'; start = null; } }
-  else if (sp <= 8 && (mode === 'hold' || mode === 'reserve' || mode === 'advance') && hash2(blk.id * 131 + f.i + j * 7, seg, 77) < 0.35) { nclip = IDLE_VAR[Math.floor(hash2(blk.id * 131 + f.i + j * 7, seg, 78) * IDLE_VAR.length) % IDLE_VAR.length]; start = tU - (tt % T); }          // tiempos muertos: cada uno hace lo suyo
-  const p = SOLD.ctrl ? {x: SOLD.ctrl.x, z: SOLD.ctrl.z} : SOLD.pos;
-  if (enemy && p && sp <= 8 && mode !== 'melee' && mode !== 'charge') {
-    const dd = Math.hypot(p.x - nx, p.z - nz);
-    if (dd < 110 && dd > 1) {
-      const adv = Math.min(18, (110 - dd) * 0.3); nx += (p.x - nx) / dd * adv; nz += (p.z - nz) / dd * adv; nyaw = Math.atan2(p.x - nx, p.z - nz);
-      const per = 5 + h1 * 3, ph = (tU + h2 * 17) % per;
-      const post = h2 < 0.25 ? 'rodilla' : 'pie', gy1 = b3H(B3.S.tf, nx, nz), gy2 = b3H(B3.S.tf, p.x, p.z), pitch = Math.atan2((gy2 + 2.5) - (gy1 + (post === 'rodilla' ? 1.5 : 2.4)), dd) * 57.3, aimC = (fire) => T3 && T3.troopAimClip ? T3.troopAimClip('fusilero', era, 0, pitch, {postura: post, fuego: fire}) : (fire ? ctrlFireClip(era) : 'apuntar');
-      if (ph < 1.1) { nclip = aimC(true); start = tU - ph; SOLD.shootNew.push({x: nx, z: nz, dd}); } else if (ph < per - 1.2) { nclip = aimC(false); start = null; } else { nclip = 'recargar_' + post + '_' + era; if (!(T3 && T3.clipInfo && T3.clipInfo('fusilero', nclip))) nclip = 'idle_preparado'; start = tU - (ph - (per - 1.2)); }
-    }
-  }
-  if (enemy) SOLD.visNew.set(key, {x: nx, z: nz, yaw: nyaw, blk});
-  o.x = nx; o.z = nz; o.yaw = nyaw; o.clip = nclip; if (start !== undefined) o.start = start; return o;
-}
 // entradas: teclado y ratón
 const CKMAP = {w: 'w', a: 'a', s: 's', d: 'd', arrowup: 'w', arrowleft: 'a', arrowdown: 's', arrowright: 'd', ' ': 'space', shift: 'shift'};
 document.addEventListener('keydown', e => {
@@ -204,6 +186,8 @@ b3Frame = function (V, b, g, lines, all) {
   g.fillStyle = 'rgba(255,255,255,.18)'; g.fillRect(BV_W - 368, BV_H - 58, 346, 10); g.fillStyle = c.cd > 0 ? '#c9a45c' : '#79c35a'; g.fillRect(BV_W - 368, BV_H - 58, 346 * (1 - c.cd / rel), 10);
   if (blk && blk.mm !== undefined) { g.fillStyle = '#d9d2bc'; g.font = '14px sans-serif'; g.fillText(`Moral del regimiento ${Math.round(blk.mm * 100)} %`, BV_W - 368, BV_H - 34); }
   g.fillStyle = 'rgba(8,12,16,.75)'; g.fillRect(8, BV_H - 62, 1010, 26); g.fillStyle = '#d9d2bc'; g.font = '16px sans-serif'; g.fillText(document.pointerLockElement ? 'Ratón: apuntar · clic: disparar · clic dcho.: mira · WASD · Mayús: correr · Z: rodillas · F: estandarte · V: vista · Tab: observar · Esc: soltar ratón' : 'Haz clic en el campo para capturar el ratón (o arrastra para mirar) · Espacio: disparar · WASD · Z · F · Tab: observar', 14, BV_H - 44);
+  if (c.hurt && tU - c.hurt.t < 1.2) { const rel = c.hurt.ang - c.cyaw, R0 = 330, k = 1 - (tU - c.hurt.t) / 1.2; g.save(); g.translate(BV_W / 2 + Math.sin(rel) * R0, BV_H / 2 - Math.cos(rel) * R0 * 0.8); g.rotate(rel); g.fillStyle = c.hurt.blk ? `rgba(255,220,120,${0.55 * k})` : `rgba(255,50,40,${0.8 * k})`; g.beginPath(); g.moveTo(0, -26); g.lineTo(-22, 20); g.lineTo(22, 20); g.closePath(); g.fill(); g.restore(); }
+  if (tU - (c.coverT || -9) < 1.4) { g.fillStyle = 'rgba(8,12,16,.78)'; g.fillRect(BV_W / 2 - 190, BV_H - 210, 380, 30); g.fillStyle = '#f2e6bf'; g.font = '600 18px sans-serif'; g.textAlign = 'center'; g.fillText('🛡️ La cobertura detiene el disparo', BV_W / 2, BV_H - 189); g.textAlign = 'left'; }
   if (!c.dead) { const cx = BV_W / 2, cy = BV_H / 2, hit = tU - c.hitT < 0.25, gap = c.ads ? 4 : 9 + (c.mv ? 6 : 0); g.strokeStyle = hit ? '#ff5a4a' : 'rgba(255,255,255,.8)'; g.lineWidth = 2; g.beginPath(); [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([dx, dy]) => { g.moveTo(cx + dx * gap, cy + dy * gap); g.lineTo(cx + dx * (gap + 9), cy + dy * (gap + 9)); }); g.stroke(); if (hit) { g.beginPath(); g.moveTo(cx - 11, cy - 11); g.lineTo(cx + 11, cy + 11); g.moveTo(cx + 11, cy - 11); g.lineTo(cx - 11, cy + 11); g.stroke(); } }
   g.restore();
 };

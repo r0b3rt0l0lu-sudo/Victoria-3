@@ -271,3 +271,8 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - Enemigos (`b3Free`): `troopAimClip` con cabeceo al jugador y postura de pie o de rodilla, recarga por postura y época, pasos laterales/atrás, tiempos muertos variados (`IDLE_VAR`).
 - Bajas: 10 muertes según dirección y zona, cadáver estable `cuerpo_inerte_*`, herido → cae a los 3 s.
 - Pendiente: efectos `TROOP_FX` (no integrados: se mantienen los de partículas del visor), `TROOP_LITE` para gama baja, ratón real con puntero capturado, GPU real.
+
+## Revisión general (batería de regresión)
+- Ventanas (13) y paneles: campañas, guerra total, hot-seat, industria (3 pestañas), manual (todas las secciones), partidas guardadas, tutorial, logros, diario y 6 modos de mapa: sin excepciones ni errores de consola.
+- Simulaciones: 1939 PRU 700 días (49 s), 1836 FRA 1500 días (25 s): sin excepciones. Guardado/carga con IndexedDB: estado idéntico y 120 días más sin errores. Retirada: combates de 12–28 días y, con orden, terminan el día 4. Levas (tope por población y estados ocupados) y programas de industria: correctos.
+- Control del soldado: limpieza al salir (ritmo del combate, ratón capturado, gancho del viewmodel) también con Esc y al cerrarse el visor o terminar la batalla; el viewmodel reproduce la muerte y se reinicia al volver a entrar.

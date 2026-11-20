@@ -35,6 +35,37 @@ Presupuesto, Producción y mercado, Población, Política y leyes, Tecnología (
 - **Iconografía:** sustituye los emojis por un **juego coherente de iconos SVG inline** (trazo 1.5 px, estilo grabado/sello, 24×24 y 16×16): recursos, menús, modos de mapa, misiones navales/aéreas, tipos de buque y avión, pactos, leyes. Entrega un **sprite `<symbol>`** y el mapa emoji → icono para sustituirlos con un reemplazo mínimo. Las banderas se siguen generando por código.
 - **Densidad:** pensado para ventanas con mucha información. Tres densidades (cómoda/normal/compacta) mediante una variable de escala.
 
+## 3b. Paleta de partida (obligatoria como base; puedes afinar ±8 % de luminosidad)
+| Token | Color | Uso |
+|---|---|---|
+| `--tinta-900` | `#0b121a` | fondo más profundo, sombras |
+| `--pizarra-800` | `#111c28` | fondo de ventana |
+| `--pizarra-700` | `#18283a` | tarjetas, paneles |
+| `--pizarra-600` | `#223850` | tarjeta elevada, hover |
+| `--roble-700` | `#3a2a1c` | marcos de madera, cabeceras de ventana |
+| `--roble-500` | `#5c4129` | biseles, cantoneras |
+| `--laton-500` | `#b8903e` | acento primario, bordes ornamentales |
+| `--laton-300` | `#e0c27a` | títulos, iconos activos, brillo |
+| `--pergamino-100` | `#efe3c6` | texto principal en oscuro / fondo del tema claro |
+| `--pergamino-300` | `#cdbd96` | texto secundario |
+| `--carmin-600` | `#a8342f` | guerra, peligro, malo |
+| `--bosque-600` | `#3f7a4a` | positivo, completado |
+| `--acero-500` | `#4f86b0` | naval, información, enlaces |
+| `--ambar-500` | `#d98a2b` | avisos |
+| `--violeta-500` | `#7a5a9a` | diplomacia |
+| `--lacre-700` | `#7d1f24` | sellos de lacre, insignias importantes |
+
+## 3c. Que no parezca hecha por una IA: oficio de artista profesional
+El resultado debe sentirse **dibujado y compuesto a mano por un ilustrador/diseñador de videojuegos**, no generado:
+- **Nada de plantilla genérica:** prohibidos los degradados morados, las tarjetas planas con esquinas muy redondeadas y sombra difusa, los iconos emoji, los botones «píldora» iguales y el aspecto de panel de administración web. Cada tipo de elemento tiene su propia forma y su propio material.
+- **Menús detallados y adornados:** cabeceras de ventana con **cenefas y filigranas**, cantoneras de latón en las esquinas, remaches, marcos dobles (filete fino + filete grueso), cintas con el título, **sellos de lacre** para logros y eventos, orlas en los separadores, iniciales capitulares en los textos largos del manual y del diario, y marcos distintos según la categoría (economía en roble y latón, militar en acero y carmín, diplomacia en violeta y pergamino, naval en azul tinta y latón).
+- **Imperfección controlada:** bordes con ligera irregularidad, grano de papel y tinta, desgaste en esquinas, sombras proyectadas coherentes con **una sola fuente de luz arriba a la izquierda**, brillos metálicos solo en los filos.
+- **Jerarquía de grabado:** títulos en versalitas con interletraje amplio y un fino subrayado ornamental; números grandes con estilo de cifras de reloj o de libro de contabilidad; etiquetas pequeñas en versalitas.
+- **Iconos grabados:** cada icono es un pequeño grabado de acero (trazo variable, sombreado por líneas cruzadas, 1-2 detalles característicos), no un pictograma genérico. Misma familia para todos.
+- **Detalle en el hover y el uso:** el botón se hunde, el latón brilla, la tinta «se seca» al completar una tarea, las pestañas son lengüetas de carpeta, las ventanas «se despliegan» como un documento; sonidos visuales (destello de sello) sin exagerar.
+- **Coherencia total:** un mismo lenguaje de marcos, esquinas y tipografías en HUD, ventanas, tooltips, eventos, pantalla de inicio y visores de batalla. Revisa cada pantalla como lo haría un director de arte: alineaciones a una rejilla de 4 px, márgenes y espaciados rítmicos, nada pegado a los bordes.
+- **Nada de texto de relleno ni Lorem ipsum:** usa los textos reales del juego en español.
+
 ## 4. Componentes y estados (entrega un «libro de estilo» vivo)
 Botones (primario, secundario, peligro, fantasma, icono, interruptor, con insignia), `select` e inputs, casillas y radios, deslizadores, pestañas (principales y secundarias), tarjetas (normal, resaltada, bloqueada, completada), tablas ordenables, filas `.kv`, barras de progreso (normal, doble, con umbral, con tendencia), medidores (moral, supremacía, dominio aéreo), chips/etiquetas, insignias numéricas, listas con selección múltiple, árbol de tecnología (nodo disponible/en curso/completado/bloqueado/obsoleto + flechas), tarjetas de evento con ilustración tipográfica, diálogos modales, toasts por tipo (guerra, crisis, diario, diplomacia), tooltips con secciones, menús contextuales, estados `hover/focus/active/disabled/loading`, foco de teclado visible, estados vacíos, esqueletos de carga y **animaciones** (entrada de ventana, pulso de aviso, sello al completar, contador de recursos) de 120-250 ms, respetando `prefers-reduced-motion`.
 

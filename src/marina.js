@@ -214,18 +214,8 @@ function navalAI(c) {
     const yards = portsStates(c).filter(id => (G.S[id].b.shipyard || 0) >= 0.1).sort((a, b) => (G.S[b].b.shipyard || 0) - (G.S[a].b.shipyard || 0));
     if (yards.length) shipOrder(c, type, yards[0]);
   }
-  // misiones
-  const enemies = G.tags.filter(o => o !== NONE && hostileTags(c.tag, o) && alive(o));
-  fl.forEach(f => {
-    if (f.tr) return; const power = fleetPower(f);
-    if (!enemies.length) { if (f.mission !== 'port' && f.mission !== 'patrol') { f.mission = 'port'; f.target = null; } const hz = mainPortZone(c); if (hz !== null && f.zone !== hz && !f.tr) fleetMove(f, hz); return; }
-    // objetivo: el enemigo con más puertos al alcance
-    let tgt = null, bz = null, bs = 0; enemies.forEach(e => { countryZones(G.C[e]).forEach((n, z) => { const s = n * 2 - zoneDist(f.zone, z) * 0.1 - zonePower(c.tag, z, 'foe') * 0.01; if (s > bs) { bs = s; tgt = e; bz = z; } }); });
-    if (tgt === null) { f.mission = 'port'; return; }
-    const foe = zonePower(c.tag, bz, 'foe');
-    if (power > foe * 1.25 + 1) { if (f.zone !== bz || f.port != null) fleetMove(f, bz); f.mission = f.ships.some(s => SHIP_TYPES[s.t].raid >= 1.8) && Math.random() < 0.5 ? 'raid' : 'blockade'; f.target = tgt; }
-    else { const hz = mainPortZone(c); if (hz !== null && f.zone !== hz) fleetMove(f, hz); f.mission = 'patrol'; f.target = null; }
-  });
+  // misiones: reparto equilibrado de las flotas entre las zonas relevantes (marina2.js)
+  navalDistribute(c, fl);
   // las flotas pequeñas se agrupan en la misma zona y misión (se mantiene su identidad)
 }
 function navalWeek() { navalBuildWeek(); G.tags.forEach(t => { if (t !== NONE && G.C[t].ai && G.C[t].states.length) navalAI(G.C[t]); }); }

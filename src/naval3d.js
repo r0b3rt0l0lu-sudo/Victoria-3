@@ -4,7 +4,7 @@
    Se dibuja con el renderizador del mapa en una esquina y se copia al lienzo del panel (igual que el visor 3D de tierra); el HUD 2D va encima.
    Cámara: arrastrar = girar · botón derecho = mover · rueda = zoom · doble clic = vista inicial. Se activa con el botón «Vista 3D» (comparte opción con la batalla terrestre). */
 const N3 = {S: null, active: false, cam: {yaw: 0, pit: 0.3, d: 300, tx: 0, tz: 0}, drag: null, lt: 0, auto: true};
-const N3_Z = 5.5, N3_Z0 = 170;               // y del visor 2D → profundidad (z) del mundo 3D
+const N3_Z = 1, N3_Z0 = NV_H / 2;               // el visor 2D es cenital: (x, y) de la arena → (x, z) del mundo 3D
 const n3W = (x, y) => [x - NV_W / 2, (y - N3_Z0) * N3_Z];
 function n3Mat(c, o) { return new THREE.MeshStandardMaterial(Object.assign({color: c, roughness: 0.75, metalness: 0.15}, o || {})); }
 function n3Shared() {
@@ -88,9 +88,10 @@ function n3Near(V, x, y) { let b = null, bd = 1e9; V.ships.forEach(s => { const 
 // cada partícula del visor 2D se convierte en una 3D colocada respecto al buque más cercano
 function n3Spawn(V, p) {
   const S = N3.S; if (!S || S.parts.length > 900) return; const near = n3Near(V, p.x, p.y), r = () => Math.random() - 0.5;
-  const [wx] = n3W(p.x, 0), wz0 = near ? n3W(0, near.y)[1] : 0, h0 = near ? Math.max(0, near.y - p.y) * 0.9 : 3;
-  if (p.k === 'shell') { const tg = n3Near(V, p.x2, p.y2); S.parts.push({k: 'shell', x: wx, y: h0 + 4, z: wz0, tx: n3W(p.x2, 0)[0], tz: (tg ? n3W(0, tg.y)[1] : wz0) + r() * 50, life: p.life, hit: p.hit, age: 0}); return; }
-  if (p.k === 'splash') { const tg = n3Near(V, p.x, p.y); for (let i = 0; i < 9; i++) S.parts.push({k: 'splash', x: wx + r() * 6, y: 0.5, z: (tg ? n3W(0, tg.y)[1] : wz0) + r() * 40, vx: r() * 8, vy: 14 + Math.random() * 12, vz: r() * 8, life: 0.9, age: 0}); return; }
+  const [wx, wz0] = n3W(p.x, p.y), h0 = 5;
+  if (p.k === 'shell') { const [tx, tz] = n3W(p.x2, p.y2); S.parts.push({k: 'shell', x: wx, y: h0 + 4, z: wz0, tx, tz: tz + r() * 20, life: p.life, hit: p.hit, age: 0}); return; }
+  if (p.k === 'torp') { const [tx, tz] = n3W(p.x2, p.y2); S.torps = S.torps || []; S.torps.push({x0: wx, z0: wz0, x1: tx, z1: tz, x: wx, z: wz0, age: 0, life: p.life, hit: p.hit}); return; }
+  if (p.k === 'splash') { for (let i = 0; i < 9; i++) S.parts.push({k: 'splash', x: wx + r() * 6, y: 0.5, z: wz0 + r() * 6, vx: r() * 8, vy: 14 + Math.random() * 12, vz: r() * 8, life: 0.9, age: 0}); return; }
   if (p.k === 'boom') { S.parts.push({k: 'boom', x: wx, y: Math.max(3, h0), z: wz0 + r() * 4, life: 0.6, age: 0}); return; }
   if (p.k === 'flash') { S.parts.push({k: 'flash', x: wx, y: Math.max(4, h0), z: wz0 + r() * 6, life: 0.14, age: 0}); return; }
   if (p.k === 'fire') { S.parts.push({k: 'fire', x: wx, y: Math.max(3, h0), z: wz0 + r() * 8, vy: 6, life: 0.7, age: 0}); return; }
@@ -101,9 +102,9 @@ nvPart = function (V, p) { _nvPart3(V, p); if (N3.active && N3.S) n3Spawn(V, p);
 function n3Sync(S, V, dt, t) {
   V.ships.forEach(s => {
     let m = S.ships.get(s.id);
-    if (!m) { m = {g: new THREE.Group(), model: n3Ship(s.t, s.color), sunkDone: false, flagM: null}; m.g.add(m.model); m.g.add(n3Wake(NV_STYLE[s.t] ? NV_STYLE[s.t].len : 50)); S.ships.set(s.id, m); S.scene.add(m.g); n3Flag(m, s); if (s.sink < 0) m.g.rotation.y = s.dir > 0 ? 0 : Math.PI; }
+    if (!m) { m = {g: new THREE.Group(), model: n3Ship(s.t, s.color), sunkDone: false, flagM: null}; m.g.add(m.model); m.g.add(n3Wake(NV_STYLE[s.t] ? NV_STYLE[s.t].len : 50)); S.ships.set(s.id, m); S.scene.add(m.g); n3Flag(m, s); if (s.sink < 0) m.g.rotation.y = -(s.hd || 0); }
     const [wx, wz] = n3W(s.x, s.y), y = n3Wave(wx, wz, t), ph = s.ph, sk = s.sink >= 0 ? s.sink : 0, d = s.dir, isSub = !!(NV_STYLE[s.t] && NV_STYLE[s.t].sub);
-    m.g.position.set(wx, y - (isSub ? 1.2 : 0) - (sk > 0 ? sk * sk * 4 + sk * 3 : 0), wz); m.g.rotation.y = d > 0 ? 0 : Math.PI;
+    m.g.position.set(wx, y - (isSub ? 1.2 : 0) - (sk > 0 ? sk * sk * 4 + sk * 3 : 0), wz); m.g.rotation.y = -(s.hd || 0);
     m.g.rotation.z = Math.sin(t * 1.1 + ph) * 0.03 + (sk > 0 ? Math.min(1.25, sk * 0.5) * d * (isSub ? 0 : 1) : 0);          // balanceo y escora al hundirse
     m.g.rotation.x = Math.sin(t * 0.8 + ph * 1.7) * 0.02; m.g.visible = sk < 3.3;
     const wk = m.g.children[1]; if (wk) { wk.visible = sk === 0 && !isSub; wk.material.opacity = 0.2; }

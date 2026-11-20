@@ -44,7 +44,7 @@ function guaranteedBy(tag) { return G.pacts.filter(p => p.type === 'guarantee' &
 function blocOf(tag) { const c = G.C[tag]; return c && c.bloc ? G.blocs.find(b => b.id === c.bloc) : null; }
 function atWarWith(a, b) { return G.wars.some(w => (w.attAll.includes(a) && w.defAll.includes(b)) || (w.attAll.includes(b) && w.defAll.includes(a))); }
 function inWar(tag) { return G.C[tag].wars.length > 0; }
-function pactDays(p) { return (G.date.y - p.since.y) * 12 + (G.date.m - p.since.m); }
+
 function armyPower(c) { return c.stats.soldiers * (1 + c.mods.army + blocArmyBonus(c)) * (0.8 + 0.4 * c.milFund) * (1 + c.lit / 400); }
 function blocArmyBonus(c) { const b = blocOf(c.tag); return b && b.type === 'military' ? 0.05 : 0; }
 function blocEconBonus(c) { const b = blocOf(c.tag); return b && b.type === 'economic' ? 0.04 : 0; }
@@ -61,8 +61,8 @@ function pactMoneyFlows(c) {
   return out;
 }
 
-function stateCenterLL(s) { return stateCenter(s); }
-function distBetween(a, b) { return distStates(a, b); }
+
+
 function minDist(A, B) {
   let min = 1e9, border = false;
   A.states.forEach(i => B.states.forEach(j => { if (G.S[i].neigh.includes(j)) border = true; const d = distStates(G.S[i], G.S[j]); if (d < min) min = d; }));
@@ -188,12 +188,8 @@ function prepareFronts(w) {
   const sideTags = (list) => new Set(list);
   void sideTags;
 }
-function setOcc(sid, frac, by, changed) {
-  const s = G.S[sid]; if (!s) return;
-  const f = Math.round(frac * 100) / 100;
-  if ((s.occ || 0) !== f || s.occBy !== by) { s.occ = f; s.occBy = f > 0 ? by : null; changed.add(sid); }
-}
-function clearOccupation(w) { clearOccupationKeep(w); }
+
+
 function sidePower(list, def) {
   let p = 0, lg = 0, df = 0;
   list.forEach(t => { const c = G.C[t]; p += armyPower(c); lg += c.mods.logistics; df += c.mods.defense; });

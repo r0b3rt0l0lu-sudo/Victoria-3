@@ -175,16 +175,7 @@ function pv2AtlasFrame(g, view) {
   g.font = 'italic 600 13px Georgia, serif'; g.fillStyle = '#3b2a1a'; g.fillText('N', 0, -R - 9); g.restore();
 }
 // carreteras y ferrocarril: tramos entre centros de estados vecinos por tierra. railYear(a, b) → año de apertura (o Infinity).
-function pv2BuildRoutes(railYear) {
-  const out = [], seen = new Set();
-  MAP.stats.forEach((st, a) => st.neigh.forEach(b => { if (b < a || seen.has(a * 1000 + b)) return; seen.add(a * 1000 + b);
-    const A = MAP.stats[a], B = MAP.stats[b]; if (!A.area || !B.area) return; const ca = PV2L.cityOf && PV2L.cityOf[a] || [A.sx / A.area, A.sy / A.area], cb = PV2L.cityOf && PV2L.cityOf[b] || [B.sx / B.area, B.sy / B.area];
-    if (Math.hypot(ca[0] - cb[0], ca[1] - cb[1]) > 60) return;
-    // curva suave: punto medio desplazado por el ruido para que no parezca una regla
-    const mx = (ca[0] + cb[0]) / 2 + (hash2(a, b, 191) - 0.5) * 3, my = (ca[1] + cb[1]) / 2 + (hash2(b, a, 193) - 0.5) * 3;
-    out.push({a, b, p: [ca[0], ca[1], mx, my, cb[0], cb[1]], rail: railYear ? railYear(a, b) : Infinity}); }));
-  PV2.routes = out; return out;
-}
+
 function pv2DrawRoutes(g, s, x0, y0, x1, y1, year, atlas) {
   const vis = r => !(Math.max(r.p[0], r.p[4]) < x0 || Math.min(r.p[0], r.p[4]) > x1 || Math.max(r.p[1], r.p[5]) < y0 || Math.min(r.p[1], r.p[5]) > y1);
   const path = list => { g.beginPath(); list.forEach(r => { g.moveTo(r.p[0], r.p[1]); g.quadraticCurveTo(r.p[2], r.p[3], r.p[4], r.p[5]); }); };

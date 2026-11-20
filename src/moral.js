@@ -27,7 +27,7 @@ function morDay() {
 const morRetreatTh = list => list.some(a => armyMor(a) < 0.25) ? 0.30 : list.some(a => armyMor(a) < 0.45) ? 0.22 : 0.18;
 
 /* ---------- prisioneros ---------- */
-function prisTotal(c) { let n = 0; if (c.pris) for (const k in c.pris) n += c.pris[k]; return Math.round(n); }
+
 function prisHeldFrom(holders, owners) { let n = 0; holders.forEach(h => { const p = G.C[h] && G.C[h].pris; if (p) owners.forEach(o => { n += p[o] || 0; }); }); return n; }
 function takePrisoners(winTag, loseTag, n) {
   n = Math.round(n); if (n < 50 || winTag === loseTag) return;

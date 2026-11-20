@@ -94,4 +94,4 @@ acceptChance = function (type, from, to, level) {
   r.p = clamp(r.p + d / 60, 0, 0.97); return r;
 };
 // explicación de la opinión para la interfaz
-function relExplain(a, b) { const f = relFactors(a, b), t = relTarget(a, b); return `Tendencia: ${sgn(t, 0)} · ${f.map(x => `${x[0]} ${sgn(x[1], 0)}`).join(' · ') || 'sin factores'}`; }
+

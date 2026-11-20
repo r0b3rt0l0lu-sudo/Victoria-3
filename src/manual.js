@@ -411,6 +411,18 @@ MANUAL.push({id: 'soldado', title: '★ Mapa v2, tropas v4 y vista de soldado', 
 <h4>🏳️ Los ejércitos no se retiran por su cuenta</h4>
 <p>Como en la historia, los ejércitos <b>aguantan su posición</b> hasta que su organización se desploma (≈ 6 %) o el mando <b>ordena la retirada</b>. Ningún bloque retrocede solo por pánico, gas o tras una carga. Puedes ordenarla con <b>🏳️ Ordenar retirada</b> en el panel de batalla: el ejército se repliega ordenadamente (menos pérdida de moral, sin riesgo para su general) y la batalla termina al día siguiente. La IA solo ordena retirarse cuando todo está perdido.</p>`});
 
+MANUAL.push({id: 'lote15', title: '★ Marina 2, mapa marítimo, ambiciones y árbol tecnológico', html: `
+<h4>Ferrocarril y logística</h4><p>En territorio propio o aliado cada nivel de infraestructura reduce el tiempo de marcha de tus ejércitos (hasta ×0,26); con infraestructura 3 o más un salto puede durar un solo día.</p>
+<h4>Nuevas industrias</h4><p>Papel, vidrio, conservas (Refrigeración), electrodomésticos (Electricidad) y automóviles (Cadena de montaje) abren nuevos mercados de consumo: la demanda de cada bien aparece en su época para no penalizar antes de existir.</p>
+<h4>Economía sin solapamientos</h4><p>La inversión privada depende de la ley económica; la política comercial solo toca aranceles, industria e innovación. Fomento y planificación no se acumulan y los modificadores tienen rendimientos decrecientes por encima de un tope.</p>
+<h4>Flanqueo realista</h4><p>La orden de flanqueo envía solo 1 o 2 regimientos del extremo (caballería primero). El resto de la línea se realinea y estira su frente para no abrir huecos. «Envolver» sigue moviendo toda la línea como una puerta.</p>
+<h4>Supremacía naval y bloqueos</h4><p>Cada mar tiene una supremacía de 0 a 100 por país (sube hasta 2 puntos al día según tu fuerza frente a la enemiga). Hace falta ≥50 % para bloquear y ≥35 % para desembarcar con seguridad. La IA reparte su flota entre las costas enemigas, la defensa propia y los mares disputados. Un bloqueo prolongado provoca <b>escasez</b>: más malestar, menos producción, motines del hambre e incluso insurrecciones.</p>
+<h4>Mapa marítimo 🌊</h4><p>Menú «Mar»: un mapa solo de mares con las flotas. Clic en una ficha para seleccionar (Mayús: varias; arrastra un recuadro), <b>Agrupar</b> o <b>Dividir</b> escuadras, asigna misión y haz clic en un mar para navegar.</p>
+<h4>Batalla naval cenital</h4><p>El visor naval 2D es ahora una vista desde arriba: los buques maniobran, cierran hasta su alcance, presentan el costado, disparan dentro de su arco y lanzan torpedos. Rueda: zoom; arrastrar: mover; clic: seleccionar buque. En 3D los barcos se mueven con las mismas posiciones y rumbos.</p>
+<h4>Ambiciones nacionales 👑</h4><p>Opcional, desde el Diario: recupera todos tus territorios core y crece hasta 12 estados, el top 14 y 40 de prestigio para proclamarte imperio. Solo una minoría de países de la IA la adopta.</p>
+<h4>Árbol de tecnologías 🌳</h4><p>La ventana Tecnología muestra un árbol con flechas, bandas por categoría y color por era. Clic en una tecnología dorada para investigarla; el botón «Lista» recupera la vista anterior.</p>
+`});
+
 WINDOWS.manual = {title: 'Manual del juego', icon: '📖', render() {
   const sec = MANUAL.find(m => m.id === UI.manualSec) || MANUAL[0];
   return `<div class="manual"><nav>${MANUAL.map(m => `<button class="${m.id === sec.id ? 'on' : ''}" data-act="msec" data-id="${m.id}">${m.title}</button>`).join('')}</nav><article class="scrollable manbody"><h2>${sec.title}</h2>${sec.html}</article></div>`;

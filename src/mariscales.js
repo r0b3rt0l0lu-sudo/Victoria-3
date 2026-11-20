@@ -27,7 +27,7 @@ function marDay() {
   M.mar.forEach(m => { m.group = m.group.filter(id => armyById(id)); });
   M.mar = M.mar.filter(m => G.C[m.tag] && G.C[m.tag].states.length);
 }
-function marAssignFront(m, f) { (G.fronts || []).forEach(x => { if (x.mar === m.id) x.mar = null; }); if (f) f.mar = m.id; }
+
 // la IA nombra mariscales y reparte sus ejércitos por cercanía
 function marAI(c) {
   const arms = armiesOf(c.tag).filter(a => !a.sea); if (arms.length < 4) return;

@@ -143,7 +143,7 @@ function mobilizationMonth(c) {
   if (!c.ai) c.treasury -= c.stats.income * 0.12 * m;
   if (c.ai && !c.wars.length && Math.random() < 0.35) c.mob = Math.max(0, m - 1);       // la IA desmoviliza en paz
 }
-function armiesPower(tag) { let p = 0; armiesOf(tag).forEach(a => a.divs.forEach(d => p += d.s * (DIVS[d.t].att + DIVS[d.t].def))); return p; }
+
 
 
 /* ---------- terreno y movimiento (sobre provincias) ---------- */
@@ -735,11 +735,7 @@ function homeWeek() {
 function evacuateForeignArmies() {
   G.armies.forEach(a => { if (overstaying(a)) sendHome(a, true); });
 }
-function cleanupArmies() {
-  G.armies = G.armies.filter(a => G.C[a.tag] && G.C[a.tag].states.length);
-  G.battles = G.battles.filter(b => b.A.some(id => armyById(id)) && b.B.some(id => armyById(id)));
-  G.armies.forEach(a => { if (a.battle && !G.battles.some(b => b.id === a.battle)) a.battle = null; });
-}
+
 
 /* ---------- guardado de datos militares ---------- */
 function provSave() { const o = []; G.P.forEach((p, i) => { if (p.by || p.prog || p.fort || p.depot) o.push([i, p.by, p.prog, p.pby || null, p.fort || 0, p.depot || null]); }); return o; }

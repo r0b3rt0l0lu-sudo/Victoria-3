@@ -597,7 +597,7 @@ const C4 = {pelo: 0x3a2a1c, ojo: 0x1c1610, suela: 0x1a1614, boton: 0xc8a650, bot
 
 /* ---------------- soldado ---------------- */
 // cotas (m, figura de 1,74 m): pelvis 0,90; hombros 1,40; base del cuello 1,46; coronilla 1,75; tobillo 0,08
-function torsoW(y) { return y < 0.22 ? 0.165 + 0.07 * y : y < 0.42 ? 0.18 + 0.1 * (y - 0.22) : 0.2; }
+
 function soldierHead(g, h, o) {
   const S = Z.FIX, sk = C.piel, vs = V.SKIN;
   g.loft(h, S, sk, [[-0.03, 0.05, 0.052, 0, 0.005], [0.08, 0.05, 0.055, 0, 0.01]], 6, {});                                    // cuello

@@ -31,11 +31,11 @@ function zonePower(tag, zone, side) {       // side: 'own' (propio y aliados) | 
 }
 // ¿es segura la zona para los transportes de un país? (el enemigo no la domina)
 function zoneSecure(tag, zone) { const own = zonePower(tag, zone, 'own'), foe = zonePower(tag, zone, 'foe'); return foe <= own * 0.9 + 1e-6; }
-function navalControl(tag, zone) { const own = zonePower(tag, zone, 'own'), foe = zonePower(tag, zone, 'foe'); return own + foe <= 0 ? 0 : (own - foe) / Math.max(own, foe); }
+
 
 /* ---------- construcción ---------- */
 const navalMoney = (c, type) => Math.round(SHIP_TYPES[type].pts * 120 * moneyPerPoint(c) / 25);
-function shipyardsOf(c) { return c.states.filter(id => (G.S[id].b.shipyard || 0) >= 0.3 || MAP.stats[id].provs.some(p => MAP.provs[p].port) && (G.S[id].cap.shipyard || 0) > 0); }
+
 function portsStates(c) { return c.states.filter(id => MAP.stats[id].provs.some(p => MAP.provs[p].port)); }
 function shipCanBuild(c, type, sid) {
   const T = SHIP_TYPES[type]; if (T.tech && !hasTech(c, T.tech)) return `Necesitas la tecnología ${TECH[T.tech].name}.`;
@@ -87,7 +87,7 @@ function fleetMove(f, zone) {
   const days = Math.max(2, Math.ceil(zoneDist(from, zone) / (6 * spd)));
   f.tr = {to: zone, left: days}; f.zoneFrom = f.zone;
 }
-function fleetMission(f, mission, target) { f.mission = mission; f.target = target || null; }
+
 
 /* ---------- jornada naval ---------- */
 function navyDay() {

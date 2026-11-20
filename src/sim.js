@@ -59,7 +59,7 @@ function makeState(seed, id) {
 
 function popTotal(s) { let t = 0; for (const p in s.pops) t += s.pops[p]; return t; }
 
-function ownerCountry(s) { return G.C[s.owner]; }
+
 
 /* ---------- inicialización ---------- */
 function createWorld(playerTag) {

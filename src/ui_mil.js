@@ -255,59 +255,7 @@ function renderBattlePanel() {
     if (root._so !== oh) { root._so = oh; $('#bt-orders').innerHTML = oh; } }
   bvStart();
 }
-function drawBattleMap(cv, b, A, B) {
-  if (!cv) return; const g = cv.getContext('2d'), W = cv.width, H = cv.height, pv = MAP.provs[b.prov];
-  const bc = BIOME_COL[pv.biome] || [120, 140, 90];
-  const grd = g.createLinearGradient(0, 0, 0, H); grd.addColorStop(0, `rgb(${bc[0] * 0.8 | 0},${bc[1] * 0.8 | 0},${bc[2] * 0.8 | 0})`); grd.addColorStop(1, `rgb(${bc[0] * 0.55 | 0},${bc[1] * 0.55 | 0},${bc[2] * 0.55 | 0})`);
-  g.fillStyle = grd; g.fillRect(0, 0, W, H);
-  // relieve decorativo determinista
-  for (let i = 0; i < 38; i++) {
-    const x = hash2(i, b.id, 3) * W, y = 10 + hash2(i, b.id, 7) * (H - 20), t = pv.biome;
-    g.fillStyle = 'rgba(0,0,0,.18)';
-    if (t === 2 || t === 6) { g.beginPath(); g.moveTo(x, y - 9); g.lineTo(x - 5, y + 3); g.lineTo(x + 5, y + 3); g.fill(); }
-    else if (t === 7 || t === 8) { g.beginPath(); g.moveTo(x, y - 11); g.lineTo(x - 9, y + 5); g.lineTo(x + 9, y + 5); g.fill(); }
-    else { g.fillRect(x, y, 6, 1.5); }
-  }
-  b.advD = (b.advD === undefined ? (b.adv || 0) : b.advD + ((b.adv || 0) - b.advD) * 0.35);
-  const x0 = W / 2 + b.advD * 80;
-  g.strokeStyle = 'rgba(255,230,150,.55)'; g.setLineDash([6, 5]); g.beginPath(); g.moveTo(x0, 6); g.lineTo(x0, H - 6); g.stroke(); g.setLineDash([]);
-  const draw = (S, dir, isAtt) => {
-    const col = S.tag ? G.C[S.tag].color : '#888';
-    let k = 0;
-    S.as.forEach(a => a.divs.forEach(d => {
-      const info = DIVS[d.t], front = k < S.st.n, i = front ? k : k - S.st.n;
-      const rows = 5, cx = front ? Math.floor(i / rows) : 3 + Math.floor(i / rows), ry = i % rows;
-      const x = x0 + dir * (26 + cx * 34), y = H / 2 + (ry - (rows - 1) / 2) * 33 + (cx % 2 ? 8 : 0) + (front ? 0 : 6);
-      const w = 28, h = 20; g.globalAlpha = front ? 1 : 0.55;
-      g.fillStyle = '#10161b'; g.fillRect(x - w / 2, y - h / 2, w, h);
-      g.fillStyle = col; g.fillRect(x - w / 2 + 1, y - h / 2 + 1, w - 2, 6);
-      g.strokeStyle = d.o / info.org < 0.25 ? '#ff5a3c' : '#f0e2b0'; g.lineWidth = 1; g.strokeRect(x - w / 2, y - h / 2, w, h);
-      g.fillStyle = '#f5ecd0'; g.font = 'bold 9px sans-serif'; g.textAlign = 'center'; g.fillText(dKind(d) === 'inf' ? 'INF' : dKind(d) === 'cav' ? 'CAB' : 'ART', x, y + 5);
-      g.fillStyle = '#79c35a'; g.fillRect(x - w / 2 + 1, y + h / 2 - 3, (w - 2) * d.s, 2);
-      g.fillStyle = '#e0b04a'; g.fillRect(x - w / 2 + 1, y + h / 2 - 5, (w - 2) * (d.o / info.org), 1.5);
-      g.globalAlpha = 1; k++;
-      void isAtt;
-    }));
-  };
-  draw(A, -1, true); draw(B, 1, false);
-  // flechas de avance
-  const adv = b.adv || 0, ac = adv >= 0 ? '#e8644f' : '#6aa8e8';
-  g.strokeStyle = ac; g.fillStyle = ac; g.lineWidth = 3; const dir = adv >= 0 ? 1 : -1, len = 18 + Math.abs(adv) * 40;
-  g.beginPath(); g.moveTo(x0 - dir * len, 14); g.lineTo(x0 + dir * len, 14); g.stroke(); g.beginPath(); g.moveTo(x0 + dir * (len + 8), 14); g.lineTo(x0 + dir * len, 9); g.lineTo(x0 + dir * len, 19); g.fill();
-  // efecto del último suceso
-  const fl = b.flash;
-  if (fl && fl.d >= b.day - 1) {
-    const ev = (b.log || [])[b.log.length - 1]; const target = fl.s; const tx = x0 + (target === 'A' ? -1 : 1) * 70;
-    g.font = 'bold 13px sans-serif'; g.textAlign = 'center'; g.fillStyle = 'rgba(0,0,0,.6)'; g.fillRect(W / 2 - 150, H - 30, 300, 22); g.fillStyle = '#ffe28a';
-    g.fillText(`${EV_ICON[fl.k] || ''} ${({barrage: 'Cañoneo', charge: '¡Carga desesperada!', cav: 'Carga de caballería', flank: 'Flanqueo', panic: 'Pánico', reinf: 'Refuerzos', rain: 'Lluvia'})[fl.k] || ''}`, W / 2, H - 14);
-    if (fl.k === 'barrage' || fl.k === 'cav' || fl.k === 'charge') {
-      const ox = fl.k === 'barrage' ? x0 + (target === 'A' ? 1 : -1) * 70 : tx;
-      for (let i = 0; i < 9; i++) { const rx = ox + (hash2(i, b.day, 11) - 0.5) * 90, ry = H / 2 + (hash2(i, b.day, 13) - 0.5) * 150; g.fillStyle = fl.k === 'barrage' ? 'rgba(255,150,40,.75)' : 'rgba(255,255,255,.25)'; g.beginPath(); g.arc(rx, ry, fl.k === 'barrage' ? 7 : 4, 0, 6.3); g.fill(); }
-    }
-    if (fl.k === 'rain') { g.strokeStyle = 'rgba(170,200,255,.5)'; for (let i = 0; i < 40; i++) { const x = hash2(i, b.day, 5) * W, y = hash2(i, b.day, 6) * H; g.beginPath(); g.moveTo(x, y); g.lineTo(x - 4, y + 10); g.stroke(); } }
-    void ev;
-  }
-}
+
 
 /* ---------- acciones ---------- */
 Object.assign(ACT, {

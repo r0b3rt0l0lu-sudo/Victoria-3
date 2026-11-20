@@ -141,7 +141,7 @@ function tacAiCommit(b, side) {
 }
 function tacAiReinforce(b) { ['A', 'B'].forEach(side => { if (side === playerSide(b)) return; const regs = regsOfSide(b, side), outs = regs.filter(r => r.out).length; if (!outs) return; const act = tacActive(b, side), org = side === 'A' ? b.orgA : b.orgB;
   if (act <= 3 || (org !== undefined && org < 0.5)) { regs.forEach(r => { r.out = false; }); regsSaveFlags(b); (b.log = b.log || []).push({k: 'reinf', d: b.day, t: `Llegan refuerzos de la reserva de ${G.C[side === 'A' ? b.A0 : b.B0].name}.`}); if (b.log.length > 30) b.log.shift(); } }); }
-function tacCommitHtml() { return ''; }
+
 function tacFortHtml(b, V) {
   const f = (b.forts || []).find(x => x.id === V.selFort); if (!f) return ''; const K = FORT_KINDS[f.kind], ps = playerSide(b), mineF = f.side === ps, g = tacGarrisonOf(b, f).length, tgt = V.fortTgt && V.fortTgt[f.id] ? DIVS[V.fortTgt[f.id].t].name : 'automático';
   return `<div class="fortinfo"><b>${K.ic} ${K.n}</b> · ${G.C[f.side === 'A' ? b.A0 : b.B0].name}${f.cap ? ' <small class="bad">(ocupado)</small>' : ''}<small> · integridad ${Math.round(f.hp / f.hpMax * 100)}% · cañones ${f.guns} · guarnición ${g}/${K.need} · objetivo: ${tgt}</small>

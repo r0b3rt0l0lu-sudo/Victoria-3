@@ -398,42 +398,7 @@ function bvPlate(g, blk, hover) {
   g.lineWidth = hover ? 1.8 : 1; g.strokeStyle = eng ? `rgba(255,${90 + 60 * Math.sin(performance.now() / 120) | 0},60,.95)` : orgF < 0.3 ? 'rgba(255,130,70,.9)' : hover ? '#fff7d0' : bvShade(blk.color, 0.35); g.globalAlpha = hover ? 1 : 0.7; g.stroke(); g.globalAlpha = 1;
   return P;
 }
-function bvFig(g, V, blk, f) {
-  if (typeof bvFigNew === 'function' && bvFigNew(g, V, blk, f)) return;
-  const s = blk.sc, x = f.x, y = f.y, fall = f.dying > 0 ? 1 - f.dying / 0.8 : 0, hd = blk.hd, ca = Math.cos(hd), sa = Math.sin(hd), moving = (blk.sp || 0) > 8 || f.flee > 0, bob = moving ? Math.sin(V.t * 13 + f.ph) * 0.7 : 0, col = blk.color;
-  if (fall) g.globalAlpha = 1 - fall * 0.6;
-  g.fillStyle = 'rgba(0,0,0,.32)'; g.beginPath(); g.ellipse(x + 0.8, y + 3 * s, 3.6 * s, 1.4 * s, 0, 0, 6.3); g.fill();
-  if (f.kind === 'sol' && blk.type === 'inf') {
-    const fl = f.flee > 0;
-    g.strokeStyle = '#2b2a2e'; g.lineWidth = 1.1 * s; g.beginPath(); g.moveTo(x - ca * 1.5, y - 2.4 * s + bob - sa * 1.5); g.lineTo(x + ca * 7 * s, y - 2.4 * s + bob + sa * 7 * s); g.stroke();       // fusil
-    if (f.flash > 0) { g.strokeStyle = 'rgba(255,230,150,.8)'; g.beginPath(); g.moveTo(x + ca * 7 * s, y - 2.4 * s + sa * 7 * s); g.lineTo(x + ca * 11 * s, y - 2.4 * s + sa * 11 * s); g.stroke(); }
-    g.fillStyle = bvShade(col, -0.45); g.fillRect(x - 2.5 * s, y - 3.4 * s + bob, 5 * s, 5.6 * s); g.fillStyle = fl ? '#d9cfae' : col; g.fillRect(x - 2.1 * s, y - 3.1 * s + bob, 4.2 * s, 4.8 * s);
-    g.fillStyle = 'rgba(255,255,255,.7)'; g.fillRect(x - 2.1 * s, y - 3.1 * s + bob, 4.2 * s, 0.9 * s); g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 0.6 * s; g.beginPath(); g.moveTo(x - 2 * s, y - 3 * s + bob); g.lineTo(x + 2 * s, y + 1.5 * s + bob); g.stroke();
-    g.fillStyle = '#e7c9a6'; g.beginPath(); g.arc(x, y - 4.4 * s + bob, 1.55 * s, 0, 6.3); g.fill(); g.fillStyle = '#17181c'; g.fillRect(x - 1.5 * s, y - 6.4 * s + bob, 3 * s, 1.9 * s);
-  } else if (f.kind === 'sol' && blk.type === 'tank') {
-    const mv = moving ? Math.sin(V.t * 22 + f.ph) * 0.5 : 0;
-    g.save(); g.translate(x, y - 2 * s); g.rotate(hd);
-    g.fillStyle = '#2a2c27'; g.fillRect(-8 * s, -5.4 * s, 16 * s, 2.6 * s); g.fillRect(-8 * s, 2.8 * s, 16 * s, 2.6 * s);
-    g.fillStyle = '#3d3f37'; for (let i = -3; i <= 3; i++) { g.fillRect((i * 2.2 - 0.6 + mv) * s, -5.4 * s, 1.1 * s, 2.6 * s); g.fillRect((i * 2.2 - 0.6 - mv) * s, 2.8 * s, 1.1 * s, 2.6 * s); }
-    g.fillStyle = bvShade(col, -0.35); g.fillRect(-7 * s, -3.2 * s, 14 * s, 6.4 * s); g.fillStyle = col; g.fillRect(-6.4 * s, -2.7 * s, 12.8 * s, 5.4 * s);
-    g.fillStyle = bvShade(col, -0.2); g.beginPath(); g.arc(0.5 * s, 0, 3.1 * s, 0, 6.3); g.fill(); g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(-6.4 * s, -2.7 * s, 12.8 * s, 0.8 * s);
-    g.strokeStyle = '#33363a'; g.lineWidth = 1.6 * s; g.beginPath(); g.moveTo(2 * s, 0); g.lineTo(11.5 * s - f.recoil * 2, 0); g.stroke(); g.restore();
-  } else if (f.kind === 'sol') {   // jinete
-    const hc = ['#6b4a2b', '#2e2420', '#8b6a44', '#c9c0ae'][Math.floor(f.ph * 3) % 4], an = Math.atan2(blk.vy || sa, blk.vx || ca) * 0.35;
-    g.fillStyle = hc; g.beginPath(); g.ellipse(x, y - 2 * s + bob, 7.4 * s, 3.4 * s, an, 0, 6.3); g.fill(); g.fillStyle = bvShade(hc, -0.3); g.beginPath(); g.ellipse(x + ca * 6.2 * s, y - 3.5 * s + bob + sa * 2, 2.4 * s, 1.8 * s, an, 0, 6.3); g.fill();
-    if (moving) { g.strokeStyle = bvShade(hc, -0.4); g.lineWidth = 1; const lg = Math.sin(V.t * 18 + f.ph) * 2; g.beginPath(); g.moveTo(x - 3 * s, y + bob); g.lineTo(x - 3 * s + lg, y + 3 * s); g.moveTo(x + 3 * s, y + bob); g.lineTo(x + 3 * s - lg, y + 3 * s); g.stroke(); }
-    g.fillStyle = col; g.fillRect(x - 1.8 * s, y - 6.2 * s + bob, 3.6 * s, 4.6 * s); g.fillStyle = '#e7c9a6'; g.beginPath(); g.arc(x, y - 7.2 * s + bob, 1.5 * s, 0, 6.3); g.fill(); g.fillStyle = '#17181c'; g.fillRect(x - 1.4 * s, y - 9 * s + bob, 2.8 * s, 1.7 * s);
-    g.strokeStyle = '#dfe3ea'; g.lineWidth = 0.9; g.beginPath(); g.moveTo(x + 1 * s, y - 5 * s + bob); g.lineTo(x + 1 * s + ca * 9 * s, y - 5 * s + bob + sa * 9 * s); g.stroke();
-  } else if (f.kind === 'gun') {
-    const rc = f.recoil * 3;
-    g.fillStyle = '#4a3a28'; g.fillRect(x - 5 * s - ca * rc, y - 2 * s - sa * rc, 10 * s, 4 * s); g.fillStyle = '#2a2018'; g.beginPath(); g.arc(x - 2 * s, y + 2 * s, 2.6 * s, 0, 6.3); g.fill(); g.beginPath(); g.arc(x + 2 * s, y - 2 * s, 2.6 * s, 0, 6.3); g.fill();
-    g.strokeStyle = '#4e5359'; g.lineWidth = 3 * s; g.lineCap = 'round'; g.beginPath(); g.moveTo(x - ca * rc, y - 1 * s - sa * rc); g.lineTo(x + ca * 11 * s - ca * rc, y - 1 * s + sa * 11 * s - sa * rc); g.stroke(); g.lineCap = 'butt';
-    g.fillStyle = col; g.fillRect(x - 3 * s, y - 3.4 * s, 6 * s, 1.8 * s);
-  } else {   // servidor de la pieza
-    g.fillStyle = bvShade(col, -0.4); g.fillRect(x - 2.3 * s, y - 3.2 * s + bob, 4.6 * s, 5 * s); g.fillStyle = col; g.fillRect(x - 1.9 * s, y - 2.9 * s + bob, 3.8 * s, 4.2 * s); g.fillStyle = '#e7c9a6'; g.beginPath(); g.arc(x, y - 4.2 * s + bob, 1.4 * s, 0, 6.3); g.fill(); g.fillStyle = '#17181c'; g.fillRect(x - 1.4 * s, y - 5.9 * s + bob, 2.8 * s, 1.6 * s);
-  }
-  g.globalAlpha = 1;
-}
+
 function bvFlag(g, V, blk, over, win) {
   const c = Math.cos(blk.hd), s = Math.sin(blk.hd), bx = blk.x + c * blk.dep / 2 * 0.55, by = blk.y + s * blk.dep / 2 * 0.55 - 3, h = (win ? 20 : 14) * Math.max(0.8, blk.sc), w = (win ? 14 : 11) * Math.max(0.8, blk.sc), wave = Math.sin(V.t * 5 + blk.ph) * 1.6;
   g.strokeStyle = '#2a2a2e'; g.lineWidth = 1.1; g.beginPath(); g.moveTo(bx, by); g.lineTo(bx, by - h); g.stroke();

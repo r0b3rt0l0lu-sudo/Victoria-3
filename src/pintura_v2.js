@@ -238,8 +238,4 @@ function pv2PaintTexture(cv, scale, opt, onStrip) {
     if (jobs.length) setTimeout(step, 0); else ok(cv); }; step(); });
 }
 // repinta solo la caja de un estado (cambio de dueño): x0..x1, y0..y1 en píxeles lógicos
-function pv2RepaintRegion(cv, scale, x0, y0, x1, y1, opt) {
-  const g = cv.getContext('2d', {willReadFrequently: true}), px0 = Math.max(0, Math.floor((x0 - 3) * scale)), py0 = Math.max(0, Math.floor((y0 - 3) * scale)), px1 = Math.min(cv.width, Math.ceil((x1 + 4) * scale)), py1 = Math.min(cv.height, Math.ceil((y1 + 4) * scale));
-  g.save(); g.translate(px0, py0); g.beginPath(); g.rect(0, 0, px1 - px0, py1 - py0); g.clip(); pv2PaintTile(g, px0 / scale, py0 / scale, scale, px1 - px0, py1 - py0, opt); g.restore();
-  return [px0, py0, px1 - px0, py1 - py0];
-}
+

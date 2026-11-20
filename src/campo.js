@@ -164,16 +164,7 @@ function tacAiVillages(V, b, all, s) {
     ls.slice(0, 2).forEach((k, i) => { k.d.plan = {k: 'defend', pts: [[v.x - 10, v.y - 8 + i * 12], [v.x + 10, v.y - 8 + i * 12]], i: 0}; k.skey = ''; }); });
 }
 /* ---------- panel de cuerpos ---------- */
-function tacCorpsHtml(b, V) {
-  const ps = playerSide(b); if (!ps || !V || !V.corps) return ''; const cs = V.corps.filter(c => c.side === ps); if (!cs.length) return '';
-  const icons = {'': '🤖', frontal: '⚔️', flank: '↪️', hold: '⛰️', barrage: '💣', skirmish: '🏹', charge: '🔥'};
-  return `<div class="corpsbox"><div class="commit-h">🧭 <b>Cuerpos de ejército</b> <small>Cada cuerpo (≈15.000 hombres, 5 regimientos) tiene su propia estrategia y avanza en línea. Los cañones se reparten por igual entre los cuerpos.${b.prep ? ' Marca regimientos como reserva y compromételos después uno a uno.' : ''}</small></div>
-  ${cs.map(c => { const cur = (b.cstr || {})[c.id] || '', sel = V.selCorps === c.id, mode = (b.cgun || {})[c.id] || 'att', res = c.regs.filter(r => r.out).length;
-    return `<div class="corps ${sel ? 'sel' : ''}"><div class="corps-h"><b>${corpsName(c)}</b><small>${c.a.name} · ${fmtN(corpsMen(c), 0)} h. · ${corpsGuns(c)} cañones${res ? ` · ${res} en reserva` : ''}</small><button data-act="corpssel" data-c="${c.id}" class="${sel ? 'on' : ''}" data-tip="Selecciona todo el cuerpo: las flechas que dibujes las seguirán todos sus regimientos, en línea.">${sel ? '✔ Seleccionado' : '👥 Seleccionar'}</button></div>
-    <div class="strpick">${Object.keys(icons).map(k => `<button class="${cur === k ? 'on' : ''}" data-act="corpsstrat" data-c="${c.id}" data-s="${k}" data-tip="<b>${k ? STRATS[k].name : 'Automática'}</b><br>${k ? STRATS[k].desc : 'La estrategia la elige el ordenador según el terreno y la situación.'}">${icons[k]}</button>`).join('')}<span class="curst">${cur ? STRATS[cur].name : 'Automática'}</span></div>
-    <div class="cm-army">${c.regs.map((r, i) => `<button class="dvchip ${r.out ? 'off' : 'on'}" ${b.prep || r.out ? `data-act="tacreg" data-c="${c.id}" data-i="${i}"` : 'disabled'} data-tip="<b>Regimiento ${i + 1}</b> · ${DIVS[r.t].name}<br>Fuerza ${Math.round(r.s * 100)}% · organización ${Math.round(r.o / DIVS[r.t].org * 100)}%<br>${r.out ? 'En RESERVA: clic para comprometerlo' : b.prep ? 'Entra en combate (clic para dejarlo en reserva)' : 'En combate'}">${DIVS[r.t].icon}<small>${Math.round(r.s * 100)}%</small></button>`).join('')}
-    ${c.arts.length ? `<span class="gunsel"><small>💣 Cañones:</small><button class="${mode === 'att' ? 'on' : ''}" data-act="corpsgun" data-c="${c.id}" data-m="att" data-tip="Los cañones acompañan a los regimientos del cuerpo.">Acompañan</button><button class="${mode === 'bat' ? 'on' : ''}" data-act="corpsgun" data-c="${c.id}" data-m="bat" data-tip="Los cañones forman una batería detrás del cuerpo (en la preparación puedes arrastrarlos a donde quieras).">Batería</button></span>` : ''}</div></div>`; }).join('')}</div>`;
-}
+
 Object.assign(ACT, {
   corpsstrat: d => { const b = G.battles.find(x => x.id === UI.battle); if (!b) return; b.cstr = b.cstr || {}; if (d.s) b.cstr[d.c] = d.s; else delete b.cstr[d.c]; tacApplyCorpsStrats(b); renderBattlePanel(); },
   corpsgun: d => { const b = G.battles.find(x => x.id === UI.battle); if (!b) return; b.cgun = b.cgun || {}; b.cgun[d.c] = d.m; renderBattlePanel(); },

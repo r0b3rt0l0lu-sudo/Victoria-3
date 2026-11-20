@@ -36,7 +36,7 @@ function nv3Draw(S, V, ships, dt, t) {
   ships.forEach(s => {
     const kind = nv3KindOf(s), set = nv3Set(S, kind, s.tag), [wx, wz] = n3W(s.x, s.y); let st = S.nv.st.get(s.id);
     if (!st) { st = {ph: Math.random(), fireT0: -99, aimT: null, aimUntil: 0, sinkT0: 0, sinkClip: null}; S.nv.st.set(s.id, st); }
-    const yaw = s.dir > 0 ? Math.PI / 2 : -Math.PI / 2, st0 = NV_STYLE[s.t] ? NV_STYLE[s.t].len : 90, scale = st0 / set.model * (s.t === 'cruiser' ? 1.15 : 1);
+    const yaw = Math.PI / 2 - (s.hd || 0), st0 = NV_STYLE[s.t] ? NV_STYLE[s.t].len : 90, scale = st0 / set.model * (s.t === 'cruiser' ? 1.15 : 1);
     const dist = Math.hypot(cp.x - wx, cp.y, cp.z - wz), o = {}; let clip, ph = st.ph;
     if (s.sink >= 0) {
       if (!st.sinkT0) { st.sinkT0 = now; const r = (s.id * 7) % 10; st.sinkClip = kind === 'submarino' ? 'inmersion' : kind === 'acorazado' && r < 4 ? 'partirse' : r < 6 ? 'hundirse_proa' : r < 8 ? 'hundirse_popa' : 'volcar'; }

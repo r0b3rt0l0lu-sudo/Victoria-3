@@ -110,11 +110,7 @@ sideStats = function (b, ids, isAttacker) {
   return r;
 };
 /* ---- 3) «Mantener posición»: el regimiento no se mueve salvo necesidad ofensiva ---- */
-function tacStayBtn(V, sel, ac) {
-  if (!sel && !ac) return '';
-  const grp = V.selCorps && ac ? ac.blks : sel ? [sel] : [], on = grp.length && grp.every(k => k.d.stay);
-  return `<button data-act="tacstay" class="${on ? 'on' : ''}" ${sel || ac ? '' : 'disabled'} data-tip="<b>Mantener posición</b><br>Los regimientos seleccionados se quedan donde están: solo se mueven si el enemigo llega a su alcance (para cargar o rechazarlo) y después vuelven. Púlsalo otra vez para soltarlos."><span>📍</span>Quedarse</button>`;
-}
+
 ACT.tacstay = () => {
   const V = R.bviz, b = G.battles.find(x => x.id === UI.battle); if (!V || !V.sel || !b || b.ended || V.replay || V.sel.side !== playerSide(b)) return;
   const grp = (V.selCorps && V.sel.corps && V.sel.corps.id === V.selCorps ? V.sel.corps.blks : [V.sel]).filter(k => k.mode !== 'rout'), on = grp.every(k => k.d.stay);

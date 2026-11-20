@@ -2,7 +2,7 @@
    · Fichas con bandera sobre cada flota (misión, nº de buques, ⚔ si hay combate) que abren el visor o la pestaña Marina.
    · Siluetas de buques en 3D sobre el mar cuando la cámara está cerca; humo y fuego en las zonas con batalla.
    · Visor de batalla naval: dos líneas de buques que se cañonean, con humo, impactos, incendios y hundimientos animados. */
-const NV_W = 720, NV_H = 300;
+const NV_W = 1000, NV_H = 560;     // arena táctica cenital (unidades = longitud de los buques)
 
 /* ---------- ancla de cada zona marítima (punto de mar más cercano al centro) ---------- */
 const _zAnchor = new Map();

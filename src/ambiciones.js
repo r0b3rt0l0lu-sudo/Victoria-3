@@ -48,3 +48,19 @@ function ambCard() {
 const _jr = WINDOWS.journal.render;
 WINDOWS.journal.render = function () { const h = _jr.call(this); return h.replace('<div class="cols"><div class="col wide">', '<div class="cols"><div class="col wide">' + ambCard()); };
 Object.assign(ACT, {ambpick: () => { ambPick(me(), 'empire'); renderWindow(); }, ambdrop: () => { ambPick(me(), ''); renderWindow(); }});
+
+/* ---------- territorios core: reclamaciones y consecuencias de perderlos/recuperarlos ---------- */
+const _ambMonth0 = ambMonth;
+ambMonth = function (c) {
+  const a = c.amb; if (a && a.id && !a.done && c.states.length) { ambCore(c).forEach(id => { const o = G.S[id].owner; if (o !== c.tag && o !== NONE && !c.claims.some(x => x.state === id)) c.claims.push({state: id, perm: true}); }); }
+  _ambMonth0(c);
+};
+const _transferAmb = transferState;
+transferState = function (s, tag) {
+  const old = G.C[s.owner]; const was = old && old.amb && old.amb.core && old.amb.core.includes(s.id);
+  _transferAmb(s, tag);
+  if (!old || old.tag === NONE) return; const nw = G.C[tag];
+  if (was && tag !== old.tag) { old.legitimacy -= 2; old.radicals = Math.min(0.95, old.radicals + 0.01); old.prestige -= 2; if (nw && s.rad !== undefined) s.rad = Math.min(1, s.rad + 0.15); if (old.tag === G.player) notify('journal', `🗺️ Pierdes un territorio core: ${s.name}. Tu pueblo exige recuperarlo (reclamación permanente).`, s.id); }
+  const back = nw && nw.amb && nw.amb.core && nw.amb.core.includes(s.id) && old.tag !== tag;
+  if (back) { nw.prestige += 3; nw.legitimacy = Math.min(100, nw.legitimacy + 1.5); if (s.rad !== undefined) s.rad = Math.max(0, s.rad - 0.2); if (tag === G.player) notify('journal', `🗺️ ¡Recuperas ${s.name}, territorio core! +3 de prestigio.`, s.id); }
+};

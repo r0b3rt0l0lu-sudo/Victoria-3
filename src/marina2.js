@@ -133,9 +133,12 @@ navalMonth = function (c) { _navalMonthM2(c); scarcityMonth(c); };
 MX_TABS.forEach(t => { if (t.id === 'navy') { const h = t.html; t.html = function () {
   let x = h(); const c = me(), M = mx(); const zs = [...countryZones(c).keys()];
   const rows = zs.slice(0, 8).map(z => { const d = seaDominant(z); return `<div class="kv sm"><span>${SEA_ZONES[z].name}</span><b>${d ? flag(d, 'sm') + ' ' + Math.round(navalSup(d, z)) + '%' : '—'}${d && d !== c.tag && hostileTags(c.tag, d) ? ' <span class="bad">⚠️</span>' : ''}</b></div>`; }).join('');
-  const sc = c.scarc || 0;
-  const card = `<div class="card"><h3>🌊 Supremacía naval <button data-act="mode" data-m="naval" data-tip="Cambia el mapa al modo marítimo para mover y agrupar flotas.">Mapa marítimo</button></h3>${rows || '<small class="dim">Sin costas.</small>'}${sc > 0.02 ? `<div class="notice bad"><b>🚧 Escasez por bloqueo: ${Math.round(sc * 100)}%</b><br>Sube el malestar, cae la producción y pueden estallar motines e insurrecciones. Rompe el cerco con una flota superior.</div>` : ''}<small class="dim">Hace falta ≥50 % de supremacía para bloquear y ≥35 % para desembarcar con seguridad.</small></div>`;
+  const sc = c.scarc || 0, ports = portsStates(c);
+  const baseRows = typeof baseLvl === 'function' ? ports.slice(0, 8).map(id => `<div class="kv sm"><span>⚓ ${G.S[id].name}</span><b>${baseLvl(id).toFixed(1)} / ${G.S[id].cap.navalbase || 0} <button data-act="navbase" data-s="${id}" ${(G.S[id].cap.navalbase || 0) - baseLvl(id) < 1 ? 'disabled' : ''}>＋</button></b></div>`).join('') : '';
+  const card = `<div class="card"><h3>🌊 Supremacía naval <button data-act="mode" data-m="naval" data-tip="Cambia el mapa al modo marítimo para mover y agrupar flotas.">Mapa marítimo</button></h3>${rows || '<small class="dim">Sin costas.</small>'}${sc > 0.02 ? `<div class="notice bad"><b>🚧 Escasez por bloqueo: ${Math.round(sc * 100)}%</b><br>Sube el malestar, cae la producción y pueden estallar motines e insurrecciones. Rompe el cerco con una flota superior.</div>` : ''}<h4>Bases navales</h4>${baseRows}<small class="dim">La base amplía el alcance de tus flotas y su reparación.</small><br><small class="dim">Hace falta ≥50 % de supremacía para bloquear y ≥35 % para desembarcar con seguridad.</small></div>`;
   return x.replace(/<\/div><\/div><\/div>$/, card + '</div></div></div>'); }; } });
 
 const _fleetMoveM2 = fleetMove;
 fleetMove = function (f, z) { const had = f.tr; _fleetMoveM2(f, z); if (f.tr && f.tr !== had) f.tr.tot = f.tr.left; };
+
+Object.assign(ACT, {navbase: d => { const c = me(); const ok = queueBuild(c, +d.s, 'navalbase'); toast(ok ? '⚓' : '⚠️', ok ? 'Base naval en construcción.' : 'No se puede construir (sin sitio o sin recursos).'); renderWindow(); }});

@@ -423,6 +423,14 @@ MANUAL.push({id: 'lote15', title: '★ Marina 2, mapa marítimo, ambiciones y á
 <h4>Árbol de tecnologías 🌳</h4><p>La ventana Tecnología muestra un árbol con flechas, bandas por categoría y color por era. Clic en una tecnología dorada para investigarla; el botón «Lista» recupera la vista anterior.</p>
 `});
 
+MANUAL.push({id: 'lote16', title: '★ Comercio con convoyes, mapa aéreo y bases navales', html: `
+<h4>Comercio exterior 🚢</h4><p>Menú «Comercio»: compra mercancías a otros países. Por tierra (frontera común) solo pagas el pedido. Por mar necesitas <b>convoyes</b> (cada uno lleva un lote): se compran con dinero, viajan por las zonas marítimas de la ruta y vuelven al puerto. Si una flota enemiga los alcanza sin escolta, se hunden con la carga; una <b>escolta</b> (una flota asignada al convoy que viaja con él) los protege según su fuerza. El material militar entra en tus arsenales; los bienes civiles forman reservas que alivian la escasez y dan producción.</p>
+<h4>Mapa aéreo ✈️</h4><p>Modo de mapa «Aéreo»: regiones aéreas coloreadas con tu dominio, fichas de escuadrones y panel. Clic derecho en una región para desplegar los escuadrones seleccionados.</p>
+<h4>Desembarcos desde el mapa marítimo</h4><p>En el panel del modo «Marítimo» elige un ejército en puerto, selecciona flotas de escolta y haz clic derecho en una costa: se planea el desembarco y las flotas navegan al mar de destino (hace falta supremacía para que sea seguro).</p>
+<h4>Bases navales ⚓</h4><p>Cada estado con puerto puede tener una base naval (nivel 0-4): repara más rápido a las flotas y amplía su alcance (40 + 14 × nivel zonas). Fuera del alcance de tus bases las flotas se desgastan. Se construyen desde la pestaña Marina.</p>
+<h4>Territorios core</h4><p>Perder un territorio core resta legitimidad y prestigio y deja una reclamación permanente; recuperarlo suma. La ambición imperial añade reclamaciones sobre tus core en manos ajenas.</p>
+`});
+
 WINDOWS.manual = {title: 'Manual del juego', icon: '📖', render() {
   const sec = MANUAL.find(m => m.id === UI.manualSec) || MANUAL[0];
   return `<div class="manual"><nav>${MANUAL.map(m => `<button class="${m.id === sec.id ? 'on' : ''}" data-act="msec" data-id="${m.id}">${m.title}</button>`).join('')}</nav><article class="scrollable manbody"><h2>${sec.title}</h2>${sec.html}</article></div>`;

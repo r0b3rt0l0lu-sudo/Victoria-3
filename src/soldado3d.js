@@ -54,7 +54,7 @@ const _b3CameraS = b3Camera;
 b3Camera = function (S, V, dt) { if (SOLD.on) { if (!B3.active || !B3.S) { SOLD.on = false; B3.hide = null; } else if (soldCamera(S, V, dt)) return; } return _b3CameraS(S, V, dt); };
 // mirar alrededor con el arrastre del ratón (en lugar de desplazar la cámara)
 const _b3PanS = b3Pan;
-b3Pan = function (dx, dy, h) { if (SOLD.on && SOLD.ctrl) { SOLD.ctrl.cyaw += dx * 0.006; SOLD.ctrl.pitch = clamp(SOLD.ctrl.pitch - dy * 0.004, -1.3, 1.3); return; } if (SOLD.on) { SOLD.yaw += dx * 0.006; SOLD.pit = clamp(SOLD.pit - dy * 0.004, -0.5, 0.8); return; } return _b3PanS(dx, dy, h); };
+b3Pan = function (dx, dy, h) { if (SOLD.on && SOLD.ctrl) { SOLD.lookDx = (SOLD.lookDx || 0) + dx; SOLD.lookDy = (SOLD.lookDy || 0) + dy; SOLD.ctrl.cyaw += dx * 0.006; SOLD.ctrl.pitch = clamp(SOLD.ctrl.pitch - dy * 0.004, -1.3, 1.3); return; } if (SOLD.on) { SOLD.yaw += dx * 0.006; SOLD.pit = clamp(SOLD.pit - dy * 0.004, -0.5, 0.8); return; } return _b3PanS(dx, dy, h); };
 // (la figura seguida no se dibuja en primera persona: lo comprueba b3Fig con B3.hide)
 // HUD de la vista de soldado, encima del dibujado 3D
 const _b3FrameS = b3Frame;

@@ -1568,7 +1568,7 @@ function blendPose(a, b, k, out) { out = out || new Float32Array(a.length); for 
 
 /* ---------------- horneado (textura de huesos) ---------------- */
 // Una fila por fotograma; MAXP × 3 texeles RGBA float por fila (matriz 3×4 por parte). v4: 30 fps, ≤ 240 fotogramas por clip (TROOP_BAKE).
-const TROOP_BAKE = {fps: 30, max: 240};
+const TROOP_BAKE = {fps: 30, max: 240, half: true};
 let _baked = null;
 function bakeClips() {
   if (_baked) return _baked;
@@ -1576,10 +1576,12 @@ function bakeClips() {
   Object.keys(CLIPS).forEach(rig => {
     if (!RIGS[rig] || !RIGS[rig].length) return;
     index[rig] = {};
+    const seen = new Map();
     Object.keys(CLIPS[rig]).forEach(cn => {
       const c = CLIPS[rig][cn]; if (!c) return;
-      const frames = Math.max(2, Math.min(TROOP_BAKE.max, Math.round(c.dur * TROOP_BAKE.fps)));
-      index[rig][cn] = {row, frames, dur: c.dur, loop: c.loop !== false, tread: c.tread || 0, ev: c.ev || []};
+      if (seen.has(c)) { index[rig][cn] = seen.get(c); return; }                       // alias (mismo objeto): se reutilizan las filas
+      const frames = c.still ? 2 : Math.max(2, Math.min(TROOP_BAKE.max, Math.round(c.dur * (c.fps || TROOP_BAKE.fps))));
+      index[rig][cn] = {row, frames, dur: c.dur, loop: c.loop !== false, tread: c.tread || 0, ev: c.ev || []}; seen.set(c, index[rig][cn]);
       for (let f = 0; f < frames; f++) { const ph = c.loop === false ? f / (frames - 1) : f / frames; rows.push(poseTroop(rig, cn, ph)); }
       row += frames;
     });
@@ -1588,9 +1590,12 @@ function bakeClips() {
   const FPR = Math.max(1, Math.ceil(rows.length / 2048)), W = MAXP * 3 * FPR, H = Math.ceil(rows.length / FPR), data = new Float32Array(W * H * 4);
   rows.forEach((m, r) => { const rr = Math.floor(r / FPR), cc = r - rr * FPR; for (let p = 0; p < MAXP; p++) { const o = (rr * W + cc * MAXP * 3 + p * 3) * 4, e = m.subarray(p * 16, p * 16 + 16);
     for (let i = 0; i < 3; i++) { data[o + i * 4] = e[i]; data[o + i * 4 + 1] = e[4 + i]; data[o + i * 4 + 2] = e[8 + i]; data[o + i * 4 + 3] = e[12 + i]; } } });
-  const tex = new THREE.DataTexture(data, W, H, THREE.RGBAFormat, THREE.FloatType); tex.needsUpdate = true; tex.magFilter = tex.minFilter = THREE.NearestFilter;
+  // v5: media precisión (RGBA16F) en la GPU: la mitad de memoria; error < 2 mm a 4 m. TROOP_BAKE.half = false vuelve a float32
+  let gpu = data, type = THREE.FloatType;
+  if (TROOP_BAKE.half && THREE.DataUtils && THREE.HalfFloatType) { gpu = new Uint16Array(data.length); for (let i = 0; i < data.length; i++) gpu[i] = THREE.DataUtils.toHalfFloat(data[i]); type = THREE.HalfFloatType; }
+  const tex = new THREE.DataTexture(gpu, W, H, THREE.RGBAFormat, type); tex.needsUpdate = true; tex.magFilter = tex.minFilter = THREE.NearestFilter;
   if (H > 4096 || W > 4096) console.warn('troops3d: textura de huesos de ' + W + '×' + H);
-  _baked = {tex, index, rows, W, H, FPR, frames: rows.length, bytes: data.byteLength}; return _baked;
+  _baked = {tex, index, rows, W, H, FPR, frames: rows.length, bytes: gpu.byteLength, half: type !== THREE.FloatType}; return _baked;
 }
 
 /* ---------------- paletas en textura ---------------- */
@@ -2548,8 +2553,965 @@ Object.assign(CLIPS.soldado, {
 });
 CLIP_SETS.soldado = Object.keys(CLIPS.soldado);
 
+/* ================= v5: combate individual del soldado (cuerpo completo, instanciado) =================
+   · Mezcla de puntería: rejilla de poses absolutas (5 × 5: guiñada ±35°, cabeceo ±45°) por postura (de pie, rodilla, tumbado) y rejilla de
+     disparo 3 × 3. La guiñada la reparten tronco (60 %) y arma/cabeza (40 %); el cabeceo, tronco (30 %) y arma (70 %), girando el arma
+     alrededor del hombro derecho, así que la boca apunta de verdad al punto. troopAimClip(kind, era, yaw, pitch, {postura, fuego}) da el nombre.
+   · Transiciones de postura, reptar, movimiento táctico, tiempos muertos, recargas por época y postura, variantes de disparo, bayoneta,
+     granada, rendición y heridos.
+   · Reacciones por zona y dirección (impulso con muelle amortiguado) y muertes con variantes: pie de apoyo fijo mientras toca el suelo, el
+     cuerpo nunca atraviesa el suelo, el fusil se suelta, cae y rebota en el mundo, y la pose final es estable. cuerpo_inerte_* = pose final
+     (2 fotogramas) para dibujar cientos de cadáveres sin coste de animación.
+   Todo se genera aquí a partir de poses clave; nada se descarga. TROOP_LITE = true (R.lowEnd) omite la rejilla y las variantes y deja alias. */
+const TROOP_LITE = !!((typeof globalThis !== 'undefined' && globalThis.TROOP_LITE) || (typeof window !== 'undefined' && window.TROOP_LITE));   // poner window.TROOP_LITE = true (R.lowEnd) ANTES de cargar troops3d.js
+const SPARTS = ['pelvis', 'torso', 'cabeza', 'brazoIz', 'antebrazoIz', 'brazoDe', 'antebrazoDe', 'musloIz', 'piernaIz', 'musloDe', 'piernaDe', 'pieIz', 'pieDe'];
+const SH_R = [-0.205, 0.435, 0];                                                       // hombro derecho en el espacio del torso
+const W_ = {ORDEN: {P: ORDEN.P, R: ORDEN.R, g: [0.92, -1]}, APUNTA: {P: APUNTA.P, R: APUNTA.R, g: [0.32, 0.82]}, HOMBRO: {P: HOMBRO.P, R: HOMBRO.R, g: [0.1, -1]},
+  BAYO: {P: BAYO.P, R: BAYO.R, g: [0.3, 0.85]}, PREV: {P: [-0.12, 0.05, 0.25], R: [62, 0, -28], g: [0.3, 0.78]},                  // «preparado»: fusil cruzado delante del pecho
+  CARGA: {P: [-0.08, 0.02, 0.24], R: [58, 8, -40], g: [0.33, 0.8]}, CADERA: {P: [-0.16, -0.1, 0.12], R: [92, 4, 0], g: [0.28, 0.72]}};
+// poses: {parte: [rx, ry, rz], W: {P, R, g}, root: [x, y, z]}
+const STAND = {musloIz: [-4, 0, 2], musloDe: [2, 0, -2], W: W_.ORDEN};
+const AIMS = Object.assign({}, STAND, {torso: [4, -14, 0], cabeza: [6, 12, -6], musloIz: [-10, 8, 6], musloDe: [4, 10, -6], piernaIz: [6], pieIz: [4, 0, 0], W: W_.APUNTA});   // de pie, pie izquierdo adelantado
+const POSE_KNEEL = {musloIz: [-85, 0, 4], piernaIz: [85], musloDe: [-8, 0, -4], piernaDe: [95], pieDe: [72], root: [0, -0.36, 0]};
+const AIMK = Object.assign({}, POSE_KNEEL, {torso: [10, -10, 0], cabeza: [4, 10, -6], W: W_.APUNTA});
+const POSE_PRONE = {pieIz: [78, 0, 10], pieDe: [78, 0, -10], pelvis: [88], torso: [-18], cabeza: [-58], musloIz: [0, 0, 8], musloDe: [0, 0, -8], piernaIz: [12], piernaDe: [8], root: [0, -0.76, 0.45]};
+const AIMP = Object.assign({}, POSE_PRONE, {torso: [-22, -8, 0], cabeza: [-52, 6, 0], W: {P: [-0.12, 0.38, -0.05], R: [20, 0, 0], g: [0.32, 0.82]}});
+const POSE_CROUCH = {musloIz: [-78, 0, 8], piernaIz: [118], musloDe: [-62, 0, -8], piernaDe: [112], pieIz: [-20], pieDe: [-10], torso: [28], cabeza: [-24], root: [0, -0.3, 0]};
+const mergeP = (...ps) => { const o = {}; ps.forEach(p => p && Object.keys(p).forEach(k => { o[k] = p[k]; })); return o; };
+// seq(dur, bucle, [[t, pose]], eventos, extra) → clip. Una parte que falta en una clave conserva el valor de la clave anterior (o 0).
+function seq(dur, loop, keys, ev, o) {
+  const tracks = {}, names = new Set(); keys.forEach(([, p]) => Object.keys(p).forEach(k => { if (SPARTS.includes(k)) names.add(k); }));
+  names.forEach(n => { let last = [0, 0, 0]; tracks[n] = keys.map(([t, p]) => { if (p[n]) last = [p[n][0] || 0, p[n][1] || 0, p[n][2] || 0]; return [t].concat(last); }); });
+  if (keys.some(([, p]) => p.W)) { let w = W_.ORDEN; const ks = keys.map(([t, p]) => { if (p.W) w = p.W; return [t, w]; });
+    tracks.armaP = ks.map(([t, w]) => [t].concat(w.P)); tracks.armaR = ks.map(([t, w]) => [t].concat(w.R)); tracks.agarre = ks.map(([t, w]) => [t].concat(w.g)); }
+  let r = [0, 0, 0]; const root = keys.map(([t, p]) => { if (p.root) r = p.root; return [t].concat(r); });
+  const c = mk(dur, loop, tracks, ev || [], Object.assign({root}, o || {}));
+  return c;
+}
+// giro extra del arma alrededor del hombro (en el espacio del torso)
+const _m4a = new THREE.Matrix4(), _m4b = new THREE.Matrix4(), _m4c = new THREE.Matrix4(), _e4 = new THREE.Euler(), _q4 = new THREE.Quaternion(), _v4 = new THREE.Vector3(), _s4 = new THREE.Vector3(1, 1, 1);
+function rotW(W, yawDeg, pitchDeg, piv) {
+  piv = piv || SH_R; _m4a.makeTranslation(piv[0], piv[1], piv[2]).multiply(_m4b.makeRotationY(yawDeg * D2R)).multiply(_m4c.makeRotationX(-pitchDeg * D2R)).multiply(_m4b.makeTranslation(-piv[0], -piv[1], -piv[2]));
+  _e4.set(W.R[0] * D2R, W.R[1] * D2R, W.R[2] * D2R); _q4.setFromEuler(_e4); _m4b.compose(_v4.set(W.P[0], W.P[1], W.P[2]), _q4, _s4).premultiply(_m4a);
+  _m4b.decompose(_v4, _q4, _s4); _e4.setFromQuaternion(_q4, 'XYZ');
+  return {P: [_v4.x, _v4.y, _v4.z], R: [_e4.x / D2R, _e4.y / D2R, _e4.z / D2R], g: W.g};
+}
+function aimPose(base, yaw, pitch, post) {
+  const p = Object.assign({}, base), add = (k, v) => { const a = (p[k] || [0, 0, 0]).slice(); a[0] = (a[0] || 0) + v[0]; a[1] = (a[1] || 0) + v[1]; a[2] = (a[2] || 0) + v[2]; p[k] = a; };
+  const ty = post === 'tumbado' ? 0.35 : 0.6, tp = post === 'tumbado' ? 0.15 : 0.3;
+  add('torso', [-tp * pitch, ty * yaw, 0]); add('cabeza', [-(post === 'tumbado' ? 0.5 : 0.6) * pitch, 0.15 * yaw, 0]);
+  add('pelvis', [0, post === 'pie' ? 14 : post === 'rodilla' ? 10.2 : 0, 0]);   // la postura de tirador gira el arma ~14° a la izquierda: se compensa con el cuerpo para que 0/0 apunte al frente
+  if (post === 'pie') { add('pelvis', [0, 0.12 * yaw, 0]); add('musloIz', [0, -0.12 * yaw, 0]); add('musloDe', [0, -0.12 * yaw, 0]); }
+  p.W = rotW(base.W, (1 - ty - (post === 'pie' ? 0.12 : 0)) * yaw, (1 - tp) * pitch + (post === 'pie' ? 3.9 : post === 'rodilla' ? 9.8 : -4.2)); return p;
+}
+const AIM_Y = [['i35', 35], ['i17', 17.5], ['c', 0], ['d17', -17.5], ['d35', -35]], AIM_P = [['ab45', -45], ['ab22', -22.5], ['c', 0], ['ar22', 22.5], ['ar45', 45]];
+const AIM_BASE = {pie: AIMS, rodilla: AIMK, tumbado: AIMP};
+// ---- utilidades de suelo: puntos del cuerpo, raíz sin penetración, pie fijo
+const BODY_PTS = [['cabeza', [0, 0.29, 0]], ['cabeza', [0, 0.16, 0.11]], ['torso', [0.17, 0.42, 0.1]], ['torso', [-0.17, 0.42, 0.1]], ['torso', [0.17, 0.42, -0.12]], ['torso', [-0.17, 0.42, -0.12]],
+  ['torso', [0, 0.15, 0.13]], ['torso', [0, 0.25, -0.2]], ['pelvis', [0.16, -0.08, -0.12]], ['pelvis', [-0.16, -0.08, -0.12]], ['pelvis', [0, -0.1, 0.12]],
+  ['antebrazoIz', [0, -0.33, 0]], ['antebrazoDe', [0, -0.33, 0]], ['brazoIz', [0, -0.29, 0]], ['brazoDe', [0, -0.29, 0]], ['piernaIz', [0, 0, 0.07]], ['piernaDe', [0, 0, 0.07]]].concat(FOOT('Iz'), FOOT('De'));
+function settleRoot(clip, N, o) {
+  o = o || {}; const base = clip.root, b = [0, 0, 0], out = [], old = _loopCur; _loopCur = clip.loop !== false; const pinS = o.pin;
+  let pin0 = null;
+  for (let i = 0; i <= N; i++) {
+    const t = i / N; sampleTrack(base, t, b, 3); const P = fkPoints('soldado', clip, t, BODY_PTS); let low = Math.min(...P.map(q => q[1]));
+    let y = Math.max(b[1], -low); if (o.rest != null && t >= o.rest) { const k = Math.min(1, (t - o.rest) / Math.max(0.05, 1 - o.rest)); y = y + (-low - y) * (k * k * (3 - 2 * k)); }
+    let x = b[0], z = b[2];
+    if (pinS) { const f = fkPoints('soldado', clip, t, [['pie' + pinS[0], [0, -0.04, 0.05]]])[0]; if (t <= pinS[1]) { if (!pin0) pin0 = [f[0], f[2]]; x -= f[0] - pin0[0]; z -= f[2] - pin0[1]; out.dx = x - b[0]; out.dz = z - b[2]; } else { x += out.dx || 0; z += out.dz || 0; } }
+    out.push([t, x, y, z]);
+  }
+  _loopCur = old; clip.root = out.map(r => r.slice(0, 4)); return clip;
+}
+// arma soltada: trayectoria en el mundo (caída con un rebote y reposo tumbada) convertida al espacio del torso cuadro a cuadro
+function dropWeapon(clip, tRel, N, side) {
+  const ix = rigIndex('soldado'), b = [0, 0, 0], ar = [0, 0, 0]; sampleTrack(clip.tracks.armaP, tRel, b, 3); sampleTrack(clip.tracks.armaR, tRel, ar, 3);
+  const tmp = Object.assign({}, clip); CLIPS.soldado.__w = tmp; const M = new Float32Array(MAXP * 16);
+  poseTroop('soldado', '__w', tRel, M); const T0 = new THREE.Matrix4().fromArray(M, ix.torso * 16);
+  _e4.set(ar[0] * D2R, ar[1] * D2R, ar[2] * D2R); _q4.setFromEuler(_e4); const W0 = new THREE.Matrix4().compose(new THREE.Vector3(b[0], b[1], b[2]), _q4, new THREE.Vector3(1, 1, 1)).premultiply(T0);
+  const p0 = new THREE.Vector3(), q0 = new THREE.Quaternion(); W0.decompose(p0, q0, _s4);
+  const qEnd = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, (side || 1) * 0.6, Math.PI / 2 * (side || 1))), pEnd = p0.clone().add(new THREE.Vector3(0.25 * (side || 1), 0, 0.3)); pEnd.y = 0.035;
+  const P = [], R = [], g = []; const fall = Math.sqrt(2 * Math.max(0.05, p0.y) / 9.8) / clip.dur;
+  for (let i = 0; i <= N; i++) {
+    const t = i / N; if (t < tRel) continue;
+    const u = Math.min(1, (t - tRel) / fall), u2 = Math.min(1, Math.max(0, (t - tRel - fall) / (fall * 0.6)));
+    const pos = p0.clone().lerp(pEnd, Math.min(1, u * 0.85 + u2 * 0.15)); pos.y = u < 1 ? p0.y + (pEnd.y - p0.y) * u * u : pEnd.y + 0.06 * Math.sin(Math.PI * u2);   // cae (gravedad) y rebota una vez
+    const q = q0.clone().slerp(qEnd, Math.min(1, u * 0.9 + u2 * 0.1));
+    const Wm = new THREE.Matrix4().compose(pos, q, new THREE.Vector3(1, 1, 1));
+    poseTroop('soldado', '__w', t, M); const Ti = new THREE.Matrix4().fromArray(M, ix.torso * 16).invert(); Wm.premultiply(Ti);
+    const pp = new THREE.Vector3(), qq = new THREE.Quaternion(); Wm.decompose(pp, qq, _s4); const ee = new THREE.Euler().setFromQuaternion(qq, 'XYZ');
+    P.push([t, pp.x, pp.y, pp.z]); R.push([t, ee.x / D2R, ee.y / D2R, ee.z / D2R]);
+  }
+  delete CLIPS.soldado.__w;
+  const keepP = clip.tracks.armaP.filter(k => k[0] < tRel), keepR = clip.tracks.armaR.filter(k => k[0] < tRel);
+  clip.tracks.armaP = keepP.concat(P); clip.tracks.armaR = keepR.concat(R);
+  clip.tracks.agarre = (clip.tracks.agarre || [[0, 0.32, 0.82]]).filter(k => k[0] < tRel).concat([[tRel, -1, -1]]);
+}
+// brazos sueltos que acabarían bajo el suelo en la pose final: se busca la postura de brazo más parecida que quede apoyada encima
+function fixArms(c) {
+  const root = [0, 0, 0]; _loopCur = false; sampleTrack(c.root, 1, root, 3);
+  ['Iz', 'De'].forEach(sd => {
+    const u = 'brazo' + sd, l = 'antebrazo' + sd, tu = c.tracks[u], tl = c.tracks[l]; if (!tu || !tl) return;
+    const low = () => Math.min(...fkPoints('soldado', c, 1, [[l, [0, -0.33, 0]], [l, [0, -0.15, 0]], [u, [0, -0.29, 0]]]).map(q => q[1])) + root[1];
+    if (low() >= -0.01) return;
+    const lu = tu[tu.length - 1].slice(1), ll = tl[tl.length - 1].slice(1), ou = tu.map(k => k.slice()), ol = tl.map(k => k.slice()); let best = null;
+    const setFinal = (A, B) => { c.tracks[u] = ou.map(k => k[0] >= 0.7 ? [k[0]].concat(A) : k); c.tracks[l] = ol.map(k => k[0] >= 0.7 ? [k[0]].concat(B) : k);
+      if (!c.tracks[u].some(k => k[0] >= 0.7)) c.tracks[u] = c.tracks[u].concat([[1].concat(A)]); if (!c.tracks[l].some(k => k[0] >= 0.7)) c.tracks[l] = c.tracks[l].concat([[1].concat(B)]); };
+    for (let rx = -180; rx <= 90; rx += 15) for (let rz = -90; rz <= 90; rz += 15) for (const fx of [ll[0], -20, -60, -100]) {
+      const A = [rx, lu[1], rz], B = [fx, ll[1], ll[2]]; setFinal(A, B); const y = low(); if (y < 0.0) continue;
+      const cost = Math.abs(rx - lu[0]) + Math.abs(rz - lu[2]) + 0.5 * Math.abs(fx - ll[0]) + y * 100; if (!best || cost < best.cost) best = {cost, A, B}; }
+    if (best) setFinal(best.A, best.B); else { c.tracks[u] = ou; c.tracks[l] = ol; }
+  });
+}
+// muelle amortiguado (reacción a un impulso): f(t) = A · e^(−t/τ) · sin(ω t)
+const spring = (A, w, tau, t0) => t => t < (t0 || 0) ? 0 : A * Math.exp(-(t - (t0 || 0)) / tau) * Math.sin(w * (t - (t0 || 0)));
+
+(function tacticalV5() {
+  const S = CLIPS.soldado, add = (n, c) => { S[n] = c; return c; }, alias = (n, base) => { S[n] = S[base]; };
+  /* ---- rejilla de puntería y disparo ---- */
+  if (!TROOP_LITE) Object.keys(AIM_BASE).forEach(post => AIM_Y.forEach(([yn, y]) => AIM_P.forEach(([pn, p]) => {
+    const pp = post === 'tumbado' ? Math.max(-22.5, Math.min(22.5, p)) : p, a = aimPose(AIM_BASE[post], y, pp, post);
+    const c = add('apuntar_' + post + '_' + yn + '_' + pn, seq(2.4, true, [[0, a], [1, a]], [], {still: true})); c.aim = {post, yaw: y, pitch: pp};
+    if ((yn === 'i35' || yn === 'c' || yn === 'd35') && (pn === 'ab22' || pn === 'c' || pn === 'ar22')) {     // disparo 3 × 3
+      const k = aimPose(Object.assign({}, AIM_BASE[post], {torso: [(AIM_BASE[post].torso || [0])[0] - 5, (AIM_BASE[post].torso || [0, 0])[1], 0]}), y, pp + 6, post);
+      const f = add('disparar_' + post + '_' + yn + '_' + pn, seq(1.4, false, [[0, a], [0.06, a], [0.09, k], [0.2, aimPose(AIM_BASE[post], y, pp + 1.5, post)], [0.35, a], [1, a]], [[0.07, 'disparo']]));
+      addLayer(f, 'cabeza', t => [spring(-4, 40, 0.08, 0.09)(t * 1.4), 0, 0], 42); addLayer(f, 'pelvis', t => [0, 0, spring(1.2, 30, 0.1, 0.09)(t * 1.4)], 42);
+      f.aim = {post, yaw: y, pitch: pp, fuego: true};
+    }
+  })));
+  /* ---- transiciones de postura ---- */
+  const KN = mergeP(POSE_KNEEL, {W: W_.PREV}), PR = mergeP(POSE_PRONE, {W: AIMP.W});
+  const st = mergeP(STAND, {W: W_.PREV});
+  add('a_rodilla', settleRoot(seq(0.7, false, [[0, st], [0.35, mergeP(st, {musloIz: [-60, 0, 4], piernaIz: [70], musloDe: [-20, 0, -4], piernaDe: [80], pieDe: [20], torso: [12], root: [0, -0.2, 0.05]})], [1, KN]], [[0.8, 'rodilla']]), 30, {rest: 0.75}));
+  add('de_rodilla', settleRoot(seq(0.6, false, [[0, KN], [0.45, mergeP(KN, {musloIz: [-50, 0, 4], piernaIz: [60], musloDe: [-30, 0, -4], piernaDe: [70], torso: [18], root: [0, -0.18, 0.05]})], [1, st]]), 30, {rest: 0.8}));
+  add('a_tumbado', settleRoot(seq(1.3, false, [[0, st], [0.25, mergeP(KN, {torso: [20]})], [0.5, mergeP(KN, {pelvis: [30], torso: [30], brazoIz: [-60, 0, 10], antebrazoIz: [-20], root: [0, -0.45, 0.2]})],
+    [0.72, mergeP(POSE_PRONE, {pelvis: [70], torso: [-5], W: W_.PREV, root: [0, -0.62, 0.38]})], [1, PR]], [[0.7, 'cuerpo_a_tierra']]), 40, {rest: 0.85}));
+  add('de_tumbado', settleRoot(seq(1.2, false, [[0, PR], [0.3, mergeP(POSE_PRONE, {pelvis: [60], torso: [10], musloIz: [-60, 0, 8], piernaIz: [100], brazoIz: [-40], W: W_.PREV, root: [0, -0.6, 0.35]})],
+    [0.6, mergeP(KN, {torso: [25]})], [1, st]]), 40, {rest: 0.85}));
+  add('idle_rodilla', seq(4.0, true, [[0, KN], [0.5, mergeP(KN, {torso: [8, 6, 0], cabeza: [0, 14, 0]})], [1, KN]]));
+  add('idle_tumbado', seq(4.0, true, [[0, PR], [0.5, mergeP(PR, {cabeza: [-50, 12, 0], torso: [-20, 3, 0]})], [1, PR]]));
+  add('apuntar_rodilla', seq(0.5, false, [[0, KN], [1, AIMK]])); add('apuntar_tumbado', seq(0.5, false, [[0, PR], [1, AIMP]]));
+  [S.idle_rodilla, S.idle_tumbado].forEach(c => breathe(c, 0.8));
+  /* ---- reptar (arrastre de codos y rodillas, fusil en los antebrazos) ---- */
+  const crawl = (dur, amp) => { const c = seq(dur, true, [[0, PR], [1, PR]]); const tw = TAU;
+    c.tracks.brazoIz = curve(32, t => [-120 - amp * 25 * Math.cos(tw * t), 0, 30]); c.tracks.antebrazoIz = curve(32, t => [-70 + amp * 20 * Math.cos(tw * t)]);
+    c.tracks.brazoDe = curve(32, t => [-120 + amp * 25 * Math.cos(tw * t), 0, -30]); c.tracks.antebrazoDe = curve(32, t => [-70 - amp * 20 * Math.cos(tw * t)]);
+    c.tracks.musloIz = curve(32, t => [-25 * amp * Math.max(0, Math.cos(tw * t + Math.PI)) - 5, 0, 18 + 10 * amp * Math.max(0, Math.cos(tw * t + Math.PI))]); c.tracks.piernaIz = curve(32, t => [20 + 50 * amp * Math.max(0, Math.cos(tw * t + Math.PI))]);
+    c.tracks.musloDe = curve(32, t => [-25 * amp * Math.max(0, Math.cos(tw * t)) - 5, 0, -18 - 10 * amp * Math.max(0, Math.cos(tw * t))]); c.tracks.piernaDe = curve(32, t => [20 + 50 * amp * Math.max(0, Math.cos(tw * t))]);
+    c.tracks.pelvis = curve(32, t => [88, 4 * amp * Math.sin(tw * t), 5 * amp * Math.sin(tw * t)]); c.tracks.torso = curve(32, t => [-20, -5 * amp * Math.sin(tw * t), 0]);
+    c.tracks.armaP = [[0, 0.0, 0.25, 0.25]]; c.tracks.armaR = [[0, 80, 0, 90]]; c.tracks.agarre = [[0, -1, -1]];
+    c.root = curve(32, t => [0.02 * amp * Math.sin(tw * t), -0.74 + 0.02 * Math.abs(Math.sin(tw * t)), 0.45]); c.ev = [[0, 'arrastre'], [0.5, 'arrastre']]; return c; };
+  add('reptar', crawl(1.6, 1)); add('reptar_rapido', crawl(1.0, 1.25));
+  /* ---- movimiento táctico ---- */
+  const ready = mergeP(STAND, {W: W_.PREV, torso: [6], cabeza: [-4]});
+  const stepCyc = (name, dur, dir) => {                                      // paso lateral / atrás: patrón de pasos generado y pies apoyados
+    const c = seq(dur, true, [[0, ready], [1, ready]]), sx = dir === 'iz' ? 1 : dir === 'de' ? -1 : 0, back = dir === 'atras';
+    const lead = sx >= 0 ? 'Iz' : 'De', trail = lead === 'Iz' ? 'De' : 'Iz';
+    if (back) { humanLocomotion(c, 'marcha', {amp: -0.55, lean: 4, shoulder: 0, keepTorso: true}); c.tracks.torso = [[0, 6, 0, 0]]; }
+    else {
+      c.tracks['muslo' + lead] = curve(32, t => [-12 * Math.max(0, Math.sin(TAU * t)), 0, (lead === 'Iz' ? 1 : -1) * (4 + 14 * Math.max(0, Math.sin(TAU * t)))]);
+      c.tracks['pierna' + lead] = curve(32, t => [26 * Math.max(0, Math.sin(TAU * t))]);
+      c.tracks['muslo' + trail] = curve(32, t => [-12 * Math.max(0, -Math.sin(TAU * t)), 0, (trail === 'Iz' ? 1 : -1) * (2 + 8 * Math.max(0, -Math.sin(TAU * t)))]);
+      c.tracks['pierna' + trail] = curve(32, t => [26 * Math.max(0, -Math.sin(TAU * t))]);
+      c.tracks.pelvis = curve(32, t => [0, 0, 3 * Math.cos(TAU * t) * sx]);
+      c.root = curve(32, t => [0, 0.012 * Math.abs(Math.sin(TAU * t)), 0]);
+    }
+    c.ev = [[0.25, 'paso'], [0.75, 'paso']]; return add(name, c); };
+  stepCyc('paso_lateral_iz', 0.9, 'iz'); stepCyc('paso_lateral_de', 0.9, 'de'); stepCyc('paso_atras', 1.0, 'atras');
+  // giro en el sitio con pasos: la pelvis gira el ángulo completo; al acabar el juego suma el ángulo a la orientación y vuelve a «idle»
+  [[45, 'iz_45', 0.6], [-45, 'de_45', 0.6], [90, 'iz_90', 0.8], [-90, 'de_90', 0.8], [180, '180', 1.2]].forEach(([a, n, d]) => {
+    const s = Math.sign(a), L = s > 0 ? 'Iz' : 'De', R2 = s > 0 ? 'De' : 'Iz', m = {};
+    m['muslo' + L] = [-22, 0, 0]; m['pierna' + L] = [40]; const m2 = {}; m2['muslo' + R2] = [-20, 0, 0]; m2['pierna' + R2] = [36];
+    const c = seq(d, false, [[0, ready], [0.12, mergeP(ready, {torso: [6, a * 0.25, 0], cabeza: [-4, a * 0.25, 0]})], [0.35, mergeP(ready, m, {pelvis: [0, a * 0.5, 0], torso: [6, a * 0.15, 0]})],
+      [0.7, mergeP(ready, m2, {pelvis: [0, a * 0.9, 0], torso: [6, a * 0.05, 0]})], [1, mergeP(ready, {pelvis: [0, a, 0]})]], [[0.35, 'paso'], [0.7, 'paso']]);
+    c.giro = a; add('girar_' + n, settleRoot(c, 24));
+  });
+  // carrera agachada, a cubierto y avance a saltos (corre agachado y se tira al suelo)
+  const crouchRun = humanLocomotion(seq(0.6, true, [[0, mergeP(ready, {torso: [26], cabeza: [-20]})], [1, mergeP(ready, {torso: [26], cabeza: [-20]})]]), 'carrera', {amp: 0.8, lean: 2, hipOff: -18, kneeOff: 22, shoulder: 0, keepTorso: true});
+  add('correr_agachado', crouchRun);
+  const cover = humanLocomotion(seq(0.55, true, [[0, mergeP(ready, {torso: [34], cabeza: [-26], brazoIz: [-150, 0, 10], antebrazoIz: [-120], W: Object.assign({}, W_.CADERA, {g: [0.3, -1]})})], [1, mergeP(ready, {torso: [34], cabeza: [-26], brazoIz: [-150, 0, 10], antebrazoIz: [-120], W: Object.assign({}, W_.CADERA, {g: [0.3, -1]})})]]),
+    'carrera', {amp: 0.9, lean: 2, hipOff: -14, kneeOff: 18, shoulder: 0, keepTorso: true});
+  add('correr_a_cubierto', cover);                                            // mano izquierda sujeta el casco
+  add('avance_a_saltos', settleRoot(seq(2.4, false, [[0, mergeP(ready, {torso: [24]})], [0.08, mergeP(ready, {torso: [30], musloIz: [-40], piernaIz: [60], root: [0, 0, 0.3]})], [0.2, mergeP(ready, {torso: [30], musloDe: [-40], piernaDe: [60], root: [0, 0, 0.9]})],
+    [0.32, mergeP(ready, {torso: [32], musloIz: [-40], piernaIz: [60], root: [0, 0, 1.6]})], [0.44, mergeP(ready, {torso: [34], musloDe: [-40], piernaDe: [60], root: [0, 0, 2.3]})],
+    [0.56, mergeP(KN, {torso: [30], root: [0, -0.36, 2.8]})], [0.72, mergeP(POSE_PRONE, {pelvis: [70], W: W_.PREV, root: [0, -0.62, 3.2]})], [0.85, mergeP(PR, {root: [0, -0.76, 3.4]})], [1, mergeP(PR, {root: [0, -0.76, 3.4]})]],
+    [[0.08, 'paso'], [0.2, 'paso'], [0.32, 'paso'], [0.44, 'paso'], [0.7, 'cuerpo_a_tierra']], {avance: 3.4}), 48, {rest: 0.8}));
+  /* ---- tiempos muertos (variedad: cada uno con su ritmo) ---- */
+  const idleB = mergeP(STAND, {W: W_.ORDEN}), sling = mergeP(STAND, {W: Object.assign({}, W_.HOMBRO, {g: [0.1, -1]})});
+  add('vigilar', breatheC(seq(6.0, true, [[0, ready], [0.2, mergeP(ready, {torso: [6, 18, 0], cabeza: [-2, 26, 0]})], [0.45, mergeP(ready, {torso: [6, 18, 0], cabeza: [-6, 30, 0]})], [0.6, ready],
+    [0.75, mergeP(ready, {torso: [6, -16, 0], cabeza: [-2, -28, 0]})], [0.92, mergeP(ready, {torso: [6, -14, 0], cabeza: [-4, -22, 0]})], [1, ready]])));
+  add('agacharse_disparo', settleRoot(seq(1.1, false, [[0, ready], [0.1, mergeP(KN, {torso: [40], cabeza: [30, 0, 0], brazoIz: [-150, 0, 20], antebrazoIz: [-120], W: Object.assign({}, W_.PREV, {g: [0.3, -1]}), root: [0, -0.45, 0]})],
+    [0.55, mergeP(KN, {torso: [38], cabeza: [25, 0, 0], brazoIz: [-150, 0, 20], antebrazoIz: [-120], W: Object.assign({}, W_.PREV, {g: [0.3, -1]}), root: [0, -0.45, 0]})], [1, mergeP(KN, {W: W_.PREV})]], [[0.05, 'sobresalto']]), 30, {rest: 0.8}));
+  add('mirar_alrededor', breatheC(seq(5.0, true, [[0, idleB], [0.15, mergeP(idleB, {cabeza: [0, 40, 0], torso: [0, 10, 0]})], [0.35, mergeP(idleB, {cabeza: [-8, 45, 0], torso: [0, 12, 0]})], [0.5, idleB],
+    [0.62, mergeP(idleB, {cabeza: [4, -42, 0], torso: [0, -10, 0]})], [0.8, mergeP(idleB, {cabeza: [-10, -35, 4], torso: [0, -8, 0]})], [0.9, mergeP(idleB, {cabeza: [-14, 0, 0]})], [1, idleB]])));
+  add('senal', seq(1.6, false, [[0, ready], [0.2, mergeP(ready, {brazoIz: [-170, 0, 10], antebrazoIz: [-10], cabeza: [-4, 20, 0], W: Object.assign({}, W_.PREV, {g: [0.3, -1]})})],
+    [0.4, mergeP(ready, {brazoIz: [-100, 0, 30], antebrazoIz: [-5], cabeza: [-4, 20, 0], W: Object.assign({}, W_.PREV, {g: [0.3, -1]})})], [0.6, mergeP(ready, {brazoIz: [-170, 0, 10], antebrazoIz: [-10], W: Object.assign({}, W_.PREV, {g: [0.3, -1]})})],
+    [0.8, mergeP(ready, {brazoIz: [-90, -40, 20], antebrazoIz: [-5], W: Object.assign({}, W_.PREV, {g: [0.3, -1]})})], [1, ready]], [[0.2, 'senal']]));
+  add('hablar', breatheC(seq(4.2, true, [[0, idleB], [0.1, mergeP(idleB, {cabeza: [4, 30, 0], torso: [0, 12, 0]})], [0.25, mergeP(idleB, {cabeza: [-2, 32, 4], torso: [0, 12, 0], brazoIz: [-30, 0, 18], antebrazoIz: [-80]})],
+    [0.35, mergeP(idleB, {cabeza: [6, 28, -2], torso: [0, 12, 0], brazoIz: [-36, 0, 22], antebrazoIz: [-70]})], [0.5, mergeP(idleB, {cabeza: [0, 30, 0], torso: [0, 12, 0]})], [0.7, mergeP(idleB, {cabeza: [8, 26, 0], torso: [0, 10, 0]})],
+    [0.8, mergeP(idleB, {cabeza: [-4, 34, 4], torso: [0, 12, 0]})], [1, idleB]], [[0.25, 'voz'], [0.8, 'voz']])));
+  const handFace = {brazoIz: [-45, -25, 30], antebrazoIz: [-140, 0, 0]};
+  add('fumar', breatheC(seq(7.0, true, [[0, sling], [0.15, mergeP(sling, {brazoIz: [-20, 0, 10], antebrazoIz: [-90]})], [0.24, mergeP(sling, handFace, {cabeza: [6, 0, 0]})], [0.34, mergeP(sling, handFace, {cabeza: [-6, 0, 0]})],
+    [0.42, mergeP(sling, {brazoIz: [-20, 0, 10], antebrazoIz: [-90], cabeza: [-10, 0, 0]})], [0.5, mergeP(sling, {brazoIz: [-20, 0, 10], antebrazoIz: [-90], cabeza: [-4, 0, 0]})], [0.8, mergeP(sling, {brazoIz: [-10, 0, 8], antebrazoIz: [-70]})], [1, sling]],
+    [[0.3, 'calada'], [0.45, 'humo']])));
+  add('beber', seq(4.0, false, [[0, sling], [0.15, mergeP(sling, {brazoIz: [10, 0, 20], antebrazoIz: [-30], torso: [6, 0, 0]})], [0.3, mergeP(sling, {brazoIz: [-80, -30, 25], antebrazoIz: [-120]})],
+    [0.4, mergeP(sling, {brazoIz: [-110, -30, 25], antebrazoIz: [-130], cabeza: [-35, 0, 0], torso: [-6, 0, 0]})], [0.65, mergeP(sling, {brazoIz: [-115, -30, 25], antebrazoIz: [-130], cabeza: [-40, 0, 0], torso: [-8, 0, 0]})],
+    [0.78, mergeP(sling, {brazoIz: [-60, -20, 20], antebrazoIz: [-100], cabeza: [0, 0, 0]})], [0.9, mergeP(sling, {brazoIz: [10, 0, 20], antebrazoIz: [-30]})], [1, sling]], [[0.4, 'beber']]));
+  add('atarse_bota', settleRoot(seq(6.0, false, [[0, idleB], [0.12, mergeP(KN, {torso: [30], W: Object.assign({}, W_.PREV, {P: [-0.4, -0.3, 0.3], R: [20, 0, 40], g: [-1, -1]})})],
+    [0.25, mergeP(KN, {torso: [45], cabeza: [20], brazoIz: [-70, 0, 0], antebrazoIz: [-40], brazoDe: [-70, 0, 0], antebrazoDe: [-40], W: {P: [-0.45, -0.35, 0.3], R: [20, 0, 40], g: [-1, -1]}})],
+    [0.4, mergeP(KN, {torso: [46], cabeza: [22], brazoIz: [-75, 0, 4], antebrazoIz: [-50], brazoDe: [-68, 0, -4], antebrazoDe: [-30], W: {P: [-0.45, -0.35, 0.3], R: [20, 0, 40], g: [-1, -1]}})],
+    [0.55, mergeP(KN, {torso: [46], cabeza: [22], brazoIz: [-68, 0, 0], antebrazoIz: [-30], brazoDe: [-75, 0, -6], antebrazoDe: [-55], W: {P: [-0.45, -0.35, 0.3], R: [20, 0, 40], g: [-1, -1]}})],
+    [0.7, mergeP(KN, {torso: [44], cabeza: [20], brazoIz: [-75, 0, 4], antebrazoIz: [-50], brazoDe: [-68, 0, -4], antebrazoDe: [-30], W: {P: [-0.45, -0.35, 0.3], R: [20, 0, 40], g: [-1, -1]}})],
+    [0.85, mergeP(KN, {torso: [20], W: W_.PREV})], [1, idleB]], [[0.1, 'rodilla'], [0.88, 'levantarse']]), 48, {}));
+  add('recolocar_mochila', seq(2.4, false, [[0, sling], [0.2, mergeP(sling, {brazoIz: [-20, 0, 40], antebrazoIz: [-120], torso: [8, 0, 6]})], [0.35, mergeP(sling, {brazoIz: [-25, 0, 40], antebrazoIz: [-125], torso: [10, 0, -6], root: [0, 0.02, 0]})],
+    [0.5, mergeP(sling, {brazoIz: [-20, 0, 40], antebrazoIz: [-120], torso: [6, 0, 4]})], [0.7, mergeP(sling, {torso: [2, 0, 0]})], [1, sling]]));
+  add('estirarse', seq(3.2, false, [[0, sling], [0.25, mergeP(sling, {brazoIz: [-175, 0, 20], antebrazoIz: [-10], torso: [-8, 0, 0], cabeza: [-15, 0, 0]})], [0.5, mergeP(sling, {brazoIz: [-170, 0, 30], antebrazoIz: [-20], torso: [-10, 0, 8], cabeza: [-12, 0, 0]})],
+    [0.7, mergeP(sling, {torso: [4, 0, 0]})], [1, sling]], [[0.3, 'bostezo']]));
+  /* ---- recargas por época (de pie; rodilla y tumbado más abajo). Eventos: 'cerrojo', 'carga', 'baqueta', 'cebar', 'armar' ---- */
+  const pouch = {brazoDe: [20, 0, -10], antebrazoDe: [-60, 0, 0]}, mouth = {brazoDe: [-50, 30, -20], antebrazoDe: [-135, 0, 0], cabeza: [6, -10, 0]};
+  const muzzle = (lift) => ({P: [-0.12, -0.35, 0.18], R: [-4, 0, 6], g: [-1, 0.75 - lift]}), rammer = {brazoDe: [-160 + 0, 0, -20], antebrazoDe: [-20]};
+  const muzzleLoad = (dur, era) => seq(dur, false, [[0, AIMS], [0.06, mergeP(STAND, {W: {P: [-0.12, -0.2, 0.2], R: [10, 0, 6], g: [0.35, 0.7]}})], [0.12, mergeP(STAND, pouch, {W: muzzle(0)})],   // baja el arma, mano a la cartuchera
+    [0.18, mergeP(STAND, mouth, {W: muzzle(0)})], [0.26, mergeP(STAND, {brazoDe: [-110, 10, -10], antebrazoDe: [-60], W: muzzle(0)})], [0.33, mergeP(STAND, rammer, {W: muzzle(0)})],     // muerde, vierte, saca la baqueta
+    [0.42, mergeP(STAND, {brazoDe: [-130, 0, -15], antebrazoDe: [-60], W: muzzle(0)})], [0.5, mergeP(STAND, rammer, {W: muzzle(0)})], [0.56, mergeP(STAND, {brazoDe: [-130, 0, -15], antebrazoDe: [-60], W: muzzle(0)})],   // ataca dos veces
+    [0.64, mergeP(STAND, rammer, {W: muzzle(0)})], [0.72, mergeP(STAND, {W: W_.CARGA})], [0.8, mergeP(STAND, {W: Object.assign({}, W_.CARGA, {g: [0.42, 0.8]})})], [0.88, mergeP(STAND, {W: W_.CARGA})], [1, AIMS]],
+    [[0.12, 'cartucho'], [0.2, 'morder'], [0.26, 'polvora'], [0.42, 'baqueta'], [0.56, 'baqueta'], [0.8, era === 'A' ? 'cebar' : 'piston'], [0.88, 'armar']]);
+  add('recargar_B', muzzleLoad(2.6, 'B'));
+  const bolt = (dur, clip5) => seq(dur, false, [[0, AIMS], [0.1, mergeP(AIMS, {W: Object.assign({}, W_.CARGA, {g: [0.3, 0.8]})})], [0.16, mergeP(AIMS, {W: Object.assign({}, W_.CARGA, {g: [0.47, 0.8]})})],   // mano al cerrojo: arriba y atrás
+    [0.24, mergeP(AIMS, {W: Object.assign({}, W_.CARGA, {g: [0.42, 0.8]})})], [0.3, mergeP(AIMS, pouch, {W: Object.assign({}, W_.CARGA, {g: [-1, 0.8]})})], [0.44, mergeP(AIMS, pouch, {W: Object.assign({}, W_.CARGA, {g: [-1, 0.8]})})],
+    [0.52, mergeP(AIMS, {W: Object.assign({}, W_.CARGA, {g: [0.44, 0.8]})})], [clip5 ? 0.6 : 0.56, mergeP(AIMS, {W: Object.assign({}, W_.CARGA, {g: [0.45, 0.8]})})], [clip5 ? 0.7 : 0.62, mergeP(AIMS, {W: Object.assign({}, W_.CARGA, {g: [0.42, 0.8]})})],
+    [0.76, mergeP(AIMS, {W: Object.assign({}, W_.CARGA, {g: [0.47, 0.8]})})], [0.84, mergeP(AIMS, {W: Object.assign({}, W_.CARGA, {g: [0.3, 0.8]})})], [1, AIMS]],
+    [[0.16, 'cerrojo'], [0.3, 'cartuchera'], [clip5 ? 0.62 : 0.54, 'carga'], [0.78, 'cerrojo']]);
+  add('recargar_C', bolt(2.0, false)); add('recargar_D', bolt(1.8, true)); add('recargar_E', bolt(2.2, true));
+  add('cerrojo', seq(1.0, false, [[0, AIMS], [0.18, mergeP(AIMS, {W: Object.assign({}, W_.APUNTA, {g: [0.47, 0.82]})})], [0.32, mergeP(AIMS, {W: Object.assign(rotW(W_.APUNTA, 4, -6), {g: [0.47, 0.82]})})],
+    [0.5, mergeP(AIMS, {W: Object.assign({}, W_.APUNTA, {g: [0.47, 0.82]})})], [0.7, AIMS], [1, AIMS]], [[0.25, 'cerrojo'], [0.45, 'cerrojo']]));
+  const recA = S.recargar_A; alias('recargar_pie_A', 'recargar_A'); alias('recargar_pie_B', 'recargar_B'); alias('recargar_pie_C', 'recargar_C'); alias('recargar_pie_D', 'recargar_D'); alias('recargar_pie_E', 'recargar_E'); void recA;
+  // rodilla (todas) y tumbado (C–E; con avancarga se rueda de costado para cargar)
+  ['A', 'B', 'C', 'D', 'E'].forEach(e => { const k = kneel(S['recargar_' + e]); k.root = [[0, 0, -0.36, 0]]; add('recargar_rodilla_' + e, k); });
+  ['C', 'D', 'E'].forEach(e => { const c = seq(S['recargar_' + e].dur * 1.1, false, [[0, AIMP], [0.15, mergeP(AIMP, {torso: [-26, 0, -12], W: {P: [-0.1, 0.2, 0.0], R: [40, 0, -40], g: [0.47, 0.8]}})], [0.3, mergeP(AIMP, {torso: [-26, 0, -14], brazoDe: [-20, 0, -30], antebrazoDe: [-80], W: {P: [-0.1, 0.2, 0.0], R: [40, 0, -40], g: [-1, 0.8]}})],
+      [0.55, mergeP(AIMP, {torso: [-26, 0, -12], W: {P: [-0.1, 0.2, 0.0], R: [40, 0, -40], g: [0.45, 0.8]}})], [0.75, mergeP(AIMP, {torso: [-24, 0, -8], W: {P: [-0.1, 0.2, 0.0], R: [40, 0, -40], g: [0.47, 0.8]}})], [1, AIMP]],
+      [[0.15, 'cerrojo'], [0.55, 'carga'], [0.75, 'cerrojo']]); add('recargar_tumbado_' + e, c); });
+  ['A', 'B'].forEach(e => add('recargar_tumbado_' + e, seq(3.6, false, [[0, AIMP], [0.15, mergeP(PR, {pelvis: [88, 0, -60], torso: [-10, 0, -20], W: muzzle(0)})], [0.5, mergeP(PR, {pelvis: [88, 0, -60], torso: [-10, 0, -20], brazoDe: [-150], antebrazoDe: [-40], W: muzzle(0)})],
+    [0.75, mergeP(PR, {pelvis: [88, 0, -60], torso: [-10, 0, -20], W: W_.CARGA})], [1, AIMP]], [[0.2, 'cartucho'], [0.5, 'baqueta'], [0.75, 'cebar']])));
+  /* ---- variantes de disparo para enemigos ---- */
+  add('apuntar_y_disparar', seq(2.2, false, [[0, ready], [0.18, AIMS], [0.4, AIMS], [0.43, aimPose(AIMS, 0, 6, 'pie')], [0.52, AIMS], [1, AIMS]], [[0.18, 'apunta'], [0.42, 'disparo']]));
+  add('apuntar_y_disparar_rodilla', seq(2.2, false, [[0, KN], [0.2, AIMK], [0.4, AIMK], [0.43, aimPose(AIMK, 0, 6, 'rodilla')], [0.52, AIMK], [1, AIMK]], [[0.2, 'apunta'], [0.42, 'disparo']]));
+  add('apuntar_y_disparar_tumbado', seq(2.2, false, [[0, PR], [0.2, AIMP], [0.4, AIMP], [0.43, aimPose(AIMP, 0, 4, 'tumbado')], [0.52, AIMP], [1, AIMP]], [[0.2, 'apunta'], [0.42, 'disparo']]));
+  const hip = mergeP(STAND, {torso: [6, -6, 0], musloIz: [-12, 6, 6], piernaIz: [10], W: W_.CADERA});
+  add('disparar_cadera', seq(1.0, true, [[0, hip], [0.05, mergeP(hip, {torso: [0, -6, 0], W: rotW(W_.CADERA, 0, 10)})], [0.25, hip], [1, hip]], [[0.04, 'disparo']]));
+  const lean = mergeP(AIMS, {pelvis: [0, 0, -6], torso: [6, -18, -14], cabeza: [6, 14, 8], musloDe: [-6, 0, -12], W: rotW(W_.APUNTA, 0, 0)});   // apoyado a la izquierda de un árbol o muro
+  add('disparar_apoyado', seq(2.0, true, [[0, lean], [0.1, mergeP(lean, {W: rotW(W_.APUNTA, 0, 5)})], [0.25, lean], [1, lean]], [[0.09, 'disparo']]));
+  /* ---- bayoneta y granada ---- */
+  const guard = mergeP(STAND, {musloIz: [-24, 0, 6], piernaIz: [20], musloDe: [12, 0, -6], piernaDe: [10], torso: [10, -10, 0], W: W_.BAYO});
+  const thrust = (name, P2, R2, ev) => add(name, settleRoot(seq(1.0, false, [[0, guard], [0.22, mergeP(guard, {torso: [4, -20, 0], W: {P: [-0.18, -0.12, 0.05], R: [R2[0] - 6, 0, 0], g: [0.3, 0.85]}})],
+    [0.36, mergeP(guard, {musloIz: [-40, 0, 6], piernaIz: [30], musloDe: [24, 0, -6], torso: [20, 4, 0], root: [0, -0.06, 0.32], W: {P: P2, R: R2, g: [0.3, 0.85]}})], [0.48, mergeP(guard, {torso: [18, 2, 0], root: [0, -0.06, 0.32], W: {P: P2, R: R2, g: [0.3, 0.85]}})],
+    [1, mergeP(guard, {root: [0, 0, 0.1]})]], [[0.36, ev]]), 30));
+  thrust('estocada_baja', [-0.12, -0.08, 0.3], [92, 0, 0], 'bayoneta'); thrust('estocada_alta', [-0.12, 0.18, 0.3], [72, 0, 0], 'bayoneta');
+  add('golpe_culata', seq(1.0, false, [[0, guard], [0.25, mergeP(guard, {torso: [0, 20, 0], W: {P: [-0.2, 0.1, -0.1], R: [-40, 30, 20], g: [0.6, 0.95]}})], [0.4, mergeP(guard, {torso: [14, -25, 0], musloIz: [-34, 0, 6], W: {P: [0.05, 0.2, 0.35], R: [-150, -20, 0], g: [0.6, 0.95]}})],
+    [0.55, mergeP(guard, {torso: [12, -20, 0], W: {P: [0.05, 0.18, 0.32], R: [-150, -20, 0], g: [0.6, 0.95]}})], [1, guard]], [[0.4, 'golpe']]));
+  add('bayoneta_defensa', seq(1.2, false, [[0, guard], [0.2, mergeP(guard, {torso: [4, 10, 0], W: {P: [-0.05, 0.15, 0.3], R: [20, 0, 80], g: [0.3, 0.85]}})], [0.35, mergeP(guard, {torso: [4, -14, 0], root: [0, 0, -0.15], W: {P: [0.08, 0.1, 0.32], R: [20, 0, 60], g: [0.3, 0.85]}})],
+    [1, guard]], [[0.3, 'parada']]));
+  const gThrow = (name, base) => add(name, seq(1.6, false, [[0, mergeP(base, {W: Object.assign({}, base.W || W_.PREV, {g: [-1, 0.85]})})], [0.15, mergeP(base, {brazoDe: [20, 0, -10], antebrazoDe: [-60], W: Object.assign({}, W_.PREV, {g: [-1, 0.8]})})],
+    [0.4, mergeP(base, {brazoDe: [-150, 0, -40], antebrazoDe: [-80], torso: [-10, 30, 0], W: Object.assign({}, W_.PREV, {g: [-1, 0.8]})})], [0.52, mergeP(base, {brazoDe: [-170, 0, -10], antebrazoDe: [-10], torso: [20, -30, 0], W: Object.assign({}, W_.PREV, {g: [-1, 0.8]})})],
+    [0.7, mergeP(base, {brazoDe: [-40, 0, -10], antebrazoDe: [-30], torso: [16, -20, 0], W: Object.assign({}, W_.PREV, {g: [-1, 0.8]})})], [1, mergeP(base, {W: W_.PREV})]], [[0.18, 'anilla'], [0.5, 'lanzar']]));
+  gThrow('lanzar_granada_pie', STAND); gThrow('lanzar_granada_rodilla', POSE_KNEEL);
+  /* ---- rendición y heridos ---- */
+  add('rendirse_rodillas', settleRoot(seq(2.4, false, [[0, idleB], [0.15, mergeP(STAND, {W: {P: [-0.4, -0.5, 0.4], R: [30, 0, 60], g: [-1, -1]}})], [0.45, mergeP(POSE_KNEEL, {brazoIz: [-170, 0, 25], brazoDe: [-170, 0, -25], antebrazoIz: [-30], antebrazoDe: [-30], cabeza: [12], W: {P: [-0.4, -0.5, 0.4], R: [30, 0, 60], g: [-1, -1]}})],
+    [0.6, mergeP(POSE_KNEEL, {musloDe: [-85, 0, -4], piernaDe: [85], pieDe: [72], brazoIz: [-170, 0, 25], brazoDe: [-170, 0, -25], antebrazoIz: [-30], antebrazoDe: [-30], cabeza: [16], root: [0, -0.5, 0]})], [1, mergeP(POSE_KNEEL, {musloIz: [-5, 0, 6], piernaIz: [95], pieIz: [72], musloDe: [-5, 0, -6], piernaDe: [95], pieDe: [72], brazoIz: [-170, 0, 25], brazoDe: [-170, 0, -25], antebrazoIz: [-35], antebrazoDe: [-35], cabeza: [18], root: [0, -0.5, 0]})]],
+    [[0.15, 'soltar_arma']], {hide: {arma: [[0, 1], [0.3, 0]]}}), 40, {rest: 0.6}));
+  const drag = seq(1.8, true, [[0, mergeP(POSE_PRONE, {pelvis: [86, 0, 10], torso: [-25], brazoIz: [-140, 0, 20], antebrazoIz: [-30], brazoDe: [-100, 0, -30], antebrazoDe: [-90], musloDe: [0, 0, -5], piernaDe: [5]})],
+    [0.4, mergeP(POSE_PRONE, {pelvis: [86, 0, 6], torso: [-28], brazoIz: [-100, 0, 30], antebrazoIz: [-90], brazoDe: [-100, 0, -30], antebrazoDe: [-90], musloIz: [-30, 0, 20], piernaIz: [60], musloDe: [0, 0, -5], piernaDe: [5], root: [0, -0.74, 0.55]})],
+    [1, mergeP(POSE_PRONE, {pelvis: [86, 0, 10], torso: [-25], brazoIz: [-140, 0, 20], antebrazoIz: [-30], brazoDe: [-100, 0, -30], antebrazoDe: [-90], musloDe: [0, 0, -5], piernaDe: [5]})]], [[0.4, 'quejido']], {hide: {arma: [[0, 0]]}});
+  add('herido_arrastrandose', drag);
+  /* ---- reacciones al impacto: zona y dirección (muelle amortiguado + paso de recuperación) ---- */
+  const react = (name, dur, layers, keys, ev) => { const c = seq(dur, false, keys || [[0, AIMS], [1, AIMS]], ev || [[0, 'impacto']]); Object.keys(layers).forEach(p => addLayer(c, p, t => layers[p](t * dur), 60)); return add(name, settleRoot(c, 40)); };
+  const back = s => ({torso: t => [spring(-18 * s, 14, 0.18)(t), 0, 0], cabeza: t => [spring(-26 * s, 18, 0.12, 0.02)(t), 0, 0], brazoIz: t => [spring(20 * s, 12, 0.2, 0.03)(t), 0, spring(18, 12, 0.2, 0.03)(t)], brazoDe: t => [spring(16 * s, 12, 0.2, 0.03)(t), 0, spring(-18, 12, 0.2, 0.03)(t)], pelvis: t => [spring(-6 * s, 12, 0.2)(t), 0, 0]});
+  react('impacto_pecho_frente', 1.0, back(1), [[0, AIMS], [0.25, mergeP(AIMS, {musloDe: [12, 10, -6], root: [0, 0, -0.18]})], [1, mergeP(AIMS, {root: [0, 0, -0.2]})]]);
+  react('impacto_pecho_atras', 1.0, back(-1), [[0, AIMS], [0.25, mergeP(AIMS, {musloIz: [-28, 8, 6], piernaIz: [20], root: [0, 0, 0.2]})], [1, mergeP(AIMS, {root: [0, 0, 0.22]})]]);
+  const side = s => ({torso: t => [0, spring(25 * s, 13, 0.2)(t), spring(-14 * s, 13, 0.2)(t)], cabeza: t => [0, spring(18 * s, 16, 0.15, 0.02)(t), spring(-10 * s, 16, 0.15, 0.02)(t)], pelvis: t => [0, 0, spring(6 * s, 12, 0.2)(t)]});
+  react('impacto_pecho_izq', 1.0, side(-1), [[0, AIMS], [0.3, mergeP(AIMS, {musloDe: [0, 0, -14], root: [-0.15, 0, 0]})], [1, mergeP(AIMS, {root: [-0.16, 0, 0]})]]);
+  react('impacto_pecho_der', 1.0, side(1), [[0, AIMS], [0.3, mergeP(AIMS, {musloIz: [0, 0, 14], root: [0.15, 0, 0]})], [1, mergeP(AIMS, {root: [0.16, 0, 0]})]]);
+  react('impacto_cabeza_frente', 0.8, {cabeza: t => [spring(-40, 20, 0.1)(t), 0, 0], torso: t => [spring(-10, 12, 0.15, 0.02)(t), 0, 0]});
+  react('impacto_cabeza_atras', 0.8, {cabeza: t => [spring(35, 20, 0.1)(t), 0, 0], torso: t => [spring(12, 12, 0.15, 0.02)(t), 0, 0]});
+  react('impacto_vientre', 1.4, {}, [[0, AIMS], [0.15, mergeP(STAND, {torso: [40], cabeza: [20], pelvis: [-8], brazoIz: [-60, 0, -20], antebrazoIz: [-100], brazoDe: [-60, 0, 20], antebrazoDe: [-100], musloIz: [-20], piernaIz: [30], musloDe: [-14], piernaDe: [24], W: {P: [-0.3, -0.3, 0.3], R: [40, 0, 40], g: [-1, -1]}})],
+    [1, mergeP(STAND, {torso: [32], cabeza: [16], pelvis: [-4], brazoIz: [-50, 0, -18], antebrazoIz: [-100], brazoDe: [-50, 0, 18], antebrazoDe: [-100], musloIz: [-18], piernaIz: [26], musloDe: [-12], piernaDe: [20], W: {P: [-0.3, -0.3, 0.3], R: [40, 0, 40], g: [-1, -1]}})]], [[0, 'impacto'], [0.2, 'quejido']]);
+  const armHit = (n, side2) => react(n, 1.2, {torso: t => [0, spring(12 * side2, 14, 0.15)(t), 0]}, [[0, AIMS], [0.12, mergeP(AIMS, side2 > 0 ? {brazoIz: [10, 0, 40], antebrazoIz: [-20], W: Object.assign({}, W_.CADERA, {g: [0.3, -1]})} : {brazoDe: [10, 0, -40], antebrazoDe: [-20], W: Object.assign({}, W_.PREV, {g: [-1, 0.8]})})],
+    [0.4, mergeP(STAND, side2 > 0 ? {brazoIz: [-20, 0, 10], antebrazoIz: [-60], torso: [12], W: Object.assign({}, W_.CADERA, {g: [0.3, -1]})} : {brazoDe: [-40, 30, -10], antebrazoDe: [-110], torso: [12], brazoIz: [-50, -40, 20], antebrazoIz: [-80], W: {P: [-0.3, -0.5, 0.2], R: [10, 0, 30], g: [-1, -1]}})],
+    [1, mergeP(STAND, side2 > 0 ? {brazoIz: [-20, 0, 10], antebrazoIz: [-60], torso: [8], W: Object.assign({}, W_.CADERA, {g: [0.3, -1]})} : {brazoDe: [-40, 30, -10], antebrazoDe: [-110], torso: [8], brazoIz: [-50, -40, 20], antebrazoIz: [-90], W: {P: [-0.3, -0.5, 0.2], R: [10, 0, 30], g: [-1, -1]}})]]);
+  armHit('impacto_brazo_izq', 1); armHit('impacto_brazo_der', -1); dropWeapon(S.impacto_brazo_der, 0.14, 60, -1); dropWeapon(S.impacto_vientre, 0.1, 60, 1);   // sueltan el fusil: cae al suelo
+  const legHit = (n, L) => { const a = L === 'Iz' ? 1 : -1, o = {}; o['muslo' + L] = [-85, 0, 4 * a]; o['pierna' + L] = [85]; const other = L === 'Iz' ? 'De' : 'Iz', o2 = {}; o2['muslo' + other] = [-8, 0, -4 * a]; o2['pierna' + other] = [95]; o2['pie' + other] = [72];
+    return react(n, 1.3, {}, [[0, AIMS], [0.1, mergeP(STAND, {torso: [20, 0, 10 * a], ['pierna' + L]: [40], ['muslo' + L]: [-20, 0, 6 * a], W: W_.PREV})], [0.4, mergeP(POSE_KNEEL, o, o2, {torso: [26, 0, 6 * a], brazoIz: [-20, 0, 0], W: Object.assign({}, W_.PREV, {g: [0.3, -1]})})],
+      [1, mergeP(POSE_KNEEL, o, o2, {torso: [22, 0, 4 * a], W: W_.PREV})]], [[0, 'impacto'], [0.35, 'rodilla']]); };
+  legHit('impacto_pierna_izq', 'De'); legHit('impacto_pierna_der', 'Iz');                // cae sobre la rodilla de la pierna herida
+  add('cojear', humanLocomotion(seq(1.3, true, [[0, mergeP(STAND, {W: W_.PREV})], [1, mergeP(STAND, {W: W_.PREV})]]), 'marcha', {amp: 0.6, lean: 10, shoulder: 0}));
+  addLayer(S.cojear, 'piernaDe', t => [-12 * Math.max(0, Math.sin(TAU * (t - 0.5)))]); addLayer(S.cojear, 'pelvis', t => [0, 0, 5 * Math.max(0, Math.sin(TAU * (t - 0.5)))]);
+  add('herido_grave', seq(3.2, true, [[0, mergeP(POSE_PRONE, {pelvis: [40, 0, 70], torso: [20, 0, 10], brazoIz: [-60, 40, 30], antebrazoIz: [-120], brazoDe: [-40, -40, -20], antebrazoDe: [-110], musloIz: [-60], piernaIz: [70], root: [0, -0.7, 0], W: {P: [-0.6, -0.4, 0.3], R: [80, 0, 80], g: [-1, -1]}})],
+    [0.5, mergeP(POSE_PRONE, {pelvis: [44, 0, 70], torso: [26, 0, 14], brazoIz: [-62, 40, 30], antebrazoIz: [-125], brazoDe: [-44, -40, -20], antebrazoDe: [-115], musloIz: [-66], piernaIz: [80], root: [0, -0.7, 0]})], [1, mergeP(POSE_PRONE, {pelvis: [40, 0, 70], torso: [20, 0, 10], brazoIz: [-60, 40, 30], antebrazoIz: [-120], brazoDe: [-40, -40, -20], antebrazoDe: [-110], musloIz: [-60], piernaIz: [70], root: [0, -0.7, 0]})]],
+    [[0, 'quejido'], [0.5, 'quejido']], {hide: {arma: [[0, 0]]}}));
+  settleRoot(S.herido_grave, 24, {rest: 0});
+  add('herido_leve', seq(2.4, false, [[0, AIMS], [0.08, mergeP(STAND, {torso: [16, 10, 0], brazoIz: [-30, -30, -10], antebrazoIz: [-110], W: Object.assign({}, W_.CADERA, {g: [0.3, -1]})})], [0.6, mergeP(STAND, {torso: [10, 6, 0], brazoIz: [-30, -30, -10], antebrazoIz: [-115], W: Object.assign({}, W_.CADERA, {g: [0.3, -1]})})], [1, ready]], [[0, 'impacto']]));
+  /* ---- muertes con variantes (pie fijo, sin atravesar el suelo, el fusil cae y rebota, pose final estable) ---- */
+  const death = (name, dur, keys, o) => {
+    const c = seq(dur, false, keys, [[0, 'impacto'], [o.thud || 0.7, 'golpe_suelo']], {hide: o.hide});
+    if (o.layers) Object.keys(o.layers).forEach(p => addLayer(c, p, t => o.layers[p](t * dur), 60));
+    settleRoot(c, 60, {rest: o.rest || 0.72, pin: o.pin});
+    if (c.tracks.armaP && o.drop != null) dropWeapon(c, o.drop, 60, o.dropSide || 1);
+    fixArms(c); settleRoot(c, 60, {rest: o.rest || 0.72});
+    add(name, c);
+    const fin = {}; Object.keys(c.tracks).forEach(k => { const b = [0, 0, 0]; if (k === 'agarre') { fin[k] = [[0, -1, -1]]; return; } _loopCur = false; sampleTrack(c.tracks[k], 1, b, 3); fin[k] = [[0, b[0], b[1], b[2]]]; });
+    const rb = [0, 0, 0]; sampleTrack(c.root, 1, rb, 3);
+    const still = mk(2.0, true, fin, [], {root: [[0].concat(rb)], still: true}); add('cuerpo_inerte_' + name.replace(/^muerte_/, ''), still);
+    return c; };
+  const DOWN_BACK = mergeP(STAND, {pelvis: [-88, 0, 6], torso: [-4], cabeza: [8, 24, 0], brazoDe: [-160, 0, -40], antebrazoDe: [-20], brazoIz: [-120, 0, 70], antebrazoIz: [-10], musloIz: [-8, 0, 10], piernaIz: [8], musloDe: [4, 0, -8], piernaDe: [12], pieIz: [14, 0, 28], pieDe: [12, 0, -26], root: [0, -0.78, -0.9]});
+  const DOWN_FRONT = mergeP(STAND, {pelvis: [86, 0, -4], torso: [6], cabeza: [-40, -40, 0], brazoDe: [-30, 0, -30], antebrazoDe: [-40], brazoIz: [-150, 0, 40], antebrazoIz: [-40], musloIz: [4, 0, 8], piernaIz: [20], musloDe: [-2, 0, -6], piernaDe: [6], pieIz: [62, 0, 6], pieDe: [60, 0, -6], root: [0, -0.8, 0.95]});
+  death('muerte_atras_pie', 1.6, [[0, AIMS], [0.08, mergeP(AIMS, {torso: [-14], cabeza: [-24], W: rotW(W_.APUNTA, 0, 20)})], [0.3, mergeP(STAND, {pelvis: [-12], torso: [-16], cabeza: [-20], musloIz: [-34], piernaIz: [50], musloDe: [-14], piernaDe: [36], brazoDe: [-90, 0, -30], brazoIz: [-60, 0, 40], root: [0, -0.15, -0.1]})],
+    [0.55, mergeP(STAND, {pelvis: [-55, 0, 4], torso: [-10], cabeza: [-12], musloIz: [-50], piernaIz: [70], musloDe: [-30], piernaDe: [50], brazoDe: [-140, 0, -40], brazoIz: [-110, 0, 60], root: [0, -0.5, -0.5]})], [0.7, DOWN_BACK], [0.78, mergeP(DOWN_BACK, {cabeza: [-4, 20, 0], brazoIz: [-130, 0, 60]})], [1, DOWN_BACK]],
+    {drop: 0.12, pin: ['De', 0.35]});
+  death('muerte_atras_rodilla', 1.4, [[0, AIMK], [0.1, mergeP(AIMK, {torso: [-10], cabeza: [-20]})], [0.45, mergeP(POSE_KNEEL, {pelvis: [-40], torso: [-14], brazoDe: [-120, 0, -30], brazoIz: [-80, 0, 40], root: [0, -0.5, -0.3]})],
+    [0.75, mergeP(DOWN_BACK, {musloIz: [-50, 0, 10], piernaIz: [110], pieIz: [40], root: [0, -0.78, -0.6]})], [1, mergeP(DOWN_BACK, {musloIz: [-45, 0, 14], piernaIz: [105], pieIz: [40], root: [0, -0.78, -0.6]})]], {drop: 0.1});
+  death('muerte_tumbado', 1.0, [[0, AIMP], [0.15, mergeP(AIMP, {torso: [-30], cabeza: [-70]})], [0.5, mergeP(POSE_PRONE, {torso: [-4], cabeza: [-10, -40, 0], brazoIz: [-150, 0, 40], antebrazoIz: [-30], brazoDe: [-90, 0, -40], antebrazoDe: [-20], W: AIMP.W})], [1, mergeP(POSE_PRONE, {torso: [0], cabeza: [-4, -45, 0], brazoIz: [-150, 0, 40], antebrazoIz: [-30], brazoDe: [-80, 0, -40], antebrazoDe: [-20], W: AIMP.W})]],
+    {drop: 0.12, thud: 0.4, rest: 0.5});
+  death('muerte_adelante', 1.5, [[0, AIMS], [0.1, mergeP(AIMS, {torso: [18], cabeza: [16]})], [0.35, mergeP(STAND, {pelvis: [10], torso: [26], cabeza: [10], musloIz: [-40], piernaIz: [70], musloDe: [-30], piernaDe: [80], pieDe: [30], brazoIz: [-40, 0, 20], brazoDe: [-40, 0, -20], root: [0, -0.3, 0.15]})],
+    [0.55, mergeP(STAND, {pelvis: [40], torso: [20], cabeza: [-10], musloIz: [-60], piernaIz: [100], musloDe: [-20], piernaDe: [100], pieDe: [60], brazoIz: [-110, 0, 30], antebrazoIz: [-40], brazoDe: [-100, 0, -30], antebrazoDe: [-40], root: [0, -0.5, 0.4]})],
+    [0.72, DOWN_FRONT], [0.8, mergeP(DOWN_FRONT, {cabeza: [-34, -40, 0]})], [1, DOWN_FRONT]], {drop: 0.1, dropSide: -1, pin: ['Iz', 0.3]});
+  [['iz', 1], ['de', -1]].forEach(([n, s]) => death('muerte_costado_' + n, 1.6, [[0, AIMS], [0.1, mergeP(AIMS, {torso: [0, 20 * s, -14 * s], cabeza: [0, 20 * s, -10 * s]})], [0.3, mergeP(STAND, {pelvis: [0, 30 * s, -18 * s], torso: [10, 20 * s, -12 * s], musloIz: [-30], piernaIz: [50], musloDe: [-30], piernaDe: [50], root: [0.1 * s, -0.2, 0]})],
+    [0.55, mergeP(STAND, {pelvis: [20, 60 * s, -60 * s], torso: [10, 10 * s, -10 * s], musloIz: [-50], piernaIz: [80], musloDe: [-40], piernaDe: [70], brazoIz: [-60, 0, 50], brazoDe: [-60, 0, -50], root: [0.35 * s, -0.55, 0.1]})],
+    [0.75, mergeP(STAND, {pelvis: [10, 80 * s, -88 * s], torso: [10, 0, 0], cabeza: [0, -10 * s, -20 * s], musloIz: [-40, 0, 6], piernaIz: [70], musloDe: [-20, 0, -6], piernaDe: [40], brazoIz: [-90, 0, 60], antebrazoIz: [-40], brazoDe: [-40, 0, -40], antebrazoDe: [-60], pieIz: [30], pieDe: [30], root: [0.7 * s, -0.82, 0.15]})],
+    [1, mergeP(STAND, {pelvis: [10, 80 * s, -90 * s], torso: [14, 0, 0], cabeza: [0, -14 * s, -24 * s], musloIz: [-44, 0, 6], piernaIz: [76], musloDe: [-22, 0, -6], piernaDe: [44], brazoIz: [-95, 0, 60], antebrazoIz: [-45], brazoDe: [-40, 0, -40], antebrazoDe: [-60], pieIz: [30], pieDe: [30], root: [0.72 * s, -0.84, 0.15]})]],
+    {drop: 0.12, dropSide: s, pin: [s > 0 ? 'Iz' : 'De', 0.25]}));
+  const slump = mergeP(POSE_KNEEL, {musloIz: [-5, 0, 10], piernaIz: [150], pieIz: [72], musloDe: [-5, 0, -10], piernaDe: [150], pieDe: [72], root: [0, -0.62, 0]});
+  death('muerte_rodillas', 1.8, [[0, AIMS], [0.12, mergeP(AIMS, {torso: [22], cabeza: [20]})], [0.4, mergeP(slump, {torso: [30], cabeza: [30], brazoIz: [-10, 0, 10], brazoDe: [-10, 0, -10], root: [0, -0.4, 0]})], [0.6, mergeP(slump, {torso: [36], cabeza: [40], brazoIz: [0, 0, 10], brazoDe: [0, 0, -10]})],
+    [0.68, mergeP(slump, {torso: [34], cabeza: [36]})], [1, mergeP(slump, {torso: [36], cabeza: [44], brazoIz: [4, 0, 12], brazoDe: [4, 0, -12]})]], {drop: 0.15, thud: 0.4, rest: 0.6});
+  death('muerte_rodillas_adelante', 2.0, [[0, AIMS], [0.15, mergeP(AIMS, {torso: [22], cabeza: [20]})], [0.4, mergeP(slump, {torso: [30], cabeza: [30], root: [0, -0.4, 0]})], [0.55, mergeP(slump, {torso: [36], cabeza: [40]})],
+    [0.8, mergeP(slump, {pelvis: [60], torso: [30], cabeza: [-20, -40, 0], brazoIz: [-90, 0, 30], antebrazoIz: [-40], brazoDe: [-60, 0, -30], antebrazoDe: [-60], root: [0, -0.62, 0.3]})], [1, mergeP(slump, {pelvis: [70], torso: [24], cabeza: [-30, -40, 0], brazoIz: [-100, 0, 30], antebrazoIz: [-40], brazoDe: [-60, 0, -30], antebrazoDe: [-60], root: [0, -0.64, 0.4]})]],
+    {drop: 0.18, thud: 0.8, rest: 0.82});
+  const wall = mergeP(STAND, {pelvis: [-20], torso: [-14, 0, 6], cabeza: [20, 20, 10], musloIz: [-80, 0, 10], piernaIz: [70], musloDe: [-70, 0, -10], piernaDe: [50], brazoIz: [0, 0, 20], antebrazoIz: [-10], brazoDe: [0, 0, -14], antebrazoDe: [-30], root: [0, -0.55, -0.2]});
+  death('muerte_muro', 2.2, [[0, AIMS], [0.1, mergeP(AIMS, {torso: [-20], cabeza: [-20], root: [0, 0, -0.12]})], [0.3, mergeP(STAND, {pelvis: [-14], torso: [-16], cabeza: [-6], brazoIz: [-20, 0, 30], brazoDe: [-20, 0, -30], root: [0, -0.05, -0.2]})],
+    [0.75, wall], [0.82, mergeP(wall, {cabeza: [26, 20, 14]})], [1, mergeP(wall, {cabeza: [34, 24, 16]})]], {drop: 0.1, rest: 0.75});      // espalda contra el muro y resbala hasta quedar sentado
+  death('muerte_giro', 1.6, [[0, AIMS], [0.12, mergeP(AIMS, {pelvis: [0, 40, 0], torso: [0, 30, -10]})], [0.35, mergeP(STAND, {pelvis: [10, 110, -10], torso: [10, 20, -10], musloIz: [-30], piernaIz: [50], brazoIz: [-80, 0, 70], brazoDe: [-40, 0, -50], root: [0.1, -0.2, 0]})],
+    [0.7, mergeP(DOWN_FRONT, {pelvis: [86, 170, -4]})], [1, mergeP(DOWN_FRONT, {pelvis: [86, 175, -6], cabeza: [-40, 40, 0]})]], {drop: 0.14, dropSide: 1, pin: ['Iz', 0.2]});
+  // los nombres antiguos (caer_muerto_*) siguen existiendo y apuntan a sus clips v4
+  /* ---- alias para la gama baja: sin rejilla ni variantes ---- */
+  if (TROOP_LITE) { ['estocada_alta', 'golpe_culata'].forEach(n => alias(n, 'estocada_baja'));
+    [['muerte_muro', 'muerte_atras_pie'], ['muerte_giro', 'muerte_costado_iz'], ['muerte_rodillas_adelante', 'muerte_rodillas'], ['muerte_costado_de', 'muerte_costado_iz']].forEach(([a, b]) => { alias(a, b); alias('cuerpo_inerte_' + a.slice(7), 'cuerpo_inerte_' + b.slice(7)); });
+    ['impacto_pecho_atras', 'impacto_pecho_izq', 'impacto_pecho_der', 'impacto_cabeza_atras'].forEach(n => alias(n, 'impacto_pecho_frente')); }
+  // reposo «preparado» (fusil cruzado): punto de partida y llegada de las transiciones de postura
+  const S2 = CLIPS.soldado; S2.idle_preparado = breatheC(seq(4.0, true, [[0, st], [0.5, mergeP(st, {cabeza: [2, 10, 0], torso: [1, 3, 0]})], [1, st]]));
+  // costuras exactas: el primer fotograma de una transición = el del clip de origen y el último = el del clip de destino
+  const at0 = (c, k, t) => { const b = [0, 0, 0]; _loopCur = c.loop !== false; const tr = k === 'root' ? c.root : c.tracks[k]; if (!tr) return null; sampleTrack(tr, t, b, 3); _loopCur = false; return b; };
+  const seam = (tc, src, srcT, end) => { const keys = new Set(Object.keys(tc.tracks).concat(Object.keys(src.tracks))); keys.add('root');
+    keys.forEach(k => { const v = at0(src, k, srcT) || (k === 'agarre' ? null : [0, 0, 0]); if (!v) return; let tr = k === 'root' ? tc.root : tc.tracks[k];
+      if (!tr) tr = [[0, 0, 0, 0], [1, 0, 0, 0]]; tr = tr.map(q => q.slice()); const i = end ? tr.length - 1 : 0; if (tr[i][0] !== (end ? 1 : 0)) tr.splice(end ? tr.length : 0, 0, [end ? 1 : 0, 0, 0, 0]);
+      const j = end ? tr.length - 1 : 0; tr[j] = [tr[j][0], v[0], v[1], v[2]]; if (k === 'root') tc.root = tr; else tc.tracks[k] = tr; }); };
+  [['a_rodilla', 'idle_preparado', 'idle_rodilla'], ['de_rodilla', 'idle_rodilla', 'idle_preparado'], ['a_tumbado', 'idle_preparado', 'idle_tumbado'], ['de_tumbado', 'idle_tumbado', 'idle_preparado']].forEach(([tn, a, b]) => {
+    if (!S2[tn] || !S2[a] || !S2[b]) return; seam(S2[tn], S2[a], 0, false); seam(S2[tn], S2[b], 0, true); });
+})();
+function breatheC(c) { breathe(c, 1); return c; }
+// nombre del clip de puntería más cercano. post: 'pie' | 'rodilla' | 'tumbado'; fuego: rejilla de disparo 3 × 3
+function troopAimClip(kind, era, yaw, pitch, o) {
+  o = o || {}; const post = o.postura || 'pie', K = KINDS[kind] || {rig: kind}, C = CLIPS[K.rig] || {};
+  if (TROOP_LITE) return o.fuego ? (C.apuntar_y_disparar ? 'apuntar_y_disparar' : 'disparar_D') : 'apuntar';
+  const yaws = o.fuego ? [['i35', 35], ['c', 0], ['d35', -35]] : AIM_Y, pits = o.fuego ? [['ab22', -22.5], ['c', 0], ['ar22', 22.5]] : AIM_P;
+  const near = (L, v) => L.reduce((a, b) => Math.abs(b[1] - v) < Math.abs(a[1] - v) ? b : a)[0];
+  const n = (o.fuego ? 'disparar_' : 'apuntar_') + post + '_' + near(yaws, yaw || 0) + '_' + near(pits, pitch || 0);
+  return C[n] ? n : (o.fuego ? 'apuntar_y_disparar' : 'apuntar');
+}
+
+/* ================= v5: modelo en primera persona (viewmodel) =================
+   Una sola copia, independiente de los lotes instanciados: brazos, manos, arma con piezas móviles (cerrojo, martillo y batería, baqueta,
+   cargador o peine, palanca, corredera) y un trozo de pecho con el correaje. Espacio de cámara de three.js: x a la derecha, y arriba,
+   −z hacia delante. Se dibuja en un segundo pase con su propia cámara (near 0,05), así nunca lo recorta el escenario.
+   Animación: clips de pistas (arma, manos, mecanismos, cámara, fov) con la interpolación cúbica monótona del horneado; los brazos se
+   resuelven cada fotograma por IK de dos huesos desde hombros fijos hasta la muñeca de cada mano, y las manos van sujetas a un punto
+   del arma (empuñadura, guardamanos, cerrojo, baqueta…) o libres en el espacio de cámara, con transición suave entre agarres.
+   TROOP_ARMS: armas por nación y época (datos y aspecto). Fuentes: manuales de instrucción (Manual of Exercise 1833, Infantry Drill 1862,
+   Exerzier-Reglement 1888/1906, Field Service Pocket Book 1914) y fichas técnicas; las simplificaciones están anotadas en INTEGRACION. */
+const TROOP_ARMS = {
+  // modelo: aspecto (vmWeapon); accion: tipo de recarga; recarga: segundos en el juego (equilibrio); recargaReal: aproximada histórica
+  mosquete_chispa: {nombre: 'Mosquete de chispa (Charleville / Brown Bess)', calibre: '17,5–19 mm', cadencia: 3, capacidad: 1, accion: 'avancarga', ignicion: 'chispa', recarga: 3.2, recargaReal: 20, alcance: 100, bayoneta: 'cubo'},
+  mosquete_percusion: {nombre: 'Mosquete de percusión (conversión 1840)', calibre: '17,5 mm', cadencia: 3, capacidad: 1, accion: 'avancarga', ignicion: 'piston', recarga: 3.2, recargaReal: 18, alcance: 150, bayoneta: 'cubo'},
+  rayado_minie: {nombre: 'Fusil rayado de percusión (Enfield 1853 / Springfield 1861 / Lorenz)', calibre: '14,7–15,2 mm', cadencia: 3, capacidad: 1, accion: 'avancarga', ignicion: 'piston', recarga: 2.6, recargaReal: 20, alcance: 450, bayoneta: 'cubo'},
+  dreyse: {nombre: 'Fusil de aguja Dreyse M1841', calibre: '15,4 mm', cadencia: 10, capacidad: 1, accion: 'cerrojo_simple', recarga: 2.6, recargaReal: 6, alcance: 400, bayoneta: 'cubo'},
+  chassepot: {nombre: 'Chassepot M1866', calibre: '11 mm', cadencia: 10, capacidad: 1, accion: 'cerrojo_simple', recarga: 2.6, recargaReal: 6, alcance: 600, bayoneta: 'sable'},
+  mauser71: {nombre: 'Mauser M1871/84', calibre: '11 mm', cadencia: 12, capacidad: 1, accion: 'cerrojo_simple', recarga: 2.0, recargaReal: 5, alcance: 600, bayoneta: 'sable'},
+  lebel: {nombre: 'Lebel M1886', calibre: '8 mm', cadencia: 12, capacidad: 8, accion: 'cerrojo_tubo', recarga: 2.0, recargaReal: 25, alcance: 700, bayoneta: 'aguja'},
+  mosin: {nombre: 'Mosin-Nagant M1891 / 91-30', calibre: '7,62 mm', cadencia: 12, capacidad: 5, accion: 'cerrojo_peine', recarga: 1.6, recargaReal: 5, alcance: 800, bayoneta: 'aguja'},
+  trapdoor: {nombre: 'Springfield M1873 «trapdoor»', calibre: '11,6 mm (.45-70)', cadencia: 10, capacidad: 1, accion: 'trampilla', recarga: 2.0, recargaReal: 5, alcance: 600, bayoneta: 'cubo'},
+  martini: {nombre: 'Martini-Henry Mk II', calibre: '11,4 mm (.577/450)', cadencia: 10, capacidad: 1, accion: 'palanca', recarga: 2.0, recargaReal: 5, alcance: 600, bayoneta: 'sable'},
+  lee: {nombre: 'Lee-Metford / Lee-Enfield (SMLE)', calibre: '7,7 mm (.303)', cadencia: 15, capacidad: 10, accion: 'cerrojo_peine', recarga: 1.6, recargaReal: 6, alcance: 800, bayoneta: 'sable'},
+  mauser98: {nombre: 'Gewehr 98 / Kar 98k', calibre: '7,92 mm', cadencia: 12, capacidad: 5, accion: 'cerrojo_peine', recarga: 1.6, recargaReal: 5, alcance: 800, bayoneta: 'sable'},
+  mannlicher: {nombre: 'Mannlicher M1895', calibre: '8 mm', cadencia: 15, capacidad: 5, accion: 'cerrojo_peine', recarga: 1.6, recargaReal: 4, alcance: 800, bayoneta: 'sable'},
+  springfield03: {nombre: 'Springfield M1903', calibre: '7,62 mm (.30-06)', cadencia: 12, capacidad: 5, accion: 'cerrojo_peine', recarga: 1.6, recargaReal: 5, alcance: 800, bayoneta: 'sable'},
+  garand: {nombre: 'M1 Garand', calibre: '7,62 mm (.30-06)', cadencia: 30, capacidad: 8, accion: 'semi_enbloc', recarga: 1.0, recargaReal: 3, alcance: 450, bayoneta: 'sable'},
+  svt40: {nombre: 'SVT-40 / Gewehr 43', calibre: '7,62 / 7,92 mm', cadencia: 25, capacidad: 10, accion: 'semi_cargador', recarga: 1.0, recargaReal: 3, alcance: 450, bayoneta: 'sable'},
+  mp40: {nombre: 'MP 40', calibre: '9 mm', cadencia: 500, capacidad: 32, accion: 'subfusil', recarga: 1.0, recargaReal: 3, alcance: 100, bayoneta: null, cargador: 'abajo'},
+  sten: {nombre: 'Sten Mk II', calibre: '9 mm', cadencia: 500, capacidad: 32, accion: 'subfusil', recarga: 1.0, recargaReal: 3, alcance: 100, bayoneta: null, cargador: 'izquierda'},
+  ppsh: {nombre: 'PPSh-41', calibre: '7,62 mm', cadencia: 900, capacidad: 71, accion: 'subfusil', recarga: 1.0, recargaReal: 4, alcance: 120, bayoneta: null, cargador: 'tambor'},
+  thompson: {nombre: 'Thompson M1928 / M1', calibre: '11,4 mm (.45)', cadencia: 700, capacidad: 30, accion: 'subfusil', recarga: 1.0, recargaReal: 3, alcance: 100, bayoneta: null, cargador: 'abajo'},
+  pistola: {nombre: 'Pistola de oficial (Luger P08 / Webley / Lebel 1892 / M1911)', calibre: '9–11,4 mm', cadencia: 30, capacidad: 8, accion: 'pistola', recarga: 1.2, recargaReal: 3, alcance: 40, bayoneta: null}
+};
+// arma por nación y época (rol 'fusil' | 'subfusil' | 'semi' | 'pistola'); GEN para el resto
+const TROOP_ARMS_NAT = {
+  A: {GEN: 'mosquete_chispa', USA: 'mosquete_percusion', GBR: 'mosquete_chispa', PRU: 'dreyse'},
+  B: {GEN: 'rayado_minie', PRU: 'dreyse', GER: 'dreyse', FRA: 'chassepot'},
+  C: {GEN: 'mauser71', GER: 'mauser71', PRU: 'mauser71', FRA: 'lebel', RUS: 'mosin', GBR: 'martini', USA: 'trapdoor', AUS: 'mannlicher'},
+  D: {GEN: 'mauser98', GER: 'mauser98', FRA: 'lebel', RUS: 'mosin', GBR: 'lee', USA: 'springfield03', AUS: 'mannlicher', ITA: 'mannlicher'},
+  E: {GEN: 'mauser98', GER: 'mauser98', FRA: 'lebel', RUS: 'mosin', SOV: 'mosin', GBR: 'lee', USA: 'garand', ITA: 'mannlicher', JAP: 'mauser98'}
+};
+const TROOP_ARMS_E = {subfusil: {GEN: 'mp40', GER: 'mp40', GBR: 'sten', RUS: 'ppsh', SOV: 'ppsh', USA: 'thompson'}, semi: {GEN: 'svt40', USA: 'garand', GER: 'svt40', SOV: 'svt40', RUS: 'svt40'}};
+function troopArm(nation, era, rol) {
+  if (rol === 'pistola') return 'pistola';
+  if (era === 'E' && TROOP_ARMS_E[rol]) return TROOP_ARMS_E[rol][nation] || TROOP_ARMS_E[rol].GEN;
+  const t = TROOP_ARMS_NAT[era] || TROOP_ARMS_NAT.D; return t[nation] || t.GEN;
+}
+
+/* ---------- geometría ---------- */
+// cada pieza en su propio GeoBuilder (con su pivote); los colores de zona salen de la paleta de la nación
+const VMC = {madera: 0x6a4428, maderaO: 0x4a2e1a, acero: 0x3a3c40, pavon: 0x24262a, laton: 0xb8954a, hierro: 0x55575a, cuero: 0x5a3a20, latonO: 0x8a6a30, piel: 0xd8a882, pielO: 0xb98a66, cobre: 0xa0603a, papel: 0xd8ccb0, verdoso: 0x4e5240};
+function vmRifleSpec(id) {
+  const A = TROOP_ARMS[id] || TROOP_ARMS.mauser98, acc = A.accion, long = acc === 'avancarga';
+  const s = {id, acc, L: long ? -1.12 : id === 'lee' || id === 'mosin' || id === 'lebel' ? -0.92 : -0.86, butt: 0.36, bore: 0.05, ign: A.ignicion, bands: long ? 3 : id === 'lee' ? 1 : 2, pistol: ['mauser98', 'springfield03', 'garand', 'svt40', 'lee', 'mannlicher'].includes(id),
+    full: id === 'lee', mag: ['mauser98', 'springfield03', 'mannlicher'].includes(id) ? 'interno' : id === 'mosin' ? 'saliente' : id === 'lee' ? 'caja' : id === 'svt40' ? 'caja' : null, bay: A.bayoneta,
+    wood: id === 'lee' || id === 'garand' ? VMC.madera : VMC.maderaO, metal: acc === 'avancarga' ? VMC.hierro : VMC.pavon};
+  s.sight = {rear: [0, s.bore + 0.03, -0.22], front: [0, s.bore + 0.032, s.L + 0.03]};
+  s.grips = {empunadura: {p: [0, 0, 0], r: [0, 0, 0]}, guardamanos: {p: [0, s.bore - 0.035, long ? -0.42 : -0.36], r: [0, 0, 0]}, boca: {p: [0, s.bore + 0.02, s.L + 0.02], r: [-90, 0, 0]},
+    cerrojo: {p: [0.075, s.bore - 0.005, 0.04], r: [0, 0, 0]}, martillo: {p: [0.03, s.bore + 0.01, 0.06], r: [0, 0, 0]}, cargador: {p: [0, s.bore - 0.06, -0.12], r: [0, 0, 0]}};
+  return s;
+}
+function vmBuildRifle(s) {
+  const B = new GeoBuilder(), F = Z.FIX, by = s.bore, L = s.L, W = s.wood, M = s.metal;
+  // culata: perfil por secciones (cantonera, garganta, empuñadura, caja, guardamanos)
+  const st = s.pistol ? [[s.butt, 0.022, 0.07, 0, -0.045], [0.22, 0.02, 0.055, 0, -0.03], [0.07, 0.018, 0.032, 0, -0.012], [0.0, 0.019, 0.03, 0, -0.012], [-0.06, 0.024, 0.03, 0, 0.0], [-0.2, 0.024, 0.028, 0, 0.02]]
+    : [[s.butt, 0.022, 0.075, 0, -0.06], [0.2, 0.02, 0.055, 0, -0.035], [0.06, 0.017, 0.028, 0, -0.005], [0.0, 0.018, 0.026, 0, 0.0], [-0.06, 0.024, 0.03, 0, 0.012], [-0.2, 0.024, 0.026, 0, 0.022]];
+  const fore = s.full ? [[-0.2, 0.024, 0.028, 0, 0.02], [L + 0.03, 0.021, 0.022, 0, by - 0.01]] : [[-0.2, 0.024, 0.026, 0, 0.022], [L + (s.acc === 'avancarga' ? 0.1 : 0.16), 0.019, 0.019, 0, by - 0.012]];
+  B.loft(0, F, W, st.concat(fore.slice(1)).map(r => [r[0], r[1], r[2], r[3], r[4]]).sort((a, b) => a[0] - b[0]), 18, {axis: 'z', capA: true, capB: true, p: 2.6});
+  B.loft(0, F, s.acc === 'avancarga' ? VMC.laton : M, [[s.butt - 0.008, 0.023, 0.077, 0, s.pistol ? -0.045 : -0.06], [s.butt + 0.004, 0.022, 0.074, 0, s.pistol ? -0.045 : -0.06]], 18, {axis: 'z', capB: true, p: 2.6});   // cantonera
+  // cañón y bandas
+  B.loft(0, F, M, [[0.02, 0.016, 0.016, 0, by], [-0.1, 0.0145, 0.0145, 0, by], [-0.4, 0.013, 0.013, 0, by], [L + 0.05, 0.0112, 0.0112, 0, by], [L, 0.011, 0.011, 0, by]], 20, {axis: 'z', capA: true});
+  B.loft(0, F, 0x0a0a0a, [[L - 0.02, 0.0065, 0.0065, 0, by], [L + 0.0005, 0.0065, 0.0065, 0, by]], 8, {axis: 'z', inside: true, capA: true});
+  B.loft(0, F, M, [[L - 0.0005, 0.0068, 0.0068, 0, by], [L, 0.011, 0.011, 0, by]], 20, {axis: 'z', nrm: [0, 0, -1]});
+  for (let i = 0; i < s.bands; i++) { const z = L + 0.12 + i * ((-0.2 - (L + 0.12)) / Math.max(1, s.bands)); B.loft(0, F, s.acc === 'avancarga' && i === 0 ? VMC.laton : M, [[z - 0.012, 0.027, 0.03, 0, by - 0.01], [z - 0.009, 0.028, 0.031, 0, by - 0.01], [z + 0.009, 0.028, 0.031, 0, by - 0.01], [z + 0.012, 0.027, 0.03, 0, by - 0.01]], 16, {axis: 'z', p: 2.4}); }
+  // miras
+  B.box(0, F, M, [0, by + 0.017, L + 0.03], [0.004, 0.012, 0.012]);                                                         // punto de mira
+  if (s.acc !== 'avancarga' || s.id === 'rayado_minie') { B.box(0, F, M, [0, by + 0.016, -0.215], [0.02, 0.008, 0.06], {taper: 0.1}); B.box(0, F, M, [0, by + 0.022, -0.2], [0.018, 0.005, 0.03], {rot: [-6, 0, 0]}); B.box(0, F, M, [0.0065, by + 0.0285, -0.22], [0.005, 0.006, 0.004]); B.box(0, F, M, [-0.0065, by + 0.0285, -0.22], [0.005, 0.006, 0.004]); }   // alza con muesca
+  // guardamonte y disparador
+  B.tube(0, F, M, [0, -0.026, 0.03], [0, -0.07, -0.02], [[0, 0.005], [1, 0.005]], 4); B.tube(0, F, M, [0, -0.07, -0.02], [0, -0.07, -0.09], [[0, 0.005], [1, 0.005]], 4); B.tube(0, F, M, [0, -0.07, -0.09], [0, -0.03, -0.11], [[0, 0.005], [1, 0.005]], 4);
+  B.box(0, F, M, [0, -0.045, -0.04], [0.004, 0.035, 0.006], {rot: [-15, 0, 0]});
+  // anillas de la correa y correa colgando
+  B.loft(0, F, M, [[-0.006, 0.012, 0.012], [0.006, 0.012, 0.012]], 6, {axis: 'x', at: [0, -0.04, 0.2]});
+  B.strap(0, F, VMC.cuero, [[-0.026, -0.05, 0.2], [-0.03, -0.09, 0.0], [-0.03, -0.1, -0.25], [-0.028, -0.045, L + 0.32]], 0.022, [-1, 0, 0]); B.strap(0, F, VMC.cuero, [[-0.024, -0.045, L + 0.32], [-0.028, -0.1, -0.25], [-0.028, -0.09, 0.0], [-0.024, -0.05, 0.2]], 0.022, [1, 0, 0]);
+  B.loft(0, F, M, [[-0.006, 0.01, 0.01], [0.006, 0.01, 0.01]], 8, {axis: 'x', at: [0, by - 0.03, L + 0.32]});   // anilla delantera
+  if (s.mag === 'saliente') B.box(0, F, M, [0, -0.045, -0.07], [0.03, 0.04, 0.09], {taper: 0.15});
+  if (s.mag === 'caja') B.box(0, F, M, [0, -0.06, -0.08], [0.03, 0.07, 0.08], {taper: 0.1});
+  // cajón de mecanismos / llave
+  if (s.acc === 'avancarga') {
+    B.box(0, F, VMC.hierro, [0.022, by - 0.005, 0.0], [0.006, 0.035, 0.13], {taper: 0.15});                                // pletina
+    if (s.ign === 'chispa') { B.box(0, F, M, [0.03, by + 0.012, -0.045], [0.02, 0.012, 0.03]); }                          // cazoleta
+    else B.tube(0, F, M, [0.02, by + 0.006, -0.03], [0.03, by + 0.022, -0.03], [[0, 0.004], [1, 0.0035]], 4);             // chimenea del pistón
+  } else { B.loft(0, F, M, [[0.06, 0.019, 0.02, 0, by], [0.045, 0.0205, 0.0215, 0, by], [-0.115, 0.0205, 0.0215, 0, by], [-0.13, 0.019, 0.02, 0, by]], 16, {axis: 'z', capA: true, capB: true});   // cajón
+    [0.03, -0.1].forEach(z => B.loft(0, F, 0x8a8c90, [[-0.002, 0.004, 0.004], [0.002, 0.004, 0.004]], 8, {axis: 'x', at: [0.021, by - 0.006, z], capB: true})); }   // tornillos del cajón
+  if (s.bay === 'cubo' || s.bay === 'aguja' || s.bay === 'sable') {                                                      // bayoneta calada
+    const z0 = L + 0.05, len = s.bay === 'sable' ? 0.42 : s.bay === 'aguja' ? 0.5 : 0.45;
+    B.loft(0, F, M, [[z0 + 0.06, 0.014, 0.014, 0, by], [z0 - 0.01, 0.014, 0.014, 0, by]], 8, {axis: 'z'});
+    if (s.bay === 'sable') { B.box(0, F, M, [0, by - 0.025, z0 - 0.02], [0.012, 0.04, 0.03]); B.box(0, F, 0xb8bcc0, [0, by - 0.035, z0 - 0.03 - len / 2], [0.004, 0.026, len], {taper: 0.6}); }
+    else { B.tube(0, F, M, [0, by, z0], [0, by - 0.03, z0 - 0.02], [[0, 0.006], [1, 0.006]], 4); B.tube(0, F, 0xb8bcc0, [0, by - 0.03, z0 - 0.02], [0, by - 0.03, z0 - 0.02 - len], [[0, 0.009], [1, 0.001]], 3); }
+  }
+  return B;
+}
+function vmBuildMoving(s) {   // piezas móviles: {cerrojo, martillo, bateria, baqueta, palanca, cargador}
+  const out = {}, F = Z.FIX, by = s.bore, M = s.metal;
+  if (s.acc.startsWith('cerrojo') || s.acc === 'semi_enbloc' || s.acc === 'semi_cargador') {
+    const b = new GeoBuilder(); b.loft(0, F, 0x8a8c90, [[0.1, 0.0085, 0.0085], [-0.08, 0.0085, 0.0085]], 8, {axis: 'z', capA: true, capB: true});   // eje del cerrojo (pivote en el eje del ánima)
+    if (s.acc !== 'semi_enbloc' && s.acc !== 'semi_cargador') { b.tube(0, F, 0x8a8c90, [0.0, 0.0, 0.06], [0.065, -0.012, 0.075], [[0, 0.005], [1, 0.005]], 5); b.loft(0, F, 0x8a8c90, [[-0.012, 0.012, 0.012], [0.012, 0.012, 0.012]], 8, {axis: 'x', at: [0.075, -0.014, 0.077], capA: true, capB: true}); }   // manilla y bola
+    else b.box(0, F, M, [0.03, 0.0, 0.03], [0.03, 0.012, 0.03]);                                                           // palanca de montar del Garand / SVT
+    out.cerrojo = {g: b, at: [0, by, 0]};
+  }
+  if (s.acc === 'avancarga') {
+    const h = new GeoBuilder(); if (s.ign === 'chispa') { h.box(0, F, M, [0, 0.03, -0.01], [0.008, 0.06, 0.012], {rot: [-30, 0, 0]}); h.box(0, F, 0x2a2a2a, [0, 0.055, -0.03], [0.012, 0.012, 0.012]); }   // pie de gato con pedernal
+    else { h.box(0, F, M, [0, 0.028, -0.012], [0.008, 0.05, 0.012], {rot: [-25, 0, 0]}); h.box(0, F, M, [0, 0.05, -0.03], [0.012, 0.01, 0.02]); }   // martillo del pistón
+    out.martillo = {g: h, at: [0.03, by - 0.02, 0.03]};
+    if (s.ign === 'chispa') { const f = new GeoBuilder(); f.box(0, F, M, [0, 0.02, 0], [0.018, 0.04, 0.006]); out.bateria = {g: f, at: [0.03, by + 0.005, -0.06]}; }
+    const r = new GeoBuilder(); r.loft(0, F, s.ign === 'chispa' ? 0x9a9a9a : 0x8a8c90, [[0, 0.004, 0.004], [-0.95, 0.004, 0.004], [-0.97, 0.007, 0.007]], 6, {axis: 'z', capA: true, capB: true}); out.baqueta = {g: r, at: [0, by - 0.024, L_(s) + 0.02]};
+  }
+  if (s.acc === 'trampilla') { const t = new GeoBuilder(); t.box(0, F, M, [0, 0.0, 0.05], [0.036, 0.03, 0.11]); t.box(0, F, M, [0.012, 0.02, 0.1], [0.008, 0.04, 0.012]); out.cerrojo = {g: t, at: [0, by, -0.08]}; }   // trampilla (gira hacia delante)
+  if (s.acc === 'palanca') { const p = new GeoBuilder(); p.tube(0, F, M, [0, 0, 0], [0, -0.04, 0.16], [[0, 0.006], [1, 0.005]], 5); out.palanca = {g: p, at: [0, -0.03, -0.06]};
+    const bl = new GeoBuilder(); bl.box(0, F, M, [0, 0, -0.03], [0.034, 0.03, 0.08]); out.cerrojo = {g: bl, at: [0, by, -0.02]}; }
+  if (s.mag === 'caja' || s.acc === 'semi_cargador') { const m = new GeoBuilder(); m.box(0, F, M, [0, -0.035, 0], [0.028, 0.07, 0.075], {taper: 0.1}); out.cargador = {g: m, at: [0, -0.03, -0.08]}; }
+  return out;
+}
+function L_(s) { return s.L; }
+// subfusiles y pistola
+function vmBuildSMG(id) {
+  const B = new GeoBuilder(), F = Z.FIX, P = VMC.pavon, out = {}, by = 0.04, A = TROOP_ARMS[id];
+  const len = id === 'ppsh' || id === 'thompson' ? -0.5 : -0.46;
+  B.loft(0, F, P, [[0.06, 0.022, 0.024, 0, by], [len + 0.15, 0.022, 0.024, 0, by]], 10, {axis: 'z', capA: true, capB: true});                         // cajón
+  B.loft(0, F, P, [[len + 0.15, 0.011, 0.011, 0, by], [len, 0.01, 0.01, 0, by]], 10, {axis: 'z', capB: true});                                           // cañón
+  if (id === 'ppsh') B.loft(0, F, P, [[-0.1, 0.03, 0.03, 0, by], [len + 0.02, 0.028, 0.028, 0, by]], 10, {axis: 'z', capB: true});                       // camisa perforada
+  if (id === 'ppsh' || id === 'thompson') B.loft(0, F, VMC.madera, [[0.36, 0.022, 0.07, 0, -0.05], [0.12, 0.02, 0.05, 0, -0.02], [0.02, 0.02, 0.03, 0, 0.0], [-0.12, 0.024, 0.03, 0, 0.0], [-0.2, 0.022, 0.026, 0, 0.01]], 10, {axis: 'z', capA: true, capB: true, p: 2.6});
+  else if (id === 'mp40') { B.tube(0, F, P, [0, -0.02, 0.06], [0, 0.0, 0.32], [[0, 0.007], [1, 0.007]], 5); B.tube(0, F, P, [0, 0.02, 0.06], [0, 0.0, 0.32], [[0, 0.007], [1, 0.007]], 5); B.box(0, F, P, [0, 0.0, 0.33], [0.04, 0.09, 0.02]); B.box(0, F, 0x2a2018, [0, -0.06, 0.0], [0.03, 0.09, 0.04], {rot: [12, 0, 0]}); }
+  else { B.tube(0, F, P, [0, -0.02, 0.06], [0, -0.01, 0.32], [[0, 0.008], [1, 0.008]], 5); B.box(0, F, P, [0, -0.01, 0.33], [0.03, 0.07, 0.02]); }   // Sten: culata de tubo
+  B.tube(0, F, P, [0, -0.02, 0.03], [0, -0.06, -0.04], [[0, 0.004], [1, 0.004]], 4); B.box(0, F, P, [0, -0.045, -0.01], [0.004, 0.03, 0.006]);
+  B.box(0, F, P, [0, by + 0.028, len + 0.03], [0.004, 0.012, 0.01]); B.box(0, F, P, [0, by + 0.03, 0.02], [0.02, 0.014, 0.01]);
+  const m = new GeoBuilder();
+  if (A.cargador === 'tambor') m.loft(0, F, P, [[-0.022, 0.07, 0.07], [0.022, 0.07, 0.07]], 14, {axis: 'x', at: [0, -0.07, 0], capA: true, capB: true});
+  else if (A.cargador === 'izquierda') m.box(0, F, P, [-0.11, 0, 0], [0.2, 0.03, 0.035]);
+  else m.box(0, F, P, [0, -0.11, 0], [0.026, 0.2, 0.036], {taper: 0.05});
+  out.cargador = {g: m, at: [A.cargador === 'izquierda' ? -0.02 : 0, by - 0.02, -0.08]};
+  const c = new GeoBuilder(); c.box(0, F, 0x8a8c90, [0.02, 0, 0], [0.025, 0.01, 0.012]); out.cerrojo = {g: c, at: [0.02, by, -0.02]};
+  const s = {id, acc: 'subfusil', L: len, bore: by, butt: 0.33, sight: {rear: [0, by + 0.037, 0.02], front: [0, by + 0.034, len + 0.03]},
+    grips: {empunadura: {p: [0, 0, 0], r: [0, 0, 0]}, guardamanos: {p: [0, A.cargador === 'abajo' ? -0.03 : by - 0.03, A.cargador === 'abajo' ? -0.08 : -0.24], r: [0, 0, 0]}, cerrojo: {p: [0.045, by, -0.02], r: [0, 0, 0]}, cargador: {p: A.cargador === 'izquierda' ? [-0.15, by, -0.08] : [0, -0.13, -0.08], r: [0, 0, 0]}}};
+  return {body: B, moving: out, spec: s};
+}
+function vmBuildPistol() {
+  const B = new GeoBuilder(), F = Z.FIX, P = VMC.pavon, out = {};
+  B.box(0, F, 0x2a2018, [0, -0.045, 0.012], [0.028, 0.1, 0.04], {rot: [14, 0, 0]}); B.box(0, F, P, [0, 0.015, -0.06], [0.026, 0.03, 0.15]);
+  B.tube(0, F, P, [0, -0.015, 0.0], [0, -0.03, -0.04], [[0, 0.004], [1, 0.004]], 4);
+  const sl = new GeoBuilder(); sl.box(0, F, P, [0, 0, -0.06], [0.028, 0.026, 0.17]); sl.box(0, F, P, [0, 0.016, -0.14], [0.004, 0.008, 0.008]); out.cerrojo = {g: sl, at: [0, 0.035, 0]};
+  const m = new GeoBuilder(); m.box(0, F, P, [0, -0.05, 0], [0.022, 0.1, 0.03]); out.cargador = {g: m, at: [0, -0.04, 0.014]};
+  return {body: B, moving: out, spec: {id: 'pistola', acc: 'pistola', L: -0.16, bore: 0.035, butt: 0.0, sight: {rear: [0, 0.055, 0.02], front: [0, 0.056, -0.14]},
+    grips: {empunadura: {p: [0, 0, 0], r: [0, 0, 0]}, guardamanos: {p: [-0.02, -0.04, 0.02], r: [0, 0, 0]}, cerrojo: {p: [0, 0.05, 0.0], r: [0, 0, 0]}, cargador: {p: [0, -0.12, 0.02], r: [0, 0, 0]}}}};
+}
+// mano derecha que empuña (marco: objeto a lo largo de z, palma en +x); izquierda = espejo. curl: 0 abierta … 1 cerrada
+function vmBuildHand(curl, left, skin, cuff) {
+  const B = new GeoBuilder(), F = Z.FIX, sk = skin, r = 0.024;
+  B.loft(0, F, sk, [[0.075, 0.02, 0.042, 0.035, 0.0], [0.05, 0.022, 0.045, 0.035, -0.003], [0.03, 0.022, 0.046, 0.034, -0.005], [0.005, 0.02, 0.046, 0.032, -0.012], [-0.02, 0.016, 0.044, 0.03, -0.02]], 14, {axis: 'z', capA: true, capB: true, p: 2.4});   // palma (lado +x del objeto)
+  const fingers = [[-0.012, 0.02], [-0.033, 0.021], [-0.053, 0.019], [-0.07, 0.016]];                                        // z de cada dedo, grosor
+  fingers.forEach(([z, w], i) => {
+    let p = [0.036, -0.012, z];                                                                                                  // nudillo: sale hacia −y y se curva hacia −x
+    const segs = [0.042 - i * 0.003, 0.028, 0.022];
+    segs.forEach((l, k) => { const th = Math.min(Math.PI, (k + 1) * curl * 1.05 + 0.15);                                    // ángulo desde −y hacia −x
+      const q2 = [p[0] - l * Math.sin(th), p[1] - l * Math.cos(th), z]; B.tube(0, F, sk, p, q2, [[0, w * 0.5], [0.5, w * 0.53], [1, w * 0.45]], 10, {capB: k === 2, domeB: k === 2 ? w * 0.35 : 0}); p = q2; });
+  });
+  // pulgar: por encima del objeto hacia −x
+  B.tube(0, F, sk, [0.03, 0.02, 0.05], [0.006, r + 0.016, 0.02], [[0, 0.013], [0.5, 0.0125], [1, 0.011]], 10); B.tube(0, F, sk, [0.006, r + 0.016, 0.02], [-0.022, r + 0.012, 0.0 - 0.012 * curl], [[0, 0.011], [0.5, 0.0105], [1, 0.009]], 10, {capB: true, domeB: 0.004});
+  // muñeca y puño de la manga
+  B.loft(0, F, sk, [[0.13, 0.026, 0.03, 0.055, -0.01], [0.1, 0.024, 0.033, 0.05, -0.006], [0.075, 0.024, 0.036, 0.045, -0.004]], 14, {axis: 'z'});
+  B.loft(0, cuff ? Z.TRIM : Z.MAIN, 0, [[0.19, 0.04, 0.042, 0.062, -0.012], [0.15, 0.039, 0.041, 0.06, -0.012], [0.128, 0.035, 0.037, 0.056, -0.01], [0.125, 0.03, 0.032, 0.056, -0.01]], 16, {axis: 'z', capB: true});
+  for (let i = 0; i < 4; i++) B.loft(0, F, VMC.latonO, [[0.166 + i * 0.0001, 0.006, 0.006, 0.062 + 0.041 * Math.cos(i * 0.5 - 0.7), -0.012 + 0.043 * Math.sin(i * 0.5 - 0.7)], [0.17, 0.006, 0.006, 0.062 + 0.041 * Math.cos(i * 0.5 - 0.7), -0.012 + 0.043 * Math.sin(i * 0.5 - 0.7)]], 6, {axis: 'z', capB: true});   // botones del puño
+  if (left) { for (let i = 0; i < B.p.length; i += 3) B.p[i] = -B.p[i]; for (let i = 0; i < B.n.length; i += 3) B.n[i] = -B.n[i];
+    for (let t = 0; t < B.p.length / 9; t++) { const o = t * 9; for (const arr of [B.p, B.n, B.col]) for (let k = 0; k < 3; k++) { const a = arr[o + 3 + k]; arr[o + 3 + k] = arr[o + 6 + k]; arr[o + 6 + k] = a; } } }
+  return B;
+}
+// GeoBuilder → BufferGeometry con colores de la paleta (zonas) o del vértice (FIX)
+function vmGeo(B, pal) {
+  const n = B.p.length / 3, P = new Float32Array(B.p), N = new Float32Array(B.n), Co = new Float32Array(n * 3), c = new THREE.Color();
+  const zc = {[Z.MAIN]: pal.main, [Z.TRIM]: pal.trim, [Z.ACC]: pal.accessory, [Z.HAT]: pal.hat};
+  for (let i = 0; i < n; i++) { const z = B.zone[i]; if (zc[z]) { c.set(zc[z]); Co[i * 3] = c.r; Co[i * 3 + 1] = c.g; Co[i * 3 + 2] = c.b; } else { Co[i * 3] = B.col[i * 3]; Co[i * 3 + 1] = B.col[i * 3 + 1]; Co[i * 3 + 2] = B.col[i * 3 + 2]; } }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.setAttribute('normal', new THREE.BufferAttribute(N, 3)); g.setAttribute('color', new THREE.BufferAttribute(Co, 3)); g.computeBoundingSphere(); return g;
+}
+function vmArmGeo(len, r0, r1, zone) { const B = new GeoBuilder(), m = (r0 + r1) / 2;   // manga con pliegues (anillos alternos)
+  const R = [[-len - 0.01, r1, r1 * 1.05]]; for (let i = 1; i < 8; i++) { const f = i / 8, r = r1 + (r0 - r1) * f + (i % 2 ? 0.003 : -0.002) + Math.sin(f * Math.PI) * m * 0.08; R.push([-len - 0.01 + (len + 0.03) * f, r, r * 1.06, (i % 3 - 1) * 0.002, 0]); } R.push([0.02, r0, r0 * 1.05]);
+  B.loft(0, zone, 0, R, 16, {axis: 'z', capB: true, domeB: 0.02}); return B; }
+// trozo de pecho visible al mirar abajo: guerrera, correaje y cartucheras según época (espacio del cuerpo: ojos en el origen)
+function vmChest(era, eq) {
+  const B = new GeoBuilder(), F = Z.FIX, AB = era === 'A' || era === 'B', bc = AB ? 0xe6e2d6 : eq === 'ger' ? 0x2e2620 : 0x8a7a50;
+  B.loft(0, Z.MAIN, 0, [[-0.95, 0.17, 0.11, 0, 0.0], [-0.82, 0.175, 0.116, 0, 0.006], [-0.72, 0.18, 0.12, 0, 0.012], [-0.62, 0.183, 0.121, 0, 0.01], [-0.52, 0.185, 0.12, 0, 0.008], [-0.42, 0.17, 0.1, 0, -0.006], [-0.36, 0.1, 0.07, 0, -0.012], [-0.32, 0.06, 0.055]], 20, {at: [0, 0, 0.09], p: 3, a0: Math.PI / 10});
+  const fz = y => 0.09 + (y > -0.6 ? 0.125 : 0.118);
+  if (AB) [1, -1].forEach(s => B.strap(0, F, bc, [[-0.17 * s, -0.92, 0], [-0.06 * s, -0.7, 0], [0.08 * s, -0.5, 0], [0.16 * s, -0.4, 0]].map(q => [q[0], q[1], fz(q[1]) + 0.004 + (s > 0 ? 0.002 : 0)]), 0.05, [0, 0, 1]));
+  else { [1, -1].forEach(s => { B.strap(0, F, bc, [[0.1 * s, -0.95, fz(-0.95) + 0.005], [0.11 * s, -0.7, fz(-0.7) + 0.006], [0.12 * s, -0.44, 0.17]], 0.035, [0, 0, 1]); B.box(0, F, bc, [0.1 * s, -0.9, fz(-0.9) + 0.03], [0.07, 0.085, 0.045], {bottom: true}); }); }
+  for (let i = 0; i < 4; i++) { const y = -0.88 + i * 0.12, z = fz(y) + 0.006, r = 0.011; B.quad([-r, y - r, z], [r, y - r, z], [r, y + r, z], [-r, y + r, z], 0, F, era >= 'D' ? 0x6a6040 : 0xc8a650); }
+  B.loft(0, era < 'E' ? Z.TRIM : Z.MAIN, 0, [[-0.34, 0.07, 0.068, 0, 0.0], [-0.27, 0.066, 0.064, 0, 0.004]], 8, {at: [0, 0, 0.09]});
+  return B;
+}
+// accesorios: cartucho de papel, cartucho metálico, peine, clip en bloque, granada (palo o huevo), venda
+function vmProps(era, nation, arm) {
+  const F = Z.FIX, P = {};
+  const cart = new GeoBuilder(); if (arm.acc === 'avancarga') cart.loft(0, F, VMC.papel, [[-0.035, 0.008, 0.008], [0.035, 0.009, 0.009], [0.045, 0.006, 0.006]], 6, {axis: 'z', capA: true, capB: true});
+  else { cart.loft(0, F, VMC.laton, [[0.0, 0.0065, 0.0065], [0.055, 0.0065, 0.0065]], 6, {axis: 'z', capA: true}); cart.loft(0, F, VMC.cobre, [[-0.025, 0.0042, 0.0042], [0.0, 0.0055, 0.0055]], 6, {axis: 'z', capA: true, domeA: -0.008}); }
+  P.cartucho = cart;
+  const pe = new GeoBuilder(); for (let i = 0; i < 5; i++) { pe.loft(0, F, VMC.laton, [[-0.03, 0.0062, 0.0062, 0.0, -0.022 + i * 0.011], [0.026, 0.0062, 0.0062, 0.0, -0.022 + i * 0.011]], 6, {axis: 'z', capA: true}); pe.loft(0, F, VMC.cobre, [[-0.052, 0.0035, 0.0035, 0, -0.022 + i * 0.011], [-0.03, 0.0055, 0.0055, 0, -0.022 + i * 0.011]], 5, {axis: 'z', capA: true}); }
+  pe.box(0, F, 0x6a6c70, [0, 0, 0.03], [0.008, 0.062, 0.006]); P.peine = pe;
+  const gr = new GeoBuilder();
+  if (nation === 'GER' || nation === 'PRU' || nation === 'AUS') { gr.loft(0, F, VMC.madera, [[-0.2, 0.013, 0.013], [0.0, 0.014, 0.014]], 6, {axis: 'z', capA: true}); gr.loft(0, F, 0x4a5040, [[0.0, 0.032, 0.032], [0.075, 0.032, 0.032]], 10, {axis: 'z', capA: true, capB: true}); }   // granada de mango M24
+  else { gr.loft(0, F, nation === 'SOV' || nation === 'RUS' ? 0x4e5a40 : 0x5a6040, [[-0.045, 0.012, 0.012], [-0.035, 0.03, 0.03], [0.0, 0.034, 0.034], [0.035, 0.03, 0.03], [0.045, 0.01, 0.01]], 10, {axis: 'z', capA: true, capB: true}); gr.box(0, F, 0x8a8c80, [0.025, 0.0, -0.02], [0.012, 0.012, 0.06]); }   // Mills / Mk 2 / F1
+  P.granada = gr;
+  const v = new GeoBuilder(); v.loft(0, F, 0xece6d6, [[-0.04, 0.03, 0.03], [0.04, 0.03, 0.03]], 10, {axis: 'x', capA: true, capB: true}); v.strap(0, F, 0xece6d6, [[0.0, -0.03, 0.0], [0.0, -0.1, 0.03], [0.02, -0.18, 0.02]], 0.06, [0, 0, 1]); P.venda = v;
+  return P;
+}
+
+/* ---------- poses y clips del viewmodel ----------
+   Espacio de cámara (m): x derecha, y arriba, −z delante. Arma: origen en la empuñadura (muñeca de la culata), boca hacia −z.
+   Pistas: arma [t, x,y,z, rx,ry,rz] · manoDe/manoIz [t, espacio, x,y,z, rx,ry,rz, cierre] (espacio: 'cam' | 'arma' | pieza móvil) ·
+   cerrojo [t, x,y,z, rx,ry,rz] · martillo/bateria/palanca [t, rx] · baqueta [t, x,y,z, rx,ry,rz] (espacio del arma) ·
+   cargador y accesorios [t, espacio, x,y,z, rx,ry,rz, visible] · cam [t, rx,ry,rz, fov×] · ev [[t, nombre]] */
+function vmPoses(s) {
+  const r = s.sight.rear, f = s.sight.front, pitch = Math.atan2(f[1] - r[1], r[2] - f[2]) / D2R;
+  const ads = [-r[0], -r[1] - 0.004, -0.13 - r[2], -pitch, 0, 0];
+  const pist = s.acc === 'pistola', smg = s.acc === 'subfusil';
+  return {
+    bajo: pist ? [0.12, -0.2, -0.3, -18, 6, 4] : [0.15, -0.205, -0.3, -7, 4, 9],
+    cadera: pist ? [0.1, -0.13, -0.32, 0, 3, 2] : [0.12, -0.16, -0.29, -1, 2, 5],
+    ads: pist ? [0, -0.055, -0.36, 0, 0, 0] : ads,
+    carrera: pist ? [0.14, -0.32, -0.22, -50, 10, 10] : [0.03, -0.3, -0.3, 30, 42, 38],
+    carga: [0.02, -1.2, -0.4, 84, 12, -6],                                                              // avancarga: culata abajo, boca arriba y delante
+    cerrojo: pist || smg ? [0.02, -0.16, -0.32, 8, 22, -30] : [-0.01, -0.17, -0.33, 6, 24, -34],          // mecanismo girado hacia la vista
+    tumbado: pist ? [0.08, -0.12, -0.3, 0, 2, 2] : [0.1, -0.15, -0.24, -2, 2, 3],
+    fuera: [0.2, -0.75, 0.0, -50, 10, 30]                                                                 // fuera de la vista (curar, muerte)
+  };
+}
+const vmG = (s, side, curl, extra) => side === 'De' ? ['arma', 0, 0, 0, 0, 0, 0, curl == null ? 0.92 : curl] : ['arma'].concat(s.grips.guardamanos.p, extra || [0, 0, 80], [curl == null ? 0.78 : curl]);
+const K = (t, a) => [t].concat(a);
+function vmClipSet(s, era, nation) {
+  const P = vmPoses(s), C = {}, mk2 = (dur, loop, tracks, ev, o) => Object.assign({dur, loop, tracks, ev: ev || []}, o || {});
+  const GR = vmG(s, 'De'), GL = vmG(s, 'Iz'), pist = s.acc === 'pistola';
+  const GLp = pist ? ['manoDe', -0.025, -0.035, 0.0, 0, 0, -20, 0.85] : GL;                               // pistola a dos manos: la izquierda envuelve a la derecha
+  const hold = (pose, dur, amp, extra) => mk2(dur, true, Object.assign({arma: [0, 0.25, 0.5, 0.75, 1].map((t, i) => K(t, [pose[0] + amp * 0.3 * Math.sin(i * Math.PI / 2), pose[1] + amp * Math.sin(i * Math.PI), pose[2], pose[3] + amp * 60 * Math.sin(i * Math.PI), pose[4] + amp * 40 * Math.sin(i * Math.PI / 2), pose[5]])),
+    manoDe: [K(0, GR)], manoIz: [K(0, GLp)]}, extra || {}));
+  // reposo, marcha y carrera (balanceo en ocho por paso; el arma retrasa el movimiento de la cámara)
+  C.idle_vm = hold(P.bajo, 4.0, 0.004);
+  const bob = (pose, dur, ax, ay, rot) => mk2(dur, true, {arma: Array.from({length: 9}, (_, i) => { const t = i / 8, a = t * Math.PI * 2; return K(t, [pose[0] + ax * Math.sin(a), pose[1] - ay * Math.abs(Math.cos(a)), pose[2] + ay * 0.3 * Math.sin(2 * a), pose[3] + rot * Math.cos(2 * a), pose[4] + rot * 0.6 * Math.sin(a), pose[5] + rot * 0.8 * Math.sin(a)]); }),
+    manoDe: [K(0, GR)], manoIz: [K(0, GLp)], cam: Array.from({length: 9}, (_, i) => { const a = i / 8 * Math.PI * 2; return K(i / 8, [0.4 * Math.cos(2 * a), 0, 0.3 * Math.sin(a), 1]); })}, [[0, 'paso'], [0.5, 'paso']]);
+  C.marcha_vm = bob(P.bajo, 1.05, 0.012, 0.014, 1.4);
+  C.carrera_vm = bob(P.carrera, 0.66, 0.03, 0.03, 3.5);
+  // apuntar (cadera) y ADS: entrada, mantener y salida
+  const tr2 = (a, b, dur, ev, fov) => mk2(dur, false, {arma: [K(0, a), K(0.55, [b[0] + (a[0] - b[0]) * 0.06, b[1] + (a[1] - b[1]) * 0.06, b[2], b[3], b[4], b[5]]), K(1, b)], manoDe: [K(0, GR)], manoIz: [K(0, GLp)],
+    cam: fov ? [K(0, [0, 0, 0, fov[0]]), K(1, [0, 0, 0, fov[1]])] : undefined}, ev);
+  C.apuntar_entrada = tr2(P.bajo, P.cadera, 0.25); C.apuntar_vm = hold(P.cadera, 3.5, 0.0025); C.apuntar_salida = tr2(P.cadera, P.bajo, 0.3);
+  C.ads_entrada = tr2(P.cadera, P.ads, 0.22, [], [1, 0.78]); C.ads_vm = hold(P.ads, 3.6, 0.0012, {cam: [K(0, [0, 0, 0, 0.78])]}); C.ads_salida = tr2(P.ads, P.cadera, 0.22, [], [0.78, 1]);
+  Object.keys(C).forEach(k => { if (C[k].tracks.cam === undefined) delete C[k].tracks.cam; });
+  // disparo: patada (atrás y arriba), vuelta con un rebote; las armas de cerrojo encadenan el ciclo del cerrojo
+  const kick = (pose, big) => { const k = big ? 1 : 0.55;
+    return [K(0, pose), K(0.04, [pose[0] + 0.004 * k, pose[1] + 0.012 * k, pose[2] + 0.06 * k, pose[3] + 7 * k, pose[4] - 1.5 * k, pose[5] + 2 * k]), K(0.16, [pose[0], pose[1] + 0.004 * k, pose[2] + 0.015 * k, pose[3] + 1.5 * k, pose[4], pose[5]]), K(0.3, [pose[0], pose[1] - 0.002, pose[2] - 0.004, pose[3] - 0.6, pose[4], pose[5]]), K(0.45, pose)]; };
+  const camKick = big => [K(0, [0, 0, 0, 1]), K(0.035, [big ? 2.4 : 1.2, big ? -0.4 : 0, big ? 0.6 : 0.2, 1.02]), K(0.25, [0.2, 0, 0, 1]), K(0.45, [0, 0, 0, 1])];
+  const big = s.acc === 'avancarga' || s.acc === 'cerrojo_simple' || s.acc === 'trampilla' || s.acc === 'palanca';
+  const shot = (pose, ads) => { const auto = s.acc === 'subfusil';
+    const c = mk2(auto ? 0.12 : 0.45, auto, {arma: auto ? [K(0, pose), K(0.3, [pose[0], pose[1] + 0.006, pose[2] + 0.025, pose[3] + 2.4, pose[4] + 0.6, pose[5]]), K(1, pose)] : kick(pose, big).map(k => [k[0] / 0.45].concat(k.slice(1))),
+      manoDe: [K(0, GR)], manoIz: [K(0, GLp)], cam: auto ? [K(0, [0, 0, 0, ads ? 0.78 : 1]), K(0.3, [0.5, 0.1, 0, ads ? 0.78 : 1]), K(1, [0, 0, 0, ads ? 0.78 : 1])] : camKick(big).map(k => [k[0] / 0.45, k[1], k[2], k[3], k[4] * (ads ? 0.78 : 1)])},
+      auto ? [[0, 'fuego'], [0.3, 'casquillo']] : [[0, 'fuego']].concat(s.acc === 'avancarga' ? [[0.02, 'humo']] : []));
+    if (s.acc === 'avancarga' && s.ign === 'chispa') c.tracks.martillo = [K(0, [0]), K(0.03, [-38]), K(1, [-38])], c.tracks.bateria = [K(0, [0]), K(0.03, [-70]), K(1, [-70])];
+    if (s.acc === 'avancarga' && s.ign !== 'chispa') c.tracks.martillo = [K(0, [0]), K(0.03, [-34]), K(1, [-34])];
+    if (s.acc === 'pistola') c.tracks.cerrojo = [K(0, [0, 0, 0, 0, 0, 0]), K(0.06, [0, 0, 0.05, 0, 0, 0]), K(0.2, [0, 0, 0, 0, 0, 0]), K(1, [0, 0, 0, 0, 0, 0])], c.ev.push([0.06, 'casquillo']);
+    if (s.acc === 'semi_enbloc' || s.acc === 'semi_cargador') c.tracks.cerrojo = [K(0, [0, 0, 0, 0, 0, 0]), K(0.05, [0, 0, 0.09, 0, 0, 0]), K(0.16, [0, 0, 0, 0, 0, 0]), K(1, [0, 0, 0, 0, 0, 0])], c.ev.push([0.05, 'casquillo']);
+    return c; };
+  C.disparar_vm = shot(P.cadera, false); C.disparar_ads_vm = shot(P.ads, true);
+  // ciclo del cerrojo (cerrojo_simple / tubo / peine): la mano derecha deja la empuñadura, gira la manilla, tira, empuja y baja
+  const boltCycle = (t0, d, pose) => {   // devuelve claves para arma/manoDe/cerrojo en [t0, t0+d] (fracciones del clip)
+    const T = f => t0 + f * d, sock = s.grips.cerrojo.p, bolt = s.acc.startsWith('cerrojo');
+    return {arma: [K(T(0), pose), K(T(0.15), P.cerrojo), K(T(0.85), P.cerrojo), K(T(1), pose)],
+      manoDe: [K(T(0), GR), K(T(0.12), ['cerrojo', 0.075, -0.02, 0.078, 0, 0, 30, 0.6]), K(T(0.88), ['cerrojo', 0.075, -0.02, 0.078, 0, 0, 30, 0.6]), K(T(1), GR)],
+      cerrojo: bolt ? [K(T(0), [0, 0, 0, 0, 0, 0]), K(T(0.18), [0, 0, 0, 0, 0, 0]), K(T(0.32), [0, 0, 0, 0, 0, 62]), K(T(0.5), [0, 0, 0.1, 0, 0, 62]), K(T(0.68), [0, 0, 0, 0, 0, 62]), K(T(0.82), [0, 0, 0, 0, 0, 0]), K(T(1), [0, 0, 0, 0, 0, 0])] : null,
+      ev: bolt ? [[T(0.32), 'cerrojo'], [T(0.5), 'casquillo'], [T(0.8), 'cerrojo']] : [], sock};
+  };
+  const bolted = s.acc === 'cerrojo_peine' || s.acc === 'cerrojo_tubo';
+  if (bolted) {
+    const b = boltCycle(0, 1, P.cadera); C.cerrojo_vm = mk2(1.0, false, {arma: b.arma, manoDe: b.manoDe, manoIz: [K(0, GL)], cerrojo: b.cerrojo}, b.ev);
+    ['disparar_vm', 'disparar_ads_vm'].forEach((k, j) => {                                       // disparo + cerrojo (1,4 s)
+      const c = C[k], pose = j ? P.ads : P.cadera, D = 1.45, f = 0.45 / D, b2 = boltCycle(0.36, 0.64, pose);
+      c.dur = D; c.tracks.arma = c.tracks.arma.map(q => [q[0] * f].concat(q.slice(1))).concat(b2.arma.slice(1)); c.tracks.cam = c.tracks.cam.map(q => [q[0] * f].concat(q.slice(1))).concat([K(1, [0, 0, 0, j ? 0.78 : 1])]);
+      c.tracks.manoDe = [K(0, GR)].concat(b2.manoDe); c.tracks.cerrojo = [K(0, [0, 0, 0, 0, 0, 0])].concat(b2.cerrojo); c.ev = c.ev.concat(b2.ev); });
+  }
+  // ---- recargas por mecanismo
+  const R = recargaVM(s, P, GR, GL, GLp, era, nation); Object.assign(C, R);
+  C.recargar_vm = R.recargar_vm;
+  // ---- posturas: el arma baja y vuelve mientras la cámara cambia de altura (la altura la pone el juego)
+  const dip = (dur, depth, roll, ev) => mk2(dur, false, {arma: [K(0, P.bajo), K(0.35, [P.bajo[0] + 0.02, P.bajo[1] - depth, P.bajo[2] + 0.03, P.bajo[3] - 8, P.bajo[4], P.bajo[5] + roll]), K(1, P.bajo)], manoDe: [K(0, GR)], manoIz: [K(0, GLp)],
+    cam: [K(0, [0, 0, 0, 1]), K(0.4, [-2, 0, roll * 0.15, 1]), K(1, [0, 0, 0, 1])]}, ev);
+  C.agacharse_vm = dip(0.45, 0.05, 6, [[0.35, 'postura']]); C.rodilla_vm = dip(0.6, 0.08, 10, [[0.5, 'rodilla']]);
+  C.tumbado_vm = mk2(1.1, false, {arma: [K(0, P.bajo), K(0.3, [0.12, -0.42, 0.0, -30, 10, 30]), K(0.7, [0.1, -0.2, -0.02, -6, 4, 6]), K(1, P.tumbado)], manoDe: [K(0, GR)], manoIz: [K(0, GLp), K(0.35, ['cam', -0.2, -0.42, -0.25, 0, 0, 0, 0.3]), K(0.65, ['cam', -0.2, -0.42, -0.25, 0, 0, 0, 0.3]), K(1, GLp)],
+    cam: [K(0, [0, 0, 0, 1]), K(0.5, [-6, 0, 4, 1]), K(1, [0, 0, 0, 1])]}, [[0.5, 'tumbado']]);
+  C.tumbado_idle_vm = hold(P.tumbado, 4.0, 0.002);
+  // cuerpo a cuerpo
+  if (!pist) {
+    C.golpe_culata_vm = mk2(0.85, false, {arma: [K(0, P.bajo), K(0.25, [0.22, -0.18, 0.05, 30, 70, 60]), K(0.42, [0.0, -0.08, -0.32, -40, 80, 70]), K(0.55, [0.02, -0.12, -0.25, -30, 75, 65]), K(1, P.bajo)],
+      manoDe: [K(0, GR)], manoIz: [K(0, GL)], cam: [K(0, [0, 0, 0, 1]), K(0.4, [1, 6, -2, 1]), K(0.45, [3, 2, 0, 1]), K(1, [0, 0, 0, 1])]}, [[0.42, 'golpe']]);
+    if (s.bay) C.bayoneta_vm = mk2(0.75, false, {arma: [K(0, P.bajo), K(0.22, [0.12, -0.2, 0.12, -4, 4, 8]), K(0.36, [0.06, -0.16, -0.36, -2, 2, 4]), K(0.5, [0.07, -0.17, -0.3, -2, 2, 4]), K(1, P.bajo)],
+      manoDe: [K(0, GR)], manoIz: [K(0, GL)], cam: [K(0, [0, 0, 0, 1]), K(0.36, [-1, 0, 0, 0.97]), K(1, [0, 0, 0, 1])]}, [[0.34, 'bayoneta']]);
+  }
+  // granada (D y E): la izquierda baja el fusil, la derecha saca, tira de la anilla / del cordón y lanza
+  if (era >= 'D') {
+    const low = [-0.12, -0.42, -0.14, -40, -30, 40];
+    C.lanzar_granada_vm = mk2(1.9, false, {arma: [K(0, P.bajo), K(0.15, low), K(0.85, low), K(1, P.bajo)],
+      manoIz: [K(0, GL), K(0.13, GL), K(0.86, GL), K(1, GL)],
+      manoDe: [K(0, GR), K(0.12, ['cam', 0.24, -0.55, 0.05, -60, 0, 0, 0.9]), K(0.3, ['cam', 0.16, -0.28, -0.25, -20, 0, 20, 0.95]), K(0.42, ['cam', 0.02, -0.22, -0.32, 0, 0, 0, 0.95]),
+        K(0.58, ['cam', 0.3, 0.05, 0.12, 60, 20, 0, 0.95]), K(0.7, ['cam', 0.12, 0.08, -0.45, -40, 0, 0, 0.95]), K(0.76, ['cam', 0.06, -0.05, -0.55, -60, 0, 0, 0.2]), K(0.9, ['cam', 0.25, -0.5, -0.2, -40, 0, 0, 0.6]), K(1, GR)],
+      granada: [K(0, ['manoDe', 0.02, -0.01, 0.0, 0, 0, 0, 0]), K(0.14, ['manoDe', 0.02, -0.01, 0.0, 90, 0, 0, 1]), K(0.72, ['manoDe', 0.02, -0.01, 0.0, 90, 0, 0, 1]), K(0.74, ['cam', 0.0, 0.0, -1.4, 40, 0, 0, 1]), K(0.8, ['cam', -0.02, 0.4, -4.0, 200, 0, 0, 0]), K(1, ['cam', 0, 0, -4, 0, 0, 0, 0])],
+      cam: [K(0, [0, 0, 0, 1]), K(0.58, [3, 4, 0, 1]), K(0.72, [-3, -2, 0, 1]), K(1, [0, 0, 0, 1])]}, [[0.14, 'granada_saca'], [0.42, 'anilla'], [0.73, 'lanzar']]);
+  }
+  // curar (venda), herido, muerte, inspeccionar, salto de obstáculo
+  C.curar_vm = mk2(3.4, false, {arma: [K(0, P.bajo), K(0.12, P.fuera), K(0.88, P.fuera), K(1, P.bajo)],
+    manoDe: [K(0, GR), K(0.14, ['cam', 0.12, -0.36, -0.3, -30, 0, 20, 0.6]), K(0.3, ['cam', -0.02, -0.4, -0.32, -40, 30, 50, 0.6]), K(0.45, ['cam', 0.1, -0.44, -0.28, -30, -20, 20, 0.6]), K(0.6, ['cam', -0.02, -0.4, -0.32, -40, 30, 50, 0.6]), K(0.75, ['cam', 0.1, -0.44, -0.28, -30, -20, 20, 0.6]), K(0.86, ['cam', 0.12, -0.36, -0.3, -30, 0, 20, 0.6]), K(1, GR)],
+    manoIz: [K(0, GL), K(0.14, ['cam', -0.1, -0.42, -0.3, -50, 0, -40, 0.4]), K(0.86, ['cam', -0.1, -0.42, -0.3, -50, 0, -40, 0.4]), K(1, GL)],
+    venda: [K(0, ['manoDe', 0.0, -0.02, -0.04, 0, 0, 0, 0]), K(0.15, ['manoDe', 0.0, -0.02, -0.04, 0, 0, 0, 1]), K(0.84, ['manoDe', 0.0, -0.02, -0.04, 0, 0, 0, 1]), K(0.86, ['manoDe', 0, 0, 0, 0, 0, 0, 0])],
+    cam: [K(0, [0, 0, 0, 1]), K(0.15, [-24, 0, 0, 1]), K(0.85, [-24, 0, 0, 1]), K(1, [0, 0, 0, 1])]}, [[0.15, 'venda'], [0.5, 'curar'], [0.85, 'curado']]);
+  C.herido_vm = mk2(1.3, false, {arma: [K(0, P.bajo), K(0.08, [P.bajo[0] + 0.05, P.bajo[1] - 0.12, P.bajo[2] + 0.04, -24, 10, 30]), K(0.6, [P.bajo[0] + 0.04, P.bajo[1] - 0.1, P.bajo[2] + 0.03, -20, 8, 26]), K(1, P.bajo)],
+    manoDe: [K(0, GR)], manoIz: [K(0, GL), K(0.1, ['cam', -0.16, -0.48, -0.08, -60, 0, -30, 0.95]), K(0.7, ['cam', -0.15, -0.46, -0.1, -60, 0, -30, 0.95]), K(1, GL)],
+    cam: [K(0, [0, 0, 0, 1]), K(0.06, [-8, 3, -6, 1.03]), K(0.4, [-5, 1, -3, 1]), K(1, [0, 0, 0, 1])]}, [[0, 'impacto'], [0.1, 'agarra_herida']]);
+  C.muerte_vm = mk2(2.0, false, {arma: [K(0, P.bajo), K(0.15, [0.18, -0.4, -0.05, -40, 20, 50]), K(0.4, [0.3, -1.2, -0.2, -90, 40, 120]), K(1, [0.3, -1.4, -0.2, -90, 40, 120])],
+    manoDe: [K(0, GR), K(0.12, ['cam', 0.25, -0.5, -0.1, -40, 0, 0, 0.3]), K(0.5, ['cam', 0.3, -1.1, 0.0, -60, 0, 0, 0.1]), K(1, ['cam', 0.3, -1.2, 0.0, -60, 0, 0, 0.1])],
+    manoIz: [K(0, GL), K(0.15, ['cam', -0.2, -0.6, -0.1, -40, 0, 0, 0.2]), K(1, ['cam', -0.3, -1.2, 0.0, -40, 0, 0, 0.1])],
+    cam: [K(0, [0, 0, 0, 1]), K(0.1, [-6, 4, -8, 1.04]), K(0.55, [-35, 10, -50, 1.08]), K(0.75, [-60, 14, -78, 1.1]), K(0.8, [-55, 14, -74, 1.1]), K(1, [-58, 14, -76, 1.1])]},
+    [[0, 'impacto'], [0.12, 'soltar_arma'], [0.75, 'suelo']], {final: true});
+  C.inspeccionar_vm = mk2(3.2, false, {arma: [K(0, P.bajo), K(0.2, [0.05, -0.16, -0.14, 10, -40, -70]), K(0.5, [0.04, -0.15, -0.16, 12, -50, -80]), K(0.7, [0.08, -0.2, -0.1, -10, 30, 20]), K(1, P.bajo)], manoDe: [K(0, GR)], manoIz: [K(0, GL)]}, [[0.2, 'inspeccionar']]);
+  C.salto_obstaculo_vm = mk2(0.9, false, {arma: [K(0, P.bajo), K(0.2, [-0.05, -0.12, -0.12, 20, -20, 60]), K(0.55, [-0.06, -0.1, -0.14, 25, -25, 65]), K(0.8, [0.12, -0.3, -0.06, -14, 8, 18]), K(1, P.bajo)],
+    manoDe: [K(0, GR)], manoIz: [K(0, GL), K(0.15, ['cam', -0.3, -0.5, -0.45, -80, 0, 0, 0.2]), K(0.6, ['cam', -0.3, -0.62, -0.35, -80, 0, 0, 0.2]), K(0.85, GL), K(1, GL)],
+    cam: [K(0, [0, 0, 0, 1]), K(0.3, [-14, 0, 3, 1]), K(0.6, [-6, 0, -2, 1]), K(0.8, [4, 0, 0, 1]), K(1, [0, 0, 0, 1])]}, [[0.25, 'salto'], [0.75, 'aterriza']]);
+  if (pist) Object.keys(C).forEach(k => { const c = C[k]; if (c.tracks.manoIz && c.tracks.manoIz.length === 1) c.tracks.manoIz = [K(0, GLp)]; });
+  return C;
+}
+// recargas: una secuencia por mecanismo con eventos en el instante del gesto
+function recargaVM(s, P, GR, GL, GLp, era, nation) {
+  const C = {}, mk2 = (dur, tracks, ev) => ({dur, loop: false, tracks, ev}), z0 = [0, 0, 0, 0, 0, 0];
+  const pouch = ['cam', 0.26, -0.6, -0.05, -70, 0, 20, 0.5], mouth = ['cam', 0.05, -0.17, -0.24, -80, 0, 70, 0.95];
+  if (s.acc === 'avancarga') {   // morder, (cebar), verter, baqueta (sacar, girar, atacar dos veces, devolver), (pistón), montar
+    const chispa = s.ign === 'chispa', D = chispa ? 8.4 : 7.6, L = s.L, by = s.bore, bq = (z, rx) => [0, 0, z, rx || 0, 0, 0];
+    const lowH = [0.06, -0.28, -0.18, -6, 0, 50];                                                    // horizontal a la cintura para cebar
+    const t = chispa ? {cebar0: 0.12, cebar1: 0.22, vert: 0.3, verter: 0.36, bq0: 0.42, at1: 0.56, at2: 0.62, bq1: 0.74, mont: 0.86} : {cebar0: 0, cebar1: 0, vert: 0.12, verter: 0.22, bq0: 0.3, at1: 0.46, at2: 0.52, bq1: 0.64, pist0: 0.72, pist1: 0.8, mont: 0.88};
+    const boca = s.grips.boca.p, mz = [boca[0] + 0.03, boca[1] + 0.06, boca[2]], S = t.bq1 - t.bq0, F = f => t.bq0 + f * S;
+    const arma = [K(0, P.bajo), K(0.05, chispa ? lowH : P.carga)].concat(chispa ? [K(t.cebar1, lowH), K(t.vert, P.carga)] : []).concat([K(t.bq1, P.carga), K(t.pist1 || t.bq1 + 0.04, t.pist0 ? [0.05, -0.3, -0.2, 20, 10, 40] : P.carga), K(t.mont, P.cadera), K(1, P.bajo)]);
+    const md = [K(0, GR), K(0.04, pouch), K(0.08, mouth), K(0.1, mouth)];
+    if (chispa) md.push(K(t.cebar0, ['arma', 0.06, by + 0.04, -0.03, 0, 0, 90, 0.95]), K(t.cebar1 - 0.03, ['arma', 0.05, by + 0.05, -0.05, 0, 0, 90, 0.95]));
+    md.push(K(t.vert + 0.02, ['arma', mz[0], mz[1], mz[2] + 0.02, -90, 0, 0, 0.95]), K(t.verter, ['arma', mz[0], mz[1], mz[2], -90, 0, 0, 0.95]),
+      K(F(-0.04), ['baqueta', 0.0, -0.012, -0.9, 0, 0, 0, 0.95]), K(F(0.12), ['baqueta', 0.0, -0.012, -0.9, 0, 0, 0, 0.95]), K(F(0.2), ['baqueta', 0.0, -0.012, -0.485, 0, 0, 0, 0.95]), K(F(0.28), ['baqueta', 0.0, -0.012, -0.485, 0, 0, 0, 0.95]), K(F(0.36), ['baqueta', 0.0, -0.012, -0.04, 0, 0, 0, 0.95]),
+      K(F(0.58), ['baqueta', 0.0, -0.012, -0.04, 0, 0, 0, 0.95]), K(F(0.66), ['baqueta', 0.0, -0.012, -0.485, 0, 0, 0, 0.95]), K(F(0.74), ['baqueta', 0.0, -0.012, -0.485, 0, 0, 0, 0.95]), K(F(0.82), ['baqueta', 0.0, -0.012, -0.9, 0, 0, 0, 0.95]), K(F(0.94), ['baqueta', 0.0, -0.012, -0.9, 0, 0, 0, 0.95]), K(F(0.98), ['arma', 0.02, by - 0.06, L + 0.3, 0, 0, 40, 0.9]));
+    if (t.pist0) md.push(K(t.pist0, pouch), K(t.pist1, ['arma', 0.035, by + 0.03, -0.03, 0, 0, 70, 0.95]));
+    md.push(K(t.mont - 0.02, ['arma', 0.03, by + 0.04, 0.08, 0, 0, 60, 0.9]), K(t.mont + 0.04, GR), K(1, GR));
+    // baqueta: sale de los abrazaderas, se gira y entra por la boca (eje del ánima), ataca dos veces y vuelve
+    const up = L - 0.99, out = -1.0;
+    const baq = [K(0, bq(0)), K(F(0), bq(0)), K(F(0.12), bq(-1.0)), K(F(0.2), [0, -0.485, -1.485, 90, 0, 0]), K(F(0.28), [0, 0.024, -1.97, 180, 0, 0]), K(F(0.36), [0, 0.024, -1.32, 180, 0, 0]),
+      K(t.at1, [0, 0.024, -1.08, 180, 0, 0]), K(F(0.5), [0, 0.024, -1.25, 180, 0, 0]), K(t.at2, [0, 0.024, -1.08, 180, 0, 0]), K(F(0.66), [0, 0.024, -1.97, 180, 0, 0]), K(F(0.74), [0, -0.485, -1.485, 90, 0, 0]), K(F(0.82), bq(-1.0)), K(F(0.94), bq(0)), K(1, bq(0))];
+    void up;
+    const tr = {arma, manoDe: md, manoIz: [K(0, GL), K(0.05, ['arma', s.grips.guardamanos.p[0], s.grips.guardamanos.p[1], s.grips.guardamanos.p[2] + 0.12, 0, 0, 80, 0.85]), K(t.mont, ['arma', s.grips.guardamanos.p[0], s.grips.guardamanos.p[1], s.grips.guardamanos.p[2] + 0.12, 0, 0, 80, 0.85]), K(1, GL)],
+      baqueta: baq, martillo: [K(0, [-38]), K(0.06, [-20]), K(t.mont - 0.03, [-20]), K(t.mont, [0]), K(1, [0])],
+      cartucho: [K(0, ['manoDe', 0, 0, 0, 0, 0, 0, 0]), K(0.04, ['manoDe', 0.0, -0.02, 0.0, 0, 0, 90, 1]), K(t.verter + 0.02, ['manoDe', 0.0, -0.02, 0.0, 0, 0, 90, 1]), K(t.verter + 0.03, ['manoDe', 0, 0, 0, 0, 0, 0, 0]), K(1, ['manoDe', 0, 0, 0, 0, 0, 0, 0])],
+      cam: [K(0, [0, 0, 0, 1]), K(0.08, [-6, 0, 0, 1]), K(0.12, [-10, 0, 0, 1]), K(0.3, [-4, 0, 0, 1]), K(0.5, [2, 0, 0, 1]), K(t.mont, [0, 0, 0, 1]), K(1, [0, 0, 0, 1])]};
+    if (chispa) tr.bateria = [K(0, [-70]), K(t.cebar1 - 0.02, [-70]), K(t.cebar1, [0]), K(1, [0])];
+    const ev = [[0.04, 'cartucho'], [0.09, 'morder']].concat(chispa ? [[t.cebar0 + 0.03, 'cebar'], [t.cebar1, 'bateria']] : []).concat([[t.verter, 'carga'], [F(0.12), 'baqueta'], [t.at1, 'atacar'], [t.at2, 'atacar'], [F(0.94), 'baqueta']])
+      .concat(t.pist0 ? [[t.pist1, 'piston']] : []).concat([[t.mont, 'montar'], [0.97, 'listo']]);
+    C.recargar_vm = mk2(D, tr, ev);
+  } else if (s.acc === 'cerrojo_simple' || s.acc === 'trampilla' || s.acc === 'palanca' || s.acc === 'cerrojo_tubo' || s.acc === 'cerrojo_peine') {
+    const tubo = s.acc === 'cerrojo_tubo', peine = s.acc === 'cerrojo_peine', D = peine ? 3.2 : tubo ? 4.6 : 2.7, by = s.bore;
+    const open = s.acc === 'trampilla' ? [0, 0, 0, -120, 0, 0] : s.acc === 'palanca' ? [0, -0.03, 0, -18, 0, 0] : [0, 0, 0.1, 0, 0, 62];
+    const rot = s.acc === 'trampilla' || s.acc === 'palanca' ? open : [0, 0, 0, 0, 0, 62];
+    const ins = peine ? ['arma', 0.0, by + 0.075, 0.02, 0, 0, 0, 0.85] : ['arma', 0.02, by + 0.04, -0.06, 0, 0, 80, 0.9];
+    const T = {open: 0.12, back: 0.2, pouch: 0.32, at: 0.45, push: 0.55, close: 0.8, home: 0.92}; if (tubo) Object.assign(T, {at: 0.36, push: 0.42, close: 0.86});
+    const md = [K(0, GR), K(0.06, ['cerrojo', 0.075, -0.02, 0.078, 0, 0, 30, 0.6]), K(T.back + 0.03, ['cerrojo', 0.075, -0.02, 0.078, 0, 0, 30, 0.6]), K(T.pouch, pouch), K(T.at, ins)];
+    if (peine) md.push(K(T.push, ['arma', 0.0, by + 0.035, 0.02, 0, 0, 0, 0.7]), K(T.push + 0.06, ['arma', 0.0, by + 0.02, 0.02, 0, 0, 0, 0.7]));
+    if (tubo) [0.52, 0.64].forEach(f => md.push(K(f - 0.06, pouch), K(f, ins)));
+    md.push(K(T.close - 0.06, ['cerrojo', 0.075, -0.02, 0.078, 0, 0, 30, 0.6]), K(T.close, ['cerrojo', 0.075, -0.02, 0.078, 0, 0, 30, 0.6]), K(T.home, GR), K(1, GR));
+    const tr = {arma: [K(0, P.bajo), K(0.08, P.cerrojo), K(T.home - 0.04, P.cerrojo), K(1, P.bajo)], manoDe: md, manoIz: [K(0, GL)],
+      cerrojo: [K(0, z0), K(0.06, z0), K(T.open, rot), K(T.back, open), K(T.close - 0.12, open), K(T.close - 0.05, rot), K(T.close, z0), K(1, z0)],
+      cartucho: peine ? undefined : [K(0, ['manoDe', 0, 0, 0, 0, 0, 0, 0]), K(T.pouch, ['manoDe', 0.0, -0.02, -0.01, 0, 0, 0, 1]), K(T.at + 0.02, ['manoDe', 0.0, -0.02, -0.01, 0, 0, 0, 1]), K(T.at + 0.03, ['manoDe', 0, 0, 0, 0, 0, 0, 0]), K(1, ['manoDe', 0, 0, 0, 0, 0, 0, 0])],
+      peine: peine ? [K(0, ['manoDe', 0, 0, 0, 0, 0, 0, 0]), K(T.pouch, ['manoDe', 0.0, -0.025, -0.01, 0, 90, 0, 1]), K(T.at, ['manoDe', 0.0, -0.025, -0.01, 0, 90, 0, 1]), K(T.at + 0.01, ['arma', 0, by + 0.07, 0.02, 0, 90, 0, 1]), K(T.push + 0.06, ['arma', 0, by + 0.07, 0.02, 0, 90, 0, 1]), K(T.push + 0.1, ['arma', 0.05, by + 0.12, 0.05, 60, 90, 40, 1]), K(T.push + 0.2, ['cam', 0.3, -0.9, 0.0, 120, 0, 0, 0]), K(1, ['cam', 0.3, -0.9, 0.0, 0, 0, 0, 0])] : undefined,
+      cam: [K(0, [0, 0, 0, 1]), K(0.1, [-3, -2, 1, 1]), K(T.home, [-3, -2, 1, 1]), K(1, [0, 0, 0, 1])]};
+    if (s.acc === 'palanca') tr.palanca = [K(0, [0]), K(T.open, [50]), K(T.close - 0.05, [50]), K(T.close, [0]), K(1, [0])];
+    Object.keys(tr).forEach(k => tr[k] === undefined && delete tr[k]);
+    const ev = [[T.open, s.acc === 'palanca' ? 'palanca' : 'cerrojo'], [T.back, 'casquillo'], [T.pouch, peine ? 'peine' : 'cartucho'], [T.at + 0.02, 'carga']].concat(peine ? [[T.push + 0.06, 'carga'], [T.push + 0.12, 'peine_fuera']] : []).concat(tubo ? [[0.52, 'carga'], [0.64, 'carga']] : []).concat([[T.close, 'cerrojo'], [0.97, 'listo']]);
+    C.recargar_vm = mk2(D, tr, ev);
+  } else if (s.acc === 'semi_enbloc') {   // Garand: el clip vacío sale con el «ping», se mete el nuevo y el cerrojo se cierra solo
+    const by = s.bore;
+    C.recargar_vm = mk2(2.4, {arma: [K(0, P.bajo), K(0.08, P.cerrojo), K(0.85, P.cerrojo), K(1, P.bajo)],
+      manoDe: [K(0, GR), K(0.25, pouch), K(0.48, ['arma', 0.0, by + 0.08, 0.02, 0, 0, 0, 0.85]), K(0.58, ['arma', 0.0, by + 0.02, 0.02, 0, 0, 0, 0.6]), K(0.64, ['arma', 0.04, by + 0.07, 0.05, 0, 0, 0, 0.6]), K(0.7, ['cerrojo', 0.04, -0.01, 0.03, 0, 0, 30, 0.7]), K(0.8, GR), K(1, GR)],
+      manoIz: [K(0, GL)], cerrojo: [K(0, [0, 0, 0.09, 0, 0, 0]), K(0.6, [0, 0, 0.09, 0, 0, 0]), K(0.63, [0, 0, 0, 0, 0, 0]), K(1, z0)],
+      peine: [K(0, ['arma', 0, by + 0.05, 0.02, 0, 90, 0, 1]), K(0.04, ['arma', 0, by + 0.05, 0.02, 0, 90, 0, 1]), K(0.12, ['cam', 0.1, 0.3, -0.4, 200, 90, 0, 1]), K(0.2, ['cam', 0.2, 0.2, -0.6, 400, 90, 0, 0]), K(0.24, ['manoDe', 0.0, -0.025, -0.01, 0, 90, 0, 1]), K(0.52, ['manoDe', 0.0, -0.025, -0.01, 0, 90, 0, 1]), K(0.55, ['arma', 0, by + 0.0, 0.02, 0, 90, 0, 1]), K(1, ['arma', 0, by + 0.0, 0.02, 0, 90, 0, 0])]},
+      [[0.03, 'ping'], [0.25, 'peine'], [0.56, 'carga'], [0.63, 'cerrojo'], [0.97, 'listo']]);
+  } else {   // cargador extraíble: subfusil, SVT/G43, pistola
+    const by = s.bore, sock = s.grips.cargador.p, out = [sock[0], sock[1] - 0.2, sock[2] + 0.05];
+    C.recargar_vm = mk2(s.acc === 'pistola' ? 1.5 : 2.2, {arma: [K(0, P.bajo), K(0.1, P.cerrojo), K(0.82, P.cerrojo), K(1, P.bajo)],
+      manoDe: [K(0, GR)],
+      manoIz: [K(0, GLp), K(0.12, ['cargador', 0.0, -0.06, 0.0, 0, 0, -40, 0.8]), K(0.22, ['cargador', 0.0, -0.06, 0.0, 0, 0, -40, 0.8]), K(0.36, ['cam', -0.2, -0.6, -0.05, -60, 0, -20, 0.6]), K(0.52, ['arma', out[0], out[1] + 0.05, out[2], 0, 0, -40, 0.85]), K(0.62, ['cargador', 0.0, -0.06, 0.0, 0, 0, -40, 0.8]),
+        K(0.72, ['cerrojo', -0.04, 0.0, 0.02, 0, 0, -30, 0.7]), K(0.8, ['cerrojo', -0.04, 0.0, 0.02, 0, 0, -30, 0.7]), K(0.9, GLp), K(1, GLp)],
+      cargador: [K(0, ['arma', 0, 0, 0, 0, 0, 0, 1]), K(0.2, ['arma', 0, 0, 0, 0, 0, 0, 1]), K(0.26, ['arma', 0, -0.12, 0.03, -10, 0, 0, 1]), K(0.34, ['cam', 0.0, -1.2, -0.2, -60, 0, 0, 1]), K(0.4, ['cam', 0.0, -1.2, -0.2, -60, 0, 0, 0]),
+        K(0.41, ['manoIz', 0.0, 0.06, 0.0, 0, 0, 40, 1]), K(0.52, ['manoIz', 0.0, 0.06, 0.0, 0, 0, 40, 1]), K(0.6, ['arma', 0, -0.04, 0.0, 0, 0, 0, 1]), K(0.64, ['arma', 0, 0, 0, 0, 0, 0, 1]), K(1, ['arma', 0, 0, 0, 0, 0, 0, 1])],
+      cerrojo: [K(0, z0), K(0.74, z0), K(0.78, [0, 0, s.acc === 'pistola' ? 0.05 : 0.08, 0, 0, 0]), K(0.81, z0), K(1, z0)],
+      cam: [K(0, [0, 0, 0, 1]), K(0.3, [-3, 1, 2, 1]), K(0.62, [-1, 0, 0, 1]), K(1, [0, 0, 0, 1])]},
+      [[0.24, 'cargador_fuera'], [0.4, 'cargador_suelo'], [0.62, 'carga'], [0.78, 'cerrojo'], [0.97, 'listo']]);
+  }
+  return C;
+}
+
+/* ---------- tiempo de ejecución ---------- */
+const _vmM = new THREE.Matrix4(), _vmM2 = new THREE.Matrix4(), _vmQ = new THREE.Quaternion(), _vmQ2 = new THREE.Quaternion(), _vmE = new THREE.Euler(), _vmV = new THREE.Vector3(), _vmV2 = new THREE.Vector3(), _vmS = new THREE.Vector3(1, 1, 1);
+const VM_SPACES = ['cam', 'arma', 'manoDe', 'manoIz', 'baqueta', 'cerrojo', 'cargador'];
+function vmCompose(out, x, y, z, rx, ry, rz) { _vmE.set(rx * D2R, ry * D2R, rz * D2R, 'XYZ'); _vmQ.setFromEuler(_vmE); _vmV.set(x, y, z); return out.compose(_vmV, _vmQ, _vmS); }
+// TroopViewmodel({nation, era, rol: 'fusil' | 'subfusil' | 'semi' | 'pistola', skin: 0..3, arma: id opcional})
+function TroopViewmodel(o) {
+  o = o || {}; this.nation = o.nation || 'GEN'; this.era = o.era || 'D'; this.rol = o.rol || 'fusil';
+  this.armId = o.arma || troopArm(this.nation, this.era, this.rol); const A = TROOP_ARMS[this.armId], era = this.era;
+  const pal = uniformPalette(this.nation, era, 'linea'), skin = new THREE.Color(SKIN[o.skin || 0]).getHex(), eq = pal.modelo && pal.modelo.equipo;
+  let body, moving, spec;
+  if (A.accion === 'subfusil') ({body, moving, spec} = vmBuildSMG(this.armId));
+  else if (A.accion === 'pistola') ({body, moving, spec} = vmBuildPistol());
+  else { spec = vmRifleSpec(this.armId); body = vmBuildRifle(spec); moving = vmBuildMoving(spec); if (moving.baqueta) moving.baqueta.at = [0, spec.bore - 0.024, spec.L + 0.99]; }
+  this.spec = spec; this.arm = A;
+  this.mat = new THREE.MeshLambertMaterial({vertexColors: true}); this.mat.name = 'troop_viewmodel';
+  const mesh = (B, name) => { const m = new THREE.Mesh(vmGeo(B, pal), this.mat); m.name = name; m.frustumCulled = false; m.renderOrder = 10; return m; };
+  this.group = new THREE.Group(); this.group.name = 'viewmodel';
+  this.rig = new THREE.Group(); this.group.add(this.rig);                                   // balanceo, puntería y retroceso
+  this.weapon = new THREE.Group(); this.weapon.add(mesh(body, 'arma')); this.rig.add(this.weapon); this.weapon.matrixAutoUpdate = false;
+  this.parts = {};
+  Object.keys(moving).forEach(k => { const g = new THREE.Group(), m = mesh(moving[k].g, k); g.add(m); g.userData.at = moving[k].at; g.matrixAutoUpdate = false; (k === 'cargador' ? this.rig : this.weapon).add(g); this.parts[k] = g; });
+  const props = vmProps(era, this.nation, spec); this.props = {};
+  Object.keys(props).forEach(k => { const g = new THREE.Group(); g.add(mesh(props[k], k)); g.visible = false; g.matrixAutoUpdate = false; this.rig.add(g); this.props[k] = g; });
+  const cuff = era === 'A' || era === 'B' || era === 'C';
+  this.hands = {De: new THREE.Group(), Iz: new THREE.Group()}; this.handCurl = {De: 1, Iz: 1};
+  this.handMesh = {De: [0, 0.35, 0.7, 1].map(c => mesh(vmBuildHand(c, false, skin, cuff), 'manoDe')), Iz: [0, 0.35, 0.7, 1].map(c => mesh(vmBuildHand(c, true, skin, cuff), 'manoIz'))};   // 4 grados de cierre
+  ['De', 'Iz'].forEach(s => { this.handMesh[s].forEach((m, i) => { m.visible = i === 3; this.hands[s].add(m); }); this.hands[s].matrixAutoUpdate = false; this.rig.add(this.hands[s]); });
+  this.L1 = 0.31; this.L2 = 0.29; this.shoulder = {De: new THREE.Vector3(0.2, -0.32, 0.1), Iz: new THREE.Vector3(-0.2, -0.32, 0.1)};
+  this.armSeg = {}; ['De', 'Iz'].forEach(s => { const u = mesh(vmArmGeo(this.L1, 0.058, 0.05, Z.MAIN), 'brazo' + s), f = mesh(vmArmGeo(this.L2, 0.05, 0.042, Z.MAIN), 'antebrazo' + s);
+    u.matrixAutoUpdate = f.matrixAutoUpdate = false; this.rig.add(u, f); this.armSeg[s] = {u, f}; });
+  this.chest = mesh(vmChest(era, eq), 'pecho'); this.group.add(this.chest);
+  this.clips = vmClipSet(spec, era, this.nation); this.cur = null; this.t = 0; this.prev = null; this.blend = 0; this.queue = [];
+  this.listeners = []; this.aimYaw = 0; this.aimPitch = 0; this.sway = new THREE.Vector2(); this.swayV = new THREE.Vector2(); this.camOut = {rx: 0, ry: 0, rz: 0, fov: 1};
+  this.tris = 0; this.group.traverse(m => { if (m.isMesh && m.visible !== false && !/^(manoDe|manoIz)$/.test(m.name)) this.tris += m.geometry.attributes.position.count / 3; });
+  this.tris += (this.handMesh.De[3].geometry.attributes.position.count + this.handMesh.Iz[3].geometry.attributes.position.count) / 3;
+  this.play('idle_vm');
+}
+TroopViewmodel.prototype.on = function (fn) { this.listeners.push(fn); return this; };
+// play(clip, {blend: s, next: clip al acabar}) · los clips sin bucle vuelven a o.next o al reposo
+TroopViewmodel.prototype.play = function (name, o) {
+  o = o || {}; const c = this.clips[name]; if (!c) return false;
+  if (this.cur) { this.prev = {c: this.cur, t: this.t, snap: this.snapshot()}; this.blend = o.blend != null ? o.blend : 0.14; this.blendT = 0; }
+  this.cur = c; this.curName = name; this.t = 0; this.next = o.next || (c.loop ? null : c.final ? null : 'idle_vm'); this._lastPh = -1; return true;
+};
+TroopViewmodel.prototype.clipNames = function () { return Object.keys(this.clips); };
+TroopViewmodel.prototype.clipInfo = function (n) { const c = this.clips[n]; return c && {dur: c.dur, loop: !!c.loop, events: c.ev.map(e => ({t: e[0] * c.dur, fase: e[0], evento: e[1]}))}; };
+// setAim(guiñada, cabeceo): mezcla de puntería aditiva (±35° / ±45°) alrededor del pecho; look(dx, dy): retraso por el giro de la cámara
+TroopViewmodel.prototype.setAim = function (yaw, pitch) { this.aimYaw = Math.max(-35, Math.min(35, yaw || 0)); this.aimPitch = Math.max(-45, Math.min(45, pitch || 0)); };
+TroopViewmodel.prototype.look = function (dx, dy) { this.swayV.x -= dx * 0.6; this.swayV.y -= dy * 0.6; };
+TroopViewmodel.prototype.snapshot = function () { return {w: this.weapon.matrix.clone(), De: this.hands.De.matrix.clone(), Iz: this.hands.Iz.matrix.clone()}; };
+const _vmOut = new Float32Array(8);
+function vmSample(tr, ph, n, loop) { const old = _loopCur; _loopCur = loop; sampleTrack(tr, ph, _vmOut, n); _loopCur = old; return _vmOut; }
+// matriz (espacio de cámara) de un espacio en el instante actual
+TroopViewmodel.prototype._space = function (name) { if (name === 'cam') return null; if (name === 'arma') return this.weapon.matrix; if (name === 'manoDe') return this.hands.De.matrix; if (name === 'manoIz') return this.hands.Iz.matrix;
+  const g = this.parts[name]; if (!g) return null; return g.parent === this.weapon ? new THREE.Matrix4().multiplyMatrices(this.weapon.matrix, g.matrix) : g.matrix; };
+// pista de espacio mixto → posición, rotación y valor extra en espacio de cámara
+TroopViewmodel.prototype._mixed = function (tr, ph, loop, outM) {
+  const n = tr.length; let k = 0; while (k < n - 1 && tr[k + 1][0] <= ph) k++;
+  const a = tr[k], b = tr[Math.min(n - 1, k + 1)], h = Math.max(1e-6, b[0] - a[0]), u = n === 1 ? 0 : Math.min(1, Math.max(0, (ph - a[0]) / h)), e = u * u * (3 - 2 * u);
+  const conv = (key, m) => { vmCompose(m, key[2], key[3], key[4], key[5], key[6], key[7]); const S = this._space(key[1]); if (S) m.premultiply(S); return m; };
+  const mA = conv(a, new THREE.Matrix4()), mB = conv(b, new THREE.Matrix4());
+  // posición: cúbica monótona sobre las claves convertidas (los cambios de agarre siguen siendo suaves)
+  const conv3 = tr.map(q => { const m = conv(q, _vmM); return [q[0], m.elements[12], m.elements[13], m.elements[14], q[8]]; });
+  const p = vmSample(conv3, ph, 4, loop);
+  const qa = new THREE.Quaternion().setFromRotationMatrix(mA), qb = new THREE.Quaternion().setFromRotationMatrix(mB); qa.slerp(qb, e);
+  outM.compose(_vmV.set(p[0], p[1], p[2]), qa, _vmS); return p[3];
+};
+TroopViewmodel.prototype.update = function (dt, input) {
+  input = input || {}; const c = this.cur; if (!c) return;
+  this.t += dt; let ph = this.t / c.dur;
+  if (ph >= 1 && !c.loop) { // eventos que faltan y paso al siguiente
+    this._events(this._lastPh, 1); if (this.next) { const n = this.next; this.play(n); return this.update(0, input); } ph = 1; }
+  if (c.loop) ph -= Math.floor(ph);
+  if (c.loop && ph < this._lastPh) { this._events(this._lastPh, 1.0001); this._lastPh = -1e-6; }
+  this._events(this._lastPh, ph); this._lastPh = ph;
+  const loop = !!c.loop, T = c.tracks;
+  // arma
+  const a = vmSample(T.arma, ph, 6, loop); vmCompose(this.weapon.matrix, a[0], a[1], a[2], a[3], a[4], a[5]);
+  // piezas móviles (en el espacio del arma, salvo el cargador que puede salir del arma)
+  Object.keys(this.parts).forEach(k => { const g = this.parts[k], at = g.userData.at; let v;
+    if (k === 'cargador' && T.cargador) { const vis = this._mixed(T.cargador, ph, loop, g.matrix); const m0 = vmCompose(_vmM, at[0], at[1], at[2], 0, 0, 0); g.matrix.multiply(m0); g.visible = vis > 0.5; return; }
+    if (k === 'cargador') { g.matrix.multiplyMatrices(this.weapon.matrix, vmCompose(_vmM, at[0], at[1], at[2], 0, 0, 0)); g.visible = true; return; }
+    if (T[k] && (k === 'martillo' || k === 'bateria' || k === 'palanca')) { v = vmSample(T[k], ph, 1, loop); vmCompose(g.matrix, at[0], at[1], at[2], v[0], 0, 0); }
+    else if (T[k]) { v = vmSample(T[k], ph, 6, loop); vmCompose(g.matrix, at[0] + v[0], at[1] + v[1], at[2] + v[2], v[3], v[4], v[5]); }
+    else vmCompose(g.matrix, at[0], at[1], at[2], 0, 0, 0); });
+  // manos (después de arma y piezas) y accesorios
+  ['De', 'Iz'].forEach(s => { const tr = T['mano' + s]; if (!tr) return; const curl = this._mixed(tr, ph, loop, this.hands[s].matrix); this.handCurl[s] = curl;
+    const lvl = Math.max(0, Math.min(3, Math.round(curl * 3))); this.handMesh[s].forEach((m, i) => { m.visible = i === lvl; }); });
+  Object.keys(this.props).forEach(k => { const g = this.props[k], tr = T[k]; if (!tr) { g.visible = false; return; } const vis = this._mixed(tr, ph, loop, g.matrix); g.visible = vis > 0.5; });
+  // mezcla con el clip anterior (posición de arma y manos)
+  if (this.prev && this.blendT < this.blend) { this.blendT += dt; const k = Math.min(1, this.blendT / this.blend), e = k * k * (3 - 2 * k);
+    [[this.weapon.matrix, this.prev.snap.w], [this.hands.De.matrix, this.prev.snap.De], [this.hands.Iz.matrix, this.prev.snap.Iz]].forEach(([m, p]) => { const pa = new THREE.Vector3(), qa = new THREE.Quaternion(), pb = new THREE.Vector3(), qb = new THREE.Quaternion(), sc = new THREE.Vector3();
+      p.decompose(pa, qa, sc); m.decompose(pb, qb, sc); pa.lerp(pb, e); qa.slerp(qb, e); m.compose(pa, qa, _vmS); });
+    if (k >= 1) this.prev = null; }
+  // brazos por IK (hombro fijo → muñeca de cada mano), con un estiramiento máximo del 8 % para no separar la mano del antebrazo
+  ['De', 'Iz'].forEach(s => { const H = this.hands[s].matrix, wrist = _vmV.set(s === 'De' ? 0.055 : -0.055, -0.006, 0.15).applyMatrix4(H).clone();
+    this._ik(s, this.shoulder[s], wrist); });
+  // cámara: patada, balanceo y FOV del clip
+  if (T.cam) { const cm = vmSample(T.cam, ph, 4, loop); this.camOut.rx = cm[0]; this.camOut.ry = cm[1]; this.camOut.rz = cm[2]; this.camOut.fov = cm[3] || 1; } else { this.camOut.rx = this.camOut.ry = this.camOut.rz = 0; this.camOut.fov = 1; }
+  // balanceo por giro de cámara (muelle) + mezcla de puntería
+  const sp = this.sway, sv = this.swayV; sv.x += (-sp.x * 60 - sv.x * 11) * dt; sv.y += (-sp.y * 60 - sv.y * 11) * dt; sp.x += sv.x * dt; sp.y += sv.y * dt;
+  const mv = input.mover || 0, tt = performance.now ? performance.now() / 1000 : 0;
+  this.rig.position.set(sp.x * 0.004, sp.y * 0.004 - (input.agachado ? 0.01 : 0), 0);
+  this.rig.rotation.set((this.aimPitch * 0.25 + sp.y * 0.6) * D2R, (this.aimYaw * 0.25 + sp.x * 0.6) * D2R, (sp.x * 0.8) * D2R, 'YXZ');
+  this.chest.position.set(0, mv * 0.01 * Math.sin(tt * 9), 0);
+};
+TroopViewmodel.prototype._ik = function (s, S, W) {
+  const L1 = this.L1, L2 = this.L2; let d = _vmV2.subVectors(W, S), dist = d.length();
+  if (dist > (L1 + L2) * 0.97) { S = S.clone().addScaledVector(d.clone().normalize(), Math.min(0.6, dist - (L1 + L2) * 0.97)); d = _vmV2.subVectors(W, S); dist = d.length(); }
+  const dir = d.clone().normalize();
+  const st = Math.min(1.08, Math.max(1, dist / (L1 + L2 - 1e-3))), l1 = L1 * st, l2 = L2 * st; dist = Math.min(l1 + l2 - 1e-4, Math.max(Math.abs(l1 - l2) + 1e-3, dist));
+  const ca = (l1 * l1 + dist * dist - l2 * l2) / (2 * l1 * dist), sa = Math.sqrt(Math.max(0, 1 - ca * ca));
+  const pole = new THREE.Vector3(s === 'De' ? 0.7 : -0.7, -1, 0.35).normalize(); pole.addScaledVector(dir, -pole.dot(dir)).normalize();
+  const E = S.clone().addScaledVector(dir, l1 * ca).addScaledVector(pole, l1 * sa), Wc = S.clone().addScaledVector(dir, dist);
+  const seg = (m, A, B, len, sc) => { const v = B.clone().sub(A).normalize(); _vmQ2.setFromUnitVectors(new THREE.Vector3(0, 0, -1), v); m.matrix.compose(A, _vmQ2, new THREE.Vector3(1, 1, sc)); };
+  seg(this.armSeg[s].u, S, E, l1, st); seg(this.armSeg[s].f, E, Wc, l2, st); this.ikErr = Math.max(this.ikErr || 0, Wc.distanceTo(W));
+};
+TroopViewmodel.prototype._events = function (a, b) { const c = this.cur; c.ev.forEach(([t, n]) => { if (t > a && t <= b) this.listeners.forEach(fn => fn(n, {clip: this.curName, t: t * c.dur, arma: this.armId})); }); };
+// dibujo en un segundo pase: misma orientación que la cámara del juego, near 0,05, sin el escenario
+TroopViewmodel.prototype.render = function (renderer, gameCam) {
+  if (!this.scene) { this.scene = new THREE.Scene(); this.scene.add(this.group); this.cam = new THREE.PerspectiveCamera(62, 1, 0.05, 10);
+    const hl = new THREE.HemisphereLight(0xfff4e0, 0x404438, 0.85), dl = new THREE.DirectionalLight(0xfff2e0, 0.75); dl.position.set(0.5, 1, 0.3); this.scene.add(hl, dl); }
+  this.cam.aspect = gameCam.aspect; this.cam.fov = (gameCam.fov || 70) * 0.9 * this.camOut.fov; this.cam.updateProjectionMatrix();
+  const ac = renderer.autoClear; renderer.autoClear = false; renderer.clearDepth(); renderer.render(this.scene, this.cam); renderer.autoClear = ac;
+};
+TroopViewmodel.prototype.dispose = function () { this.group.traverse(m => { if (m.isMesh) m.geometry.dispose(); }); this.mat.dispose(); };
+// posición de la boca del arma de una figura instanciada (para el fogonazo y el humo): kind, era, clip, fase y matriz de la instancia
+const _muzOut = new Float32Array(MAXP * 16);
+function troopMuzzle(kind, era, clip, phase, world, out) {
+  const K = KINDS[kind]; if (!K || !CLIPS[K.rig] || !CLIPS[K.rig][clip]) return null; const ix = rigIndex(K.rig).arma; if (ix == null) return null;
+  poseTroop(K.rig, clip, phase, _muzOut); const L = /mosquete/.test(K.arma || '') || era < 'C' ? 1.5 : 1.22, o = ix * 16, m = _muzOut;
+  const v = (out || new THREE.Vector3()).set(m[o + 4] * L + m[o + 12], m[o + 5] * L + m[o + 13], m[o + 6] * L + m[o + 14]); return world ? v.applyMatrix4(world) : v;
+}
+// boca del arma (o expulsión) en espacio de cámara → con la matriz de la cámara del juego pasa a mundo
+TroopViewmodel.prototype.muzzle = function (out, world) { this.rig.updateMatrix(); const v = (out || new THREE.Vector3()).set(0, this.spec.bore, this.spec.L).applyMatrix4(this.weapon.matrix).applyMatrix4(this.rig.matrix); return world ? v.applyMatrix4(world) : v; };
+TroopViewmodel.prototype.ejectPort = function (out, world) { this.rig.updateMatrix(); const v = (out || new THREE.Vector3()).set(0.03, this.spec.bore, 0.0).applyMatrix4(this.weapon.matrix).applyMatrix4(this.rig.matrix); return world ? v.applyMatrix4(world) : v; };
+
+/* ================= v5: efectos de combate (datos + emisores baratos) =================
+   Sin texturas ni modelos: cada emisor devuelve partículas {p, v, vida, tam, crece, color, alfa, grav, arrastre, tipo} que el juego dibuja con su
+   sistema de puntos de textura suave (b3Push en batalla3d.js). Estilizado: polvo, astillas y una nube rojiza muy breve en el soldado, sin gore.
+   Pólvora negra (A–C hasta 1886 aprox.): nube blanca densa y persistente; pólvora sin humo (Lebel 1886 en adelante, C tardía, D y E): solo bruma. */
+const TROOP_FX = {
+  fogonazo: {A: {tam: 0.55, vida: 0.07, color: '#ffd38a', luz: 2.2}, B: {tam: 0.5, vida: 0.06, color: '#ffd890', luz: 2.0}, C: {tam: 0.35, vida: 0.05, color: '#ffe2a8', luz: 1.4},
+    D: {tam: 0.3, vida: 0.04, color: '#fff0c8', luz: 1.2}, E: {tam: 0.28, vida: 0.035, color: '#fff2d0', luz: 1.1}},
+  humo: {A: {n: 14, tam: 0.35, crece: 1.6, vida: 6.5, alfa: 0.75, color: '#eeece6', deriva: 0.25, cazoleta: true}, B: {n: 12, tam: 0.32, crece: 1.5, vida: 5.5, alfa: 0.7, color: '#ecebe4', deriva: 0.25},
+    C: {n: 6, tam: 0.25, crece: 1.2, vida: 3.0, alfa: 0.4, color: '#e6e6e0', deriva: 0.3}, D: {n: 2, tam: 0.15, crece: 0.8, vida: 0.9, alfa: 0.18, color: '#dcdcd8', deriva: 0.35}, E: {n: 2, tam: 0.12, crece: 0.8, vida: 0.8, alfa: 0.15, color: '#dcdcd8', deriva: 0.35}},
+  expulsion: {A: {tipo: 'taco', color: '#d8ccb0', n: 1, vel: 6}, B: {tipo: 'taco', color: '#d8ccb0', n: 1, vel: 5}, C: {tipo: 'casquillo', color: '#c8a24a', n: 1, vel: 2.2},
+    D: {tipo: 'casquillo', color: '#c8a24a', n: 1, vel: 2.4}, E: {tipo: 'casquillo', color: '#c8a24a', n: 1, vel: 2.6}},
+  trazadora: {D: {color: '#ffb060', largo: 1.6, vel: 700, cada: 5, vida: 1.2}, E: {color: '#ff9a50', largo: 2.0, vel: 750, cada: 5, vida: 1.4}},
+  impacto: {tierra: {n: 10, color: '#6a5a40', vel: 3.5, tam: 0.12, vida: 0.9, grav: 9, polvo: '#8a7a5a'}, madera: {n: 8, color: '#a07a4a', vel: 4, tam: 0.05, vida: 0.7, grav: 9, polvo: '#c0a070', astillas: true},
+    muro: {n: 9, color: '#9a948a', vel: 3, tam: 0.07, vida: 0.8, grav: 9, polvo: '#c8c2b8'}, soldado: {n: 5, color: '#8a2a20', vel: 1.2, tam: 0.09, vida: 0.35, grav: 2, polvo: '#7a6a58'},
+    agua: {n: 10, color: '#d8e4ea', vel: 3, tam: 0.1, vida: 0.6, grav: 9, polvo: '#e8eef0'}},
+  // efectos de cámara del viewmodel al ser herido (el juego los dibuja): curvas [t (s), valor]
+  camara: {herido_leve: {vineta: [[0, 0], [0.05, 0.45], [0.6, 0.25], [2.5, 0]], desenfoque: [[0, 0], [0.05, 0.3], [1.0, 0]], pitido: {vol: [[0, 0], [0.05, 0.25], [1.5, 0]], hz: 4200}, color: '#7a0a0a'},
+    herido_grave: {vineta: [[0, 0], [0.05, 0.8], [1.5, 0.6], [6, 0.4]], desenfoque: [[0, 0], [0.05, 0.7], [2.0, 0.35], [6, 0.2]], pitido: {vol: [[0, 0], [0.05, 0.6], [3.0, 0.25], [6, 0]], hz: 3800}, color: '#6a0606', pulso: 1.1},
+    explosion: {vineta: [[0, 0], [0.05, 0.3], [1.5, 0]], desenfoque: [[0, 0], [0.05, 0.9], [2.5, 0]], pitido: {vol: [[0, 0], [0.05, 1.0], [5.0, 0]], hz: 3500}, temblor: [[0, 0], [0.05, 1], [0.8, 0]], color: '#2a2018'},
+    muerte: {vineta: [[0, 0], [0.3, 0.7], [1.8, 1.0]], desenfoque: [[0, 0], [1.0, 0.8], [1.8, 1.0]], pitido: {vol: [[0, 0], [0.2, 0.5], [1.8, 0]], hz: 3600}, color: '#200404', fundido: [[0, 0], [1.2, 0], [2.2, 1]]}}
+};
+function fxCurve(c, t) { if (!c) return 0; if (t <= c[0][0]) return c[0][1]; for (let i = 0; i < c.length - 1; i++) if (t <= c[i + 1][0]) { const u = (t - c[i][0]) / (c[i + 1][0] - c[i][0]); return c[i][1] + (c[i + 1][1] - c[i][1]) * u; } return c[c.length - 1][1]; }
+// semilla determinista para que dos disparos seguidos no sean idénticos pero el resultado sea reproducible
+function _fxRnd(seed) { let s = (seed * 9301 + 49297) % 233280; return () => { s = (s * 9301 + 49297) % 233280; return s / 233280; }; }
+// troopFxDisparo(era, boca (Vector3 o [x,y,z]), dirección, {semilla, viento:[x,z], lateral: Vector3 (derecha del arma)}) → partículas
+function troopFxDisparo(era, boca, dir, o) {
+  o = o || {}; const r = _fxRnd(o.semilla || 1), P = [], b = Array.isArray(boca) ? boca : [boca.x, boca.y, boca.z], d = Array.isArray(dir) ? dir : [dir.x, dir.y, dir.z];
+  const F = TROOP_FX.fogonazo[era] || TROOP_FX.fogonazo.D, H = TROOP_FX.humo[era] || TROOP_FX.humo.D, w = o.viento || [0.4, 0.1];
+  P.push({tipo: 'fogonazo', p: b.slice(), v: [0, 0, 0], vida: F.vida, tam: F.tam, crece: 0.4, color: F.color, alfa: 1, grav: 0, arrastre: 0, luz: F.luz});
+  for (let i = 0; i < H.n; i++) { const k = 0.3 + r() * 1.7, sp = 0.15 + r() * 0.3;
+    P.push({tipo: 'humo', p: [b[0] + d[0] * 0.1 * i / H.n, b[1] + d[1] * 0.1 * i / H.n, b[2] + d[2] * 0.1 * i / H.n], v: [d[0] * k + (r() - 0.5) * sp + w[0] * H.deriva, d[1] * k + 0.15 + r() * 0.2, d[2] * k + (r() - 0.5) * sp + w[1] * H.deriva],
+      vida: H.vida * (0.7 + r() * 0.6), tam: H.tam * (0.7 + r() * 0.6), crece: H.crece, color: H.color, alfa: H.alfa * (0.6 + r() * 0.4), grav: -0.05, arrastre: 1.6}); }
+  if (H.cazoleta && o.lateral) { const l = Array.isArray(o.lateral) ? o.lateral : [o.lateral.x, o.lateral.y, o.lateral.z];   // humo de la cazoleta junto a la cara (chispa)
+    for (let i = 0; i < 3; i++) P.push({tipo: 'humo', p: [b[0] - d[0] * 1.0 + l[0] * 0.05, b[1] - d[1] * 1.0 + 0.05, b[2] - d[2] * 1.0 + l[2] * 0.05], v: [l[0] * 0.6 + (r() - 0.5) * 0.2, 0.5 + r() * 0.3, l[2] * 0.6 + (r() - 0.5) * 0.2], vida: 2.5, tam: 0.12, crece: 1.2, color: '#f0eee8', alfa: 0.7, grav: -0.1, arrastre: 2}); }
+  return P;
+}
+// troopFxExpulsion(era, punto, derecha) → casquillo (C–E) o taco/papel (A–B)
+function troopFxExpulsion(era, p, der, o) {
+  o = o || {}; const r = _fxRnd(o.semilla || 3), E = TROOP_FX.expulsion[era] || TROOP_FX.expulsion.D, q = Array.isArray(p) ? p : [p.x, p.y, p.z], l = Array.isArray(der) ? der : [der.x, der.y, der.z];
+  return [{tipo: E.tipo, p: q.slice(), v: [l[0] * E.vel + (r() - 0.5) * 0.4, 1.2 + r() * 0.6, l[2] * E.vel + (r() - 0.5) * 0.4], vida: E.tipo === 'taco' ? 1.2 : 2.0, tam: E.tipo === 'taco' ? 0.03 : 0.018, crece: 0, color: E.color, alfa: 1, grav: 9.8, arrastre: 0.2, gira: 20, rebota: E.tipo === 'casquillo'}];
+}
+// troopFxTrazadora(era, origen, destino) → segmento con estela corta (D–E); null en épocas sin trazadoras
+function troopFxTrazadora(era, a, b) { const T = TROOP_FX.trazadora[era]; if (!T) return null; const A = Array.isArray(a) ? a : [a.x, a.y, a.z], B = Array.isArray(b) ? b : [b.x, b.y, b.z];
+  const d = Math.hypot(B[0] - A[0], B[1] - A[1], B[2] - A[2]); return {tipo: 'trazadora', de: A, a: B, vel: T.vel, dur: d / T.vel, largo: T.largo, color: T.color, vida: Math.min(T.vida, d / T.vel)}; }
+// troopFxImpacto(material: 'tierra' | 'madera' | 'muro' | 'soldado' | 'agua', punto, normal) → partículas
+function troopFxImpacto(mat, p, n, o) {
+  o = o || {}; const r = _fxRnd(o.semilla || 7), I = TROOP_FX.impacto[mat] || TROOP_FX.impacto.tierra, q = Array.isArray(p) ? p : [p.x, p.y, p.z], N = n ? (Array.isArray(n) ? n : [n.x, n.y, n.z]) : [0, 1, 0], P = [];
+  for (let i = 0; i < I.n; i++) { const s = I.vel * (0.4 + r() * 0.8);
+    P.push({tipo: I.astillas && i % 2 ? 'astilla' : 'trozo', p: q.slice(), v: [N[0] * s + (r() - 0.5) * s, N[1] * s + r() * s * 0.6, N[2] * s + (r() - 0.5) * s], vida: I.vida * (0.6 + r() * 0.6), tam: I.tam * (0.5 + r()), crece: 0, color: I.color, alfa: 1, grav: I.grav, arrastre: 0.6, gira: I.astillas ? 15 : 0}); }
+  for (let i = 0; i < 3; i++) P.push({tipo: 'polvo', p: q.slice(), v: [N[0] * 0.6 + (r() - 0.5) * 0.5, N[1] * 0.6 + 0.2, N[2] * 0.6 + (r() - 0.5) * 0.5], vida: I.vida * 2, tam: I.tam * 2.5, crece: 1.4, color: I.polvo, alfa: mat === 'soldado' ? 0.45 : 0.6, grav: -0.05, arrastre: 2});
+  return P;
+}
+// troopFxCamara(tipo, t) → {vineta, desenfoque, pitidoVol, pitidoHz, color, temblor, fundido}
+function troopFxCamara(tipo, t) { const C = TROOP_FX.camara[tipo]; if (!C) return null;
+  return {vineta: fxCurve(C.vineta, t) * (C.pulso ? 0.85 + 0.15 * Math.sin(t * Math.PI * 2 * C.pulso) : 1), desenfoque: fxCurve(C.desenfoque, t), pitidoVol: fxCurve(C.pitido && C.pitido.vol, t), pitidoHz: C.pitido ? C.pitido.hz : 0, color: C.color, temblor: fxCurve(C.temblor, t), fundido: fxCurve(C.fundido, t)}; }
+
 const api = {TROOP_KINDS, TROOP_ERAS, KINDS, RIGS, CLIPS, NACIONES, ROLES, MAXP, buildTroop, poseTroop, blendPose, uniformPalette, troopStats, bakeClips, makeTroopMaterial, TroopShared, TroopBatch, TroopLodSet, CpuBatch,
-  TROOP_GROUPS, troopGroup, troopGeoKey, nationalMark, clipInfo, clipPhase, eventsBetween, exportClipsJSON, SKIN, HORSE, _dev: {GeoBuilder, xf}};
+  TROOP_GROUPS, troopGroup, troopGeoKey, nationalMark, clipInfo, clipPhase, eventsBetween, exportClipsJSON, SKIN, HORSE, _dev: {GeoBuilder, xf}, troopAimClip, TROOP_BAKE, TroopViewmodel, TROOP_ARMS, TROOP_ARMS_NAT, TROOP_ARMS_E, troopArm, troopMuzzle, TROOP_FX, troopFxDisparo, troopFxExpulsion, troopFxTrazadora, troopFxImpacto, troopFxCamara};
 root.Troops3D = api;
 ['TROOP_KINDS', 'TROOP_ERAS', 'buildTroop', 'poseTroop', 'blendPose', 'uniformPalette', 'troopStats'].forEach(k => { root[k] = api[k]; });
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -90,7 +90,7 @@ function blendPose(a, b, k, out) { out = out || new Float32Array(a.length); for 
 
 /* ---------------- horneado (textura de huesos) ---------------- */
 // Una fila por fotograma; MAXP × 3 texeles RGBA float por fila (matriz 3×4 por parte). v4: 30 fps, ≤ 240 fotogramas por clip (TROOP_BAKE).
-const TROOP_BAKE = {fps: 30, max: 240};
+const TROOP_BAKE = {fps: 30, max: 240, half: true};
 let _baked = null;
 function bakeClips() {
   if (_baked) return _baked;
@@ -98,10 +98,12 @@ function bakeClips() {
   Object.keys(CLIPS).forEach(rig => {
     if (!RIGS[rig] || !RIGS[rig].length) return;
     index[rig] = {};
+    const seen = new Map();
     Object.keys(CLIPS[rig]).forEach(cn => {
       const c = CLIPS[rig][cn]; if (!c) return;
-      const frames = Math.max(2, Math.min(TROOP_BAKE.max, Math.round(c.dur * TROOP_BAKE.fps)));
-      index[rig][cn] = {row, frames, dur: c.dur, loop: c.loop !== false, tread: c.tread || 0, ev: c.ev || []};
+      if (seen.has(c)) { index[rig][cn] = seen.get(c); return; }                       // alias (mismo objeto): se reutilizan las filas
+      const frames = c.still ? 2 : Math.max(2, Math.min(TROOP_BAKE.max, Math.round(c.dur * (c.fps || TROOP_BAKE.fps))));
+      index[rig][cn] = {row, frames, dur: c.dur, loop: c.loop !== false, tread: c.tread || 0, ev: c.ev || []}; seen.set(c, index[rig][cn]);
       for (let f = 0; f < frames; f++) { const ph = c.loop === false ? f / (frames - 1) : f / frames; rows.push(poseTroop(rig, cn, ph)); }
       row += frames;
     });
@@ -110,9 +112,12 @@ function bakeClips() {
   const FPR = Math.max(1, Math.ceil(rows.length / 2048)), W = MAXP * 3 * FPR, H = Math.ceil(rows.length / FPR), data = new Float32Array(W * H * 4);
   rows.forEach((m, r) => { const rr = Math.floor(r / FPR), cc = r - rr * FPR; for (let p = 0; p < MAXP; p++) { const o = (rr * W + cc * MAXP * 3 + p * 3) * 4, e = m.subarray(p * 16, p * 16 + 16);
     for (let i = 0; i < 3; i++) { data[o + i * 4] = e[i]; data[o + i * 4 + 1] = e[4 + i]; data[o + i * 4 + 2] = e[8 + i]; data[o + i * 4 + 3] = e[12 + i]; } } });
-  const tex = new THREE.DataTexture(data, W, H, THREE.RGBAFormat, THREE.FloatType); tex.needsUpdate = true; tex.magFilter = tex.minFilter = THREE.NearestFilter;
+  // v5: media precisión (RGBA16F) en la GPU: la mitad de memoria; error < 2 mm a 4 m. TROOP_BAKE.half = false vuelve a float32
+  let gpu = data, type = THREE.FloatType;
+  if (TROOP_BAKE.half && THREE.DataUtils && THREE.HalfFloatType) { gpu = new Uint16Array(data.length); for (let i = 0; i < data.length; i++) gpu[i] = THREE.DataUtils.toHalfFloat(data[i]); type = THREE.HalfFloatType; }
+  const tex = new THREE.DataTexture(gpu, W, H, THREE.RGBAFormat, type); tex.needsUpdate = true; tex.magFilter = tex.minFilter = THREE.NearestFilter;
   if (H > 4096 || W > 4096) console.warn('troops3d: textura de huesos de ' + W + '×' + H);
-  _baked = {tex, index, rows, W, H, FPR, frames: rows.length, bytes: data.byteLength}; return _baked;
+  _baked = {tex, index, rows, W, H, FPR, frames: rows.length, bytes: gpu.byteLength, half: type !== THREE.FloatType}; return _baked;
 }
 
 /* ---------------- paletas en textura ---------------- */

@@ -18,25 +18,43 @@ const CK = {w: 0, a: 0, s: 0, d: 0, shift: 0, space: 0, fire: 0, ads: 0};
 const CTRL_RELOAD = {A: 3.2, B: 2.6, C: 2.0, D: 1.6, E: 1.0}, HERO_MEN = 14, HERO_CAP = 30, CTRL_WALK = 14, CTRL_RUN = 30, CTRL_SLOW = 0.25;
 const angLerp = (a, b, k) => { const d = ((b - a + Math.PI) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI; return a + d * k; };
 SOLD.vis = new Map(); SOLD.visNew = new Map(); SOLD.shooters = []; SOLD.shootNew = [];
+const IDLE_VAR = ['mirar_alrededor', 'vigilar', 'senal', 'hablar', 'fumar', 'beber', 'atarse_bota', 'recolocar_mochila', 'estirarse', 'idle_preparado'];
 const ctrlFireClip = era => era === 'A' ? 'disparar_A' : era === 'B' ? 'disparar_B' : 'disparar_D';
 // ¿hay que ocultar esta figura? (el hueco del soldado seguido o un soldado abatido)
 function b3Hid(bid, fi, j) {
   if (B3.hide && B3.hide.bid === bid && B3.hide.fi === fi && B3.hide.j === j) return true;
   const V = R.bviz; return !!(V && V.kmap && V.kmap[bid + ':' + fi + ':' + j]);
 }
+// ---- viewmodel de primera persona (soldado v5): brazos y arma en un segundo pase ----
+function ctrlVM(me, era) {
+  const T = window.Troops3D; if (!T || !T.TroopViewmodel) return null; const key = me.tag + '|' + era; if (SOLD.vm && SOLD.vmKey === key) return SOLD.vm;
+  try { if (SOLD.vm) SOLD.vm.dispose(); SOLD.vm = new T.TroopViewmodel({nation: me.tag, era, rol: era === 'E' && /^(USA|AUL|CAN)$/.test(me.tag) ? 'semi' : 'fusil', skin: 0}); SOLD.vmKey = key; SOLD.vm.on(ev => { if (ev === 'fuego') SOLD.vmFire = performance.now(); }); }
+  catch (e) { console.warn('viewmodel', e); SOLD.vm = null; } return SOLD.vm;
+}
+function ctrlVMStep(c, rdt, era) {
+  const vm = SOLD.vm; if (!vm || !SOLD.fp) return; const name = vm.curName, ctl = n => vm.clipInfo(n);
+  if (SOLD.lookDx || SOLD.lookDy) { vm.look(SOLD.lookDx, SOLD.lookDy); SOLD.lookDx = SOLD.lookDy = 0; }
+  if (c.dead) { if (name !== 'muerte_vm') vm.play('muerte_vm'); vm.update(rdt, {}); return; }
+  if (c.ads && !c.vmAds) { vm.play('ads_entrada', {next: 'ads_vm'}); } else if (!c.ads && c.vmAds) { vm.play('ads_salida'); } c.vmAds = c.ads;
+  const free = ['idle_vm', 'marcha_vm', 'carrera_vm'].includes(vm.curName);
+  if (free && !c.ads) { const want = c.mv ? (c.run ? 'carrera_vm' : 'marcha_vm') : 'idle_vm'; if (vm.curName !== want) vm.play(want, {blend: 0.2}); }
+  if (vm.curName === 'idle_vm' && c.cd > 0 && !c.reloaded) { c.reloaded = true; const inf = ctl('recargar_vm'); c.vmSpeed = inf ? Math.max(1, inf.dur / (CTRL_RELOAD[era] || 1.6)) : 1; vm.play('recargar_vm', {next: 'idle_vm'}); }
+  if (c.cd <= 0) c.reloaded = false;
+  vm.update(rdt * (vm.curName === 'recargar_vm' ? (c.vmSpeed || 1) : 1), {mover: c.mv ? (c.run ? 1 : 0.6) : 0, agachado: c.kneel});
+}
 function ctrlLockEl() { return document.querySelector('canvas[width="1920"]'); }
 function ctrlStart() {
   const V = R.bviz, blk = soldBlock(V); if (!SOLD.on || !blk) return; const f = blk.figs.find(q => q.i === SOLD.fi); if (!f) return; const w = soldWorld(B3.S, blk, f, SOLD.j), now = performance.now();
   if (blk.type === 'cav') { toast('🎮', 'El control manual solo está disponible para infantería. Elige un soldado de a pie (tecla R).'); return; }
   SOLD.ctrl = {x: w.x, z: w.z, hd: blk.hd, cyaw: blk.hd, pitch: 0, kick: 0, kneel: false, flag: false, cd: 0, fireT: -99, clip: 'idle', clipT: null, shots: 0, hits: 0, kills: 0, dead: false, deadAt: 0, lt: now, mv: false, run: false, t: 0, hitT: -9, oldTs: V.ts};
-  SOLD.fp = true; V.ts = (V.ts === undefined || V.ts > 0.3) ? CTRL_SLOW : V.ts;           // el combate se ralentiza para poder jugar
+  SOLD.fp = true; SOLD.lookDx = SOLD.lookDy = 0; ctrlVM(blk, t3Era()); V.ts = (V.ts === undefined || V.ts > 0.3) ? CTRL_SLOW : V.ts;           // el combate se ralentiza para poder jugar
   try { renderBattlePanel(); } catch (e) { }
   toast('🎮', 'Control en primera persona: haz clic en el campo para capturar el ratón (apuntas con él; clic dispara, clic derecho apunta con precisión) · WASD mueve · Mayús corre · Z rodillas · F estandarte · Tab observar');
 }
 function ctrlExit(why) {
   const c = SOLD.ctrl; if (!c) return; SOLD.ctrl = null; SOLD.yaw = 0; const V = R.bviz; if (V && c.oldTs !== undefined) V.ts = c.oldTs; else if (V) delete V.ts;
   try { if (document.pointerLockElement) document.exitPointerLock(); } catch (e) { }
-  if (B3.S) { B3.S.cam.fov = 40; B3.S.cam.near = 2; B3.S.cam.updateProjectionMatrix(); }
+  if (B3.S) { B3.S.cam.fov = 40; B3.S.cam.near = 2; B3.S.cam.updateProjectionMatrix(); B3.S.scene.onAfterRender = function () { }; }
   B3.hide = SOLD.fp ? {bid: SOLD.bid, fi: SOLD.fi, j: SOLD.j} : null; Object.keys(CK).forEach(k => { CK[k] = 0; });
   if (why === 'dead') { const blk = soldBlock(V); if (blk) { const sl = soldSlots(blk); if (sl.length) soldSet(blk); else { const nb = soldPick(V, 'next'); if (!(nb && soldSet(nb))) soldStop(); } } toast('💀', `Tu soldado ha caído (${c.kills} bajas, ${c.hits} impactos, ${c.shots} disparos). Sigues con otro soldado del regimiento.`); }
   try { renderBattlePanel(); } catch (e) { }
@@ -59,15 +77,18 @@ function ctrlFire(S, V, blk, O, D) {
   const c = SOLD.ctrl, era = t3Era(), tU = performance.now() / 1000; c.cd = CTRL_RELOAD[era] || 1.6; c.fireT = tU; c.shots++; c.kick = 0.07;
   const spread = (c.ads ? 0.004 : 0.016) * (c.mv ? (c.run ? 3 : 1.8) : 1) * (c.kneel ? 0.6 : 1); let dx = D.x + (Math.random() - 0.5) * spread, dy = D.y + (Math.random() - 0.5) * spread, dz = D.z + (Math.random() - 0.5) * spread; const L = Math.hypot(dx, dy, dz); dx /= L; dy /= L; dz /= L;
   const DD = {x: dx, y: dy, z: dz}, mx = O.x + dx * 2.2, mz = O.z + dz * 2.2;
+  if (SOLD.vm && SOLD.fp) { SOLD.vm.play(c.ads ? 'disparar_ads_vm' : 'disparar_vm', {next: c.ads ? 'ads_vm' : 'idle_vm'}); c.reloaded = false; }
   bvPart(V, {k: 'flash', x: O.x + dx * 4, y: O.z + dz * 4, life: 0.1}); bvPart(V, {k: 'smoke', x: O.x + dx * 11 - dz * 2, y: O.z + dz * 11 + dx * 2, life: 1.3});          // el humo se forma más adelante para no tapar la mira
   const hit = ctrlRay(S, O, DD, 260), tEnd = hit ? hit.t : 200;
   for (let i = 1; i <= 6; i++) { const u = tEnd * i / 6; bvPart(V, {k: 'flash', x: O.x + dx * u, y: O.z + dz * u, life: 0.05 + i * 0.012}); }          // trazadora
   if (!hit) { const gx = O.x + dx * 120, gz = O.z + dz * 120; bvPart(V, {k: 'dust', x: gx, y: gz, life: 0.8}); return; }
   c.hits++; c.hitT = tU; const p = hit.p, blkE = p.blk;
-  const kill = hit.head || Math.random() < 0.7, front = (Math.sin(p.yaw) * dx + Math.cos(p.yaw) * dz) < 0;
+  const kill = hit.head || Math.random() < 0.7, front = (Math.sin(p.yaw) * dx + Math.cos(p.yaw) * dz) < 0, side = (Math.cos(p.yaw) * dz - Math.sin(p.yaw) * dx), r = Math.random();
   V.kmap = V.kmap || {}; V.klist = V.klist || [];
   if (V.klist.length > 500) { const old = V.klist.shift(); delete V.kmap[old.key]; }
-  const e = {key: hit.key, x: p.x, z: p.z, yaw: p.yaw, tag: blkE.tag, era, wound: !kill, t0: tU, clip: kill ? (hit.head || Math.random() < 0.55 ? (front ? 'caer_muerto_atras' : 'caer_muerto_adelante') : (Math.random() < 0.5 ? 'caer_muerto_costado' : 'caer_muerto_rodillas')) : 'herido'};
+  const dClip = hit.head ? (front ? (r < 0.3 ? 'muerte_giro' : 'muerte_atras_pie') : 'muerte_adelante') : front ? (r < 0.4 ? 'muerte_atras_pie' : r < 0.6 ? 'muerte_rodillas' : r < 0.8 ? 'muerte_muro' : 'muerte_atras_rodilla') : Math.abs(side) > 0.45 ? (side > 0 ? 'muerte_costado_de' : 'muerte_costado_iz') : (r < 0.5 ? 'muerte_adelante' : 'muerte_rodillas_adelante');
+  const T3 = window.Troops3D, inf = T3 && T3.clipInfo ? T3.clipInfo('fusilero', dClip) : null;
+  const e = {key: hit.key, x: p.x, z: p.z, yaw: p.yaw, tag: blkE.tag, era, wound: !kill, t0: tU, clip: kill ? dClip : 'herido_grave', dClip, dur: inf && inf.dur ? inf.dur : 2, corpse: 'cuerpo_inerte_' + dClip.replace(/^muerte_/, '')};
   V.kmap[hit.key] = e; V.klist.push(e); if (kill) c.kills++;
   bvPart(V, {k: 'spark', x: p.x, y: p.z, life: 0.5, hot: true}); bvPart(V, {k: 'dust', x: p.x, y: p.z, life: 0.7});
   V.heroHits = (V.heroHits || 0) + 1;
@@ -88,19 +109,20 @@ function ctrlStep(S, V, blk, dt) {
   if ((CK.space || CK.fire) && c.cd <= 0) ctrlFire(S, V, blk, {x: O.x, y: O.y, z: O.z}, {x: Math.cos(aim) * cp, y: Math.sin(c.pitch + c.kick), z: Math.sin(aim) * cp});
   if (c.flag && Math.hypot(c.x - blk.x, c.z - blk.y) < 40) blk.mm = Math.min(1, (blk.mm !== undefined ? blk.mm : 0.8) + 0.006 * rdt);
   // los soldados abatidos heridos acaban cayendo
-  if (V.klist) V.klist.forEach(e => { if (e.wound && tU - e.t0 > 3) { e.wound = false; e.clip = 'caer_muerto_costado'; e.t0 = tU; } });
+  if (V.klist) V.klist.forEach(e => { if (e.wound && tU - e.t0 > 3) { e.wound = false; e.clip = e.dClip === 'muerte_adelante' ? 'muerte_costado_iz' : e.dClip; e.t0 = tU; } else if (!e.wound && !e.still && tU - e.t0 > e.dur + 0.4) { e.still = true; e.clip = e.corpse; } });
   // enemigos que te disparan (cada uno, hacia una vez cada 5–8 s mientras te encara)
   const era = t3Era(); let died = false;
   SOLD.shooters.forEach(sh => { if (died || Math.random() > rdt / 6.2) return;
     bvPart(V, {k: 'flash', x: sh.x, y: sh.z, life: 0.12}); for (let i = 1; i <= 4; i++) bvPart(V, {k: 'flash', x: sh.x + (c.x - sh.x) * i / 5, y: sh.z + (c.z - sh.z) * i / 5, life: 0.05 + i * 0.012});
     const pHit = clamp(0.028 - sh.dd / 5200, 0.006, 0.028) * (c.kneel ? 0.6 : 1) * (c.run ? 0.75 : 1) * (c.flag ? 1.5 : 1); if (Math.random() < pHit) died = true; });
-  if (died) { c.dead = true; c.deadAt = now; c.clip = 'caer_muerto_adelante'; c.clipT = tU; if (c.flag) { blk.mm = Math.max(0, (blk.mm !== undefined ? blk.mm : 0.8) - 0.12); c.flag = false; } }
+  if (died) { c.dead = true; c.deadAt = now; c.clip = 'muerte_adelante'; c.clipT = tU; if (c.flag) { blk.mm = Math.max(0, (blk.mm !== undefined ? blk.mm : 0.8) - 0.12); c.flag = false; } }
   else {
     const since = tU - c.fireT, fc = ctrlFireClip(era);
-    if (since < 0.8) { c.clip = c.kneel ? 'disparar_rodilla_A' : fc; c.clipT = c.fireT; } else if (since < 2.2 && c.cd > 0 && !c.mv) { c.clip = 'recargar_A'; c.clipT = c.fireT + 0.8; }
+    if (since < 0.8) { c.clip = c.kneel ? 'disparar_rodilla_A' : fc; c.clipT = c.fireT; } else if (since < 2.2 && c.cd > 0 && !c.mv) { c.clip = 'recargar_pie_' + era; c.clipT = c.fireT + 0.8; }
     else if (CK.ads || CK.fire) { c.clip = 'apuntar'; c.clipT = null; } else if (c.kneel) { c.clip = 'agacharse'; c.clipT = null; } else if (c.mv) { c.clip = c.run ? 'marcha_rapida' : 'marcha'; c.clipT = null; }
     else if (c.turn) { c.clip = 'marcha'; c.clipT = null; } else if (c.flag) { c.clip = 'ondear'; c.clipT = null; } else { c.clip = 'idle'; c.clipT = null; }
   }
+  ctrlVMStep(c, rdt, era);
   return {x: c.x, z: c.z};
 }
 // cámara del modo control (primera o tercera persona), con balanceo, retroceso y zoom
@@ -109,8 +131,9 @@ function ctrlCam(S, ov) {
   const bob = c.mv ? Math.sin(c.t * (c.run ? 13 : 8)) * (c.run ? 0.09 : 0.05) : Math.sin(c.t * 1.6) * 0.012;
   if (ov.dead) { const k = Math.min(1, (performance.now() - c.deadAt) / 700); cam.position.set(ov.x, gy + 2.55 - k * 2.0, ov.z); cam.lookAt(ov.x + Math.cos(yaw) * 5, gy + 0.4, ov.z + Math.sin(yaw) * 5); cam.fov = 40; cam.near = 0.3; return; }
   const eye = c.kneel ? 1.7 : 2.5;
-  if (SOLD.fp) { const px = ov.x + Math.cos(yaw) * 0.12, pz = ov.z + Math.sin(yaw) * 0.12; cam.position.set(px, Math.max(gy + eye + bob, b3H(S.tf, px, pz) + 1.2), pz); cam.lookAt(px + fx * 30, cam.position.y + fy * 30, pz + fz * 30); cam.fov = c.ads ? 22 : 42; cam.near = 0.12; }
-  else { const d = 6.5, bx = ov.x - Math.cos(yaw) * d - Math.sin(yaw) * 1.3, bz = ov.z - Math.sin(yaw) * d + Math.cos(yaw) * 1.3, by = Math.max(b3H(S.tf, bx, bz) + 1.2, gy + 3.4 + fy * -3); cam.position.set(bx, by, bz); cam.lookAt(ov.x + fx * 25, gy + 2.4 + fy * 25, ov.z + fz * 25); cam.fov = c.ads ? 30 : 42; cam.near = 0.5; }
+  if (SOLD.fp) { const px = ov.x + Math.cos(yaw) * 0.12, pz = ov.z + Math.sin(yaw) * 0.12, vm = SOLD.vm; cam.position.set(px, Math.max(gy + eye + bob, b3H(S.tf, px, pz) + 1.2), pz); cam.lookAt(px + fx * 30, cam.position.y + fy * 30, pz + fz * 30); cam.near = 0.12;
+    if (vm) { const D2R = Math.PI / 180, co = vm.camOut; cam.rotateX(co.rx * D2R); cam.rotateY(co.ry * D2R); cam.rotateZ(co.rz * D2R); cam.fov = 42 * co.fov; S.scene.onAfterRender = (r, sc, cm) => { try { vm.render(r, cm); } catch (e) { S.scene.onAfterRender = function () { }; console.warn('viewmodel', e); } }; } else { cam.fov = c.ads ? 22 : 42; S.scene.onAfterRender = function () { }; } }
+  else { S.scene.onAfterRender = function () { }; const d = 6.5, bx = ov.x - Math.cos(yaw) * d - Math.sin(yaw) * 1.3, bz = ov.z - Math.sin(yaw) * d + Math.cos(yaw) * 1.3, by = Math.max(b3H(S.tf, bx, bz) + 1.2, gy + 3.4 + fy * -3); cam.position.set(bx, by, bz); cam.lookAt(ov.x + fx * 25, gy + 2.4 + fy * 25, ov.z + fz * 25); cam.fov = c.ads ? 30 : 42; cam.near = 0.5; }
 }
 // figuras que dibuja el modo control: el soldado manejado y los abatidos (una vez por fotograma, en la primera llamada a b3Fig)
 const _b3FigC = b3Fig;
@@ -119,7 +142,7 @@ b3Fig = function (S, V, blk, f, era, tU, cp, ca) {
   if (SOLD._drawT === tU || (!SOLD.on && !(V.klist && V.klist.length))) return; SOLD._drawT = tU; const me = SOLD.on ? soldBlock(V) : null;
   const draw = (set, x, z, yaw, clip, start, tag) => { const y = b3H(S.tf, x, z); _b3o.phase = 0.37; _b3o.h = 0; _b3o.bright = 0.5; _b3o.skin = 1; _b3o.horse = 0; _b3o.start = start; _b3o.tread = 0; try { set.add(Math.hypot(x - ca.x, y - ca.y, z - ca.z), x, y, z, yaw, B3_S, tag, clip, _b3o); } catch (e) { set.add(Math.hypot(x - ca.x, y - ca.y, z - ca.z), x, y, z, yaw, B3_S, tag, 'idle', _b3o); } b3Sh(S, x, y, z, 1.05); };
   if (V.klist) V.klist.forEach(e => { const set = b3Set(S, 'fusilero', e.era, e.tag, null); draw(set, e.x, e.z, e.yaw, e.clip, e.wound ? null : e.t0, e.tag); });
-  const c = SOLD.on && SOLD.ctrl; if (c && me) draw(b3Set(S, 'fusilero', era, me.tag, null), c.x, c.z, Math.PI / 2 - c.hd, c.clip, c.clipT, me.tag);
+  const c = SOLD.on && SOLD.ctrl; if (c && me && !SOLD.fp) draw(b3Set(S, 'fusilero', era, me.tag, null), c.x, c.z, Math.PI / 2 - c.hd, c.clip, c.clipT, me.tag);
 };
 // movimiento libre de los soldados cerca de la cámara; los enemigos te ven, se te acercan, te encaran y te disparan
 function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
@@ -130,14 +153,19 @@ function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
   const rn = (s, k) => (hash2(blk.id * 131 + f.i + j * 7, s, k) - 0.5) * 2 * amp, k = Math.min(1, fr * 5), ease = k * k * (3 - 2 * k);
   const ox = rn(seg - 1, 31) + (rn(seg, 31) - rn(seg - 1, 31)) * ease, oz = rn(seg - 1, 32) + (rn(seg, 32) - rn(seg - 1, 32)) * ease, moving = k < 1 && sp <= 8;
   let nx = x + ox, nz = z + oz, nyaw = yaw, nclip = clip, start; const o = {};
-  if (moving) { const mx = rn(seg, 31) - rn(seg - 1, 31), mz = rn(seg, 32) - rn(seg - 1, 32); if (Math.hypot(mx, mz) > 0.15) { nyaw = Math.atan2(mx, mz); nclip = 'marcha'; start = null; } }
+  const T3 = window.Troops3D, era = t3Era();
+  if (moving) { const mx = rn(seg, 31) - rn(seg - 1, 31), mz = rn(seg, 32) - rn(seg - 1, 32), L = Math.hypot(mx, mz); if (L > 0.15) {
+    const fx = Math.sin(yaw), fz = Math.cos(yaw), dot = (mx * fx + mz * fz) / L, side = (-mx * Math.cos(yaw) + mz * Math.sin(yaw)) / L;           // paso adelante, atrás o de lado respecto a hacia dónde mira
+    if (dot > 0.6) { nyaw = Math.atan2(mx, mz); nclip = 'marcha'; } else if (dot < -0.6) nclip = 'paso_atras'; else nclip = side > 0 ? 'paso_lateral_de' : 'paso_lateral_iz'; start = null; } }
+  else if (sp <= 8 && (mode === 'hold' || mode === 'reserve' || mode === 'advance') && hash2(blk.id * 131 + f.i + j * 7, seg, 77) < 0.35) { nclip = IDLE_VAR[Math.floor(hash2(blk.id * 131 + f.i + j * 7, seg, 78) * IDLE_VAR.length) % IDLE_VAR.length]; start = tU - (tt % T); }          // tiempos muertos: cada uno hace lo suyo
   const p = SOLD.ctrl ? {x: SOLD.ctrl.x, z: SOLD.ctrl.z} : SOLD.pos;
   if (enemy && p && sp <= 8 && mode !== 'melee' && mode !== 'charge') {
     const dd = Math.hypot(p.x - nx, p.z - nz);
     if (dd < 110 && dd > 1) {
       const adv = Math.min(18, (110 - dd) * 0.3); nx += (p.x - nx) / dd * adv; nz += (p.z - nz) / dd * adv; nyaw = Math.atan2(p.x - nx, p.z - nz);
       const per = 5 + h1 * 3, ph = (tU + h2 * 17) % per;
-      if (ph < 1.1) { nclip = ctrlFireClip(t3Era()); start = tU - ph; SOLD.shootNew.push({x: nx, z: nz, dd}); } else if (ph < per - 1.2) { nclip = 'apuntar'; start = null; } else { nclip = 'idle'; start = null; }
+      const post = h2 < 0.25 ? 'rodilla' : 'pie', gy1 = b3H(B3.S.tf, nx, nz), gy2 = b3H(B3.S.tf, p.x, p.z), pitch = Math.atan2((gy2 + 2.5) - (gy1 + (post === 'rodilla' ? 1.5 : 2.4)), dd) * 57.3, aimC = (fire) => T3 && T3.troopAimClip ? T3.troopAimClip('fusilero', era, 0, pitch, {postura: post, fuego: fire}) : (fire ? ctrlFireClip(era) : 'apuntar');
+      if (ph < 1.1) { nclip = aimC(true); start = tU - ph; SOLD.shootNew.push({x: nx, z: nz, dd}); } else if (ph < per - 1.2) { nclip = aimC(false); start = null; } else { nclip = 'recargar_' + post + '_' + era; if (!(T3 && T3.clipInfo && T3.clipInfo('fusilero', nclip))) nclip = 'idle_preparado'; start = tU - (ph - (per - 1.2)); }
     }
   }
   if (enemy) SOLD.visNew.set(key, {x: nx, z: nz, yaw: nyaw, blk});
@@ -159,7 +187,7 @@ document.addEventListener('keydown', e => {
 }, true);
 document.addEventListener('keyup', e => { const k = e.key.toLowerCase(); if (CKMAP[k]) CK[CKMAP[k]] = 0; }, true);
 window.addEventListener('blur', () => { Object.keys(CK).forEach(k => { CK[k] = 0; }); });
-document.addEventListener('mousemove', e => { const c = SOLD.on && SOLD.ctrl; if (!c || !document.pointerLockElement) return; c.cyaw += e.movementX * 0.0022 * (c.ads ? 0.45 : 1); c.pitch = clamp(c.pitch - e.movementY * 0.0022 * (c.ads ? 0.45 : 1), -1.3, 1.3); }, true);
+document.addEventListener('mousemove', e => { const c = SOLD.on && SOLD.ctrl; if (!c || !document.pointerLockElement) return; SOLD.lookDx = (SOLD.lookDx || 0) + e.movementX; SOLD.lookDy = (SOLD.lookDy || 0) + e.movementY; c.cyaw += e.movementX * 0.0022 * (c.ads ? 0.45 : 1); c.pitch = clamp(c.pitch - e.movementY * 0.0022 * (c.ads ? 0.45 : 1), -1.3, 1.3); }, true);
 document.addEventListener('mousedown', e => { if (!(SOLD.on && SOLD.ctrl) || !document.pointerLockElement) return; if (e.button === 0) CK.fire = 1; else if (e.button === 2) CK.ads = 1; e.stopPropagation(); e.preventDefault(); }, true);
 document.addEventListener('mouseup', e => { if (!(SOLD.on && SOLD.ctrl)) return; if (e.button === 0) CK.fire = 0; else if (e.button === 2) CK.ads = 0; }, true);
 document.addEventListener('contextmenu', e => { if (SOLD.on && SOLD.ctrl) e.preventDefault(); }, true);

@@ -124,7 +124,7 @@ function ctrlStep(S, V, blk, dt) {
     fxFlash(sh.x, sh.y - 0.2, sh.z, 0.1); for (let i = 1; i <= 5; i++) { const ex = blkd ? blkd.x : c.x, ez = blkd ? blkd.z : c.z, ey = blkd ? blkd.y : ty; fxFlash(sh.x + (ex - sh.x) * i / 6, sh.y + (ey - sh.y) * i / 6, sh.z + (ez - sh.z) * i / 6, 0.04 + i * 0.012); }
     if (blkd) { bvPart(V, {k: 'spark', x: blkd.x, y: blkd.z, life: 0.4, hot: true}); bvPart(V, {k: 'dust', x: blkd.x, y: blkd.z, life: 0.7}); c.coverT = tU; c.hurt = {ang: brg, t: tU, blk: true}; c.kick += 0.012; return; }
     c.hurt = {ang: brg, t: tU, blk: false}; c.kick += 0.02;
-    const pHit = clamp(0.03 - sh.dd / 6000, 0.006, 0.03) * (c.kneel ? (c.peek ? 0.8 : 0.5) : 1) * (c.run ? 0.75 : 1) * (c.flag ? 1.5 : 1); if (Math.random() < pHit) died = true; });
+    const pHit = clamp(0.016 - sh.dd / 9000, 0.004, 0.016) * (c.kneel ? (c.peek ? 0.8 : 0.5) : 1) * (c.run ? 0.75 : 1) * (c.flag ? 1.5 : 1); if (Math.random() < pHit && !c.god) died = true; });
   if (died) { c.dead = true; c.deadAt = now; c.clip = 'muerte_adelante'; c.clipT = tU; if (c.flag) { blk.mm = Math.max(0, (blk.mm !== undefined ? blk.mm : 0.8) - 0.12); c.flag = false; } }
   else {
     const since = tU - c.fireT, fc = ctrlFireClip(era);

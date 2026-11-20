@@ -163,3 +163,5 @@ Para el estado actual completo véase `ESTADO.md`.
 - Comprobado (SwiftShader): 1836, 1910 y 1939 sin errores en consola; capturas del mapa en 1939 (tanques, camiones, cañones AT, caballería) y de una batalla 3D con tanques. No comprobado: GPU real, sombras (siguen desactivadas), eventos de humo/fogonazo de los vehículos, `juego-ligero.html`.
 
 - Tácticas navales/aéreas afinadas, visores de noche/tormenta, campañas con objetivos, hot-seat, guerra total (bloqueo, convoyes, Blitz, movilización) y 26 eventos históricos nuevos. Manual: sección «★ Tácticas, campañas y guerra total».
+
+- Ferrocarril más rápido, 5 industrias nuevas y limpieza de medidas económicas superpuestas (ESTADO.md, «Lote 15 puntos»).

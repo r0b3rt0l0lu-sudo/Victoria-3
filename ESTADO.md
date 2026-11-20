@@ -283,3 +283,8 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - NPC (`b3Free` en npc_combate.js): máquina de estados idle/fire/bound/to_cover/cover/prone basada en el fuego y movimiento por turnos (la mitad del grupo avanza 7–13 u corriendo agachado mientras la otra cubre), supresión (los disparos del jugador cerca los ponen a cubierto), cadencia de un tiro apuntado cada 4–9 s, un 30 % «dispara poco», recargas por época y postura, los bloques que avanzan también reaccionan si el jugador está a < 110 u. Letalidad moderada (probabilidad de acierto 0,4–1,6 % por disparo, menor de rodillas o a cubierto).
 - Efectos: destellos propios pequeños (`fxFlash`) para fogonazos, trazadoras e impactos; indicador direccional del disparo recibido (rojo: sin cobertura, amarillo: detenido por una cobertura).
 - Probado: 80 obstáculos de 7 tipos; con un bloque enemigo a 60 u, 10–12 soldados en `fire` y 2–3 en `bound`; el jugador de rodillas tras un muro recibe «La cobertura detiene el disparo». Pendiente: ratón real con puntero capturado, GPU real, ajuste fino del equilibrio con partidas largas.
+
+## Lote 15 puntos (ferrocarril, industrias, economía)
+- **Ferrocarril** (`military.js hopDays`): cada nivel de infraestructura en territorio propio/aliado reduce el tiempo de marcha (hasta ×0,26); con infra ≥3 un salto puede durar 1 día.
+- **Industrias 2** (`industrias2.js`): papel, vidrio, conservas (refrigeración), electrodomésticos (electricidad) y automóviles (cadena de montaje) con demanda por fecha (`LADDER.from`) para no penalizar antes de existir.
+- **Economía 3** (`economia3.js`): se quita la inversión duplicada de la política comercial, fomento+planificación no se acumulan y topes con rendimientos decrecientes (`ECO_CAPS`, `c.ecoCapped`).

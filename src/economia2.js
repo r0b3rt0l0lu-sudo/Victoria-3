@@ -8,10 +8,10 @@
    Los efectos pasan a c.mods (ecoMods), a la economía (sim.js: subsidios, industria estatal, racionamiento y prioridad) y a la satisfacción de los grupos de interés. */
 const EC_SUB = [0, 0.2, 0.4, 0.6], EC_STATE = [0, 0.2, 0.4, 0.6], EC_STAPLE = {grain: 1, meat: 1, fish: 1, fruit: 1, fabric: 1, clothes: 1, coal: 1};
 const EC_TRADE = [
-  {name: 'Libre comercio', icon: '🕊️', mods: {invest: .06, tax: -.04, innov: .03, indOut: -.015}, ig: {indus: 1.2, lands: -0.6, union: -0.4}, desc: 'Sin aranceles: más inversión e innovación, menos recaudación y presión sobre la industria local.'},
+  {name: 'Libre comercio', icon: '🕊️', mods: {tax: -.04, innov: .03, indOut: -.015}, ig: {indus: 1.2, lands: -0.6, union: -0.4}, desc: 'Sin aranceles: más inversión e innovación, menos recaudación y presión sobre la industria local.'},
   {name: 'Comercio moderado', icon: '⚖️', mods: {}, ig: {}, desc: 'Aranceles bajos y tratados.'},
-  {name: 'Proteccionismo', icon: '🛡️', mods: {tax: .05, indOut: .03, invest: -.03, innov: -.01}, ig: {indus: 0.4, lands: 0.4, union: 0.3}, desc: 'Aranceles altos: protegen la industria y llenan el tesoro, a costa de inversión y relaciones.'},
-  {name: 'Autarquía', icon: '🔒', mods: {tax: .08, indOut: .05, invest: -.08, innov: -.04, grow: -.0003}, ig: {indus: -0.5, intel: -0.6, armed: 0.4}, desc: 'Autosuficiencia nacional: fuerte industria y control, con atraso e ineficiencia.'}
+  {name: 'Proteccionismo', icon: '🛡️', mods: {tax: .05, indOut: .03, innov: -.01}, ig: {indus: 0.4, lands: 0.4, union: 0.3}, desc: 'Aranceles altos: protegen la industria y llenan el tesoro, a costa de inversión y relaciones.'},
+  {name: 'Autarquía', icon: '🔒', mods: {tax: .08, indOut: .05, innov: -.04, grow: -.0003}, ig: {indus: -0.5, intel: -0.6, armed: 0.4}, desc: 'Autosuficiencia nacional: fuerte industria y control, con atraso e ineficiencia.'}
 ];
 const EC_WAGE = [
   {name: 'Ninguno', mods: {}, ig: {}, desc: 'El mercado fija los salarios.'},

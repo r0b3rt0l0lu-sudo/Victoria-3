@@ -102,11 +102,11 @@ function computeCaps() {
   const S = G.S;
   let pop = 0; S.forEach(s => pop += s.popBase * 1000);
   const D = {}; GOODS.forEach(g => D[g.id] = 0);
-  const afford = [1, 1, 1, 0.95, 0.9, 0.85, 0.7, 0.7, 0.7, 0.55, 0.5, 0.45, 0.4, 0.4, 0.4];
+  const afford = [1, 1, 1, 0.95, 0.9, 0.85, 0.7, 0.7, 0.7, 0.55, 0.5, 0.45, 0.4, 0.4, 0.4, 0.4, 0.35, 0.35, 0.3, 0.3];
   const lv = {};
   for (let it = 0; it < 8; it++) {
     const need = {}; GOODS.forEach(g => need[g.id] = 0);
-    LADDER.forEach((l, i) => need[l.g] += pop * l.q * afford[i]);
+    LADDER.forEach((l, i) => { if (!l.from || l.from <= 1836) need[l.g] += pop * l.q * (afford[i] || 0.3); });
     for (const g in MIL_NEED) need[g] += MIL_NEED[g];
     BUILDINGS.forEach(b => { if (b.out && lv[b.id]) for (const g in b.inputs) need[g] += lv[b.id] * b.inputs[g]; });
     BUILDINGS.forEach(b => { if (b.out) lv[b.id] = need[b.out] / b.outAmt; });
@@ -339,13 +339,14 @@ function econA(i0, i1) {
       const mult = PROFS[p].cons;
       for (let i = 0; i < LADDER.length; i++) {
         const l = LADDER[i];
+        if (l.from && G.date.y < l.from) { items.push({g: l.g, want: 0, buy: 0, off: 1}); continue; }   // bienes de épocas posteriores: aún no se demandan
         const want = N * l.q * mult;
         const cost = want * price[l.g] * ctax * (sub && EC_STAPLE[l.g] ? 1 - sub : 1);
         let frac = 1;
         if (budget >= cost) budget -= cost; else { frac = cost > 0 ? budget / cost : 0; budget = 0; }
         items.push({g: l.g, want, buy: want * frac});
         D[l.g] += want * frac;
-        if (frac < 1) { for (let j = i + 1; j < LADDER.length; j++) items.push({g: LADDER[j].g, want: N * LADDER[j].q * mult, buy: 0}); break; }
+        if (frac < 1) { for (let j = i + 1; j < LADDER.length; j++) { const lj = LADDER[j]; if (lj.from && G.date.y < lj.from) items.push({g: lj.g, want: 0, buy: 0, off: 1}); else items.push({g: lj.g, want: N * lj.q * mult, buy: 0}); } break; }
       }
       plan[p] = {items, left: budget, svc, b0: budget};
     }
@@ -436,7 +437,10 @@ function econB(i0, i1) {
     for (const p in s.plan) {
       const pl = s.plan[p];
       let spent = 0, sol = 0;
+      let wAct = 0;
       pl.items.forEach((it, i) => {
+        if (it.off) return;
+        wAct += LADDER[i].w;
         const got = it.buy * R[it.g];
         const sb = s.sub && EC_STAPLE[it.g] ? s.sub : 0;
         spent += got * price[it.g] * s.ctax * (1 - sb);
@@ -444,7 +448,7 @@ function econB(i0, i1) {
         sol += LADDER[i].w * Math.min(1, frac);
         cs.ctax += got * price[it.g] * (s.ctax - 1 - s.ctax * sb);
       });
-      s.sol[p] = 25 * sol / LADDER_W;
+      s.sol[p] = 25 * sol / Math.max(1, wAct);
       const leftover = Math.max(0, pl.b0 - spent);
       const sv = (p === 'aristocrats' || p === 'capitalists') ? 0.25 : 0;
       cs.invest += leftover * sv;

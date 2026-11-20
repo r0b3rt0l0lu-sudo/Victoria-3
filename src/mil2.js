@@ -98,11 +98,18 @@ const airReg = id => airRegions().regs[id];
 const SEA_ZONES = [
   {id: 0, name: 'Mar del Norte', lon: 3, lat: 56}, {id: 1, name: 'Mar Báltico', lon: 19, lat: 58}, {id: 2, name: 'Atlántico Nordeste', lon: -8, lat: 46},
   {id: 3, name: 'Atlántico Norte', lon: -35, lat: 48}, {id: 4, name: 'Atlántico Central', lon: -38, lat: 18}, {id: 5, name: 'Atlántico Sur', lon: -18, lat: -25},
-  {id: 6, name: 'Caribe y Golfo de México', lon: -78, lat: 20}, {id: 7, name: 'Mediterráneo Occidental', lon: 4, lat: 38}, {id: 8, name: 'Mediterráneo Oriental', lon: 27, lat: 34},
-  {id: 9, name: 'Mar Negro', lon: 34, lat: 43}, {id: 10, name: 'Mar Rojo y Golfo Pérsico', lon: 50, lat: 18}, {id: 11, name: 'Índico Occidental', lon: 62, lat: 2},
+  {id: 6, name: 'Mar Caribe', lon: -72, lat: 15}, {id: 7, name: 'Mediterráneo Occidental', lon: 4, lat: 38}, {id: 8, name: 'Mediterráneo Oriental', lon: 27, lat: 34},
+  {id: 9, name: 'Mar Negro', lon: 34, lat: 43}, {id: 10, name: 'Golfo Pérsico', lon: 52, lat: 26}, {id: 11, name: 'Índico Occidental', lon: 62, lat: 2},
   {id: 12, name: 'Índico Oriental', lon: 92, lat: 4}, {id: 13, name: 'Mares de China', lon: 116, lat: 20}, {id: 14, name: 'Pacífico Norte', lon: 160, lat: 40},
   {id: 15, name: 'Pacífico Oriental', lon: -120, lat: 20}, {id: 16, name: 'Pacífico Sur', lon: -95, lat: -30}, {id: 17, name: 'Mares de Oceanía', lon: 150, lat: -20},
-  {id: 18, name: 'Océano Ártico', lon: 30, lat: 72}, {id: 19, name: 'Golfo de Guinea', lon: 4, lat: -2}
+  {id: 18, name: 'Océano Ártico', lon: 90, lat: 77}, {id: 19, name: 'Golfo de Guinea', lon: 4, lat: -2},
+  {id: 20, name: 'Golfo de Bengala', lon: 88, lat: 15}, {id: 21, name: 'Mar Arábigo', lon: 66, lat: 15}, {id: 22, name: 'Mar de Filipinas', lon: 132, lat: 22}, {id: 23, name: 'Mar del Japón y Ojotsk', lon: 140, lat: 45},
+  {id: 24, name: 'Pacífico Central', lon: -170, lat: 10}, {id: 25, name: 'Golfo de Alaska', lon: -150, lat: 52}, {id: 26, name: 'Mar de Bering', lon: -175, lat: 60}, {id: 27, name: 'Mar de Tasmania', lon: 160, lat: -38},
+  {id: 28, name: 'Pacífico Sur Central', lon: -140, lat: -15}, {id: 29, name: 'Índico Sur', lon: 80, lat: -32}, {id: 30, name: 'Costa de Brasil', lon: -36, lat: -20}, {id: 31, name: 'Golfo de México', lon: -92, lat: 25},
+  {id: 32, name: 'Mar de Noruega', lon: 5, lat: 68}, {id: 33, name: 'Mar de Barents', lon: 42, lat: 72}, {id: 34, name: 'Mediterráneo Central', lon: 16, lat: 36}, {id: 35, name: 'Golfo de San Lorenzo y Labrador', lon: -55, lat: 54},
+  {id: 36, name: 'Atlántico Norte Oriental', lon: -22, lat: 62}, {id: 37, name: 'Mar de Java', lon: 112, lat: -6}, {id: 38, name: 'Costa de Namibia', lon: 6, lat: -26}, {id: 39, name: 'Canal de Mozambique', lon: 38, lat: -24},
+  {id: 40, name: 'Mar Rojo', lon: 38, lat: 19}, {id: 41, name: 'Pacífico Sudeste', lon: -84, lat: -8}, {id: 42, name: 'Mar de Coral', lon: 156, lat: -12}, {id: 43, name: 'Atlántico Sur Medio', lon: -12, lat: -40},
+  {id: 44, name: 'Mar de China Oriental', lon: 124, lat: 32}, {id: 45, name: 'Costa de California', lon: -128, lat: 35}
 ];
 function seaZoneOfLL(lon, lat) { let b = 0, bv = 1e9; SEA_ZONES.forEach(z => { const dx = Math.min(Math.abs(lon - z.lon), 360 - Math.abs(lon - z.lon)), d = Math.hypot(dx, (lat - z.lat) * 1.2); if (d < bv) { bv = d; b = z.id; } }); return b; }
 const _pz = new Map();

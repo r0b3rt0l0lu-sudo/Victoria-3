@@ -154,13 +154,13 @@ function hopDays(a, fromId, toId) {
   const B = MAP.provs[toId]; const c = G.C[a.tag];
   let spd = 9; a.divs.forEach(d => { spd = Math.min(spd, DIVS[d.t].spd); }); if (spd === 9) spd = 1;
   const lg = 1 + 0.1 * (a.gen.log - 1) + genMods(a.gen).spd + (typeof docMod === 'function' ? docMod(a.tag, 'spd') : 0);   // la velocidad es igual para todos los países
-  const so = G.S[B.s]; const own = (so.owner === a.tag || sameSide(a.tag, so.owner));
-  // ferrocarril: en territorio propio o aliado cada nivel de infraestructura acelera mucho el avance (hasta ×0.26)
-  const inf = Math.min(10, so.infra || 0);
-  const rail = own ? 1 / (1 + 0.28 * inf) : 1;
+  const so = G.S[B.s], sf = G.S[MAP.provs[fromId].s]; const own = (so.owner === a.tag || sameSide(a.tag, so.owner));
+  // ferrocarril: si el tramo está en territorio propio o aliado y las dos provincias tienen vía (nivel de infraestructura del estado), la marcha es mucho más rápida
+  const fromOwn = sf.owner === a.tag || sameSide(a.tag, sf.owner);
+  const ie = own && fromOwn ? Math.min(10, sf.id === so.id ? (so.infra || 0) : Math.min(so.infra || 0, sf.infra || 0)) : 0;
+  const rail = 1 / (1 + 0.9 * ie);                  // nivel 1 → ×0,53 · 3 → ×0,27 · 5+ → ×0,18
   const mode = (a.fm ? 0.68 : 1) * (a.rail && own ? 0.35 : 1);
-  const rapid = own && inf >= 3;
-  return clamp(Math.round(provDist(fromId, toId) * 3.2 * B.terr.move * Math.max(0.2, rail) * mode / spd / lg), rapid ? 1 : 2, 30);
+  return clamp(Math.round(provDist(fromId, toId) * 3.2 * B.terr.move * Math.max(0.15, rail) * mode / spd / lg), ie >= 1 ? 1 : 2, 30);
 }
 const _ssCache = new Map(); let _ssSig = -1;
 function sameSide(ta, tb) {

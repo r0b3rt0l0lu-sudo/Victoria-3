@@ -27,7 +27,27 @@ function navalSupDay() {
   });
 }
 const _navyDayM2 = navyDay;
-navyDay = function () { _navyDayM2(); if (mx().fl.length) navalSupDay(); };
+navyDay = function () { _navyDayM2(); if (mx().fl.length) { navalSupDay(); navalDisengage(); } };
+/* Fin de las batallas eternas: tras varios días de combate el bando más débil rompe el contacto y se retira a puerto (y tarda en volver); si dura más de
+   3 semanas se retiran los dos. Las flotas con táctica «romper el contacto» se retiran a los 2 días. */
+function navalDisengage() {
+  const M = mx(); if (!M.nb) return;
+  for (const zs in M.nb) {
+    const r = M.nb[zs], z = +zs; if (!r || G.date.t - r.last > 1) continue;
+    const here = M.fl.filter(f => f.zone === z && !f.tr && f.port == null && f.ships.length);
+    const sideOf = f => (f.tag === r.a || sameSide(f.tag, r.a)) ? 'A' : (f.tag === r.b || sameSide(f.tag, r.b)) ? 'B' : null;
+    const P = {A: 0, B: 0}; here.forEach(f => { const sd = sideOf(f); if (sd) P[sd] += fleetPower(f); });
+    const dur = r.day; let loser = null;
+    if (dur >= 21) loser = 'AB'; else if (dur >= 8) loser = P.A < P.B ? 'A' : 'B'; else if (dur >= 4 && P.A < P.B * 0.5) loser = 'A'; else if (dur >= 4 && P.B < P.A * 0.5) loser = 'B';
+    here.forEach(f => {
+      const sd = sideOf(f); if (!sd) return; const evade = f.tac === 'evade' && dur >= 2;
+      if (!(evade || (loser && loser.includes(sd)))) return;
+      const c = G.C[f.tag], hz = mainPortZone(c); f.cool = {z, until: G.date.t + 40}; f.mission = 'port'; f.target = null;
+      if (hz !== null && hz !== z) fleetMove(f, hz); else { const ps = portsStates(c); if (ps.length && typeof fleetDock === 'function') fleetDock(f, ps[0]); }
+      if (f.tag === G.player) notify('war', `⚓ ${f.name} rompe el contacto en ${SEA_ZONES[z].name} y se retira a puerto.`);
+    });
+  }
+}
 // bloqueo: solo cuenta quien tiene supremacía en la zona
 const _fleetsBlockadingM2 = fleetsBlockading;
 fleetsBlockading = function (tag, z) {
@@ -54,6 +74,7 @@ function navalDistribute(c, fl) {
   free.sort((a, b) => fleetPower(b) - fleetPower(a)).forEach(f => {
     const fp = fleetPower(f); let best = null, bd = -1e9;
     ranked.forEach(([z, o]) => {
+      if (f.cool && f.cool.z === z && f.cool.until > G.date.t && zonePower(c.tag, z, 'foe') > fp * 0.6) return;     // acaba de ser derrotada allí
       const need = o.w / tot * power - got.get(z), foe = zonePower(c.tag, z, 'foe');
       let sc = need - zoneDist(f.zone, z) * 0.05 + (f.zone === z ? 0.6 : 0);
       if (o.kind === 'enemy' && foe > fp * 1.8) sc -= 5;        // no se suicida contra una armada mucho mayor
@@ -113,5 +134,8 @@ MX_TABS.forEach(t => { if (t.id === 'navy') { const h = t.html; t.html = functio
   let x = h(); const c = me(), M = mx(); const zs = [...countryZones(c).keys()];
   const rows = zs.slice(0, 8).map(z => { const d = seaDominant(z); return `<div class="kv sm"><span>${SEA_ZONES[z].name}</span><b>${d ? flag(d, 'sm') + ' ' + Math.round(navalSup(d, z)) + '%' : '—'}${d && d !== c.tag && hostileTags(c.tag, d) ? ' <span class="bad">⚠️</span>' : ''}</b></div>`; }).join('');
   const sc = c.scarc || 0;
-  const card = `<div class="card"><h3>🌊 Supremacía naval <button data-act="win" data-w="seamap" data-tip="Abre el mapa solo de mares para mover y agrupar flotas.">Mapa marítimo</button></h3>${rows || '<small class="dim">Sin costas.</small>'}${sc > 0.02 ? `<div class="notice bad"><b>🚧 Escasez por bloqueo: ${Math.round(sc * 100)}%</b><br>Sube el malestar, cae la producción y pueden estallar motines e insurrecciones. Rompe el cerco con una flota superior.</div>` : ''}<small class="dim">Hace falta ≥50 % de supremacía para bloquear y ≥35 % para desembarcar con seguridad.</small></div>`;
+  const card = `<div class="card"><h3>🌊 Supremacía naval <button data-act="mode" data-m="naval" data-tip="Cambia el mapa al modo marítimo para mover y agrupar flotas.">Mapa marítimo</button></h3>${rows || '<small class="dim">Sin costas.</small>'}${sc > 0.02 ? `<div class="notice bad"><b>🚧 Escasez por bloqueo: ${Math.round(sc * 100)}%</b><br>Sube el malestar, cae la producción y pueden estallar motines e insurrecciones. Rompe el cerco con una flota superior.</div>` : ''}<small class="dim">Hace falta ≥50 % de supremacía para bloquear y ≥35 % para desembarcar con seguridad.</small></div>`;
   return x.replace(/<\/div><\/div><\/div>$/, card + '</div></div></div>'); }; } });
+
+const _fleetMoveM2 = fleetMove;
+fleetMove = function (f, z) { const had = f.tr; _fleetMoveM2(f, z); if (f.tr && f.tr !== had) f.tr.tot = f.tr.left; };

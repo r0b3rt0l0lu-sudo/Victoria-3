@@ -84,7 +84,7 @@ function ctrlFire(S, V, blk, O, D) {
   const hit = ctrlRay(S, O, DD, 260), tEnd = hit ? hit.t : 200;
   for (let i = 1; i <= 7; i++) { const u = tEnd * i / 7; fxFlash(O.x + dx * u, O.y + dy * u, O.z + dz * u, 0.04 + i * 0.012); }          // trazadora
   SOLD.suppress = {x: hit && hit.p ? hit.p.x : O.x + dx * 120, z: hit && hit.p ? hit.p.z : O.z + dz * 120, t: tU};          // los soldados cercanos al disparo se ponen a cubierto
-  if (hit && hit.blocked) { bvPart(V, {k: 'spark', x: hit.x, y: hit.z, life: 0.4, hot: true}); bvPart(V, {k: 'dust', x: hit.x, y: hit.z, life: 0.8}); return; }
+  if (hit && hit.blocked) { fxFlash(hit.x, hit.y, hit.z, 0.16); bvPart(V, {k: 'dust', x: hit.x, y: hit.z, life: 0.8}); return; }
   if (!hit) { const gx = O.x + dx * 120, gz = O.z + dz * 120; bvPart(V, {k: 'dust', x: gx, y: gz, life: 0.8}); return; }
   c.hits++; c.hitT = tU; const p = hit.p, blkE = p.blk;
   const kill = hit.head || Math.random() < 0.7, front = (Math.sin(p.yaw) * dx + Math.cos(p.yaw) * dz) < 0, side = (Math.cos(p.yaw) * dz - Math.sin(p.yaw) * dx), r = Math.random();
@@ -94,7 +94,7 @@ function ctrlFire(S, V, blk, O, D) {
   const T3 = window.Troops3D, inf = T3 && T3.clipInfo ? T3.clipInfo('fusilero', dClip) : null;
   const e = {key: hit.key, x: p.x, z: p.z, yaw: p.yaw, tag: blkE.tag, era, wound: !kill, t0: tU, clip: kill ? dClip : 'herido_grave', dClip, dur: inf && inf.dur ? inf.dur : 2, corpse: 'cuerpo_inerte_' + dClip.replace(/^muerte_/, '')};
   V.kmap[hit.key] = e; V.klist.push(e); if (kill) c.kills++;
-  bvPart(V, {k: 'spark', x: p.x, y: p.z, life: 0.5, hot: true}); bvPart(V, {k: 'dust', x: p.x, y: p.z, life: 0.7});
+  fxFlash(p.x, b3H(S.tf, p.x, p.z) + 1.6, p.z, 0.18); bvPart(V, {k: 'dust', x: p.x, y: p.z, life: 0.7});
   V.heroHits = (V.heroHits || 0) + 1;
   if (V.heroHits <= HERO_CAP) { blkE.d.s = Math.max(0.02, blkE.d.s - HERO_MEN / MEN_PER_DIV); blk.mm = Math.min(1, (blk.mm !== undefined ? blk.mm : 0.8) + 0.004); }
 }
@@ -122,7 +122,7 @@ function ctrlStep(S, V, blk, dt) {
   SOLD.shots.forEach(sh => { if (died) return;
     const ty = gyP + c.head * 0.85, blkd = covBlock(S, sh.x, sh.y, sh.z, c.x, ty, c.z), brg = Math.atan2(sh.z - c.z, sh.x - c.x);
     fxFlash(sh.x, sh.y - 0.2, sh.z, 0.1); for (let i = 1; i <= 5; i++) { const ex = blkd ? blkd.x : c.x, ez = blkd ? blkd.z : c.z, ey = blkd ? blkd.y : ty; fxFlash(sh.x + (ex - sh.x) * i / 6, sh.y + (ey - sh.y) * i / 6, sh.z + (ez - sh.z) * i / 6, 0.04 + i * 0.012); }
-    if (blkd) { bvPart(V, {k: 'spark', x: blkd.x, y: blkd.z, life: 0.4, hot: true}); bvPart(V, {k: 'dust', x: blkd.x, y: blkd.z, life: 0.7}); c.coverT = tU; c.hurt = {ang: brg, t: tU, blk: true}; c.kick += 0.012; return; }
+    if (blkd) { fxFlash(blkd.x, blkd.y, blkd.z, 0.16); bvPart(V, {k: 'dust', x: blkd.x, y: blkd.z, life: 0.7}); c.coverT = tU; c.hurt = {ang: brg, t: tU, blk: true}; c.kick += 0.012; return; }
     c.hurt = {ang: brg, t: tU, blk: false}; c.kick += 0.02;
     const pHit = clamp(0.016 - sh.dd / 9000, 0.004, 0.016) * (c.kneel ? (c.peek ? 0.8 : 0.5) : 1) * (c.run ? 0.75 : 1) * (c.flag ? 1.5 : 1); if (Math.random() < pHit && !c.god) died = true; });
   if (died) { c.dead = true; c.deadAt = now; c.clip = 'muerte_adelante'; c.clipT = tU; if (c.flag) { blk.mm = Math.max(0, (blk.mm !== undefined ? blk.mm : 0.8) - 0.12); c.flag = false; } }

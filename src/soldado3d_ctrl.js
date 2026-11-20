@@ -53,6 +53,7 @@ function ctrlStart() {
 }
 function ctrlExit(why) {
   const c = SOLD.ctrl; if (!c) return; SOLD.ctrl = null; SOLD.yaw = 0; const V = R.bviz; if (V && c.oldTs !== undefined) V.ts = c.oldTs; else if (V) delete V.ts;
+  if (c.oldTs === undefined && V && V.ts === CTRL_SLOW) delete V.ts;
   try { if (document.pointerLockElement) document.exitPointerLock(); } catch (e) { }
   if (B3.S) { B3.S.cam.fov = 40; B3.S.cam.near = 2; B3.S.cam.updateProjectionMatrix(); B3.S.scene.onAfterRender = function () { }; }
   B3.hide = SOLD.fp ? {bid: SOLD.bid, fi: SOLD.fi, j: SOLD.j} : null; Object.keys(CK).forEach(k => { CK[k] = 0; });
@@ -97,7 +98,7 @@ function ctrlFire(S, V, blk, O, D) {
 function ctrlStep(S, V, blk, dt) {
   const c = SOLD.ctrl, now = performance.now(), rdt = clamp((now - c.lt) / 1000, 0, 0.1), tU = now / 1000; c.lt = now; c.t += rdt; c.cd = Math.max(0, c.cd - rdt); c.kick *= Math.exp(-rdt * 9);
   SOLD.vis = SOLD.visNew; SOLD.visNew = new Map(); SOLD.shooters = SOLD.shootNew; SOLD.shootNew = [];
-  if (c.dead) { if (now - c.deadAt > 2600) { ctrlExit('dead'); return null; } return {x: c.x, z: c.z, dead: true}; }
+  if (c.dead) { if (now - c.deadAt > 2600) { ctrlExit('dead'); return null; } ctrlVMStep(c, rdt, t3Era()); return {x: c.x, z: c.z, dead: true}; }
   const f = (CK.w ? 1 : 0) - (CK.s ? 1 : 0), r = (CK.d ? 1 : 0) - (CK.a ? 1 : 0), aim = c.cyaw; c.mv = !!(f || r); c.run = !!(CK.shift && c.mv && !c.kneel); c.ads = !!CK.ads;
   const ts = Math.max(0.2, V.ts === undefined ? 1 : V.ts);                           // se mueve con el tiempo del combate (con el combate en pausa, a ×0,2)
   if (c.mv) { const sp = (c.kneel ? 4 : c.run ? CTRL_RUN : CTRL_WALK) * (c.ads ? 0.55 : 1) * ts; let vx = Math.cos(aim) * f - Math.sin(aim) * r, vz = Math.sin(aim) * f + Math.cos(aim) * r; const L = Math.hypot(vx, vz) || 1; c.x += vx / L * sp * rdt; c.z += vz / L * sp * rdt; c.face = Math.atan2(vz, vx); }
@@ -147,7 +148,7 @@ b3Fig = function (S, V, blk, f, era, tU, cp, ca) {
 // movimiento libre de los soldados cerca de la cámara; los enemigos te ven, se te acercan, te encaran y te disparan
 function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
   if (!SOLD.on) return null; const V = R.bviz; if (!V) return null; const d0 = Math.hypot(x - ca.x, z - ca.z); if (d0 > 260) return null;
-  const me = soldBlock(V); if (!me) return null; const enemy = blk.side !== me.side, key = blk.id + ':' + f.i + ':' + j, sp = blk.sp || 0, mode = blk.mode;
+  const me = SOLD._meT === tU ? SOLD._me : (SOLD._meT = tU, SOLD._me = soldBlock(V)); if (!me) return null; const enemy = blk.side !== me.side, key = blk.id + ':' + f.i + ':' + j, sp = blk.sp || 0, mode = blk.mode;
   if (mode === 'rout' || f.flee > 0) { if (enemy) SOLD.visNew.set(key, {x, z, yaw, blk}); return null; }
   const T = 3.5 + h1 * 3.2, tt = tU + h2 * 20, seg = Math.floor(tt / T), fr = (tt % T) / T, amp = sp > 8 ? 0.4 : (mode === 'fire' || mode === 'skirmish') ? 3.4 : mode === 'hold' ? 1.4 : (mode === 'charge' || mode === 'melee') ? 0.6 : 2.2;
   const rn = (s, k) => (hash2(blk.id * 131 + f.i + j * 7, s, k) - 0.5) * 2 * amp, k = Math.min(1, fr * 5), ease = k * k * (3 - 2 * k);

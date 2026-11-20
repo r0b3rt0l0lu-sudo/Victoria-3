@@ -25,7 +25,7 @@ function soldStart() {
   const blk = soldPick(V); if (!blk || !soldSet(blk)) { toast('🪖', 'No quedan soldados que seguir en este campo.'); return; }
   SOLD.saved = Object.assign({}, B3.cam); SOLD.on = true; SOLD.yaw = 0; SOLD.pit = SOLD.fp ? 0.02 : 0.14; SOLD.dist = 8; V.follow = false; renderBattlePanel();
 }
-function soldStop() { if (!SOLD.on) return; SOLD.on = false; B3.hide = null; SOLD.ctrl = null; if (SOLD.saved) Object.assign(B3.cam, SOLD.saved); SOLD.saved = null; try { renderBattlePanel(); } catch (e) { } }
+function soldStop() { if (!SOLD.on) return; if (SOLD.ctrl && typeof ctrlExit === 'function') ctrlExit(); SOLD.on = false; B3.hide = null; SOLD.ctrl = null; if (SOLD.saved) Object.assign(B3.cam, SOLD.saved); SOLD.saved = null; try { renderBattlePanel(); } catch (e) { } }
 function soldStep(V, dir) {         // soldado anterior / siguiente del regimiento
   const blk = soldBlock(V); if (!blk) return; const sl = soldSlots(blk); if (!sl.length) return;
   let i = sl.findIndex(p => p[0] === SOLD.fi && p[1] === SOLD.j); i = i < 0 ? 0 : (i + dir + sl.length) % sl.length; SOLD.fi = sl[i][0]; SOLD.j = sl[i][1]; SOLD.pos = null;
@@ -51,7 +51,7 @@ function soldCamera(S, V, dt) {
   cam.updateMatrixWorld(); B3.cam.tx = px; B3.cam.tz = pz; return true;
 }
 const _b3CameraS = b3Camera;
-b3Camera = function (S, V, dt) { if (SOLD.on) { if (!B3.active || !B3.S) { SOLD.on = false; B3.hide = null; } else if (soldCamera(S, V, dt)) return; } return _b3CameraS(S, V, dt); };
+b3Camera = function (S, V, dt) { if (SOLD.on) { if (!B3.active || !B3.S) { if (SOLD.ctrl && typeof ctrlExit === 'function') { try { ctrlExit(); } catch (e) { } } SOLD.on = false; SOLD.ctrl = null; B3.hide = null; } else if (soldCamera(S, V, dt)) return; } return _b3CameraS(S, V, dt); };
 // mirar alrededor con el arrastre del ratón (en lugar de desplazar la cámara)
 const _b3PanS = b3Pan;
 b3Pan = function (dx, dy, h) { if (SOLD.on && SOLD.ctrl) { SOLD.lookDx = (SOLD.lookDx || 0) + dx; SOLD.lookDy = (SOLD.lookDy || 0) + dy; SOLD.ctrl.cyaw += dx * 0.006; SOLD.ctrl.pitch = clamp(SOLD.ctrl.pitch - dy * 0.004, -1.3, 1.3); return; } if (SOLD.on) { SOLD.yaw += dx * 0.006; SOLD.pit = clamp(SOLD.pit - dy * 0.004, -0.5, 0.8); return; } return _b3PanS(dx, dy, h); };

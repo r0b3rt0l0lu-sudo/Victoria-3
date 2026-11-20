@@ -78,7 +78,7 @@ function ctrlFire(S, V, blk, O, D) {
   const spread = (c.ads ? 0.004 : 0.016) * (c.mv ? (c.run ? 3 : 1.8) : 1) * (c.kneel ? 0.6 : 1); let dx = D.x + (Math.random() - 0.5) * spread, dy = D.y + (Math.random() - 0.5) * spread, dz = D.z + (Math.random() - 0.5) * spread; const L = Math.hypot(dx, dy, dz); dx /= L; dy /= L; dz /= L;
   const DD = {x: dx, y: dy, z: dz}, mx = O.x + dx * 2.2, mz = O.z + dz * 2.2;
   if (SOLD.vm && SOLD.fp) { SOLD.vm.play(c.ads ? 'disparar_ads_vm' : 'disparar_vm', {next: c.ads ? 'ads_vm' : 'idle_vm'}); c.reloaded = false; }
-  bvPart(V, {k: 'flash', x: O.x + dx * 4, y: O.z + dz * 4, life: 0.1}); bvPart(V, {k: 'smoke', x: O.x + dx * 11 - dz * 2, y: O.z + dz * 11 + dx * 2, life: 1.3});          // el humo se forma más adelante para no tapar la mira
+  bvPart(V, {k: 'flash', x: O.x + dx * 4, y: O.z + dz * 4, life: 0.1}); bvPart(V, {k: 'smoke', x: O.x + dx * 30 - dz * 3, y: O.z + dz * 30 + dx * 3, life: 1.1});          // el humo se forma más adelante para no tapar la mira
   const hit = ctrlRay(S, O, DD, 260), tEnd = hit ? hit.t : 200;
   for (let i = 1; i <= 6; i++) { const u = tEnd * i / 6; bvPart(V, {k: 'flash', x: O.x + dx * u, y: O.z + dz * u, life: 0.05 + i * 0.012}); }          // trazadora
   if (!hit) { const gx = O.x + dx * 120, gz = O.z + dz * 120; bvPart(V, {k: 'dust', x: gx, y: gz, life: 0.8}); return; }

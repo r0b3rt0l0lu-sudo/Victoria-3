@@ -27,7 +27,7 @@ function fmAngle(pl, dir) { return (pl.sweep === 'top' ? 1 : -1) * dir * (pl.psi
 function fmSlot(c, fm, pl, ls, i) {
   const dir = c.side === 'A' ? 1 : -1, th0 = dir > 0 ? 0 : Math.PI, k = ls[i], n = ls.length;
   if (pl.k === 'fsec') { const [p1, p2] = pl.pts, t = (i + 0.5) / n; return [p1[0] + (p2[0] - p1[0]) * t, p1[1] + (p2[1] - p1[1]) * t]; }
-  let lx = -(k.hdep + k.dep / 2), ly = (k.hy - fm.yc) * dir;
+  let lx = -(k.hdep + k.dep / 2), ly = (k.hy - fm.yc) * dir * (pl.stretch || 1);
   if (pl.k === 'fech' && n > 1) { const r = pl.lead === 'top' ? i / (n - 1) : (n - 1 - i) / (n - 1); lx += (pl.sk || 0) * (1 - r); }
   if (pl.k === 'fref' && n > 2) {
     const m = Math.max(1, Math.round(n / 3)), grp = pl.side === 'top' ? i < m : i >= n - m;
@@ -49,6 +49,21 @@ function bvFormSet(V, b, c, kind, pts, quiet, delay, mis) {
   if (mis) { pl.mis = true; pl.pts.forEach(p => { p[1] = clamp(p[1] + (Math.random() < 0.5 ? -1 : 1) * (50 + Math.random() * 45), 36, BV_H - 20); }); }
   b.cplan[c.id] = pl; delete V.fm[c.id];
   if (!quiet) { const F = FORM[kind]; bvBanner(V, delay >= 1.5 ? `✉️ Orden «${F.n}» enviada al ${corpsName(c)}: llegará en ${delay} s` : `${F.ic} ${F.n}: ${corpsName(c)}`, c.side, ''); (b.log = b.log || []).push({k: kind === 'fenv' || kind === 'fech' ? 'flank' : 'charge', d: b.day, t: `${G.C[c.tag].name}: ${corpsName(c)} ejecuta «${F.n}».`}); if (b.log.length > 30) b.log.shift(); }
+  return true;
+}
+/* Flanqueo realista: solo 1 (cuerpo de 2-4 regimientos) o 2 (5+) regimientos del extremo envuelven al enemigo; el resto de la línea
+   mantiene la coherencia: se realinea y estira su frente para cubrir el hueco, de modo que no se abren posiciones vulnerables. */
+function fmFlankSplit(V, b, c, pts, quiet, delay, mis) {
+  const ls = fmLs(c); if (ls.length < 2) return false;
+  const T0 = (pts && pts[pts.length - 1]) || [ls[0].x, ls[0].y], ys = ls.reduce((n, k) => n + k.y, 0) / ls.length;
+  const T = mis ? [T0[0], clamp(T0[1] + (Math.random() < 0.5 ? -1 : 1) * 70, 36, BV_H - 20)] : T0, top = T[1] < ys, n = ls.length >= 5 ? 2 : 1;
+  const cand = ls.filter(k => k.d.s > 0.3).sort((p, q) => ((q.type === 'cav') - (p.type === 'cav')) || (top ? p.hy - q.hy : q.hy - p.hy)).slice(0, n * 2);
+  // los n más externos del lado del flanqueo, prefiriendo caballería, y con la tropa más fresca
+  const pick = cand.sort((p, q) => ((q.type === 'cav') - (p.type === 'cav')) || (top ? p.hy - q.hy : q.hy - p.hy)).slice(0, n); if (!pick.length) return false;
+  const xm = pick.reduce((m, k) => m + k.x, 0) / pick.length + (T[0] - pick[0].x) * 0.35;
+  if (ls.length > pick.length) { bvFormSet(V, b, c, 'frea', [], true, delay || 0, false); const pl = b.cplan && b.cplan[c.id]; if (pl) { pl.stretch = Math.min(1.35, 1 + 0.16 * pick.length); pl.keep = V.t + 14; } }
+  pick.forEach((k, i) => { delete k.d.stay; k.fs = undefined; k.flkOk = false; k.skey = ''; k.d.plan = {k: 'flank', pts: [[xm, T[1] + (top ? -1 : 1) * i * 22], [T[0], T[1] + (top ? -1 : 1) * i * 22]], i: 0, part: c.id}; });
+  if (!quiet) { bvBanner(V, `↪️ Flanqueo: ${pick.length} regimiento${pick.length > 1 ? 's' : ''} del ${corpsName(c)} ${pick.length > 1 ? 'envuelven' : 'envuelve'} por el ${top ? 'norte' : 'sur'}; el resto mantiene la línea`, c.side, ''); (b.log = b.log || []).push({k: 'flank', d: b.day, t: `${G.C[c.tag].name}: ${pick.length} regimiento(s) flanquean mientras el resto del ${corpsName(c)} sostiene la línea.`}); if (b.log.length > 30) b.log.shift(); }
   return true;
 }
 function fmFriction(V, b, c) {          // las órdenes tardan en llegar y a veces se malinterpretan
@@ -100,7 +115,7 @@ function fmUpdate(V, b, c, pl, dt, all) {
     const g = fmDefaultG(V, b, c, ls); fm.x = g.x; fm.y = g.y;
   } else if (pl.k === 'frea') {
     const g = fmDefaultG(V, b, c, ls); stepTo([g.x, g.y], vb * 1.3); ls.forEach(k => { k.fat = Math.max(0, (k.fat || 0) - 0.01 * dt); });
-    if ((lagMax < 8 && V.t - pl.t0 > 2) || V.t - pl.t0 > 25) { delete b.cplan[c.id]; delete V.fm[c.id]; ls.forEach(k => { k.skey = ''; }); }
+    if (pl.keep && V.t < pl.keep) { /* el resto estira su frente mientras los flanqueadores rodean */ } else if ((lagMax < 8 && V.t - pl.t0 > 2) || V.t - pl.t0 > 25) { delete b.cplan[c.id]; delete V.fm[c.id]; ls.forEach(k => { k.skey = ''; }); }
   }
 }
 // ---- orden de movimiento de un regimiento dentro de su formación ----
@@ -179,7 +194,7 @@ function fmAi(V, b, all, dt) {
     if (!free.length || !foes.length) return;
     const top = Math.min(...foes.map(k => k.y)), bot = Math.max(...foes.map(k => k.y)), ex = foes.reduce((n, k) => n + k.x, 0) / foes.length, has = k => cs.some(c => b.cplan[c.id] && b.cplan[c.id].k === k);
     const ends = free.slice().sort((p, q) => p.yc - q.yc), dirSide = Math.random() < 0.5 ? 'top' : 'bottom';
-    if (st === 'flank' && !has('fenv') && cs.length >= 2) { const c = dirSide === 'top' ? ends[0] : ends[ends.length - 1]; bvFormSet(V, b, c, 'fenv', [[ex, dirSide === 'top' ? top - 55 : bot + 55]]); }
+    if (st === 'flank' && !has('fenv') && cs.length >= 2) { const c = dirSide === 'top' ? ends[0] : ends[ends.length - 1]; if (!fmFlankSplit(V, b, c, [[ex, dirSide === 'top' ? top - 55 : bot + 55]])) bvFormSet(V, b, c, 'fenv', [[ex, dirSide === 'top' ? top - 55 : bot + 55]]); }
     else if (att && st === 'frontal' && free.length >= 3 && !has('fech') && Math.random() < 0.18) { const c = dirSide === 'top' ? ends[0] : ends[ends.length - 1]; bvFormSet(V, b, c, 'fech', [[ex, dirSide === 'top' ? top : bot]]); }
     else if (!att && cs.length >= 2 && !has('fref') && Math.random() < 0.2) { const c = dirSide === 'top' ? ends[0] : ends[ends.length - 1]; bvFormSet(V, b, c, 'fref', [[ex, dirSide === 'top' ? 0 : BV_H]]); }
   });
@@ -193,6 +208,7 @@ tacSetPlan = function (V, plan) {
   if (V.sel && b) {
     const whole = V.selCorps && V.sel.corps && V.sel.corps.id === V.selCorps, c = V.sel.corps;
     if (FORM[plan.k] && c) { const fr = b.prep ? {delay: 0, mis: false} : fmFriction(V, b, c); bvFormSet(V, b, c, plan.k, plan.pts || [], false, fr.delay, fr.mis); return; }
+    if (whole && plan.k === 'flank' && c && plan.pts && plan.pts.length) { const fr = fmFriction(V, b, c); if (fmFlankSplit(V, b, c, plan.pts, false, fr.delay, fr.mis)) return; }
     if (whole && FORM_MAP[plan.k] && c) { const pts = plan.k === 'flank' ? [plan.pts[plan.pts.length - 1]] : plan.k === 'retreat' ? [plan.pts[0]] : plan.pts; const fr = fmFriction(V, b, c); if (bvFormSet(V, b, c, FORM_MAP[plan.k], pts, false, fr.delay, fr.mis)) return; }
     if (!FORM[plan.k] && c && b.cplan && b.cplan[c.id] && !whole) { /* la orden individual saca al regimiento de la formación */ }
   }

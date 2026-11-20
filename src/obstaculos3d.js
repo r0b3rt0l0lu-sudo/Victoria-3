@@ -86,3 +86,12 @@ function covFind(S, x, z, tx, tz, maxD) {
   const ext = Math.abs(vx * o.cs + vz * o.sn) * o.hw + Math.abs(-vx * o.sn + vz * o.cs) * o.hd, slot = o.occ, side = (slot - 1) * 1.7;
   return {i: best, x: o.x + vx * (ext + 1.1) + (-vz) * side, z: o.z + vz * (ext + 1.1) + vx * side};
 }
+
+// destellos pequeños (fogonazos y trazadoras) con tamaño propio: los del visor son muy grandes y, con muchos tiradores juntos, forman un resplandor que tapa la escena
+function fxEnsure(S) {
+  if (S.fx) return S.fx; const N = 128, geo = new THREE.BufferGeometry(), pos = new Float32Array(N * 3); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setDrawRange(0, 0);
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({size: 1.1, color: 0xffd98a, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true})); pts.frustumCulled = false; S.scene.add(pts);
+  return (S.fx = {pts, pos, geo, N, items: []});
+}
+function fxFlash(x, y, z, life) { const S = B3.S; if (!S) return; const F = fxEnsure(S); if (F.items.length < F.N) F.items.push({x, y, z, t: performance.now() / 1000, life}); }
+function fxUpdate(S) { const F = S.fx; if (!F) return; const t = performance.now() / 1000; F.items = F.items.filter(i => t - i.t < i.life); F.items.forEach((i, k) => { F.pos[k * 3] = i.x; F.pos[k * 3 + 1] = i.y; F.pos[k * 3 + 2] = i.z; }); F.geo.setDrawRange(0, F.items.length); F.geo.attributes.position.needsUpdate = true; }

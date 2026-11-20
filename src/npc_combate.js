@@ -89,7 +89,7 @@ function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
 // disparo de un NPC: fogonazo (y humo de pólvora negra), y si apunta al jugador, evento para ctrlStep
 function npcShot(S, V, s, x, z, thr, vsPlayer, dT, cover, era, dir) {
   const fx = x + s.ox + Math.sin(s.yaw) * 1.6, fz = z + s.oz + Math.cos(s.yaw) * 1.6;
-  bvPart(V, {k: 'flash', x: fx, y: fz, life: 0.11}); if (era < 'D') bvPart(V, {k: 'smoke', x: fx + Math.sin(s.yaw) * 2, y: fz + Math.cos(s.yaw) * 2, life: 2.2});
+  fxFlash(fx, b3H(S.tf, fx, fz) + 2.1, fz, 0.1); if (era < 'D') bvPart(V, {k: 'smoke', x: fx + Math.sin(s.yaw) * 2, y: fz + Math.cos(s.yaw) * 2, life: 2.2});
   if (vsPlayer) SOLD.shotNew.push({x: x + s.ox, y: b3H(S.tf, x + s.ox, z + s.oz) + (cover ? 1.9 : (s.post === 'rodilla' ? 1.9 : 2.5)), z: z + s.oz, dd: dT, cover});
   else if (Math.random() < 0.35) bvPart(V, {k: 'dust', x: thr.x + (Math.random() - 0.5) * 12, y: thr.z + (Math.random() - 0.5) * 12, life: 0.7});
 }

@@ -80,9 +80,9 @@ function ctrlFire(S, V, blk, O, D) {
   const spread = (c.ads ? 0.004 : 0.016) * (c.mv ? (c.run ? 3 : 1.8) : 1) * (c.kneel ? 0.6 : 1); let dx = D.x + (Math.random() - 0.5) * spread, dy = D.y + (Math.random() - 0.5) * spread, dz = D.z + (Math.random() - 0.5) * spread; const L = Math.hypot(dx, dy, dz); dx /= L; dy /= L; dz /= L;
   const DD = {x: dx, y: dy, z: dz}, mx = O.x + dx * 2.2, mz = O.z + dz * 2.2;
   if (SOLD.vm && SOLD.fp) { SOLD.vm.play(c.ads ? 'disparar_ads_vm' : 'disparar_vm', {next: c.ads ? 'ads_vm' : 'idle_vm'}); c.reloaded = false; }
-  bvPart(V, {k: 'flash', x: O.x + dx * 4, y: O.z + dz * 4, life: 0.1}); bvPart(V, {k: 'smoke', x: O.x + dx * 30 - dz * 3, y: O.z + dz * 30 + dx * 3, life: 1.1});          // el humo se forma más adelante para no tapar la mira
+  fxFlash(O.x + dx * 2.6, O.y + dy * 2.6 - 0.4, O.z + dz * 2.6, 0.09); bvPart(V, {k: 'smoke', x: O.x + dx * 30 - dz * 3, y: O.z + dz * 30 + dx * 3, life: 1.1});          // el humo se forma más adelante para no tapar la mira
   const hit = ctrlRay(S, O, DD, 260), tEnd = hit ? hit.t : 200;
-  for (let i = 1; i <= 6; i++) { const u = tEnd * i / 6; bvPart(V, {k: 'flash', x: O.x + dx * u, y: O.z + dz * u, life: 0.05 + i * 0.012}); }          // trazadora
+  for (let i = 1; i <= 7; i++) { const u = tEnd * i / 7; fxFlash(O.x + dx * u, O.y + dy * u, O.z + dz * u, 0.04 + i * 0.012); }          // trazadora
   SOLD.suppress = {x: hit && hit.p ? hit.p.x : O.x + dx * 120, z: hit && hit.p ? hit.p.z : O.z + dz * 120, t: tU};          // los soldados cercanos al disparo se ponen a cubierto
   if (hit && hit.blocked) { bvPart(V, {k: 'spark', x: hit.x, y: hit.z, life: 0.4, hot: true}); bvPart(V, {k: 'dust', x: hit.x, y: hit.z, life: 0.8}); return; }
   if (!hit) { const gx = O.x + dx * 120, gz = O.z + dz * 120; bvPart(V, {k: 'dust', x: gx, y: gz, life: 0.8}); return; }
@@ -121,7 +121,7 @@ function ctrlStep(S, V, blk, dt) {
   const era = t3Era(); let died = false; const gyP = b3H(S.tf, c.x, c.z); SOLD.shots = SOLD.shotNew; SOLD.shotNew = [];
   SOLD.shots.forEach(sh => { if (died) return;
     const ty = gyP + c.head * 0.85, blkd = covBlock(S, sh.x, sh.y, sh.z, c.x, ty, c.z), brg = Math.atan2(sh.z - c.z, sh.x - c.x);
-    bvPart(V, {k: 'flash', x: sh.x, y: sh.z, life: 0.12}); for (let i = 1; i <= 4; i++) bvPart(V, {k: 'flash', x: sh.x + ((blkd ? blkd.x : c.x) - sh.x) * i / 5, y: sh.z + ((blkd ? blkd.z : c.z) - sh.z) * i / 5, life: 0.05 + i * 0.012});
+    fxFlash(sh.x, sh.y - 0.2, sh.z, 0.1); for (let i = 1; i <= 5; i++) { const ex = blkd ? blkd.x : c.x, ez = blkd ? blkd.z : c.z, ey = blkd ? blkd.y : ty; fxFlash(sh.x + (ex - sh.x) * i / 6, sh.y + (ey - sh.y) * i / 6, sh.z + (ez - sh.z) * i / 6, 0.04 + i * 0.012); }
     if (blkd) { bvPart(V, {k: 'spark', x: blkd.x, y: blkd.z, life: 0.4, hot: true}); bvPart(V, {k: 'dust', x: blkd.x, y: blkd.z, life: 0.7}); c.coverT = tU; c.hurt = {ang: brg, t: tU, blk: true}; c.kick += 0.012; return; }
     c.hurt = {ang: brg, t: tU, blk: false}; c.kick += 0.02;
     const pHit = clamp(0.03 - sh.dd / 6000, 0.006, 0.03) * (c.kneel ? (c.peek ? 0.8 : 0.5) : 1) * (c.run ? 0.75 : 1) * (c.flag ? 1.5 : 1); if (Math.random() < pHit) died = true; });

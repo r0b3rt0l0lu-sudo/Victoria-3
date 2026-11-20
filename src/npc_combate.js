@@ -26,7 +26,8 @@ function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
   const enemy = blk.side !== me.side, key = blk.id + ':' + f.i + ':' + j, sp = blk.sp || 0, mode = blk.mode, era = t3Era(), gy0 = b3H(S.tf, x, z);
   let s = NPC.get(key); if (!s) { s = {ox: 0, oz: 0, yaw, st: 'idle', t0: tU, tE: tU + h1 * 2, cov: -1, pin: 0, lt: tU, fireT: -99, ph: 'aim', phT: tU + 0.6 + h2, post: h2 < 0.45 ? 'rodilla' : 'pie', grp: (f.i + j) & 1, shy: h1 < 0.3, tx: 0, tz: 0, hide: 0, seg: -1}; NPC.set(key, s); }
   const dt = clamp(tU - s.lt, 0, 0.1); s.lt = tU;
-  if (mode === 'rout' || f.flee > 0 || mode === 'charge' || mode === 'melee' || mode === 'gallop' || sp > 8) { npcRelease(S, s, key); s.st = 'idle'; s.ox *= 0.9; s.oz *= 0.9; if (enemy) SOLD.visNew.set(key, {x: x + s.ox, z: z + s.oz, yaw: s.yaw, blk}); return null; }
+  const nearP = enemy && SOLD.ctrl && !SOLD.ctrl.dead && Math.hypot(SOLD.ctrl.x - x - s.ox, SOLD.ctrl.z - z - s.oz) < 110;      // un bloque que avanza también reacciona si el jugador está cerca
+  if (mode === 'rout' || f.flee > 0 || mode === 'charge' || mode === 'melee' || mode === 'gallop' || (sp > 8 && !nearP)) { npcRelease(S, s, key); s.st = 'idle'; s.ox *= 0.9; s.oz *= 0.9; if (enemy) SOLD.visNew.set(key, {x: x + s.ox, z: z + s.oz, yaw: s.yaw, blk}); return null; }
   // ---- amenaza ----
   const pc = SOLD.ctrl && !SOLD.ctrl.dead ? SOLD.ctrl : null; let thr = null, vsPlayer = false, dT = 0;
   const px = x + s.ox, pz = z + s.oz;

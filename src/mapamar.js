@@ -40,8 +40,18 @@ function smPaint() {
     d[o] = r; d[o + 1] = g; d[o + 2] = b; d[o + 3] = a; } }
   SM.ctx.putImageData(SM.img, 0, 0);
   const g = SM.ctx; g.textAlign = 'center'; g.textBaseline = 'middle';
-  SEA_ZONES.forEach(Z => { const x = lonToX(Z.lon), y = latToY(Z.lat), big = Z.id === sel; g.font = `${big ? 'bold ' : ''}${big ? 30 : 24}px Georgia, serif`; g.fillStyle = big ? 'rgba(240,255,240,.95)' : 'rgba(215,230,250,.6)'; g.strokeStyle = 'rgba(0,10,25,.55)'; g.lineWidth = 4; const t = Z.name.toUpperCase(); g.strokeText(t, x, y); g.fillText(t, x, y);
-    const dom = col[Z.id].dom; if (dom) { g.font = '20px sans-serif'; g.fillStyle = 'rgba(255,255,255,.8)'; const t2 = `${Math.round(navalSup(dom, Z.id))}% ${G.C[dom].name}`; g.strokeText(t2, x, y + 28); g.fillText(t2, x, y + 28); } });
+  // rótulos: en el centroide de cada región, con tamaño según su área y sin solaparse (los de mayor área mandan; los que no caben se ocultan salvo el seleccionado)
+  if (!SM.cent) { const n = SEA_ZONES.length, sx = new Float64Array(n), sy = new Float64Array(n), c = new Float64Array(n); for (let y = 0; y < zh; y++) for (let x = 0; x < zw; x++) { const z = zm[y * zw + x]; if (MAP.land[(y * 2) * MAP_W + x * 2]) continue; sx[z] += x; sy[z] += y; c[z]++; }
+    SM.cent = SEA_ZONES.map((Z, i) => c[i] ? {x: sx[i] / c[i] * 2, y: sy[i] / c[i] * 2, area: c[i], w: Math.sqrt(c[i]) * 2} : {x: lonToX(Z.lon), y: latToY(Z.lat), area: 0, w: 40}); }
+  const placed = [], order = SEA_ZONES.map(Z => Z.id).sort((a, b) => (b === sel) - (a === sel) || SM.cent[b].area - SM.cent[a].area);
+  order.forEach(id => { const Z = SEA_ZONES[id], C = SM.cent[id], big = id === sel, t = Z.name.toUpperCase(), dom = col[id].dom;
+    let fs = clamp(C.w * 0.075, 15, big ? 30 : 26), ok = false, box = null;
+    for (let tries = 0; tries < 6 && !ok; tries++) { g.font = `${big ? 'bold ' : ''}${fs}px Georgia, serif`; const tw = g.measureText(t).width; if (tw > C.w * 1.15 && fs > 14) { fs -= 3; continue; }
+      const h = fs * (dom ? 2.4 : 1.3); box = {x0: C.x - tw / 2 - 6, x1: C.x + tw / 2 + 6, y0: C.y - fs * 0.7, y1: C.y - fs * 0.7 + h};
+      ok = !placed.some(q => box.x0 < q.x1 && box.x1 > q.x0 && box.y0 < q.y1 && box.y1 > q.y0); if (!ok) { if (fs > 14) fs -= 3; else break; } }
+    if (!ok && !big) return; placed.push(box);
+    g.fillStyle = big ? 'rgba(240,255,240,.97)' : 'rgba(215,230,250,.72)'; g.strokeStyle = 'rgba(0,10,25,.6)'; g.lineWidth = 4; g.strokeText(t, C.x, C.y); g.fillText(t, C.x, C.y);
+    if (dom) { g.font = `${Math.max(12, fs * 0.72)}px sans-serif`; g.fillStyle = 'rgba(255,255,255,.85)'; const t2 = `${Math.round(navalSup(dom, id))}% ${G.C[dom].name}`; g.strokeText(t2, C.x, C.y + fs * 1.05); g.fillText(t2, C.x, C.y + fs * 1.05); } });
   SM.tex.needsUpdate = true; R.dirty = true;
 }
 const smZoneAtWorld = wp => { if (!wp) return -1; const px = Math.floor(lonToX(wp.x)), py = Math.floor(latToY(-wp.z)); if (px < 0 || py < 0 || px >= MAP_W || py >= MAP_H || MAP.land[py * MAP_W + px]) return -1; return SM.zmap ? SM.zmap[(py >> 1) * SM.zw + (px >> 1)] : -1; };
@@ -105,7 +115,7 @@ function smOrder(z) {
 function smPanel(show) {
   let el = SM.panel; if (!show) { if (el) el.style.display = 'none'; return; }
   if (!el) { el = SM.panel = document.createElement('div'); el.id = 'seapanel'; document.body.appendChild(el);
-    const st = document.createElement('style'); st.textContent = '#seapanel{position:fixed;left:8px;top:96px;width:330px;max-height:calc(100vh - 230px);overflow:auto;z-index:30;background:linear-gradient(180deg,rgba(14,28,44,.96),rgba(10,20,32,.96));border:1px solid #3d6a86;border-radius:8px;padding:8px;color:#dce8f5;font-size:13px;box-shadow:0 4px 18px rgba(0,0,0,.5)}#seapanel h3{margin:0 0 6px;font-size:14px;color:#9fd0ff}#seapanel .sm-row{display:block;padding:3px 4px;border-radius:4px;cursor:pointer}#seapanel .sm-row.on{background:#25496e}#seapanel .sm-row small{display:block;opacity:.75}#seapanel button{margin:2px 2px 2px 0}.ntoken.sel{outline:3px solid #ffe27a;outline-offset:1px;z-index:5}body.seamode .atoken{display:none!important}body.seamode #labels{opacity:.2}';
+    const st = document.createElement('style'); st.textContent = '#seapanel{position:fixed;left:8px;top:96px;width:330px;max-height:calc(100vh - 230px);overflow:auto;z-index:30;background:linear-gradient(180deg,rgba(14,28,44,.96),rgba(10,20,32,.96));border:1px solid #3d6a86;border-radius:8px;padding:8px;color:#dce8f5;font-size:13px;box-shadow:0 4px 18px rgba(0,0,0,.5)}#seapanel h3{margin:0 0 6px;font-size:14px;color:#9fd0ff}#seapanel .sm-row{display:block;padding:3px 4px;border-radius:4px;cursor:pointer}#seapanel .sm-row.on{background:#25496e}#seapanel .sm-row small{display:block;opacity:.75}#seapanel button{margin:2px 2px 2px 0}.ntoken.sel{outline:3px solid #ffe27a;outline-offset:1px;z-index:5}body.seamode .atoken,body.seamode .marker{display:none!important}body.seamode #labels{display:none!important}';
     document.head.appendChild(st);
     el.addEventListener('click', ev => { const cb = ev.target.closest('input[data-fl]'), b = ev.target.closest('[data-sm]');
       if (cb) { const id = +cb.dataset.fl; cb.checked ? SM.sel.add(id) : SM.sel.delete(id); smPanel(true); smMarkTokens(); return; }

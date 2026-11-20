@@ -519,7 +519,7 @@ function declutterTokens() {
   const items = [];
   [R.ak, R.nk].forEach(o => { if (o) for (const k in o) { const el = o[k]; if (el._x == null || el.style.display === 'none') continue; items.push(el); } });
   items.sort((a, b) => (b._pri || 0) - (a._pri || 0));
-  const placed = []; if (R.mk) for (const k in R.mk) { const m = R.mk[k]; if (m._bx != null) placed.push({x: m._bx, y: m._by, w: 40, h: 38}); }
+  const placed = typeof smAvoid === 'function' ? smAvoid() : []; if (R.mk && !document.body.classList.contains('seamode')) for (const k in R.mk) { const m = R.mk[k]; if (m._bx != null) placed.push({x: m._bx, y: m._by, w: 40, h: 38}); }
   items.forEach(el => {
     if (el._k !== el._kw || !el._w) { el._kw = el._k; el._w = el.offsetWidth || 54; el._h = el.offsetHeight || 22; }
     const w = el._w + 3, h = el._h + 2;

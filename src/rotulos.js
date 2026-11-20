@@ -115,8 +115,8 @@ declutterTokens = function () {
   const items = [];
   [R.ak, R.nk].forEach(o => { if (o) for (const k in o) { const el = o[k]; if (el._x == null || el.style.display === 'none') continue; items.push(el); } });
   items.sort((a, b) => (b._pri || 0) - (a._pri || 0));
-  const placed = [], soft = (R.labelRects || []).map(b => ({x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2, w: b.x1 - b.x0, h: b.y1 - b.y0}));
-  if (R.mk) for (const k in R.mk) { const m = R.mk[k]; if (m._bx != null) placed.push({x: m._bx, y: m._by, w: 40, h: 38}); }
+  const sea = document.body.classList.contains('seamode'), placed = [], soft = sea ? (typeof smAvoid === 'function' ? smAvoid() : []) : (R.labelRects || []).map(b => ({x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2, w: b.x1 - b.x0, h: b.y1 - b.y0}));
+  if (R.mk && !sea) for (const k in R.mk) { const m = R.mk[k]; if (m._bx != null) placed.push({x: m._bx, y: m._by, w: 40, h: 38}); }
   const hit = (list, x, y, w, h) => list.some(q => Math.abs(q.x - x) < (q.w + w) / 2 && Math.abs(q.y - y) < (q.h + h) / 2);
   items.forEach(el => {
     if (el._k !== el._kw || !el._w || el._gk !== el._gkw) { el._kw = el._k; el._gkw = el._gk; el._w = el.offsetWidth || 54; el._h = el.offsetHeight || 22; }

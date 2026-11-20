@@ -43,7 +43,20 @@ function smLabels() {
     const w = e.offsetWidth, h = e.offsetHeight, box = {x0: x - w / 2 - 4, x1: x + w / 2 + 4, y0: y - h / 2 - 2, y1: y + h / 2 + 2};
     if (!sel && placed.some(q => box.x0 < q.x1 && box.x1 > q.x0 && box.y0 < q.y1 && box.y1 > q.y0)) { e.style.display = 'none'; return; } placed.push(box); });
 }
-function smLoop() { if (R.mode !== 'naval') { SM.raf = 0; return; } smLabels(); SM.raf = requestAnimationFrame(smLoop); }
+function smConvoys() {
+  const M = mx(), list = (M.cvs || []).filter(x => !x.land && (x.tag === G.player)); SM.cvEl = SM.cvEl || [];
+  list.forEach((x, i) => { let e = SM.cvEl[i]; if (!e) { e = SM.cvEl[i] = document.createElement('div'); e.style.cssText = 'position:fixed;left:0;top:0;z-index:7;pointer-events:none;font:700 12px sans-serif;color:#fff;background:#7a5a1e;border:1px solid #ffd27a;border-radius:9px;padding:0 5px;white-space:nowrap'; document.body.appendChild(e); }
+    const A = zoneAnchor(x.zone), p = worldToScreen(A.lon, 0.3, -A.lat), cv = R.canvas.getBoundingClientRect(); e.style.display = 'block'; e.textContent = (x.back ? '↩' : '📦') + x.lots + (M.fl.some(f => f.escort === x.id) ? '🛡' : '');
+    e.style.transform = `translate(${(p[0] + cv.left + 18).toFixed(0)}px,${(p[1] + cv.top - 22).toFixed(0)}px)`; });
+  for (let i = list.length; i < SM.cvEl.length; i++) SM.cvEl[i].style.display = 'none';
+}
+// rectángulos (en coordenadas del lienzo) de los rótulos de mar visibles: las fichas de flota los esquivan
+function smAvoid() {
+  if (R.mode !== 'naval' || !SM.lel) return []; const cv = R.canvas.getBoundingClientRect(), out = [];
+  SM.lel.forEach(e => { if (e.style.display === 'none') return; const r = e.getBoundingClientRect(); if (r.width) out.push({x: (r.left + r.right) / 2 - cv.left, y: (r.top + r.bottom) / 2 - cv.top, w: r.width, h: r.height}); });
+  return out;
+}
+function smLoop() { if (R.mode !== 'naval') { SM.raf = 0; if (SM.cvEl) SM.cvEl.forEach(e => e.style.display = 'none'); return; } smLabels(); smConvoys(); SM.raf = requestAnimationFrame(smLoop); }
 function smPaint() {
   if (!SM.mesh || R.mode !== 'naval') return; SM.dirty = false; const W = MAP_W, H = MAP_H, d = SM.img.data, zw = SM.zw, zh = SM.zh, zm = SM.zmap, land = MAP.land, M = mx();
   const col = SEA_ZONES.map(Z => { const dom = seaDominant(Z.id), c = dom && G.C[dom] ? hex2rgb(/^#[0-9a-f]{6}$/i.test(G.C[dom].color) ? G.C[dom].color : '#445566') : [64, 96, 130]; return {c, dom}; });
@@ -95,7 +108,12 @@ window.onMapClick = function (id, e, pid) {
 const _onMapRightSM = window.onMapRightClick;
 window.onMapRightClick = function (id, e, pid) {
   if (R.mode !== 'naval') return _onMapRightSM(id, e, pid);
-  const z = smZoneAtWorld(screenToWorld(e.clientX, e.clientY)); if (z < 0) return;
+  const z = smZoneAtWorld(screenToWorld(e.clientX, e.clientY));
+  if (z < 0) { // clic derecho en tierra con un ejército de embarque elegido: desembarco con escolta
+    if (SM.landArmy && pid !== undefined && pid >= 0) { const r = createLanding(G.player, [SM.landArmy], pid); if (!r.ok) { toast('⚠️', r.msg); return; }
+      const tz = seaZoneOfProv(pid); let n = 0; smMine().filter(f => SM.sel.has(f.id)).forEach(f => { fleetMove(f, tz); f.mission = 'convoy'; n++; });
+      toast('🛬', `Desembarco planeado en ${provName(pid)} (${r.need} transporte${r.need > 1 ? 's' : ''})${n ? ` · ${n} flota(s) escoltan hacia ${SEA_ZONES[tz].name}` : ' · selecciona flotas para escoltar'}. ${zoneSecure(G.player, tz) ? '' : '⚠️ El mar no es seguro: necesitas supremacía.'}`); SM.landArmy = null; smPanel(true); }
+    return; }
   if (!SM.sel.size) { SM.zone = z; SM.dirty = true; return; } smOrder(z);
 };
 const _onMapBoxSM = window.onMapBoxSelect;
@@ -134,15 +152,16 @@ function smPanel(show) {
       else if (k === 'dock') { sel.forEach(f => { const ps = portsStates(G.C[f.tag]); if (ps.length) { const r = fleetDock(f, ps[0]); if (!r.ok) toast('⚠️', r.msg); } }); toast('⚓', 'Flotas enviadas a puerto.'); }
       else if (k === 'setmis') { const m = el.querySelector('select[data-sm=mis]').value; sel.forEach(f => { f.mission = m; f.target = null; }); toast('🧭', `Misión asignada: ${NAV_MISSIONS[m].name}.`); }
       smPanel(true); smMarkTokens(); R.dirty = true; });
-    el.addEventListener('change', () => { }); }
+    el.addEventListener('change', ev => { const t = ev.target; if (t.dataset && t.dataset.sm === 'land') { SM.landArmy = t.value ? +t.value : null; smPanel(true); } }); }
   el.style.display = 'block';
   const M = mx(), mine = smMine(), sel = mine.filter(f => SM.sel.has(f.id)), z = SM.zone;
-  const sig = JSON.stringify([mine.map(f => [f.id, f.ships.length, f.zone, f.tr && f.tr.to, f.port, f.mission, SM.sel.has(f.id)]), z, Math.round(G.date.t / 3), z >= 0 && M.sup && M.sup[z]]); if (el._sig === sig) return; el._sig = sig;
+  const armiesP = armiesOf(G.player).filter(a => !a.sea && !a.landing && MAP.provs[a.loc].port && a.divs.length); const sig = JSON.stringify([SM.landArmy, armiesP.length, mine.map(f => [f.id, f.ships.length, f.zone, f.tr && f.tr.to, f.port, f.mission, SM.sel.has(f.id)]), z, Math.round(G.date.t / 3), z >= 0 && M.sup && M.sup[z]]); if (el._sig === sig) return; el._sig = sig;
   const row = f => { const cnt = {}; f.ships.forEach(s => cnt[s.t] = (cnt[s.t] || 0) + 1); return `<label class="sm-row ${SM.sel.has(f.id) ? 'on' : ''}"><input type="checkbox" data-fl="${f.id}" ${SM.sel.has(f.id) ? 'checked' : ''}> <b>${f.name}</b> ${NAV_MISSIONS[f.mission] ? NAV_MISSIONS[f.mission].icon : ''}<small>${SHIP_ORDER.filter(k => cnt[k]).map(k => SHIP_TYPES[k].icon + cnt[k]).join(' ')} · ${f.tr ? '→ ' + SEA_ZONES[f.tr.to].name + ' (' + f.tr.left + ' d)' : f.port != null ? '⚓ ' + G.S[f.port].name : SEA_ZONES[f.zone].name}</small></label>`; };
   const zinfo = z >= 0 ? `<h3>${SEA_ZONES[z].name}</h3>${Object.entries((M.sup && M.sup[z]) || {}).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([t, v]) => `<div class="kv sm"><span>${flag(t, 'sm')} ${G.C[t].name}</span><b>${Math.round(v)}%</b></div>`).join('') || '<small style="opacity:.7">Sin presencia naval.</small>'}<small style="opacity:.7;display:block">Supremacía ≥50 % para bloquear · ≥35 % para desembarcar con seguridad.</small>${nbActive(z) ? '<div style="color:#ff9a7a">⚔ Batalla naval en curso</div>' : ''}` : '<small style="opacity:.7">Clic en un mar para ver su supremacía.</small>';
   el.innerHTML = `<h3>🌊 Mapa marítimo <small style="opacity:.6">· solo flotas</small></h3><div>${zinfo}</div><hr style="border-color:#2a4a6a">
     <div><b>Tus flotas</b> (${mine.length})</div><div><button data-sm="all">Todas</button><button data-sm="none">Ninguna</button><button data-sm="merge" ${sel.length > 1 ? '' : 'disabled'}>🔗 Agrupar</button><button data-sm="split" ${sel.length === 1 && sel[0].ships.length > 1 ? '' : 'disabled'}>✂️ Dividir</button><button data-sm="splitfast" ${sel.length === 1 && sel[0].ships.length > 1 ? '' : 'disabled'}>⚡ Rápidos</button><button data-sm="dock" ${sel.length ? '' : 'disabled'}>⚓ A puerto</button></div>
     <div><select data-sm="mis">${Object.keys(NAV_MISSIONS).map(k => `<option value="${k}">${NAV_MISSIONS[k].icon} ${NAV_MISSIONS[k].name}</option>`).join('')}</select><button data-sm="setmis" ${sel.length ? '' : 'disabled'}>Asignar misión</button></div>
-    <div style="max-height:36vh;overflow:auto">${mine.map(row).join('') || '<small style="opacity:.7">No tienes flotas.</small>'}</div>
+    <div style="margin-top:4px"><b>🛬 Desembarco</b> <select data-sm="land"><option value="">Ejército en puerto…</option>${armiesP.map(a => `<option value="${a.id}" ${SM.landArmy === a.id ? 'selected' : ''}>${a.name} (${a.divs.length}) · ${provName(a.loc)}</option>`).join('')}</select><small style="display:block;opacity:.7">Elige ejército y flotas de escolta; clic derecho en una costa para planear el desembarco.</small></div>
+    <div style="max-height:30vh;overflow:auto">${mine.map(row).join('') || '<small style="opacity:.7">No tienes flotas.</small>'}</div>
     <small style="opacity:.65;display:block;margin-top:6px">Clic en una ficha: seleccionar (Mayús suma) · arrastra con el botón derecho: recuadro · clic derecho en un mar: navegar.</small>`;
 }

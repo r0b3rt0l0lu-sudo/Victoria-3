@@ -23,6 +23,27 @@ function smEnsure() {
   const w = 360, d = LAT_TOP - LAT_BOT, m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshBasicMaterial({map: tex, transparent: true, depthWrite: false, fog: false}));
   m.rotation.x = -Math.PI / 2; m.position.set(0, 0.07, -(LAT_TOP + LAT_BOT) / 2); m.renderOrder = 3; m.visible = false; R.scene.add(m); SM.mesh = m;
 }
+function smCent() {
+  if (SM.cent) return; const zw = SM.zw, zh = SM.zh, zm = SM.zmap, n = SEA_ZONES.length, sx = new Float64Array(n), sy = new Float64Array(n), c = new Float64Array(n);
+  for (let y = 0; y < zh; y++) for (let x = 0; x < zw; x++) { const z = zm[y * zw + x]; if (MAP.land[(y * 2) * MAP_W + x * 2]) continue; sx[z] += x; sy[z] += y; c[z]++; }
+  SM.cent = SEA_ZONES.map((Z, i) => { const x = c[i] ? sx[i] / c[i] * 2 : lonToX(Z.lon), y = c[i] ? sy[i] / c[i] * 2 : latToY(Z.lat); return {lon: x / MAP_W * 360 - 180, lat: LAT_TOP - y / MAP_H * (LAT_TOP - LAT_BOT), area: c[i]}; });
+}
+// rótulos HTML proyectados sobre el mapa: nunca los tapa el relieve y se evitan solapes en pantalla (los de mayor área mandan)
+function smLabels() {
+  if (R.mode !== 'naval' || !SM.zmap) return; smCent();
+  if (!SM.lroot) { const r = SM.lroot = document.createElement('div'); r.id = 'sealabels'; r.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:6;overflow:hidden'; document.body.appendChild(r);
+    SM.lel = SEA_ZONES.map(Z => { const e = document.createElement('div'); e.style.cssText = 'position:absolute;left:0;top:0;white-space:nowrap;text-align:center;font:600 13px Georgia,serif;letter-spacing:.14em;text-transform:uppercase;color:rgba(222,236,255,.82);text-shadow:0 0 3px #001428,0 0 6px #001428,1px 1px 2px #001428;transform:translate(-50%,-50%)'; r.appendChild(e); return e; }); }
+  SM.lroot.style.display = 'block'; const cv = R.canvas.getBoundingClientRect(), placed = [], M = mx();
+  ['#seapanel', '#minimap', '#toasts', '#menu', '#modes'].forEach(q => { const el = document.querySelector(q); if (el && el.offsetWidth) { const r = el.getBoundingClientRect(); placed.push({x0: r.left, x1: r.right, y0: r.top, y1: r.bottom}); } }); placed.push({x0: cv.left, x1: cv.right, y0: cv.top, y1: cv.top + 66}, {x0: cv.left, x1: cv.right, y0: cv.bottom - 70, y1: cv.bottom});
+  const order = SEA_ZONES.map(Z => Z.id).sort((a, b) => (b === SM.zone) - (a === SM.zone) || SM.cent[b].area - SM.cent[a].area);
+  order.forEach(id => { const e = SM.lel[id], C = SM.cent[id], sel = id === SM.zone, dom = seaDominant(id); const p = worldToScreen(C.lon, 0.3, -C.lat);
+    const x = p[0] + cv.left, y = p[1] + cv.top; if (p[2] > 1 || x < cv.left - 80 || x > cv.right + 80 || y < cv.top || y > cv.bottom) { e.style.display = 'none'; return; }
+    if (e._k !== (sel ? 1 : 0) + '|' + (dom ? dom + Math.round(navalSup(dom, id)) : '')) { e._k = (sel ? 1 : 0) + '|' + (dom ? dom + Math.round(navalSup(dom, id)) : ''); e.innerHTML = SEA_ZONES[id].name + (dom ? `<div style="font:600 11px sans-serif;letter-spacing:0;text-transform:none;color:#fff">${Math.round(navalSup(dom, id))}% ${G.C[dom].name}</div>` : ''); e.style.fontSize = sel ? '15px' : '13px'; e.style.color = sel ? '#eaffea' : 'rgba(222,236,255,.82)'; }
+    e.style.display = 'block'; e.style.transform = `translate(-50%,-50%) translate(${x.toFixed(0)}px,${y.toFixed(0)}px)`; e.style.left = '0'; e.style.top = '0';
+    const w = e.offsetWidth, h = e.offsetHeight, box = {x0: x - w / 2 - 4, x1: x + w / 2 + 4, y0: y - h / 2 - 2, y1: y + h / 2 + 2};
+    if (!sel && placed.some(q => box.x0 < q.x1 && box.x1 > q.x0 && box.y0 < q.y1 && box.y1 > q.y0)) { e.style.display = 'none'; return; } placed.push(box); });
+}
+function smLoop() { if (R.mode !== 'naval') { SM.raf = 0; return; } smLabels(); SM.raf = requestAnimationFrame(smLoop); }
 function smPaint() {
   if (!SM.mesh || R.mode !== 'naval') return; SM.dirty = false; const W = MAP_W, H = MAP_H, d = SM.img.data, zw = SM.zw, zh = SM.zh, zm = SM.zmap, land = MAP.land, M = mx();
   const col = SEA_ZONES.map(Z => { const dom = seaDominant(Z.id), c = dom && G.C[dom] ? hex2rgb(/^#[0-9a-f]{6}$/i.test(G.C[dom].color) ? G.C[dom].color : '#445566') : [64, 96, 130]; return {c, dom}; });
@@ -39,19 +60,6 @@ function smPaint() {
     else if (edge[ci]) { r = 18; g = 34; b = 60; a = 235; }
     d[o] = r; d[o + 1] = g; d[o + 2] = b; d[o + 3] = a; } }
   SM.ctx.putImageData(SM.img, 0, 0);
-  const g = SM.ctx; g.textAlign = 'center'; g.textBaseline = 'middle';
-  // rótulos: en el centroide de cada región, con tamaño según su área y sin solaparse (los de mayor área mandan; los que no caben se ocultan salvo el seleccionado)
-  if (!SM.cent) { const n = SEA_ZONES.length, sx = new Float64Array(n), sy = new Float64Array(n), c = new Float64Array(n); for (let y = 0; y < zh; y++) for (let x = 0; x < zw; x++) { const z = zm[y * zw + x]; if (MAP.land[(y * 2) * MAP_W + x * 2]) continue; sx[z] += x; sy[z] += y; c[z]++; }
-    SM.cent = SEA_ZONES.map((Z, i) => c[i] ? {x: sx[i] / c[i] * 2, y: sy[i] / c[i] * 2, area: c[i], w: Math.sqrt(c[i]) * 2} : {x: lonToX(Z.lon), y: latToY(Z.lat), area: 0, w: 40}); }
-  const placed = [], order = SEA_ZONES.map(Z => Z.id).sort((a, b) => (b === sel) - (a === sel) || SM.cent[b].area - SM.cent[a].area);
-  order.forEach(id => { const Z = SEA_ZONES[id], C = SM.cent[id], big = id === sel, t = Z.name.toUpperCase(), dom = col[id].dom;
-    let fs = clamp(C.w * 0.075, 15, big ? 30 : 26), ok = false, box = null;
-    for (let tries = 0; tries < 6 && !ok; tries++) { g.font = `${big ? 'bold ' : ''}${fs}px Georgia, serif`; const tw = g.measureText(t).width; if (tw > C.w * 1.15 && fs > 14) { fs -= 3; continue; }
-      const h = fs * (dom ? 2.4 : 1.3); box = {x0: C.x - tw / 2 - 6, x1: C.x + tw / 2 + 6, y0: C.y - fs * 0.7, y1: C.y - fs * 0.7 + h};
-      ok = !placed.some(q => box.x0 < q.x1 && box.x1 > q.x0 && box.y0 < q.y1 && box.y1 > q.y0); if (!ok) { if (fs > 14) fs -= 3; else break; } }
-    if (!ok && !big) return; placed.push(box);
-    g.fillStyle = big ? 'rgba(240,255,240,.97)' : 'rgba(215,230,250,.72)'; g.strokeStyle = 'rgba(0,10,25,.6)'; g.lineWidth = 4; g.strokeText(t, C.x, C.y); g.fillText(t, C.x, C.y);
-    if (dom) { g.font = `${Math.max(12, fs * 0.72)}px sans-serif`; g.fillStyle = 'rgba(255,255,255,.85)'; const t2 = `${Math.round(navalSup(dom, id))}% ${G.C[dom].name}`; g.strokeText(t2, C.x, C.y + fs * 1.05); g.fillText(t2, C.x, C.y + fs * 1.05); } });
   SM.tex.needsUpdate = true; R.dirty = true;
 }
 const smZoneAtWorld = wp => { if (!wp) return -1; const px = Math.floor(lonToX(wp.x)), py = Math.floor(latToY(-wp.z)); if (px < 0 || py < 0 || px >= MAP_W || py >= MAP_H || MAP.land[py * MAP_W + px]) return -1; return SM.zmap ? SM.zmap[(py >> 1) * SM.zw + (px >> 1)] : -1; };
@@ -60,8 +68,8 @@ const smZoneAtWorld = wp => { if (!wp) return -1; const px = Math.floor(lonToX(w
 const _setMapModeSM = setMapMode;
 setMapMode = function (m) {
   const was = R.mode === 'naval'; _setMapModeSM(m); const on = R.mode === 'naval';
-  if (on) { smEnsure(); SM.mesh.visible = true; document.body.classList.add('seamode'); SM.dirty = true; smPaint(); smPanel(true); if (!SM.timer) SM.timer = setInterval(smTick, 250); }
-  else if (was) { if (SM.mesh) SM.mesh.visible = false; document.body.classList.remove('seamode'); smPanel(false); smClearLines(); SM.sel.clear(); clearInterval(SM.timer); SM.timer = null; R.dirty = true; }
+  if (on) { smEnsure(); SM.mesh.visible = true; document.body.classList.add('seamode'); SM.dirty = true; smPaint(); smPanel(true); if (!SM.timer) SM.timer = setInterval(smTick, 250); if (!SM.raf) SM.raf = requestAnimationFrame(smLoop); }
+  else if (was) { if (SM.lroot) SM.lroot.style.display = 'none'; if (SM.mesh) SM.mesh.visible = false; document.body.classList.remove('seamode'); smPanel(false); smClearLines(); SM.sel.clear(); clearInterval(SM.timer); SM.timer = null; R.dirty = true; }
 };
 function smTick() { if (R.mode !== 'naval') return; const sig = G.date.t + '|' + SM.zone + '|' + SM.hover; if (sig !== SM.sig) { SM.sig = sig; SM.dirty = true; } if (SM.dirty && performance.now() - SM.last > 160) { SM.last = performance.now(); smPaint(); } smPanel(true); smLines(); smMarkTokens(); }
 function smMine() { return mx().fl.filter(f => f.tag === G.player); }

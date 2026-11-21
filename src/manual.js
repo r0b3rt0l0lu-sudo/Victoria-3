@@ -451,3 +451,9 @@ MANUAL.push({id: 'lote18', title: '★ Claridad, campañas, población y música
 MANUAL.push({id: 'lote19', title: '★ Retratos de generales e interfaz compacta', html: `
 <h3>Retratos</h3><p>Cada general tiene retrato propio (648 históricos) o uno genérico de su región y época; se ven en la barra de ejércitos y en el panel.</p>
 <h3>Interfaz compacta</h3><p>Activada por defecto en escritorio: barra de país, menú, minimapa, modos de mapa, barra de ejércitos y menú (ahora arriba, junto a la barra del país) ocupan menos para dejar más mapa. Se desactiva en el botón de vista y gráficos (✳ › Compacta).</p>`});
+
+MANUAL.push({id: 'lote20', title: '★ Perfiles de producción, coaliciones, modo simple y control táctil', html: `
+<h3>Perfiles de producción</h3><p>En Ejército → Producción: «Según déficit», Ejército, Armada y Aire reparten tus fábricas militares de un clic. Puedes guardar hasta 5 repartos propios.</p>
+<h3>Promover una coalición</h3><p>Diplomacia → Coaliciones: con 60 de influencia convences a potencias dispuestas de formar una coalición contra una potencia amenazante (infamia y conquistas altas). La coalición actúa sola.</p>
+<h3>Modo simple</h3><p>Panel ✳ → «Modo simple»: oculta comercio, mapas avanzados y pestañas militares especializadas. Se desactiva con el mismo botón.</p>
+<h3>Control táctil del soldado</h3><p>En pantallas táctiles, al tomar el control de un soldado aparecen un joystick (izquierda), zona de mirada (derecha) y botones de disparar, apuntar, correr, rodilla, estandarte y salir. Sin ayuda de apuntado: es difícil acertar.</p>`});

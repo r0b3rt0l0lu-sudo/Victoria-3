@@ -48,7 +48,7 @@ if (typeof gfxPanelHtml === 'function') {
     return _uiGfx().replace('Gráficos del mapa<', 'Vista y gráficos<').replace('<p class="gfx-note">', extra + '<p class="gfx-note">');
   };
   // tras pulsar uno de esos botones el panel se redibuja para mostrar su nuevo estado
-  document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('#gfxpanel [data-act]'); if (b && /^(tiltu|tiltd|wheelmode|edgescroll|animtoggle|uisize|uitema|uidens|uicompact|uipaleta)$/.test(b.dataset.act)) setTimeout(() => { if (document.getElementById('gfxpanel')) openGfxPanel(true); }, 60); });
+  document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('#gfxpanel [data-act]'); if (b && /^(tiltu|tiltd|wheelmode|edgescroll|animtoggle|uisize|uitema|uidens|uicompact|uisimple|uipaleta)$/.test(b.dataset.act)) setTimeout(() => { if (document.getElementById('gfxpanel')) openGfxPanel(true); }, 60); });
 }
 const _uiCss = document.createElement('style'); _uiCss.textContent = `
 .hid{display:none!important}

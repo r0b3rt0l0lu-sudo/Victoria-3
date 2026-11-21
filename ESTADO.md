@@ -314,3 +314,5 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - Lote 18: alertas.js, combate2.js, migracion.js, aranceles.js, musica2.js (ambientes mar/batalla naval/aire/crisis/victoria). Pendiente: objetivos de soldados en FP, plantillas de producción, coaliciones, modo simple.
 
 - Lote 19: retratos.js/retratos_genericos.js (aplicar_retratos.py) y src/compacto.css (modo compacto, UI_PREFS.compact, ACT.uicompact).
+
+- Lote 20: extras18.js (perfiles de producción, coalform, modo simple, controles táctiles del soldado), CSS móvil horizontal/vertical en compacto.css. Las coaliciones contra el jugador y las garantías ya existían (coalition.js).

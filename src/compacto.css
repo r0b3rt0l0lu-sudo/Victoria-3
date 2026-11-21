@@ -35,3 +35,42 @@ html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #armybar{left:6px !imp
 }
 
 html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #toasts{bottom:84px !important}
+
+/* ===== MÓVIL HORIZONTAL: lo esencial, escueto y sin amontonar ===== */
+body.phone.pl #plaque{padding:2px 6px 2px 4px !important;gap:5px !important;max-width:calc(100vw - 350px) !important;border-radius:0 0 8px 0 !important}
+body.phone.pl #plaque .crest{transform:none !important;margin:0 !important;padding:1px !important}
+body.phone.pl #plaque .crest{width:38px !important;min-width:0 !important;height:25px !important;box-sizing:border-box;overflow:hidden;flex:none}
+body.phone.pl #plaque .crest svg,body.phone.pl #plaque .crest img,body.phone.pl #plaque .crest canvas{width:100% !important;height:100% !important;display:block}
+body.phone.pl #plaque .pl-name{font-size:12px !important;letter-spacing:.04em !important}
+body.phone.pl #plaque .pl-sub,body.phone.pl #plaque .pl-focus,body.phone.pl #plaque .pl-medals,body.phone.pl #plaque .medals{display:none !important}
+body.phone.pl #plaque .chips{gap:2px 3px !important;max-width:none !important;flex-wrap:nowrap !important}
+body.phone.pl #plaque .chip{display:none !important;padding:0 4px 0 2px !important;font-size:10px !important;line-height:1.3 !important}
+body.phone.pl #plaque .chip:nth-child(1),body.phone.pl #plaque .chip:nth-child(2),body.phone.pl #plaque .chip:nth-child(5),body.phone.pl #plaque .chip:nth-child(6){display:inline-flex !important}
+body.phone.pl #plaque .chip b{font-size:10px !important}
+body.phone.pl #plaque .chip svg,body.phone.pl #plaque .chip img{width:11px !important;height:11px !important}
+body.phone.pl #topright{top:2px !important;right:3px !important;gap:3px !important;flex-wrap:nowrap !important;max-width:none !important}
+body.phone.pl .rbtn,body.phone.pl .mbtn,body.phone.pl .mode,body.phone.pl #menu button,body.phone.pl #modes button{min-height:0 !important;min-width:0 !important}
+body.phone.pl .rbtn{width:32px !important;height:32px !important}
+body.phone.pl .rbtn svg{width:15px !important;height:15px !important}
+body.phone.pl #datebox{top:3px !important;right:250px !important;zoom:.6;padding:2px 8px !important}
+body.phone.pl #camctl,body.phone.pl #minimap,body.phone.pl #modecap{display:none !important}
+body.phone.pl #mapctl{right:3px !important;bottom:3px !important}
+body.phone.pl #modes{padding:2px 4px !important;gap:2px !important}
+body.phone.pl .mode{width:30px !important;height:30px !important;font-size:12px !important}
+body.phone.pl .mode svg{width:14px !important;height:14px !important}
+body.phone.pl #menu{left:0 !important;bottom:0 !important;padding:2px 6px !important;gap:3px !important;max-width:calc(100vw - 340px) !important;border-radius:0 12px 0 0 !important}
+body.phone.pl .mbtn{width:32px !important;height:32px !important;font-size:14px !important}
+body.phone.pl .mbtn svg{width:16px !important;height:16px !important}
+body.phone.pl #armybar{left:4px !important;right:4px !important;bottom:38px !important;justify-content:flex-start !important}
+body.phone.pl #armybar .ab-scroll,body.phone.pl #armybar .ab-btn{zoom:.55}
+body.phone.pl #toasts{width:240px !important;top:62px !important}
+body.phone.pl #advisor{top:34px !important;width:300px !important}
+body.phone.pl #toasts{font-size:10.5px !important}body.phone.pl #toasts *{font-size:10.5px !important}
+body.phone.pl #windows .window{zoom:.68;width:calc((100vw - 8px)/.68) !important;left:6px !important;transform:none !important;top:4px !important;max-height:calc((var(--vh,1vh)*100 - 8px)/.68) !important}
+body.phone.pl .window .whead{padding:2px 12px 8px !important}
+body.phone.pl .window .whead h2{font-size:17px !important}
+body.phone.pl .window .wbody{padding:8px 12px 10px !important}
+body.phone.pl .window .cols{flex-direction:row !important;gap:8px !important}
+body.phone.pl .window .card{padding:8px 10px !important;margin-bottom:6px !important}
+body.phone.pl .tabs .tab,body.phone.pl .window button{min-height:0 !important}
+body.phone.pl .tabs .tab{padding:6px 12px !important}

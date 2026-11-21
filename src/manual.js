@@ -441,3 +441,9 @@ WINDOWS.manual = {title: 'Manual del juego', icon: '📖', render() {
   const sec = MANUAL.find(m => m.id === UI.manualSec) || MANUAL[0];
   return `<div class="manual"><nav>${MANUAL.map(m => `<button class="${m.id === sec.id ? 'on' : ''}" data-act="msec" data-id="${m.id}">${m.title}</button>`).join('')}</nav><article class="scrollable manbody"><h2>${sec.title}</h2>${sec.html}</article></div>`;
 }};
+
+MANUAL.push({id: 'lote18', title: '★ Claridad, campañas, población y música', html: `
+<h3>Alertas, tutoriales y piloto automático</h3><p>El asesor avisa de escasez, convoyes en peligro, flotas sin alcance, ejércitos sin suministro y de oportunidades. Cada sistema tiene un tutorial de 3 pasos y puedes delegar investigación, construcción, economía, reclutamiento y déficits al piloto automático.</p>
+<h3>Combate</h3><p>Ofensiva sincronizada y campañas por frentes desde el panel del ejército; la ventana de batalla desglosa los factores (general, suministro, moral, entrenamiento, equipo, trincheras, aire, mar, terreno).</p>
+<h3>Población y comercio</h3><p>Migración entre estados y países con libre circulación; aranceles de 0 a 3, nación más favorecida, embargos y guerras comerciales.</p>
+<h3>Música dinámica</h3><p>Nuevos ambientes: mar, batalla naval, aire, crisis (escasez grave, rebeliones, riesgo de guerra civil) y fanfarria de victoria tras ganar una batalla.</p>`});

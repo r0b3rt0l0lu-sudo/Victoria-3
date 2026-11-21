@@ -450,4 +450,4 @@ MANUAL.push({id: 'lote18', title: '★ Claridad, campañas, población y música
 
 MANUAL.push({id: 'lote19', title: '★ Retratos de generales e interfaz compacta', html: `
 <h3>Retratos</h3><p>Cada general tiene retrato propio (648 históricos) o uno genérico de su región y época; se ven en la barra de ejércitos y en el panel.</p>
-<h3>Interfaz compacta</h3><p>Activada por defecto en escritorio: barra de país, menú, minimapa, modos de mapa, barra de ejércitos y ventanas ocupan menos para dejar más mapa. Se desactiva en el botón de vista y gráficos (✳ › Compacta). El tamaño de ventanas empieza ahora en «Normal» (botón Aa).</p>`});
+<h3>Interfaz compacta</h3><p>Activada por defecto en escritorio: barra de país, menú, minimapa, modos de mapa, barra de ejércitos y menú (ahora arriba, junto a la barra del país) ocupan menos para dejar más mapa. Se desactiva en el botón de vista y gráficos (✳ › Compacta).</p>`});

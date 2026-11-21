@@ -38,7 +38,7 @@ document.addEventListener('click', e => { const r = e.target.closest && e.target
 if (typeof gfxPanelHtml === 'function') {
   const _uiGfx = gfxPanelHtml;
   gfxPanelHtml = function () {
-    const sz = ['Normal', 'Grande', 'Enorme'][UI.sz === undefined ? 0 : UI.sz] || 'Grande', on = v => v ? ' class="on"' : '';
+    const sz = ['Normal', 'Grande', 'Enorme'][UI.sz === undefined ? 1 : UI.sz] || 'Grande', on = v => v ? ' class="on"' : '';
     const extra = `<div class="gfx-row"><span>Cámara e interfaz</span><div class="gfx-seg gfx-wrap">
       <button data-act="tiltu" data-tip="Inclinar más (R)">⤒ Inclinar</button><button data-act="tiltd" data-tip="Inclinar menos (F)">⤓ Aplanar</button>
       <button data-act="wheelmode" data-tip="Qué hace la rueda del ratón">🖱️ Rueda: ${R.wheelMode === 'pan' ? 'mover' : 'zoom'}</button>

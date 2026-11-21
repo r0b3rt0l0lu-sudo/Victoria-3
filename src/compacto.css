@@ -1,0 +1,54 @@
+/* ===== INTERFAZ COMPACTA (escritorio): misma información, menos espacio; más mapa a la vista ===== */
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #plaque{padding:2px 8px 2px 4px !important;gap:6px !important;max-width:max(380px,calc(100vw - 760px)) !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #plaque .crest{transform:scale(.62);margin-right:-16px;margin-left:-4px}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #plaque .pl-name{font-size:13.5px !important;line-height:1.1}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #plaque .pl-sub,html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #plaque .pl-focus{font-size:9.5px !important;line-height:1.1}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #plaque .chips{gap:2px 3px !important;max-width:430px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #plaque .chip{padding:0 5px 0 3px !important;font-size:10.5px !important;gap:3px !important;line-height:1.35}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #plaque .chip b{font-size:10.5px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #plaque .chip svg,html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #plaque .chip img{width:12px !important;height:12px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #datebox{top:3px !important;padding:2px 10px !important;gap:6px !important;transform-origin:right top;zoom:.82}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #topright{top:3px !important;gap:4px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .rbtn{width:28px !important;height:28px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .rbtn svg{width:16px;height:16px}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #menu{padding:3px 7px !important;gap:3px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .mbtn{width:32px !important;height:32px !important;font-size:15px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .mbtn span{font-size:16px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .mbtn svg{width:18px;height:18px}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #minimap{width:190px !important;height:76px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #mapctl{right:0 !important;bottom:0 !important;gap:3px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #modes{padding:2px 4px !important;gap:2px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .mode{width:24px !important;height:24px !important;font-size:12px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .mode svg{width:14px;height:14px}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #modecap{font-size:10px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #camctl{right:4px !important;bottom:130px !important;padding:3px !important;gap:2px !important;flex-direction:column !important;width:auto !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #camctl button{width:24px !important;height:24px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #camctl svg{width:14px;height:14px}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #armybar{left:450px !important;right:395px !important;bottom:0 !important;justify-content:flex-start !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #armybar .ab-scroll{zoom:.72;padding:0 2px}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #armybar .ab-btn{zoom:.72}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .window{padding:10px 14px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .window h2{margin:0 0 6px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .window .card{padding:8px 10px !important;margin-bottom:6px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .window .cols{gap:8px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .tabs{margin-bottom:6px !important;gap:2px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .tab{padding:4px 10px !important;font-size:12px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .tbl td,html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .tbl th{padding-top:2px !important;padding-bottom:2px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .kv{padding:1px 0 !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #statepanel{top:calc(var(--ph,60px) + 6px) !important;left:6px !important;width:320px !important;max-height:calc(100vh - var(--ph,60px) - 110px) !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #armypanel{top:calc(var(--ph,60px) + 6px) !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .window{top:calc((var(--ph,60px) + 6px)/var(--wz)) !important;max-height:calc((100vh - var(--ph,60px) - 48px)/var(--wz)) !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #advisor{top:44px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #toasts{bottom:92px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .whead{padding:3px 12px 7px !important;gap:8px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .whead::after{bottom:0 !important;height:6px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .whead h2{font-size:15px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .whead .wicon{transform:scale(.75)}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .whead .x,html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .sp-head .x,html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .sv-h .x{width:22px !important;height:22px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .wsub{font-size:11px !important;margin-left:8px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .wbody{padding:8px 12px 10px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .window{width:calc(min(1040px,100vw - 24px)/var(--wz)) !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .card h3,html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .card h4{margin:0 0 4px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .sp-head{padding:3px 10px 7px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) .adv-head{padding:5px 10px !important}
+html[data-compact="1"] body:not(.phone):not(.pp):not(.pl) #toasts{left:auto !important;right:400px !important;transform:none !important;bottom:92px !important;width:300px !important}

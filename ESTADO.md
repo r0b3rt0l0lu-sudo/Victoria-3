@@ -312,3 +312,5 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - **Barra de ejércitos** (`barraejercitos.js`): estilo Hearts of Iron, retrato del general (generado por código; `GEN_PORTRAITS[apellido]` admite imágenes reales, ver `PROMPT_RETRATOS_GENERALES_CLAUDE_DESIGN.md`), divisiones, barras de fuerza/organización, estado; clic selecciona (Mayús suma), doble clic centra, clic derecho detiene; incluye ejércitos de virreinatos. Corregidos errores de `repeat` negativo con generales de nivel >5.
 
 - Lote 18: alertas.js, combate2.js, migracion.js, aranceles.js, musica2.js (ambientes mar/batalla naval/aire/crisis/victoria). Pendiente: objetivos de soldados en FP, plantillas de producción, coaliciones, modo simple.
+
+- Lote 19: retratos.js/retratos_genericos.js (aplicar_retratos.py) y src/compacto.css (modo compacto, UI_PREFS.compact, ACT.uicompact).

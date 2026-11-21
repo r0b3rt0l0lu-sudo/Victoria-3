@@ -116,11 +116,11 @@ function iconize(root) {
   });
 }
 /* conmutador de tema, densidad, paleta y efectos (se guarda en localStorage) */
-const UI_PREFS = {theme: 'oscuro', densidad: 'normal', paleta: 'normal', fx: '1'};
+const UI_PREFS = {theme: 'oscuro', densidad: 'normal', paleta: 'normal', fx: '1', compact: '1'};
 function uiPrefs(p) {
   try { Object.assign(UI_PREFS, JSON.parse(localStorage.getItem('vic_ui2') || '{}')); } catch (e) { }
   if (p) { Object.assign(UI_PREFS, p); try { localStorage.setItem('vic_ui2', JSON.stringify(UI_PREFS)); } catch (e) { } }
-  const h = document.documentElement; h.dataset.theme = UI_PREFS.theme; h.dataset.densidad = UI_PREFS.densidad; h.dataset.paleta = UI_PREFS.paleta;
+  const h = document.documentElement; h.dataset.theme = UI_PREFS.theme; h.dataset.densidad = UI_PREFS.densidad; h.dataset.paleta = UI_PREFS.paleta; h.dataset.compact = UI_PREFS.compact;
   let low = false; try { low = !!R.lowEnd; } catch (e) { }   // R puede no existir aún (zona muerta temporal del const)
   h.dataset.fx = low ? '0' : UI_PREFS.fx; return UI_PREFS;
 }

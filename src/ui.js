@@ -135,7 +135,7 @@ function buildHud() {
 }
 const UI_SIZES = [1, 1.25, 1.5];
 function applyUiSize(n) {
-  let i = 1; try { i = n !== undefined ? n : +(localStorage.getItem('vic_ui') || 1); if (!(i >= 0 && i <= 2)) i = 1; if (n !== undefined) localStorage.setItem('vic_ui', i); } catch (e) { if (n !== undefined) i = n; }
+  let i = 0; try { const sv = localStorage.getItem('vic_ui'); i = n !== undefined ? n : (sv === null ? 0 : +sv); if (!(i >= 0 && i <= 2)) i = 0; if (n !== undefined) localStorage.setItem('vic_ui', i); } catch (e) { if (n !== undefined) i = n; }
   UI.sz = i; document.documentElement.style.setProperty('--wz', UI_SIZES[i]); 
   const b = document.getElementById('btn-ui'); if (b) b.innerHTML = ['Aa', 'Aa+', 'Aa++'][i];
 }

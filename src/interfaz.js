@@ -38,17 +38,17 @@ document.addEventListener('click', e => { const r = e.target.closest && e.target
 if (typeof gfxPanelHtml === 'function') {
   const _uiGfx = gfxPanelHtml;
   gfxPanelHtml = function () {
-    const sz = ['Normal', 'Grande', 'Enorme'][UI.sz === undefined ? 1 : UI.sz] || 'Grande', on = v => v ? ' class="on"' : '';
+    const sz = ['Normal', 'Grande', 'Enorme'][UI.sz === undefined ? 0 : UI.sz] || 'Grande', on = v => v ? ' class="on"' : '';
     const extra = `<div class="gfx-row"><span>Cámara e interfaz</span><div class="gfx-seg gfx-wrap">
       <button data-act="tiltu" data-tip="Inclinar más (R)">⤒ Inclinar</button><button data-act="tiltd" data-tip="Inclinar menos (F)">⤓ Aplanar</button>
       <button data-act="wheelmode" data-tip="Qué hace la rueda del ratón">🖱️ Rueda: ${R.wheelMode === 'pan' ? 'mover' : 'zoom'}</button>
       <button data-act="edgescroll"${on(R.edgeScroll)} data-tip="Mover el mapa al acercar el ratón al borde">⇱ Borde</button>
       <button data-act="animtoggle"${on(R.anim)} data-tip="Animación del agua y las nubes">≈ Agua y nubes</button>
-      <button data-act="uisize" data-tip="Tamaño de menús y ventanas">Aa Interfaz: ${sz}</button></div></div><div class="gfx-row"><span>Aspecto</span><div class="gfx-seg gfx-wrap"><button data-act="uitema" data-tip="Tema oscuro (sala de mapas) o claro (pergamino)">Tema: ${UI_PREFS.theme === 'pergamino' ? 'pergamino' : 'oscuro'}</button><button data-act="uidens" data-tip="Densidad de la información en ventanas">Densidad: ${UI_PREFS.densidad}</button><button data-act="uipaleta"${on(UI_PREFS.paleta === 'daltonica')} data-tip="Colores alternativos para daltonismo (azul/naranja)">Daltonismo</button></div></div>`;
+      <button data-act="uisize" data-tip="Tamaño de menús y ventanas">Aa Interfaz: ${sz}</button></div></div><div class="gfx-row"><span>Aspecto</span><div class="gfx-seg gfx-wrap"><button data-act="uitema" data-tip="Tema oscuro (sala de mapas) o claro (pergamino)">Tema: ${UI_PREFS.theme === 'pergamino' ? 'pergamino' : 'oscuro'}</button><button data-act="uicompact"${on(UI_PREFS.compact !== '0')} data-tip="Interfaz compacta: más mapa y la misma información">Compacta</button><button data-act="uidens" data-tip="Densidad de la información en ventanas">Densidad: ${UI_PREFS.densidad}</button><button data-act="uipaleta"${on(UI_PREFS.paleta === 'daltonica')} data-tip="Colores alternativos para daltonismo (azul/naranja)">Daltonismo</button></div></div>`;
     return _uiGfx().replace('Gráficos del mapa<', 'Vista y gráficos<').replace('<p class="gfx-note">', extra + '<p class="gfx-note">');
   };
   // tras pulsar uno de esos botones el panel se redibuja para mostrar su nuevo estado
-  document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('#gfxpanel [data-act]'); if (b && /^(tiltu|tiltd|wheelmode|edgescroll|animtoggle|uisize|uitema|uidens|uipaleta)$/.test(b.dataset.act)) setTimeout(() => { if (document.getElementById('gfxpanel')) openGfxPanel(true); }, 60); });
+  document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('#gfxpanel [data-act]'); if (b && /^(tiltu|tiltd|wheelmode|edgescroll|animtoggle|uisize|uitema|uidens|uicompact|uipaleta)$/.test(b.dataset.act)) setTimeout(() => { if (document.getElementById('gfxpanel')) openGfxPanel(true); }, 60); });
 }
 const _uiCss = document.createElement('style'); _uiCss.textContent = `
 .hid{display:none!important}
@@ -61,4 +61,4 @@ const _uiCss = document.createElement('style'); _uiCss.textContent = `
 document.head.appendChild(_uiCss);
 
 // interfaz v2: conmutadores de tema, densidad y paleta
-Object.assign(ACT, {uitema: () => uiPrefs({theme: UI_PREFS.theme === 'pergamino' ? 'oscuro' : 'pergamino'}), uidens: () => uiPrefs({densidad: {normal: 'compacta', compacta: 'comoda', comoda: 'normal'}[UI_PREFS.densidad] || 'normal'}), uipaleta: () => uiPrefs({paleta: UI_PREFS.paleta === 'daltonica' ? 'normal' : 'daltonica'})});
+Object.assign(ACT, {uicompact: () => uiPrefs({compact: UI_PREFS.compact === '0' ? '1' : '0'}), uitema: () => uiPrefs({theme: UI_PREFS.theme === 'pergamino' ? 'oscuro' : 'pergamino'}), uidens: () => uiPrefs({densidad: {normal: 'compacta', compacta: 'comoda', comoda: 'normal'}[UI_PREFS.densidad] || 'normal'}), uipaleta: () => uiPrefs({paleta: UI_PREFS.paleta === 'daltonica' ? 'normal' : 'daltonica'})});

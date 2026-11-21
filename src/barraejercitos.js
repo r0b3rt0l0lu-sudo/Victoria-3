@@ -42,7 +42,21 @@ function genPortraitSVG(gen, tag) {
   return _gpCache[key] = 'data:image/svg+xml;utf8,' + encodeURIComponent(s);
 }
 function vrShade2(hex, k) { const m = /^#([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return '#445'; const n = parseInt(m[1], 16); const f = v => Math.max(0, Math.min(255, Math.round(v * (1 + k)))); return '#' + [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(f).map(v => v.toString(16).padStart(2, '0')).join(''); }
-const genPortrait = (gen, tag) => GEN_PORTRAITS[gen.name] || genPortraitSVG(gen, tag);
+const GEN_PORTRAITS_GEN = window.GEN_PORTRAITS_GEN || {};
+// nación del juego (pool de nombres) → grupo de genéricos: uk fr de ru at it us jp cn ot es · eu (resto de Europa) · as (Asia) · af (África e Hispanoamérica)
+const _GP_GRUPO = {uk: 'uk', fr: 'fr', de: 'de', gs: 'de', ru: 'ru', at: 'at', sa: 'it', nc: 'it', pa: 'it', to: 'it', us: 'us', tx: 'us', jp: 'jp', cn: 'cn', tr: 'ot', eg: 'ot', om: 'ot', ma: 'ot', tn: 'ot', sc: 'ot', es: 'es',
+  pt: 'eu', se: 'eu', dk: 'eu', nl: 'eu', be: 'eu', ch: 'eu', gr: 'eu', rs: 'eu', ro: 'eu', xx: 'eu', kr: 'as', th: 'as', vn: 'as', mm: 'as', ir: 'as', af: 'as', ca2: 'as', sk: 'as', np: 'as', hy: 'as', as: 'as',
+  et: 'af', zu: 'af', mg: 'af', mx: 'af', ca: 'af', co: 'af', ve: 'af', ec: 'af', pe: 'af', bo: 'af', cl: 'af', ar: 'af', py: 'af', uy: 'af', br: 'af'};
+const _GP_AFR = {et: 1, zu: 1, mg: 1};
+function genPortraitImg(gen, tag) {
+  const pool = (typeof _TG !== 'undefined' && _TG[tag]) || 'xx';
+  const k = GEN_PORTRAITS[gen.name + '|' + pool] || GEN_PORTRAITS[gen.name]; if (k) return k;
+  const y = G.date.y, era = y < 1861 ? 'A' : y < 1891 ? 'B' : y < 1914 ? 'C' : y < 1937 ? 'D' : 'E', g = _GP_GRUPO[pool] || 'eu';
+  let n = 1 + gpHash(gen.name + '|' + tag) % 12;
+  if (g === 'af') n = 1 + 2 * Math.floor((n - 1) / 2) + (_GP_AFR[pool] ? 0 : 1);   // impares: África · pares: Hispanoamérica
+  return GEN_PORTRAITS_GEN['generico_' + g + '_' + era + '_' + n] || null;
+}
+const genPortrait = (gen, tag) => genPortraitImg(gen, tag) || genPortraitSVG(gen, tag);
 
 /* ---------- barra ---------- */
 const AB = {el: null, sig: '', collapsed: false};

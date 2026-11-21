@@ -31,10 +31,10 @@ function smCent() {
 // rótulos HTML proyectados sobre el mapa: nunca los tapa el relieve y se evitan solapes en pantalla (los de mayor área mandan)
 function smLabels() {
   if (R.mode !== 'naval' || !SM.zmap) return; smCent();
-  if (!SM.lroot) { const r = SM.lroot = document.createElement('div'); r.id = 'sealabels'; r.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:6;overflow:hidden'; document.body.appendChild(r);
+  if (!SM.lroot) { const r = SM.lroot = document.createElement('div'); r.id = 'sealabels'; r.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:4;overflow:hidden'; document.body.appendChild(r);
     SM.lel = SEA_ZONES.map(Z => { const e = document.createElement('div'); e.style.cssText = 'position:absolute;left:0;top:0;white-space:nowrap;text-align:center;font:600 13px Georgia,serif;letter-spacing:.14em;text-transform:uppercase;color:rgba(222,236,255,.82);text-shadow:0 0 3px #001428,0 0 6px #001428,1px 1px 2px #001428;transform:translate(-50%,-50%)'; r.appendChild(e); return e; }); }
   SM.lroot.style.display = 'block'; const cv = R.canvas.getBoundingClientRect(), placed = [], M = mx();
-  ['#seapanel', '#minimap', '#toasts', '#menu', '#modes'].forEach(q => { const el = document.querySelector(q); if (el && el.offsetWidth) { const r = el.getBoundingClientRect(); placed.push({x0: r.left, x1: r.right, y0: r.top, y1: r.bottom}); } }); placed.push({x0: cv.left, x1: cv.right, y0: cv.top, y1: cv.top + 66}, {x0: cv.left, x1: cv.right, y0: cv.bottom - 70, y1: cv.bottom});
+  ['#seapanel', '#minimap', '#toasts', '#menu', '#modes'].forEach(q => { const el = document.querySelector(q); if (el && el.offsetWidth) { const r = el.getBoundingClientRect(); placed.push({x0: r.left, x1: r.right, y0: r.top, y1: r.bottom}); } }); placed.push({x0: cv.left, x1: cv.right, y0: cv.top, y1: cv.top + (document.body.classList.contains('phone') ? 150 : 66)}, {x0: cv.left, x1: cv.right, y0: cv.bottom - 70, y1: cv.bottom});
   const order = SEA_ZONES.map(Z => Z.id).sort((a, b) => (b === SM.zone) - (a === SM.zone) || SM.cent[b].area - SM.cent[a].area);
   order.forEach(id => { const e = SM.lel[id], C = SM.cent[id], sel = id === SM.zone, dom = seaDominant(id); const p = worldToScreen(C.lon, 0.3, -C.lat);
     const x = p[0] + cv.left, y = p[1] + cv.top; if (p[2] > 1 || x < cv.left - 80 || x > cv.right + 80 || y < cv.top || y > cv.bottom) { e.style.display = 'none'; return; }

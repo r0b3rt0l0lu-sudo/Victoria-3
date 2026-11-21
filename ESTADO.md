@@ -305,3 +305,5 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - **Rendimiento (SwiftShader, sin GPU real)**: día de simulación ≈70 ms en 1939; modo marítimo: 174 ms al entrar la primera vez, 57 ms por repintado de regiones, 1,5 ms por fotograma de rótulos; supremacía naval 0,15 ms/día.
 - **Guardado**: ida y vuelta idéntica con convoyes, escoltas, supremacía, bases, ambición, reservas y escasez (`sv2.js`).
 - **Interfaz v2 «Sala de mapas del Almirantazgo»** integrada (tokens.css, style.css, icons.js con 94 iconos grabados, temas oscuro/pergamino, densidades, daltonismo, gama baja; ajustes en ☰ → Gráficos). Documentación en referencia/interfaz_v2/.
+- **Móvil 2** (`movil2.js`): paneles marítimo/aéreo como hoja inferior plegable, botón «🎯 Destino» (el siguiente toque ordena), sin tooltips táctiles, tablas desplazables, toasts ocultos con una ventana abierta, rótulos de mar fuera del HUD.
+- **Comercio 2**: oferta real por vendedor (35 % de su producción), precio por relaciones (×0,8–1,3), riesgo de ruta, contratos mensuales (hasta 6) con compra automática de convoyes, «comprar convoyes y pedir», estadísticas de gasto.

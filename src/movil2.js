@@ -6,6 +6,9 @@
   const st = document.createElement('style');
   st.textContent = `
   body.touch #tooltip{display:none!important}
+  body.phone.win-open #toasts{display:none!important}
+  body.phone #toasts{max-width:calc(100vw - 20px)}
+  body.phone #toasts .toast{font-size:12px;padding:6px 8px}
   body.phone #seapanel,body.phone #airmappanel{left:6px!important;right:6px!important;width:auto!important;top:auto!important;bottom:122px!important;max-height:38vh!important;border-radius:10px 10px 6px 6px!important}
   body.phone.pl .ordbtn{bottom:12px;right:10px}
   body.phone.pl #seapanel,body.phone.pl #airmappanel{bottom:6px!important;right:auto!important;width:46vw!important;max-height:calc(100vh - 80px)!important;left:6px!important}

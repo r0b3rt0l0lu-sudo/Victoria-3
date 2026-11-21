@@ -457,3 +457,8 @@ MANUAL.push({id: 'lote20', title: '★ Perfiles de producción, coaliciones, mod
 <h3>Promover una coalición</h3><p>Diplomacia → Coaliciones: con 60 de influencia convences a potencias dispuestas de formar una coalición contra una potencia amenazante (infamia y conquistas altas). La coalición actúa sola.</p>
 <h3>Modo simple</h3><p>Panel ✳ → «Modo simple»: oculta comercio, mapas avanzados y pestañas militares especializadas. Se desactiva con el mismo botón.</p>
 <h3>Control táctil del soldado</h3><p>En pantallas táctiles, al tomar el control de un soldado aparecen un joystick (izquierda), zona de mirada (derecha) y botones de disparar, apuntar, correr, rodilla, estandarte y salir. Sin ayuda de apuntado: es difícil acertar.</p>`});
+
+MANUAL.push({id: 'lote21', title: '★ Paz parcial y capitulaciones', html: `
+<h3>Paz separada</h3><p>En Ejército → Guerra, junto a cada guerra aparece «Paz con X» por cada enemigo que no dirija su bando. Si ese país está lo bastante derrotado (puntuación contraria, capital ocupada, ≥25% de estados ocupados o mucho desgaste), se abre una conferencia de paz solo con él, con tus puntos de guerra y sus territorios. Él sale de la guerra y el resto sigue.</p>
+<h3>Retirarse y capitular</h3><p>Si no diriges tu bando, «Retirarme» te saca de la guerra con paz blanca (−5 prestigio y peor relación con tu líder). Con la capital ocupada o más de la mitad del país ocupado puedes «Capitular»: el enemigo dicta condiciones. Si diriges el bando, capitular termina la guerra.</p>
+<h3>Capitulación de la IA</h3><p>Un país de la IA cuya capital lleva 5 semanas ocupada capitula ante quien la ocupa (8 semanas si dirige el bando, y entonces la guerra termina). Si ese vencedor eres tú, eliges las condiciones.</p>`});

@@ -316,3 +316,5 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - Lote 19: retratos.js/retratos_genericos.js (aplicar_retratos.py) y src/compacto.css (modo compacto, UI_PREFS.compact, ACT.uicompact).
 
 - Lote 20: extras18.js (perfiles de producción, coalform, modo simple, controles táctiles del soldado), CSS móvil horizontal/vertical en compacto.css. Las coaliciones contra el jugador y las garantías ya existían (coalition.js).
+
+- Lote 21: paz_parcial.js (paz separada, retirada, capitulaciones); retratos recomprimidos (index.html 12,4 → 9,9 MB).

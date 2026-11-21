@@ -67,7 +67,7 @@ function renderArmyPanel() {
   ${typeof resBarsHtml === 'function' ? resBarsHtml(a) : ''}${typeof convoyInfoHtml === 'function' ? convoyInfoHtml(a) : ''}${typeof siegeInfoHtml === 'function' ? siegeInfoHtml(a) : ''}
   <div class="kv"><span>Hombres</span><b>${fmtN(armyMen(a), 0)}</b></div>
   <div class="kv"><span>Composición</span><b>${Object.keys(cnt).map(k => DIVS[k].icon + ' ' + cnt[k]).join(' · ')}</b></div>
-  <div class="kv"><span>Atrincheramiento</span><b>${'■'.repeat(Math.round(a.dig || 0))}${'□'.repeat(6 - Math.round(a.dig || 0))}</b></div>
+  <div class="kv"><span>Atrincheramiento</span><b>${'■'.repeat(clamp(Math.round(a.dig || 0), 0, 10))}${'□'.repeat(clamp(6 - Math.round(a.dig || 0), 0, 6))}</b></div>
   <div class="kv"><span>Orden</span><b>${armyOrderText(a)}</b></div>
   <div class="divl">${a.divs.map(d => `<div class="dv" data-tip="${DIVS[d.t].name}: fuerza ${Math.round(d.s * 100)}%, organización ${Math.round(d.o / DIVS[d.t].org * 100)}%, entrenamiento ${trainName(d.tr === undefined ? 0.5 : d.tr)}">${DIVS[d.t].icon}<i style="height:${Math.round(d.s * 100)}%"></i><u style="height:${Math.round(d.o / DIVS[d.t].org * 100)}%"></u><em style="height:${Math.round((d.tr === undefined ? 0.5 : d.tr) * 100)}%"></em></div>`).join('')}</div>
   ${own ? `<p class="hint"><b>Clic derecho</b>: mover (sobre un enemigo: perseguir). <b>Mayús + clic derecho</b>: añadir punto de ruta. <b>Ctrl/Mayús + clic en ficha</b>: grupo${group ? ` (<b>${sel.length} seleccionados</b>)` : ''}.</p>

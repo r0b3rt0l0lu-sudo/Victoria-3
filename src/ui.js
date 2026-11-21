@@ -493,7 +493,7 @@ WINDOWS.diplomacy = {title: 'Diplomacia', icon: '🤝', render() {
 }};
 
 /* --- Ejército y guerra --- */
-const stars = n => '★'.repeat(n) + '<span class="dim">' + '★'.repeat(5 - n) + '</span>';
+const stars = n => '★'.repeat(Math.min(5, n)) + '<span class="dim">' + '★'.repeat(Math.max(0, 5 - n)) + '</span>';
 WINDOWS.military = {title: 'Ejército y guerra', icon: '⚔️', render() {
   const c = me(), st = c.stats, tab = curTab('mil', 'armies');
   const myWars = G.wars.filter(w => w.attAll.includes(G.player) || w.defAll.includes(G.player));

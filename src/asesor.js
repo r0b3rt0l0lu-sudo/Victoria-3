@@ -41,7 +41,7 @@ function advisorBadge() { const b = document.getElementById('btn-advisor'); if (
 function advisorHtml() {
   const l = advisorCached().list, P = ['', 'Urgente', 'Importante', 'Sugerencia'];
   return `<div class="adv-head"><b>🧭 Asesor</b><small>Qué conviene hacer ahora</small><button class="x" data-act="advisor">✕</button></div>
-  <div class="adv-list">${l.length ? l.map(t => `<div class="tip p${t.pri}"><span class="ti">${t.icon}</span><div class="tt"><b>${t.title}</b><small>${t.text}</small><em>${P[t.pri]}</em></div>${t.w || t.battle ? `<button data-act="tipgo" ${t.battle ? `data-b="${t.battle}"` : `data-w="${t.w}"`} ${t.k ? `data-k="${t.k}" data-t="${t.t}"` : ''}>Ir</button>` : ''}</div>`).join('') : '<div class="adv-ok">✅ Todo en orden. No hay nada urgente: sigue construyendo o explora la Diplomacia.</div>'}</div>
+  <div class="adv-list">${l.length ? l.map(t => `<div class="tip p${t.pri}"><span class="ti">${t.icon}</span><div class="tt"><b>${t.title}</b><small>${t.text}</small><em>${P[t.pri]}</em></div>${t.w || t.battle || t.x ? `<button data-act="tipgo" ${t.battle ? `data-b="${t.battle}"` : t.x ? `data-x="${t.x}"` : `data-w="${t.w}"`} ${t.k ? `data-k="${t.k}" data-t="${t.t}"` : ''}>Ir</button>` : ''}</div>`).join('') : '<div class="adv-ok">✅ Todo en orden. No hay nada urgente: sigue construyendo o explora la Diplomacia.</div>'}</div>
   <small class="adv-foot">Se actualiza solo. Atajos: 1–9 abren las ventanas, F1 el manual.</small>`;
 }
 function advisorToggle(force) {
@@ -55,6 +55,7 @@ Object.assign(ACT, {
   advisor: () => advisorToggle(),
   tipgo: d => {
     advisorToggle(false);
+    if (d.x && typeof TIPX !== 'undefined' && TIPX[d.x]) { TIPX[d.x](d); return; }
     if (d.b) { UI.battle = +d.b; renderBattlePanel(); return; }
     if (d.k) UI.winTab[d.k] = d.t; UI.win = null; openWindow(d.w);
   }

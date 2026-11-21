@@ -20,8 +20,8 @@ function armyRowHtml(a) {
 
 /* ---------- órdenes ---------- */
 function selectedArmies() {
-  const lead = armyById(UI.selArmy); if (!lead || lead.tag !== G.player) return [];
-  return [lead].concat([...(UI.selSet || [])].map(armyById).filter(a => a && a.tag === G.player));
+  const lead = armyById(UI.selArmy); if (!lead || !ownsArmy(lead)) return [];
+  return [lead].concat([...(UI.selSet || [])].map(armyById).filter(a => a && ownsArmy(a)));
 }
 function orderArmies(pid, how) {
   const list = selectedArmies(); if (!list.length) return; const lead = list[0];
@@ -46,7 +46,7 @@ function renderArmyPanel() {
   const root = $('#armypanel'); if (!root) return;
   const a = UI.selArmy ? armyById(UI.selArmy) : null;
   if (!a) { UI.selArmy = null; root.classList.remove('open'); root.innerHTML = ''; return; }
-  const own = a.tag === G.player, c = G.C[a.tag];
+  const own = ownsArmy(a), c = G.C[a.tag];
   const cnt = {}; a.divs.forEach(d => cnt[d.t] = (cnt[d.t] || 0) + 1);
   const b = a.battle ? G.battles.find(x => x.id === a.battle) : null;
   const sel = selectedArmies(), group = sel.length > 1;

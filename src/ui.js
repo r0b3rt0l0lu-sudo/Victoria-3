@@ -568,7 +568,7 @@ WINDOWS.military = {title: 'Ejército y guerra', icon: '⚔️', render() {
 /* --- Panel de ejército y órdenes --- */
 function selectArmy(id, add) {
   UI.selSet = UI.selSet || new Set();
-  if (add && id && UI.selArmy && id !== UI.selArmy) { const a = armyById(id); if (a && a.tag === G.player) { if (UI.selSet.has(id)) UI.selSet.delete(id); else UI.selSet.add(id); } }
+  if (add && id && UI.selArmy && id !== UI.selArmy) { const a = armyById(id); if (a && ownsArmy(a)) { if (UI.selSet.has(id)) UI.selSet.delete(id); else UI.selSet.add(id); } }
   else { UI.selSet = new Set(); UI.selArmy = id; UI.moveMode = false; document.body.classList.remove('movemode'); }
   renderArmyPanel(); R.labelsDirty = true;
 }
@@ -585,7 +585,7 @@ window.onMapBoxSelect = (b, e) => {
 window.onMapRightClick = (sid, e, pid) => {
   if (UI.draw) { drawUndo(); return; }
   const a = UI.selArmy ? armyById(UI.selArmy) : null;
-  if (!a || a.tag !== G.player || pid === undefined || pid < 0) return;
+  if (!a || !ownsArmy(a) || pid === undefined || pid < 0) return;
   orderArmies(pid, e && e.shiftKey ? 'wp' : 'move');
 };
 document.addEventListener('contextmenu', e => {
@@ -774,7 +774,7 @@ window.onMapClick = (id, e, pid) => {
   }
   if (UI.draw && pid !== undefined && pid >= 0) { drawClick(pid); return; }
   if (UI.landNext && pid !== undefined && pid >= 0) { landClick(pid); return; }
-  if (UI.selArmy && pid !== undefined && pid >= 0) { const a0 = armyById(UI.selArmy); if (a0 && a0.tag === G.player) { orderArmies(pid, UI.patrolNext ? 'patrol' : e && e.shiftKey ? 'wp' : 'move'); return; } }
+  if (UI.selArmy && pid !== undefined && pid >= 0) { const a0 = armyById(UI.selArmy); if (a0 && ownsArmy(a0)) { orderArmies(pid, UI.patrolNext ? 'patrol' : e && e.shiftKey ? 'wp' : 'move'); return; } }
   if (UI.selArmy && (pid === undefined || pid < 0)) { UI.selArmy = null; UI.selSet = new Set(); renderArmyPanel(); R.labelsDirty = true; }
   UI.sel = id >= 0 ? id : null; setSelected(id >= 0 ? id : -1); renderStatePanel();
 };

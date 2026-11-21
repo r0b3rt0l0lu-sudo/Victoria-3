@@ -485,7 +485,7 @@ function updateArmyTokens() {
   const sel = window.UI && UI.selArmy;
   const wanted = new Map(), perState = {};
   G.armies.forEach(a => {
-    const mine = a.tag === G.player, atWar = !mine && hostileTags(G.player, a.tag);
+    const mine = ownsArmy(a), atWar = !mine && hostileTags(G.player, a.tag);
     if (!armyVisible(a)) return;
     if (!(mine || a.battle || a.id === sel || atWar || zoomIn)) return;
     (perState[a.loc] = perState[a.loc] || []).push(a);
@@ -502,11 +502,11 @@ function updateArmyTokens() {
     const p = worldToScreen(plon, R.cam.dist < 62 ? 1.0 : 0.5, -plat);
     const x = p[0], y = p[1] - 16;      // la ficha flota sobre la ciudad; el reparto lo hace declutterTokens()
     if (x < -40 || x > cw + 40 || y < -40 || y > ch + 40) { el.style.display = 'none'; el._x = null; return; }
-    el._x = x; el._y = y; el._pri = (a.id === sel ? 4 : 0) + (a.battle ? 3 : 0) + (a.tag === G.player ? 2 : 0);
+    el._x = x; el._y = y; el._pri = (a.id === sel ? 4 : 0) + (a.battle ? 3 : 0) + (ownsArmy(a) ? 2 : 0);
     el.style.display = 'flex';
     const key = G.player + a.tag + a.divs.length + (a.sea ? 'z' : '') + (a.battle ? 'b' : '') + (a.id === sel ? 's' : '') + (a.path.length ? 'm' : '') + (window.UI && UI.selSet && UI.selSet.has(a.id) ? 'g' : '') + Math.round(armyStr(a) * 10);
     if (el._k !== key) {
-      el._k = key; el.className = 'atoken' + (UI.selSet && UI.selSet.has(a.id) ? ' sel2' : '') + (a.tag === G.player ? ' mine' : '') + (a.id === sel ? ' sel' : '') + (a.battle ? ' fight' : '') + (a.sea ? ' sea' : '') + (a.path.length ? ' moving' : '');
+      el._k = key; el.className = 'atoken' + (UI.selSet && UI.selSet.has(a.id) ? ' sel2' : '') + (ownsArmy(a) ? ' mine' : '') + (a.id === sel ? ' sel' : '') + (a.battle ? ' fight' : '') + (a.sea ? ' sea' : '') + (a.path.length ? ' moving' : '');
       el.innerHTML = flag(a.tag, 'sm') + `<b>${a.divs.length}</b>` + `<i style="width:${Math.round(armyStr(a) * 100)}%"></i>` + (a.battle ? `<u data-act="selbattle" data-id="${a.battle}" data-tip="Abrir el panel de batalla">⚔</u>` : '');
     }
   });
@@ -535,8 +535,8 @@ function drawOrders() {
   if (!svg) { svg = R.ordSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('class', 'orders'); R.markerRoot.insertBefore(svg, R.markerRoot.firstChild); }
   const sel = window.UI && UI.selArmy; let h = '';
   G.armies.forEach(a => {
-    const foe = a.tag !== G.player && hostileTags(G.player, a.tag);
-    if (!a.path.length || !(a.tag === G.player || a.id === sel || foe) || !armyVisible(a)) return;
+    const foe = !ownsArmy(a) && hostileTags(G.player, a.tag);
+    if (!a.path.length || !(ownsArmy(a) || a.id === sel || foe) || !armyVisible(a)) return;
     const pts = [a.loc].concat(a.path).map(pid => { const pv = MAP.provs[pid]; const p = worldToScreen(pv.lon, 0.5, -pv.lat); return p[0].toFixed(1) + ',' + p[1].toFixed(1); });
     const last = pts[pts.length - 1].split(',');
     const cl = (a.id === sel ? 'sel' : '') + (foe ? ' foe' : '') + (a.chase ? ' chase' : '');

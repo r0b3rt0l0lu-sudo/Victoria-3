@@ -431,6 +431,12 @@ MANUAL.push({id: 'lote16', title: '★ Comercio con convoyes, mapa aéreo y base
 <h4>Territorios core</h4><p>Perder un territorio core resta legitimidad y prestigio y deja una reclamación permanente; recuperarlo suma. La ambición imperial añade reclamaciones sobre tus core en manos ajenas.</p>
 `});
 
+MANUAL.push({id: 'lote17', title: '★ Virreinatos y apoyo aéreo/naval a las batallas', html: `
+<h4>Virreinatos y colonias autónomas 👑</h4><p>En Diplomacia → Alianzas y poder → Colonización: al colonizar un territorio lejano (más de 16° de tus estados) puedes crear un <b>virreinato</b> en vez de incorporarlo: un país vasallo con su propio gobierno, economía, tesoro y ejército, pero <b>bajo tu control</b> (sus ejércitos aparecen como tuyos y los ordenas tú; entran solos en tus guerras y tú defiendes los suyos). También puedes convertir un estado lejano que ya posees (40 de influencia).</p>
+<p>Tres políticas: <b>control directo</b> (tributo 30 %, la lealtad cae), <b>autonomía moderada</b> (15 %) y <b>gran autonomía</b> (5 %, la lealtad sube y la colonia crece más). Si la lealtad baja de 10, puede proclamar la independencia y atacarte. Los déficits los cubre la metrópoli. Con 40 de influencia puedes reintegrarlo.</p>
+<h4>Apoyo aéreo y naval a las batallas terrestres</h4><p>El dominio del aire y del mar influye en el combate en tierra, para bien y para mal: con superioridad aérea hasta +25 %; si el enemigo domina el aire, hasta −18 % de ataque y defensa. En estados costeros cuentan las flotas de los mares adyacentes: con superioridad hasta +16 % (fuego naval, suministro por mar), con inferioridad hasta −16 %. La misión <b>Bombardeo costero</b> pesa ×1,8. El registro de la batalla anota estos efectos.</p>
+`});
+
 WINDOWS.manual = {title: 'Manual del juego', icon: '📖', render() {
   const sec = MANUAL.find(m => m.id === UI.manualSec) || MANUAL[0];
   return `<div class="manual"><nav>${MANUAL.map(m => `<button class="${m.id === sec.id ? 'on' : ''}" data-act="msec" data-id="${m.id}">${m.title}</button>`).join('')}</nav><article class="scrollable manbody"><h2>${sec.title}</h2>${sec.html}</article></div>`;

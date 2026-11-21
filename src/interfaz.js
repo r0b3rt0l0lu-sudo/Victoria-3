@@ -44,11 +44,11 @@ if (typeof gfxPanelHtml === 'function') {
       <button data-act="wheelmode" data-tip="Qué hace la rueda del ratón">🖱️ Rueda: ${R.wheelMode === 'pan' ? 'mover' : 'zoom'}</button>
       <button data-act="edgescroll"${on(R.edgeScroll)} data-tip="Mover el mapa al acercar el ratón al borde">⇱ Borde</button>
       <button data-act="animtoggle"${on(R.anim)} data-tip="Animación del agua y las nubes">≈ Agua y nubes</button>
-      <button data-act="uisize" data-tip="Tamaño de menús y ventanas">Aa Interfaz: ${sz}</button></div></div>`;
+      <button data-act="uisize" data-tip="Tamaño de menús y ventanas">Aa Interfaz: ${sz}</button></div></div><div class="gfx-row"><span>Aspecto</span><div class="gfx-seg gfx-wrap"><button data-act="uitema" data-tip="Tema oscuro (sala de mapas) o claro (pergamino)">Tema: ${UI_PREFS.theme === 'pergamino' ? 'pergamino' : 'oscuro'}</button><button data-act="uidens" data-tip="Densidad de la información en ventanas">Densidad: ${UI_PREFS.densidad}</button><button data-act="uipaleta"${on(UI_PREFS.paleta === 'daltonica')} data-tip="Colores alternativos para daltonismo (azul/naranja)">Daltonismo</button></div></div>`;
     return _uiGfx().replace('Gráficos del mapa<', 'Vista y gráficos<').replace('<p class="gfx-note">', extra + '<p class="gfx-note">');
   };
   // tras pulsar uno de esos botones el panel se redibuja para mostrar su nuevo estado
-  document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('#gfxpanel [data-act]'); if (b && /^(tiltu|tiltd|wheelmode|edgescroll|animtoggle|uisize)$/.test(b.dataset.act)) setTimeout(() => { if (document.getElementById('gfxpanel')) openGfxPanel(true); }, 60); });
+  document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('#gfxpanel [data-act]'); if (b && /^(tiltu|tiltd|wheelmode|edgescroll|animtoggle|uisize|uitema|uidens|uipaleta)$/.test(b.dataset.act)) setTimeout(() => { if (document.getElementById('gfxpanel')) openGfxPanel(true); }, 60); });
 }
 const _uiCss = document.createElement('style'); _uiCss.textContent = `
 .hid{display:none!important}
@@ -59,3 +59,6 @@ const _uiCss = document.createElement('style'); _uiCss.textContent = `
 #topmenu .tm-row.sndbtn.muted{opacity:.6}
 #gfxpanel .gfx-wrap{flex-wrap:wrap}#gfxpanel .gfx-wrap button{flex:1 1 30%;font-size:12px;padding:6px 4px;white-space:normal}#gfxpanel{max-height:calc(100vh - 90px);overflow-y:auto}`;
 document.head.appendChild(_uiCss);
+
+// interfaz v2: conmutadores de tema, densidad y paleta
+Object.assign(ACT, {uitema: () => uiPrefs({theme: UI_PREFS.theme === 'pergamino' ? 'oscuro' : 'pergamino'}), uidens: () => uiPrefs({densidad: {normal: 'compacta', compacta: 'comoda', comoda: 'normal'}[UI_PREFS.densidad] || 'normal'}), uipaleta: () => uiPrefs({paleta: UI_PREFS.paleta === 'daltonica' ? 'normal' : 'daltonica'})});

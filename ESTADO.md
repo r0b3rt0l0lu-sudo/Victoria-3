@@ -304,3 +304,4 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - **Eventos**: Suez, Meiji, Tsushima, carrera de acorazados, Panamá, guerra submarina, Washington, Blitz, bloqueo y hambre, México, Transiberiano, Zollverein.
 - **Rendimiento (SwiftShader, sin GPU real)**: día de simulación ≈70 ms en 1939; modo marítimo: 174 ms al entrar la primera vez, 57 ms por repintado de regiones, 1,5 ms por fotograma de rótulos; supremacía naval 0,15 ms/día.
 - **Guardado**: ida y vuelta idéntica con convoyes, escoltas, supremacía, bases, ambición, reservas y escasez (`sv2.js`).
+- **Interfaz v2 «Sala de mapas del Almirantazgo»** integrada (tokens.css, style.css, icons.js con 94 iconos grabados, temas oscuro/pergamino, densidades, daltonismo, gama baja; ajustes en ☰ → Gráficos). Documentación en referencia/interfaz_v2/.

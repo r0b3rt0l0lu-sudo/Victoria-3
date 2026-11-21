@@ -198,7 +198,7 @@ function renderWindow(fresh) {
   const prev = root.querySelector('.wbody'); const sc = prev && !fresh ? prev.scrollTop : 0;
   const scs = {}; if (prev && !fresh) $$('.scrollable', root).forEach((e, i) => scs[i] = e.scrollTop);
   root.classList.add('open');
-  root.innerHTML = `<div class="window w-${UI.win}"><div class="whead"><span class="wicon">${w.icon}</span><h2>${w.title}</h2><span class="wsub">${WIN_HELP[UI.win] || ''}</span><button class="x" data-act="closewin">✕</button></div><div class="wbody">${w.render()}</div></div>`;
+  root.innerHTML = `<div class="window w-${UI.win}" role="dialog" aria-modal="false" aria-labelledby="wtitle"><div class="whead"><span class="wicon">${w.icon}</span><h2 id="wtitle">${w.title}</h2><span class="wsub">${WIN_HELP[UI.win] || ''}</span><button class="x" data-act="closewin" aria-label="Cerrar">✕</button></div><div class="wbody">${w.render()}</div></div>`;
   iconize(root); const nb = root.querySelector('.wbody'); if (nb) nb.scrollTop = sc;
   if (!fresh) $$('.scrollable', root).forEach((e, i) => { if (scs[i] !== undefined) e.scrollTop = scs[i]; });
 }
@@ -221,9 +221,9 @@ const TAB_GROUPS = {
 };
 function tabs(key, list) {
   const cur = UI.winTab[key] || list[0][0];
-  const btn = ([id, name]) => `<button class="tab ${cur === id ? 'on' : ''}" data-act="tab" data-k="${key}" data-t="${id}" ${TAB_TIPS[key + ':' + id] ? `data-tip="${TAB_TIPS[key + ':' + id]}"` : ''}>${name}</button>`;
+  const btn = ([id, name]) => `<button class="tab ${cur === id ? 'on' : ''}" role="tab" aria-selected="${cur === id}" data-act="tab" data-k="${key}" data-t="${id}" ${TAB_TIPS[key + ':' + id] ? `data-tip="${TAB_TIPS[key + ':' + id]}"` : ''}>${name}</button>`;
   const grp = TAB_GROUPS[key];
-  if (!grp || list.length < 6) return `<div class="tabs">${list.map(btn).join('')}</div>`;
+  if (!grp || list.length < 6) return `<div class="tabs" role="tablist">${list.map(btn).join('')}</div>`;
   const used = new Set(), groups = grp.map(([label, ids]) => { const items = list.filter(t => ids.includes(t[0])); items.forEach(t => used.add(t[0])); return [label, items]; }).filter(g => g[1].length);
   const rest = list.filter(t => !used.has(t[0])); if (rest.length) groups.push(['Otros', rest]);
   // dos niveles: primero la sección (una fila corta) y debajo solo las pestañas de la sección elegida

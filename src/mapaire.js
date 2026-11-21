@@ -64,7 +64,7 @@ window.onMapBoxSelect = function (b, e) {
 };
 function amPanel(show) {
   let el = AM.panel; if (!show) { if (el) el.style.display = 'none'; return; }
-  if (!el) { el = AM.panel = document.createElement('div'); el.id = 'airmappanel'; el.style.cssText = 'position:fixed;left:8px;top:96px;width:330px;max-height:calc(100vh - 230px);overflow:auto;z-index:30;background:linear-gradient(180deg,rgba(14,28,44,.96),rgba(10,20,32,.96));border:1px solid #3d6a86;border-radius:8px;padding:8px;color:#dce8f5;font-size:13px;box-shadow:0 4px 18px rgba(0,0,0,.5)'; document.body.appendChild(el);
+  if (!el) { el = AM.panel = document.createElement('div'); el.id = 'airmappanel'; el.style.cssText = 'position:fixed;left:8px;top:96px;width:330px;max-height:calc(100vh - 230px);overflow:auto;z-index:30;background:linear-gradient(180deg,rgba(24,40,58,.97),rgba(17,28,40,.97));border:1px solid var(--laton-500,#b8903e);box-shadow:inset 0 0 0 2px rgba(184,144,62,.18),0 4px 18px rgba(0,0,0,.5);border-radius:6px;padding:8px;color:#dce8f5;font-size:13px;box-shadow:0 4px 18px rgba(0,0,0,.5)'; document.body.appendChild(el);
     el.addEventListener('click', ev => { const cb = ev.target.closest('input[data-sq]'), b = ev.target.closest('[data-am]'); if (cb) { const id = +cb.dataset.sq; cb.checked ? AM.sel.add(id) : AM.sel.delete(id); amPanel(true); return; }
       if (!b) return; if (b.dataset.am === 'all') amMine().forEach(s => AM.sel.add(s.id)); else if (b.dataset.am === 'none') AM.sel.clear(); amPanel(true); });
     el.addEventListener('change', ev => { const t = ev.target; if (t.dataset && t.dataset.sqm) { const s = mx().sq.find(x => x.id === +t.dataset.sqm); if (s) { s.mission = t.value; amPanel(true); } } }); }

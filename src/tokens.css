@@ -1,0 +1,93 @@
+/* =====================================================================
+   VICTORIA · TOKENS DE INTERFAZ v2 — «sala de mapas del Almirantazgo»
+   Solo variables: retocar aquí la paleta, la tipografía y la densidad.
+   Temas: <html data-theme="oscuro|pergamino">  ·  densidad: data-densidad="comoda|normal|compacta"
+   Daltonismo: data-paleta="daltonica"  ·  gama baja: data-fx="0" (o --fx:0)
+   ===================================================================== */
+:root{
+  /* --- paleta base (obligatoria; ±8 % de luminosidad) --- */
+  --tinta-900:#0b121a; --pizarra-800:#111c28; --pizarra-700:#18283a; --pizarra-600:#223850;
+  --roble-700:#3a2a1c; --roble-500:#5c4129; --laton-500:#b8903e; --laton-300:#e0c27a;
+  --pergamino-100:#efe3c6; --pergamino-300:#cdbd96; --carmin-600:#a8342f; --bosque-600:#3f7a4a;
+  --acero-500:#4f86b0; --ambar-500:#d98a2b; --violeta-500:#7a5a9a; --lacre-700:#7d1f24;
+  /* --- derivados --- */
+  --laton-700:#7e6128; --laton-100:#f3e3b4; --roble-900:#22180f; --pizarra-500:#2e4862;
+  --carmin-400:#e3746c; --bosque-400:#6fae74; --acero-300:#86b4d6; --ambar-300:#f0b462; --violeta-300:#a98cc6;
+
+  /* --- papeles (superficies) --- */
+  --sup-0:var(--tinta-900);          /* fondo profundo, sombras */
+  --sup-1:var(--pizarra-800);        /* fondo de ventana */
+  --sup-2:var(--pizarra-700);        /* tarjetas, paneles */
+  --sup-3:var(--pizarra-600);        /* elevada, hover */
+  --sup-hud:rgba(14,23,33,.92);      /* paneles sobre el mapa */
+  --sup-tip:rgba(10,16,23,.97);
+  --marco:var(--roble-700); --marco-2:var(--roble-500);
+  --filete:rgba(184,144,62,.55); --filete-suave:rgba(184,144,62,.22); --linea:rgba(205,189,150,.12);
+
+  /* --- tinta (texto) --- */
+  --tx-1:var(--pergamino-100); --tx-2:var(--pergamino-300); --tx-3:#9a9078; --tx-tit:var(--laton-300); --tx-inv:#1b140c;
+
+  /* --- semántica --- */
+  --bueno:var(--bosque-400); --malo:var(--carmin-400); --aviso:var(--ambar-300); --info:var(--acero-300); --diplo:var(--violeta-300); --neutro:var(--tx-2);
+  --bueno-f:var(--bosque-600); --malo-f:var(--carmin-600); --aviso-f:var(--ambar-500); --info-f:var(--acero-500); --diplo-f:var(--violeta-500);
+  /* estratos sociales */
+  --estrato-alto:#d9b55a; --estrato-medio:#6fa0c8; --estrato-bajo:#a08770; --estrato-campo:#7fa35e;
+  /* categorías de bien */
+  --bien-basico:#c9a26a; --bien-industrial:#7f93a8; --bien-lujo:#b77fb0; --bien-militar:#b5574e; --bien-agrario:#8aa65a; --bien-energia:#6b6b6b;
+
+  /* --- tipografía (pilas de sistema; sin descargas) --- */
+  --f-tit:'Cinzel','Trajan Pro','Spectral SC','Cormorant SC','Palatino Linotype','Book Antiqua',Palatino,Georgia,serif;
+  --f-cap:'Palatino Linotype','Book Antiqua',Palatino,'Iowan Old Style',Georgia,serif;
+  --f-txt:'Segoe UI Variable Text','Segoe UI','Inter','Source Sans 3','Helvetica Neue','Noto Sans',Arial,sans-serif;
+  --f-num:'Iowan Old Style','Palatino Linotype','Book Antiqua',Georgia,serif;
+  /* escala de 6 niveles (multiplicada por la densidad) */
+  --t-xs:calc(11px * var(--dz)); --t-s:calc(12px * var(--dz)); --t-m:calc(13.5px * var(--dz)); --t-l:calc(15.5px * var(--dz)); --t-xl:calc(19px * var(--dz)); --t-xxl:calc(26px * var(--dz));
+  --track:.08em; --track-ancho:.16em;
+
+  /* --- rejilla de 4 px y densidad --- */
+  --dz:1; --g:calc(4px * var(--dz));
+  --e1:var(--g); --e2:calc(var(--g) * 2); --e3:calc(var(--g) * 3); --e4:calc(var(--g) * 4); --e6:calc(var(--g) * 6);
+  --r-1:2px; --r-2:3px; --r-3:5px;
+
+  /* --- luz única arriba a la izquierda --- */
+  --luz-filo:inset 1px 1px 0 rgba(255,236,190,.14), inset -1px -1px 0 rgba(0,0,0,.45);
+  --sombra-1:0 1px 0 rgba(0,0,0,.5), 1px 2px 3px rgba(0,0,0,.35);
+  --sombra-2:1px 2px 0 rgba(0,0,0,.45), 3px 6px 14px rgba(0,0,0,.45);
+  --sombra-3:2px 3px 0 rgba(0,0,0,.4), 6px 14px 34px rgba(0,0,0,.55);
+
+  /* --- materiales generados (SVG en línea, sin imágenes externas) --- */
+  --grano:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .9 0 0 0 0 .85 0 0 0 0 .7 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  --papel:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.012 .02' numOctaves='3' seed='4'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .32 0 0 0 0 .16 0 0 0 .16 0'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23p)'/%3E%3C/svg%3E");
+  /* cantonera de latón (esquina con remache), se gira con transform en cada esquina */
+  --cantonera:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 22 22'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23f1d58f'/%3E%3Cstop offset='.45' stop-color='%23b8903e'/%3E%3Cstop offset='1' stop-color='%235e4518'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M0 0h20l-2.2 3H3v14.8L0 20z' fill='url(%23g)'/%3E%3Cpath d='M3.5 3.5h11M3.5 3.5v11' stroke='%233a2a12' stroke-width='.7' opacity='.6'/%3E%3Ccircle cx='6.2' cy='6.2' r='1.9' fill='url(%23g)' stroke='%233a2a12' stroke-width='.6'/%3E%3Ccircle cx='5.8' cy='5.8' r='.6' fill='%23fff6d8' opacity='.8'/%3E%3C/svg%3E");
+  /* cenefa ornamental (filigrana repetible para cabeceras y separadores) */
+  --cenefa:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='8' viewBox='0 0 28 8'%3E%3Cpath d='M0 4h6c2 0 2-3 4-3s2 3 4 3 2 3 4 3 2-3 4-3 2 3 4 3h2' fill='none' stroke='%23b8903e' stroke-width='.9' opacity='.75'/%3E%3Ccircle cx='14' cy='4' r='.9' fill='%23e0c27a'/%3E%3C/svg%3E");
+  --orla:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='10' viewBox='0 0 60 10'%3E%3Cpath d='M0 5h22M38 5h22' stroke='%23b8903e' stroke-width='.8'/%3E%3Cpath d='M30 1l4 4-4 4-4-4z' fill='none' stroke='%23e0c27a' stroke-width='.9'/%3E%3Ccircle cx='30' cy='5' r='1' fill='%23e0c27a'/%3E%3Cpath d='M22 5c2-3 3-3 4 0M38 5c-2 3-3 3-4 0' fill='none' stroke='%23b8903e' stroke-width='.8'/%3E%3C/svg%3E");
+
+  /* --- movimiento --- */
+  --fx:1; --t-rapido:120ms; --t-medio:180ms; --t-lento:250ms; --curva:cubic-bezier(.2,.7,.2,1);
+}
+/* densidades */
+:root[data-densidad="comoda"],[data-densidad="comoda"]{--dz:1.12}
+:root[data-densidad="compacta"],[data-densidad="compacta"]{--dz:.88}
+[data-densidad]{--t-xs:calc(11px * var(--dz)); --t-s:calc(12px * var(--dz)); --t-m:calc(13.5px * var(--dz)); --t-l:calc(15.5px * var(--dz)); --t-xl:calc(19px * var(--dz)); --t-xxl:calc(26px * var(--dz)); --g:calc(4px * var(--dz)); --e1:var(--g); --e2:calc(var(--g) * 2); --e3:calc(var(--g) * 3); --e4:calc(var(--g) * 4); --e6:calc(var(--g) * 6)}
+/* tema claro «pergamino» */
+:root[data-theme="pergamino"],[data-theme="pergamino"]{
+  --sup-0:#5a4a33; --sup-1:#e9dcbc; --sup-2:#f1e6c9; --sup-3:#f8efd8; --sup-hud:rgba(236,224,194,.95); --sup-tip:rgba(244,234,208,.98);
+  --marco:#6b4c2c; --marco-2:#8a6a42; --filete:rgba(122,90,40,.6); --filete-suave:rgba(122,90,40,.28); --linea:rgba(90,66,30,.16);
+  --tx-1:#2a1f12; --tx-2:#5a4a33; --tx-3:#62523a; --tx-tit:#5e3d14; --tx-inv:#f4ead0;
+  --bueno:#2f6a3a; --malo:#9a2a25; --aviso:#874c08; --info:#2e5f86; --diplo:#5e3e80; --neutro:#5a4a33;
+  --luz-filo:inset 1px 1px 0 rgba(255,255,255,.55), inset -1px -1px 0 rgba(90,60,20,.25);
+  --sombra-1:0 1px 0 rgba(60,40,10,.25), 1px 2px 3px rgba(60,40,10,.2); --sombra-2:1px 2px 0 rgba(60,40,10,.25), 3px 6px 14px rgba(60,40,10,.3);
+}
+/* paleta para daltonismo (deuteranopía/protanopía): bueno azul, malo naranja; las formas (▲▼) siguen marcando el signo */
+:root[data-paleta="daltonica"],[data-paleta="daltonica"]{--bueno:#5aa0e0; --bueno-f:#2f6aa8; --malo:#f08a2a; --malo-f:#b8600e; --aviso:#f2d24a; --diplo:#c9a0e0}
+/* gama baja y menos movimiento */
+:root[data-fx="0"]{--fx:0; --sombra-2:0 2px 4px rgba(0,0,0,.5); --sombra-3:0 3px 8px rgba(0,0,0,.55); --t-rapido:0ms; --t-medio:0ms; --t-lento:0ms}
+@media (prefers-reduced-motion:reduce){:root{--t-rapido:0ms; --t-medio:0ms; --t-lento:0ms}}
+:root{
+  --cant-tl:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 22 22'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23f1d58f'/%3E%3Cstop offset='.45' stop-color='%23b8903e'/%3E%3Cstop offset='1' stop-color='%235e4518'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cg transform=''%3E%3Cpath d='M0 0h20l-2.2 3H3v14.8L0 20z' fill='url(%23g)'/%3E%3Cpath d='M3.5 3.5h11M3.5 3.5v11' stroke='%233a2a12' stroke-width='.7' opacity='.6'/%3E%3Cpath d='M0 .6h19' stroke='%23fff3cc' stroke-width='.6' opacity='.7'/%3E%3Ccircle cx='6.2' cy='6.2' r='1.9' fill='url(%23g)' stroke='%233a2a12' stroke-width='.6'/%3E%3Ccircle cx='5.8' cy='5.8' r='.6' fill='%23fff6d8' opacity='.8'/%3E%3C/g%3E%3C/svg%3E");
+  --cant-tr:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 22 22'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23f1d58f'/%3E%3Cstop offset='.45' stop-color='%23b8903e'/%3E%3Cstop offset='1' stop-color='%235e4518'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cg transform='translate(22 0) scale(-1 1)'%3E%3Cpath d='M0 0h20l-2.2 3H3v14.8L0 20z' fill='url(%23g)'/%3E%3Cpath d='M3.5 3.5h11M3.5 3.5v11' stroke='%233a2a12' stroke-width='.7' opacity='.6'/%3E%3Cpath d='M0 .6h19' stroke='%23fff3cc' stroke-width='.6' opacity='.7'/%3E%3Ccircle cx='6.2' cy='6.2' r='1.9' fill='url(%23g)' stroke='%233a2a12' stroke-width='.6'/%3E%3Ccircle cx='5.8' cy='5.8' r='.6' fill='%23fff6d8' opacity='.8'/%3E%3C/g%3E%3C/svg%3E");
+  --cant-bl:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 22 22'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23f1d58f'/%3E%3Cstop offset='.45' stop-color='%23b8903e'/%3E%3Cstop offset='1' stop-color='%235e4518'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cg transform='translate(0 22) scale(1 -1)'%3E%3Cpath d='M0 0h20l-2.2 3H3v14.8L0 20z' fill='url(%23g)'/%3E%3Cpath d='M3.5 3.5h11M3.5 3.5v11' stroke='%233a2a12' stroke-width='.7' opacity='.6'/%3E%3Cpath d='M0 .6h19' stroke='%23fff3cc' stroke-width='.6' opacity='.7'/%3E%3Ccircle cx='6.2' cy='6.2' r='1.9' fill='url(%23g)' stroke='%233a2a12' stroke-width='.6'/%3E%3Ccircle cx='5.8' cy='5.8' r='.6' fill='%23fff6d8' opacity='.8'/%3E%3C/g%3E%3C/svg%3E");
+  --cant-br:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 22 22'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23f1d58f'/%3E%3Cstop offset='.45' stop-color='%23b8903e'/%3E%3Cstop offset='1' stop-color='%235e4518'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cg transform='translate(22 22) scale(-1 -1)'%3E%3Cpath d='M0 0h20l-2.2 3H3v14.8L0 20z' fill='url(%23g)'/%3E%3Cpath d='M3.5 3.5h11M3.5 3.5v11' stroke='%233a2a12' stroke-width='.7' opacity='.6'/%3E%3Cpath d='M0 .6h19' stroke='%23fff3cc' stroke-width='.6' opacity='.7'/%3E%3Ccircle cx='6.2' cy='6.2' r='1.9' fill='url(%23g)' stroke='%233a2a12' stroke-width='.6'/%3E%3Ccircle cx='5.8' cy='5.8' r='.6' fill='%23fff6d8' opacity='.8'/%3E%3C/g%3E%3C/svg%3E");
+}

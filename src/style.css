@@ -1,10 +1,14 @@
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Lato:wght@400;700&family=Lora:ital,wght@0,400;0,600;1,500&display=swap');
-:root{
-  --bg:#12181d; --panel:#222b33; --panel2:#2b3640; --edge:#0a0e11; --gold:#c9a657; --gold2:#ecd697; --goldd:#7d6733;
-  --text:#ebe3cf; --dim:#98a3ab; --good:#8cc47a; --bad:#e07a68; --warn:#e0b45a; --blue:#6fa8d6;
-  --head:'Cinzel','Trajan Pro','Palatino Linotype','Book Antiqua',Georgia,serif;
-  --body:'Lato','Segoe UI','Helvetica Neue',Arial,sans-serif;
+/* =====================================================================
+   VICTORIA · style.css v2 — se carga DESPUÉS de tokens.css (build.py los concatena).
+   Capa 2 (heredada): maquetación de la v1 —posiciones, tamaños, rejillas y reglas responsive que la lógica espera— con la paleta
+   redirigida a los tokens. Capas 3-10 (piel.css, al final de este archivo): materiales, tipografía, componentes y estados nuevos.
+   Sin @import de fuentes externas: el juego no descarga nada.
+   ===================================================================== */
+:root{ /* alias de la v1 → tokens v2 (las reglas heredadas toman la paleta nueva) */
+  --bg:var(--sup-0); --panel:var(--sup-2); --panel2:var(--sup-3); --edge:var(--tinta-900); --gold:var(--laton-500); --gold2:var(--laton-300); --goldd:var(--laton-700);
+  --text:var(--tx-1); --dim:var(--tx-2); --good:var(--bueno); --bad:var(--malo); --warn:var(--aviso); --blue:var(--info); --head:var(--f-tit); --body:var(--f-txt);
 }
+/* ---------- 2 · MAQUETACIÓN HEREDADA (v1) ---------- */
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;background:#0b1015;color:var(--text);font-family:var(--body);font-size:14px;user-select:none}
 body.dragging{cursor:grabbing}
@@ -889,3 +893,348 @@ body.phone .tabs-g{overflow-x:auto;flex-wrap:nowrap}body.phone .tabs-g .gtab{fle
 #tut-hl{position:fixed;display:none;border:3px solid #ffe28a;border-radius:10px;box-shadow:0 0 0 2000px rgba(0,0,0,.25),0 0 18px #ffe28a;pointer-events:none;z-index:249;animation:tuthl 1.4s ease-in-out infinite}@keyframes tuthl{50%{box-shadow:0 0 0 2000px rgba(0,0,0,.25),0 0 30px #fff3b0}}
 #tutoffer{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);width:min(440px,92vw);background:linear-gradient(180deg,rgba(28,36,46,.98),rgba(18,24,32,.98));border:1px solid #c9a24a;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.7);padding:12px 16px;z-index:251;color:#e8e0c8}#tutoffer b{color:#ffe28a;font-size:16px}#tutoffer p{margin:6px 0;font-size:14px}#tutoffer .tb{display:flex;gap:8px;justify-content:flex-end}
 body.phone #tut{bottom:70px;font-size:13px}
+
+
+/* =====================================================================
+   VICTORIA · INTERFAZ v2 «Sala de mapas del Almirantazgo»
+   Capas: 1 tokens (tokens.css) → 2 maquetación heredada (v1, solo posiciones y tamaños) → 3 base → 4 componentes
+          → 5 ventanas → 6 mapa y HUD → 7 combate → 8 inicio → 9 utilidades → 10 responsive.
+   Luz única arriba a la izquierda: filos claros arriba/izquierda, oscuros abajo/derecha; sombras hacia abajo a la derecha.
+   ===================================================================== */
+
+/* ---------- 3 · BASE ---------- */
+html,body{background:var(--sup-0);color:var(--tx-1);font-family:var(--f-txt);font-size:var(--t-m);font-feature-settings:"kern","liga"}
+.tbl td,.tbl th,.kv b,.chip b,#plaque b,.date,.st-stats b,.bar span,.num{font-variant-numeric:tabular-nums lining-nums}
+::selection{background:rgba(224,194,122,.35);color:var(--tx-1)}
+:focus-visible{outline:2px solid var(--laton-300) !important;outline-offset:2px;box-shadow:0 0 0 4px rgba(11,18,26,.85) !important}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:rgba(0,0,0,.25);border-left:1px solid var(--linea)}
+::-webkit-scrollbar-thumb{background:linear-gradient(90deg,var(--laton-700),var(--laton-500) 45%,var(--laton-700));border:2px solid transparent;background-clip:padding-box;border-radius:5px}
+.ic{width:1.15em;height:1.15em;vertical-align:-.2em;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;overflow:visible}
+.ic .t,#ic-sprite .t{stroke-width:1.5}
+.ic .s,#ic-sprite .s{fill:currentColor;opacity:.22;stroke:none}
+.ic .d,#ic-sprite .d{stroke-width:.8;opacity:.75}
+#ic-sprite path.t{fill:none;stroke:currentColor;stroke-width:1.5}#ic-sprite path.d{fill:none;stroke:currentColor;stroke-width:.8;opacity:.75}#ic-sprite path.s{fill:currentColor;opacity:.22}
+h2,h3,h4,h5{font-family:var(--f-tit)}
+.dim,.hint{color:var(--tx-2)}
+small{font-size:var(--t-xs)}
+
+/* ---------- 4 · COMPONENTES ---------- */
+/* botones: placa de pizarra con filo de latón; se hunden al pulsar */
+button{font-family:var(--f-txt);font-size:var(--t-s);color:var(--tx-1);background:linear-gradient(180deg,var(--sup-3),var(--sup-2));border:1px solid var(--filete);border-radius:var(--r-2);
+  padding:calc(var(--g)*1.5) calc(var(--g)*3);box-shadow:var(--luz-filo),var(--sombra-1);cursor:pointer;transition:filter var(--t-rapido),transform var(--t-rapido),box-shadow var(--t-rapido),background var(--t-rapido)}
+button:not(:disabled):hover{filter:brightness(1.14);border-color:var(--laton-500)}
+button:not(:disabled):active{transform:translateY(1px);box-shadow:inset 1px 2px 3px rgba(0,0,0,.55);filter:brightness(.95)}
+button:disabled,button.disabled{opacity:.5;filter:grayscale(.6);cursor:not-allowed;box-shadow:none}
+/* primario: placa de latón grabada (texto en tinta oscura) */
+button.primary,.btn-primario{color:var(--tx-inv);font-family:var(--f-cap);font-weight:700;letter-spacing:.06em;text-shadow:0 1px 0 rgba(255,240,200,.45);
+  background:linear-gradient(180deg,#f0d690 0%,var(--laton-500) 48%,#9a7530 52%,#c9a254 100%);border:1px solid #5e4518;
+  box-shadow:inset 1px 1px 0 rgba(255,250,225,.75),inset -1px -1px 0 rgba(70,48,12,.6),var(--sombra-1)}
+button.primary:not(:disabled):hover{filter:brightness(1.08) saturate(1.1);box-shadow:inset 1px 1px 0 rgba(255,250,225,.9),inset -1px -1px 0 rgba(70,48,12,.6),0 0 calc(10px * var(--fx)) rgba(224,194,122,.45),var(--sombra-1)}
+button.primary:disabled{background:linear-gradient(180deg,#6b6250,#4e4738);color:#2a251c;text-shadow:none}
+/* peligro: lacre */
+button.danger,.btn-peligro{color:#fbe9df;background:linear-gradient(180deg,#b5443d,var(--lacre-700));border-color:#4a1012;box-shadow:inset 1px 1px 0 rgba(255,200,190,.35),inset -1px -1px 0 rgba(40,0,0,.5),var(--sombra-1)}
+/* fantasma */
+.btn-fantasma{background:transparent;box-shadow:none;border-color:var(--filete-suave);color:var(--tx-tit)}
+button.block{display:block;width:100%;text-align:left}
+.btnrow{display:flex;flex-wrap:wrap;gap:var(--e2);margin-top:var(--e2)}
+/* segmentados (interruptores) */
+.seg{display:inline-flex;border:1px solid var(--filete);border-radius:var(--r-2);overflow:hidden;box-shadow:var(--sombra-1)}
+.seg button{border:0;border-right:1px solid var(--filete-suave);border-radius:0;box-shadow:none;background:var(--sup-2)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:linear-gradient(180deg,#8a6c2c,#5c4519);color:#fff3d0;box-shadow:inset 0 1px 3px rgba(0,0,0,.5)}
+/* campos */
+select,input[type=text],input[type=search],input[type=number],.search,textarea{font-family:var(--f-txt);font-size:var(--t-s);color:var(--tx-1);background:linear-gradient(180deg,rgba(0,0,0,.35),rgba(0,0,0,.15)),var(--sup-1);
+  border:1px solid var(--filete-suave);border-bottom-color:var(--filete);border-radius:var(--r-1);padding:calc(var(--g)*1.5) var(--e2);box-shadow:inset 1px 1px 3px rgba(0,0,0,.5)}
+select:focus,input:focus,.search:focus{border-color:var(--laton-300);outline:none}
+input[type=range]{accent-color:var(--laton-500)}
+input[type=checkbox],input[type=radio]{accent-color:var(--laton-500);width:1.05em;height:1.05em}
+
+/* pestañas: lengüetas de carpeta (la activa se une al cuerpo) */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--filete);margin-bottom:var(--e3);padding-left:var(--e2)}
+.tabs .tab,.tab{position:relative;font-family:var(--f-tit);font-size:var(--t-s);font-weight:600;letter-spacing:var(--track);color:var(--tx-2);text-transform:none;
+  background:linear-gradient(180deg,var(--sup-2),var(--sup-1));border:1px solid var(--filete-suave);border-bottom:0;border-radius:var(--r-3) var(--r-3) 0 0;
+  padding:calc(var(--g)*1.75) calc(var(--g)*3.5) calc(var(--g)*1.5);margin-bottom:-1px;box-shadow:inset 1px 1px 0 rgba(255,236,190,.06);clip-path:polygon(0 100%,4px 0,calc(100% - 4px) 0,100% 100%)}
+.tabs .tab:hover{color:var(--tx-1);background:linear-gradient(180deg,var(--sup-3),var(--sup-2))}
+.tabs .tab.on,.tab.on{color:var(--tx-tit);background:linear-gradient(180deg,var(--sup-3),var(--sup-1));border-color:var(--filete);box-shadow:inset 0 2px 0 var(--laton-500);z-index:1}
+.tabs-g{border-bottom:0;padding-left:0}.tabs-g .gtab{clip-path:none;border-radius:var(--r-2);border-bottom:1px solid var(--filete-suave)}
+.tabs-g .gtab.on{box-shadow:inset 0 -2px 0 var(--laton-500)}
+.tabs-sub{background:rgba(0,0,0,.2);border:1px solid var(--linea);border-radius:var(--r-2);padding:var(--e1) var(--e2)}
+.tabs-sub .tab{clip-path:none;border-radius:var(--r-1);border:1px solid transparent;padding:var(--e1) var(--e3);background:transparent;font-family:var(--f-txt);font-weight:600;letter-spacing:.02em}
+.tabs-sub .tab.on{background:rgba(184,144,62,.18);border-color:var(--filete);box-shadow:none}
+
+/* tarjetas: hoja con doble filete (grueso exterior + fino interior) */
+.card{position:relative;background:linear-gradient(180deg,rgba(255,240,210,.035),rgba(255,240,210,.01)),var(--sup-2);border:1px solid var(--filete-suave);border-radius:var(--r-2);
+  padding:var(--e3) var(--e4);margin-bottom:var(--e3);box-shadow:var(--luz-filo),var(--sombra-1)}
+.card::before{content:"";position:absolute;inset:3px;border:1px solid var(--linea);border-radius:1px;pointer-events:none}
+.card h3,.lawdetail h3,.techcol h3{font-family:var(--f-tit);font-size:var(--t-s);font-weight:700;letter-spacing:var(--track-ancho);text-transform:uppercase;color:var(--tx-tit);margin:0 0 var(--e2);padding-bottom:var(--e2);
+  background:var(--orla) 0 bottom/60px 10px no-repeat;text-align:left}
+.card.hl,.card.resaltada{border-color:var(--laton-500);box-shadow:var(--luz-filo),0 0 0 1px rgba(224,194,122,.2),var(--sombra-2)}
+.card.lock,.card.bloqueada{opacity:.62;filter:saturate(.4);background-image:repeating-linear-gradient(135deg,rgba(0,0,0,.18) 0 6px,transparent 6px 12px)}
+.card.done,.card.completada{border-color:var(--bueno-f)}
+.card.done::after,.card.completada::after{content:"";position:absolute;right:8px;top:6px;width:30px;height:30px;border-radius:50%;background:radial-gradient(circle at 38% 35%,#b8433c,var(--lacre-700) 60%,#4a1012);box-shadow:1px 2px 2px rgba(0,0,0,.5);transform:rotate(-12deg)}
+.cols{gap:var(--e3)}
+
+/* filas clave-valor: libro de contabilidad con puntos de guía */
+.kv{display:flex;align-items:baseline;gap:var(--e2);padding:calc(var(--g)*.75) 0;border-bottom:1px dotted var(--linea)}
+.kv>span:first-child,.kv>:first-child{color:var(--tx-2)}
+.kv b{margin-left:auto;font-family:var(--f-num);font-size:var(--t-m);color:var(--tx-1);font-weight:600}
+
+/* tablas: libro mayor */
+.tbl{border-collapse:separate;border-spacing:0;width:100%;font-size:var(--t-s)}
+.tbl th{font-family:var(--f-tit);font-size:var(--t-xs);font-weight:700;letter-spacing:var(--track);text-transform:uppercase;color:var(--tx-tit);text-align:left;
+  background:linear-gradient(180deg,rgba(184,144,62,.16),rgba(184,144,62,.05));border-bottom:1px solid var(--filete);border-top:1px solid var(--filete-suave);padding:var(--e2) var(--e2);position:sticky;top:0;z-index:1}
+.tbl td{padding:calc(var(--g)*1.5) var(--e2);border-bottom:1px solid var(--linea)}
+.tbl tbody tr:nth-child(even) td{background:rgba(255,240,210,.025)}
+.tbl.clickable tbody tr:hover td,.tbl tr.sel td{background:rgba(184,144,62,.12)}
+.tbl tr.tot td{border-top:2px double var(--filete);font-weight:700;color:var(--tx-tit)}
+.tbl tr.cat td{font-family:var(--f-tit);letter-spacing:var(--track);color:var(--tx-tit);background:rgba(0,0,0,.18)}
+.tbl tr.locked td{opacity:.5}
+.tbl th[data-sort]{cursor:pointer}.tbl th[data-sort]::after{content:" ⇅";opacity:.5}
+
+/* barras: ranura hundida con remates de latón */
+.bar{position:relative;height:calc(10px * var(--dz));background:linear-gradient(180deg,#05090d,#162230);border:1px solid rgba(0,0,0,.6);border-radius:2px;box-shadow:inset 0 1px 2px rgba(0,0,0,.7),0 1px 0 rgba(255,236,190,.08);overflow:hidden}
+.bar>i,.bar i{display:block;height:100%;background:linear-gradient(180deg,#e9cf8a,var(--laton-500) 55%,#8a6a2a);box-shadow:inset 0 1px 0 rgba(255,250,220,.5)}
+.bar.good>i,.bar.good i{background:linear-gradient(180deg,#8fd08f,var(--bosque-600) 60%,#2a5530)}
+.bar.bad>i,.bar.warn>i{background:linear-gradient(180deg,#f0a35a,var(--ambar-500) 60%,#8a4e10)}
+.bar.blue>i{background:linear-gradient(180deg,#9cc4e6,var(--acero-500) 60%,#2d5476)}
+.bar.red>i,.bar.danger>i{background:linear-gradient(180deg,#e07a6e,var(--carmin-600) 60%,#5a1a16)}
+.bar span{position:absolute;inset:0;font-size:calc(9px * var(--dz));line-height:calc(10px * var(--dz));text-align:center;color:#fff;text-shadow:0 1px 1px #000}
+.bar .umbral,.bar[data-umbral]::after{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--pergamino-100);box-shadow:0 0 2px #000}
+.bar[data-umbral]::after{content:"";left:var(--umbral,50%)}
+
+/* etiquetas y chips: sellos rectangulares con muescas */
+.tag,.pill{display:inline-flex;align-items:center;gap:3px;font-size:var(--t-xs);font-weight:700;letter-spacing:.04em;padding:1px var(--e2);color:var(--tx-1);background:rgba(184,144,62,.14);border:1px solid var(--filete-suave);
+  clip-path:polygon(4px 0,calc(100% - 4px) 0,100% 50%,calc(100% - 4px) 100%,4px 100%,0 50%)}
+.tag.good{color:var(--bueno);background:rgba(63,122,74,.18);border-color:rgba(111,174,116,.4)}
+.tag.bad{color:var(--malo);background:rgba(168,52,47,.18);border-color:rgba(208,87,79,.4)}
+/* con la paleta para daltonismo, el signo se marca también con forma */
+[data-paleta="daltonica"] .tag.good::before,.tag.good.num::before{content:"▲";font-size:.75em}[data-paleta="daltonica"] .tag.bad::before,.tag.bad.num::before{content:"▼";font-size:.75em}
+.tag.warn{color:var(--aviso);background:rgba(217,138,43,.16)}
+/* insignias numéricas: lacre */
+.badge,.mbadge{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:9px;font:700 10px/1 var(--f-txt);color:#fff3e8;background:radial-gradient(circle at 35% 30%,#c44a42,var(--lacre-700) 70%);box-shadow:0 1px 2px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,200,190,.4)}
+
+/* tooltip: nota con filete de latón y cabecera grabada */
+#tooltip{background:var(--grano),linear-gradient(180deg,#152232,#0c141d);color:var(--tx-1);border:1px solid var(--laton-500);border-radius:var(--r-1);padding:var(--e2) var(--e3);font-size:var(--t-s);line-height:1.45;
+  box-shadow:inset 0 0 0 2px rgba(11,18,26,.9),inset 0 0 0 3px var(--filete-suave),var(--sombra-2);backdrop-filter:none;max-width:330px}
+#tooltip b{color:var(--tx-tit)}
+#tooltip .tt-h{font-family:var(--f-tit);letter-spacing:var(--track);text-transform:uppercase;font-size:var(--t-xs);color:var(--tx-tit);border-bottom:1px solid var(--filete-suave);padding-bottom:var(--e1);margin-bottom:var(--e1)}
+#tooltip hr{border:0;height:10px;background:var(--orla) center/60px 10px no-repeat;margin:var(--e1) 0}
+
+/* toasts: despacho con sello de lacre por tipo */
+.toast{position:relative;background:var(--grano),linear-gradient(180deg,#1b2b3d,#111c28);border:1px solid var(--filete);border-left:0;border-radius:var(--r-1);padding:var(--e2) var(--e3) var(--e2) calc(var(--g)*11);
+  box-shadow:var(--luz-filo),var(--sombra-2);color:var(--tx-1);font-size:var(--t-s)}
+.toast::before{content:"";position:absolute;left:8px;top:50%;width:26px;height:26px;margin-top:-13px;border-radius:50%;background:radial-gradient(circle at 36% 32%,#e7c97e,var(--laton-500) 55%,#6e521c);box-shadow:1px 2px 2px rgba(0,0,0,.55),inset 0 0 0 3px rgba(0,0,0,.15)}
+.toast.war::before,.toast.guerra::before,.toast.bad::before{background:radial-gradient(circle at 36% 32%,#d0574f,var(--lacre-700) 60%,#3e0c0e)}
+.toast.crisis::before,.toast.warn::before{background:radial-gradient(circle at 36% 32%,#f0b462,var(--ambar-500) 60%,#6a3e08)}
+.toast.dip::before,.toast.diplo::before{background:radial-gradient(circle at 36% 32%,#b79ad6,var(--violeta-500) 60%,#3a2550)}
+.toast.good::before,.toast.diario::before{background:radial-gradient(circle at 36% 32%,#86c48c,var(--bosque-600) 60%,#1d3e24)}
+
+/* evento modal: documento oficial en pergamino, doble marco, sello y capitular */
+#event,#ov3{background:radial-gradient(ellipse at center,rgba(11,18,26,.45),rgba(5,8,12,.82))}
+.evbox{position:relative;background:var(--papel),radial-gradient(ellipse at 30% 20%,#f6ecd2,#e2d1a6 70%,#cdb784);color:#2a1d10;border:0;border-radius:2px;
+  box-shadow:0 0 0 1px #6b4c2c,0 0 0 6px #e9dcbc,0 0 0 7px #8a6a42,var(--sombra-3);animation:docOpen var(--t-lento) var(--curva) backwards}
+.evbox::before{content:"";position:absolute;inset:10px;border:1px solid rgba(107,76,44,.45);outline:3px double rgba(107,76,44,.35);outline-offset:3px;pointer-events:none}
+.evbox::after{content:"";position:absolute;right:26px;top:-18px;width:52px;height:52px;border-radius:50%;background:radial-gradient(circle at 36% 32%,#c4463e,var(--lacre-700) 58%,#3e0c0e);
+  box-shadow:2px 3px 3px rgba(0,0,0,.45),inset 0 0 0 5px rgba(0,0,0,.12);transform:rotate(-14deg)}
+.evhead{background:transparent;border:0;padding:var(--e6) var(--e6) var(--e2);text-align:center}
+.evhead h2{font-family:var(--f-tit);font-size:var(--t-xl);letter-spacing:var(--track-ancho);text-transform:uppercase;color:#4a2e12;margin:0;padding-bottom:var(--e3);background:var(--orla) center bottom/80px 12px no-repeat;text-shadow:0 1px 0 rgba(255,255,255,.5)}
+.evbody{font-family:var(--f-cap);font-size:var(--t-l);line-height:1.55;padding:var(--e2) var(--e6) var(--e4);color:#2a1d10}
+.evbody>p:first-of-type::first-letter,.manbody>p:first-of-type::first-letter,.capitular::first-letter{float:left;font-family:var(--f-tit);font-size:3.1em;line-height:.85;padding:.06em .08em 0 0;color:var(--lacre-700);text-shadow:1px 1px 0 rgba(0,0,0,.15)}
+.evopt{font-family:var(--f-cap);font-size:var(--t-m);color:#2a1d10;background:linear-gradient(180deg,rgba(255,250,235,.55),rgba(214,196,150,.45));border:1px solid rgba(107,76,44,.55);border-radius:1px;box-shadow:inset 1px 1px 0 rgba(255,255,255,.5);margin:var(--e2) var(--e6);padding:var(--e2) var(--e3);text-align:left}
+.evopt:hover{background:linear-gradient(180deg,#fff6dc,#e7d3a0);border-color:#6b4c2c}
+.evopt em{color:#5a4022}
+@keyframes docOpen{from{opacity:0;transform:translateY(8px) scaleY(.96);clip-path:inset(0 0 40% 0)}to{opacity:1;transform:none;clip-path:inset(0 0 0 0)}}
+@keyframes sello{0%{transform:scale(1.6) rotate(-30deg);opacity:0}70%{transform:scale(.92) rotate(-12deg);opacity:1}100%{transform:scale(1) rotate(-14deg)}}
+@keyframes pulsoAviso{0%,100%{box-shadow:0 0 0 0 rgba(217,138,43,0)}50%{box-shadow:0 0 0 calc(5px * var(--fx)) rgba(217,138,43,.35)}}
+@keyframes tintaSeca{from{color:var(--laton-300)}to{color:var(--bueno)}}
+
+/* ---------- 5 · VENTANAS ---------- */
+/* marco: madera de roble con filete de latón, cantoneras en las cuatro esquinas, cuerpo de pizarra con grano */
+.window,#battlepanel,#navalpanel,#statepanel,#armypanel,#seapanel,#airmappanel,#advisor,.wd,.sv-box{
+  background:var(--grano),linear-gradient(180deg,var(--sup-1),#0d1621) !important;border:1px solid #1a1108 !important;border-radius:var(--r-2) !important;
+  box-shadow:0 0 0 2px var(--marco),0 0 0 3px var(--laton-700),inset 0 0 0 1px var(--filete-suave),var(--sombra-3) !important;color:var(--tx-1)}
+.window::after,#battlepanel::after,#navalpanel::after,.wd::after{content:"";position:absolute;inset:-5px;pointer-events:none;z-index:5;
+  background:var(--cant-tl) top left/22px no-repeat,var(--cant-tr) top right/22px no-repeat,var(--cant-bl) bottom left/22px no-repeat,var(--cant-br) bottom right/22px no-repeat}
+#statepanel::after,#armypanel::after,#seapanel::after,#airmappanel::after{content:"";position:absolute;inset:-4px;pointer-events:none;z-index:5;background:var(--cant-tl) top left/16px no-repeat,var(--cant-tr) top right/16px no-repeat}
+/* cabecera: tabla de roble veteado, título en versalitas sobre cinta, cenefa al pie */
+.whead,.sp-head,.adv-head,.sv-h,.bhead{position:relative;background:linear-gradient(180deg,rgba(255,226,170,.08),rgba(0,0,0,.18)),repeating-linear-gradient(92deg,rgba(0,0,0,.08) 0 2px,transparent 2px 7px),linear-gradient(180deg,#4a3522,var(--marco) 60%,#2a1d12) !important;
+  border-bottom:0 !important;border-radius:var(--r-2) var(--r-2) 0 0 !important;padding:var(--e2) var(--e4) calc(var(--g)*3.5) !important;box-shadow:inset 0 1px 0 rgba(255,226,170,.18)}
+.whead::after,.sp-head::after,.sv-h::after{content:"";position:absolute;left:10px;right:10px;bottom:2px;height:8px;background:var(--cenefa) repeat-x center/28px 8px;opacity:.9}
+.whead h2,.sp-head h2{font-family:var(--f-tit) !important;font-size:var(--t-xl) !important;font-weight:700;letter-spacing:var(--track-ancho) !important;text-transform:uppercase;color:var(--laton-300) !important;
+  text-shadow:0 1px 0 #1a1108,0 -1px 0 rgba(255,236,190,.15) !important}
+.wsub{color:var(--pergamino-300) !important;font-family:var(--f-cap);font-style:italic;font-size:var(--t-s) !important}
+/* icono de la ventana: medallón de latón */
+.wicon{display:inline-grid;place-items:center;width:calc(34px * var(--dz));height:calc(34px * var(--dz));border-radius:50%;color:#2a1a08;font-size:18px;
+  background:radial-gradient(circle at 35% 30%,#f5df9c,var(--laton-500) 55%,#6a4f1c);box-shadow:inset 0 0 0 2px rgba(70,48,12,.55),inset 0 0 0 4px rgba(255,240,190,.25),1px 2px 2px rgba(0,0,0,.6)}
+.wicon .ic{width:20px;height:20px}
+/* cerrar: tachuela de latón */
+.whead .x,.sp-head .x,.sv-h .x,.x{width:28px;height:28px;padding:0;display:grid;place-items:center;border-radius:50%;color:#2a1a08;font-weight:700;
+  background:radial-gradient(circle at 35% 30%,#efd590,var(--laton-500) 55%,#5e4518);border:1px solid #3a2a12;box-shadow:inset 1px 1px 0 rgba(255,250,220,.6),1px 2px 2px rgba(0,0,0,.6)}
+.x:hover{filter:brightness(1.15)}
+.wbody{background:var(--grano);scrollbar-gutter:stable}
+/* categorías de marco */
+.w-military .whead,.w-ejercito .whead,#battlepanel .bhead{background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(0,0,0,.25)),repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0 1px,transparent 1px 3px),linear-gradient(180deg,#3d4752,#262d35 60%,#181d23) !important}
+.w-military,.w-ejercito,#battlepanel{box-shadow:0 0 0 2px #2b3138,0 0 0 3px var(--carmin-600),inset 0 0 0 1px rgba(208,87,79,.25),var(--sombra-3) !important}
+.w-diplomacy .whead{background:linear-gradient(180deg,rgba(255,240,255,.08),rgba(0,0,0,.22)),linear-gradient(180deg,#4b3a5e,#33274a 60%,#221935) !important}
+.w-diplomacy{box-shadow:0 0 0 2px #33274a,0 0 0 3px var(--violeta-300),inset 0 0 0 1px rgba(169,140,198,.25),var(--sombra-3) !important}
+#navalpanel .whead,#seapanel .sp-head,.w-marina .whead{background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(0,0,0,.25)),linear-gradient(180deg,#1f3a57,#15293f 60%,#0d1a29) !important}
+#navalpanel,#seapanel{box-shadow:0 0 0 2px #15293f,0 0 0 3px var(--laton-500),inset 0 0 0 1px rgba(134,180,214,.25),var(--sombra-3) !important}
+/* entrada de ventana: se despliega como un documento */
+#windows.open .window{animation:docOpen var(--t-lento) var(--curva) backwards}
+#windows.open{background:radial-gradient(ellipse at 50% 45%,rgba(6,10,15,.15),rgba(4,7,10,.55))}
+
+/* política, leyes, grupos */
+.lawopt{border:1px solid var(--filete-suave);background:var(--sup-2);border-radius:var(--r-1)}
+.lawopt.act{border-color:var(--laton-500);background:linear-gradient(180deg,rgba(184,144,62,.22),rgba(184,144,62,.08));color:var(--tx-tit)}
+.ig{border:1px solid var(--filete-suave);background:var(--sup-2);box-shadow:var(--luz-filo)}
+.ig.gov{border-color:var(--laton-500);box-shadow:var(--luz-filo),0 0 0 1px rgba(224,194,122,.25)}
+
+/* tecnología: nodos como placas; estados disponible / en curso / completado / bloqueado / obsoleto */
+.tech{position:relative;background:linear-gradient(180deg,var(--sup-3),var(--sup-2));border:1px solid var(--filete-suave);border-radius:var(--r-2);box-shadow:var(--luz-filo),var(--sombra-1);transition:transform var(--t-rapido),border-color var(--t-rapido)}
+.tech:hover:not(.lock):not(.done){border-color:var(--laton-300);transform:translateY(-1px)}
+.tech.done{background:linear-gradient(180deg,rgba(63,122,74,.35),rgba(63,122,74,.15));border-color:var(--bueno-f);color:var(--tx-1)}
+.tech.done b{animation:tintaSeca .6s ease-out backwards}
+.tech.done::after{content:"";position:absolute;right:-6px;top:-6px;width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 36% 32%,#c4463e,var(--lacre-700) 60%,#3e0c0e);box-shadow:1px 1px 2px rgba(0,0,0,.6);animation:sello .35s ease-out backwards}
+.tech.lock{opacity:.55;background-image:repeating-linear-gradient(135deg,rgba(0,0,0,.2) 0 5px,transparent 5px 10px)}
+.tech.obs{opacity:.45;text-decoration:line-through;text-decoration-color:rgba(205,189,150,.4)}
+.tech.cur,.tech.research,.tech.on{border-color:var(--laton-300);box-shadow:0 0 0 1px var(--laton-500),0 0 calc(10px * var(--fx)) rgba(224,194,122,.35)}
+.nnode{border:1px solid var(--filete-suave);background:var(--sup-2);border-radius:var(--r-2);box-shadow:var(--luz-filo),var(--sombra-1)}
+.nnode.done{border-color:var(--bueno-f);background:linear-gradient(180deg,rgba(63,122,74,.3),rgba(63,122,74,.1))}
+.nnode.avail{border-color:var(--laton-500);animation:pulsoAviso 2.4s ease-in-out infinite}
+.nbr,.nl{stroke:var(--laton-500)}
+
+/* diplomacia y logros */
+.dipcard,.pactbtn{border:1px solid var(--filete-suave);background:var(--sup-2)}
+.ach.got{border-color:var(--laton-500)}.ach.got::after{content:"";position:absolute;right:6px;top:6px;width:22px;height:22px;border-radius:50%;background:radial-gradient(circle at 36% 32%,#c4463e,var(--lacre-700) 60%,#3e0c0e);box-shadow:1px 1px 2px rgba(0,0,0,.6)}
+.ach{position:relative}
+
+/* manual */
+.manual nav button{text-align:left;background:transparent;box-shadow:none;border:0;border-left:2px solid transparent;border-radius:0}
+.manual nav button.on{border-left-color:var(--laton-500);color:var(--tx-tit);background:rgba(184,144,62,.1)}
+.manbody{font-family:var(--f-cap);font-size:var(--t-m);line-height:1.6}
+.manbody h4{font-family:var(--f-tit);letter-spacing:var(--track);color:var(--tx-tit);padding-bottom:var(--e2);background:var(--orla) left bottom/60px 10px no-repeat}
+
+/* ---------- 6 · MAPA Y HUD ---------- */
+/* ficha del país: placa de latón sobre roble */
+#plaque{background:var(--grano),linear-gradient(180deg,#2c2016,var(--marco) 50%,#22180f) !important;border:1px solid #1a1108 !important;
+  box-shadow:inset 0 0 0 1px rgba(255,226,170,.15),inset 0 -2px 0 rgba(0,0,0,.4),0 0 0 1px var(--laton-700),var(--sombra-2) !important}
+#plaque::before{border-color:var(--filete-suave) !important}
+#plaque .pl-name,.pl-name{font-family:var(--f-tit) !important;letter-spacing:.1em !important;text-transform:uppercase;color:var(--laton-300) !important;text-shadow:0 1px 0 #000}
+.crest{background:radial-gradient(circle at 35% 30%,#2e4a66,#0d1825) !important;border:1px solid var(--laton-500) !important;box-shadow:inset 0 0 0 1px rgba(0,0,0,.6),1px 1px 2px rgba(0,0,0,.6)}
+/* recursos: contadores grabados */
+.chip{background:linear-gradient(180deg,rgba(0,0,0,.45),rgba(0,0,0,.25)) !important;border:1px solid rgba(184,144,62,.3) !important;border-radius:var(--r-1) !important;box-shadow:inset 1px 1px 2px rgba(0,0,0,.6),0 1px 0 rgba(255,236,190,.06);color:var(--tx-1)}
+.chip>b,.chip b{font-family:var(--f-num);color:var(--pergamino-100)}
+.chip>b .ic{color:var(--laton-300)}
+.chip.neg span,.chip.neg b{color:var(--malo) !important}
+.chip.clk:hover{border-color:var(--laton-300) !important}
+/* reloj: placa con fecha en cifras de reloj */
+#datebox{background:var(--grano),linear-gradient(180deg,#2c2016,var(--marco) 50%,#22180f) !important;border:1px solid #1a1108 !important;box-shadow:inset 0 0 0 1px rgba(255,226,170,.15),0 0 0 1px var(--laton-700),var(--sombra-2) !important}
+#datebox.paused{box-shadow:inset 0 0 0 1px rgba(255,226,170,.15),0 0 0 1px var(--carmin-600),var(--sombra-2) !important}
+.date{font-family:var(--f-tit) !important;color:var(--laton-300) !important;letter-spacing:.08em;background:linear-gradient(180deg,#0b121a,#16212e);border:1px solid rgba(0,0,0,.6);box-shadow:inset 1px 1px 3px rgba(0,0,0,.8),0 1px 0 rgba(255,236,190,.1);padding:2px 10px;border-radius:2px}
+.spd{background:radial-gradient(circle at 35% 30%,#efd590,var(--laton-500) 55%,#5e4518) !important;color:#2a1a08 !important;border:1px solid #3a2a12 !important;box-shadow:inset 1px 1px 0 rgba(255,250,220,.6),1px 2px 2px rgba(0,0,0,.55)}
+.spd.s{background:linear-gradient(180deg,#0b121a,#16212e) !important;border:1px solid var(--laton-700) !important;box-shadow:inset 0 1px 2px rgba(0,0,0,.7)}
+.spd.s.on{background:linear-gradient(180deg,#f3dc95,var(--laton-500) 60%,#7a5c22) !important;box-shadow:0 0 calc(6px * var(--fx)) rgba(224,194,122,.6)}
+/* botones redondos (notificaciones, buscar, guardar, menú): tachuelas de latón con icono grabado */
+.rbtn{background:radial-gradient(circle at 35% 30%,#2b4258,#0f1b28 70%) !important;border:1px solid var(--laton-500) !important;color:var(--laton-300) !important;box-shadow:inset 0 0 0 2px rgba(0,0,0,.4),inset 0 0 0 3px rgba(224,194,122,.18),var(--sombra-1) !important}
+.rbtn:hover{filter:brightness(1.25)}
+#btn-advisor.alert{animation:pulsoAviso 1.6s ease-in-out infinite}
+/* barra inferior de menús: medallones con bisel de latón y etiqueta en versalitas */
+#menu{background:var(--grano),linear-gradient(180deg,#2c2016,var(--marco) 45%,#1d140c) !important;border:1px solid #1a1108 !important;box-shadow:inset 0 1px 0 rgba(255,226,170,.15),0 0 0 1px var(--laton-700),var(--sombra-2) !important}
+.mbtn{background:radial-gradient(circle at 35% 30%,#2e4a66,#0f1b28 72%) !important;border:2px solid var(--laton-500) !important;color:var(--laton-300) !important;
+  box-shadow:inset 0 0 0 2px rgba(0,0,0,.45),inset 0 0 0 3px rgba(224,194,122,.2),1px 2px 3px rgba(0,0,0,.6) !important;transition:transform var(--t-rapido),filter var(--t-rapido)}
+.mbtn .ic{width:24px;height:24px}
+.mbtn:hover{transform:translateY(-2px);filter:brightness(1.2)}
+.mbtn:active{transform:translateY(1px)}
+.mbtn.on{background:radial-gradient(circle at 35% 30%,#f3dc95,var(--laton-500) 50%,#5e4518) !important;color:#2a1a08 !important;border-color:#f3dc95 !important;box-shadow:0 0 calc(10px * var(--fx)) rgba(224,194,122,.55),inset 0 0 0 2px rgba(70,48,12,.5) !important}
+.mbtn em{font-family:var(--f-tit);font-style:normal;letter-spacing:.08em;text-transform:uppercase;color:var(--pergamino-300);text-shadow:0 1px 0 #000}
+.mbtn.on em{color:var(--laton-300)}
+/* modos de mapa: botones de latón pequeños */
+#modes{background:linear-gradient(180deg,#2c2016,var(--marco)) !important;border:1px solid #1a1108 !important;box-shadow:0 0 0 1px var(--laton-700),var(--sombra-1) !important}
+.mode{background:radial-gradient(circle at 35% 30%,#2b4258,#0f1b28 70%) !important;border:1px solid var(--laton-700) !important;color:var(--pergamino-300) !important}
+.mode.on{background:radial-gradient(circle at 35% 30%,#f3dc95,var(--laton-500) 55%,#5e4518) !important;color:#2a1a08 !important;border-color:#f3dc95 !important}
+#minimap{border:2px solid var(--laton-500) !important;box-shadow:0 0 0 2px var(--marco),0 0 0 3px var(--laton-700),var(--sombra-2) !important;border-radius:2px !important}
+#camctl button{background:radial-gradient(circle at 35% 30%,#2b4258,#0f1b28 70%) !important;border:1px solid var(--laton-700) !important;color:var(--laton-300) !important}
+#camctl button.on{border-color:var(--laton-300) !important;color:#2a1a08 !important;background:radial-gradient(circle at 35% 30%,#f3dc95,var(--laton-500) 55%,#5e4518) !important}
+/* fichas sobre el mapa: mismo tamaño; sombra corta (cientos en pantalla) */
+.atoken,.ntoken{font-family:var(--f-txt);box-shadow:1px 1px 0 rgba(0,0,0,.55) !important}
+.atoken.sel,.ntoken.sel{outline:2px solid var(--laton-300);outline-offset:1px}
+/* rótulos sobre el mapa con halo de tinta */
+.maplabel{font-family:var(--f-tit) !important;letter-spacing:.18em;text-transform:uppercase}
+/* paneles laterales */
+#statepanel,#armypanel,#seapanel,#airmappanel{max-width:360px}
+.sp-stats div{background:rgba(0,0,0,.25);border:1px solid var(--linea);border-radius:var(--r-1)}
+.sp-sec h4{font-family:var(--f-tit);font-size:var(--t-xs);letter-spacing:var(--track-ancho);text-transform:uppercase;color:var(--tx-tit);padding-bottom:var(--e1);background:var(--orla) left bottom/60px 10px no-repeat}
+
+/* ---------- 7 · COMBATE ---------- */
+#battlepanel .bh-vs{font-family:var(--f-tit);color:var(--laton-300);text-shadow:0 1px 0 #000}
+.bside{border:1px solid var(--filete-suave);background:var(--sup-2)}
+.bside.att{box-shadow:inset 3px 0 0 var(--carmin-600)}
+.bside:not(.att){box-shadow:inset 3px 0 0 var(--acero-500)}
+.strbar .stc.att{background:linear-gradient(180deg,#d0574f,var(--carmin-600))}
+.strpick button.on,.bcam button.on,.dvchip.on,.mmode .on{background:linear-gradient(180deg,#8a6c2c,#5c4519);color:#fff3d0;border-color:var(--laton-300)}
+#bmap{border:1px solid #1a1108;box-shadow:inset 0 0 0 1px var(--filete-suave),inset 0 0 24px rgba(0,0,0,.6)}
+.bsum,.ws-card{background:var(--papel),radial-gradient(ellipse at 30% 20%,#f6ecd2,#e2d1a6 70%,#cdb784) !important;color:#2a1d10 !important;box-shadow:0 0 0 1px #6b4c2c,0 0 0 5px #e9dcbc,0 0 0 6px #8a6a42,var(--sombra-3) !important}
+.ws-card.win .ws-top h2,.bsum-head{font-family:var(--f-tit);letter-spacing:var(--track-ancho);text-transform:uppercase}
+
+/* ---------- 8 · INICIO ---------- */
+#start .st-logo h1{font-family:var(--f-tit);letter-spacing:.22em;color:var(--laton-300);text-shadow:0 2px 0 #1a1108,0 0 calc(24px * var(--fx)) rgba(224,194,122,.25)}
+.st-card,.st-card2{background:var(--grano),linear-gradient(180deg,var(--sup-2),var(--sup-1)) !important;border:1px solid var(--filete-suave) !important;border-radius:var(--r-2) !important;box-shadow:var(--luz-filo),var(--sombra-1) !important}
+.st-card:hover{border-color:var(--laton-500) !important}
+.st-card.on{border-color:var(--laton-300) !important;box-shadow:0 0 0 1px var(--laton-500),var(--sombra-2) !important}
+#start .primary.big{font-family:var(--f-tit);letter-spacing:.14em;text-transform:uppercase;font-size:var(--t-l)}
+.st-filters button.on,.st-epochs .seg button.on{background:linear-gradient(180deg,#8a6c2c,#5c4519);color:#fff3d0}
+
+/* ---------- 9 · UTILIDADES ---------- */
+.good,.pos{color:var(--bueno)}.bad,.neg{color:var(--malo)}.warn{color:var(--aviso)}
+.versalitas,.sc{font-variant:small-caps;letter-spacing:.06em}
+.num{font-family:var(--f-num);text-align:right}
+.orla{height:12px;background:var(--orla) center/70px 12px no-repeat;border:0;margin:var(--e2) 0}
+.vacio{padding:var(--e6);text-align:center;color:var(--tx-3);font-family:var(--f-cap);font-style:italic}
+.esqueleto{background:linear-gradient(90deg,rgba(255,240,210,.04),rgba(255,240,210,.1),rgba(255,240,210,.04));background-size:200% 100%;animation:esq 1.2s linear infinite;border-radius:2px;height:12px}
+@keyframes esq{to{background-position:-200% 0}}
+.cargando{position:relative;color:transparent !important}.cargando::after{content:"";position:absolute;inset:0;margin:auto;width:14px;height:14px;border:2px solid var(--laton-500);border-right-color:transparent;border-radius:50%;animation:gira .8s linear infinite}
+@keyframes gira{to{transform:rotate(360deg)}}
+
+/* tema pergamino: los marcos de madera se vuelven cuero claro y la tinta oscura */
+[data-theme="pergamino"] .window,[data-theme="pergamino"] #statepanel,[data-theme="pergamino"] #armypanel,[data-theme="pergamino"] #battlepanel,[data-theme="pergamino"] #navalpanel,[data-theme="pergamino"] .wd{
+  background:var(--papel),linear-gradient(180deg,#f3e8cc,#e6d6ae) !important}
+[data-theme="pergamino"] .card,[data-theme="pergamino"] .tech,[data-theme="pergamino"] .ig,[data-theme="pergamino"] .lawopt{background:linear-gradient(180deg,#fbf4e0,#efe2c0);color:var(--tx-1)}
+[data-theme="pergamino"] button:not(.primary):not(.danger):not(.x):not(.mbtn):not(.mode):not(.rbtn):not(.spd){background:linear-gradient(180deg,#fbf4e0,#e6d6ae);color:var(--tx-1);border-color:rgba(107,76,44,.5)}
+[data-theme="pergamino"] .tbl th{background:linear-gradient(180deg,rgba(122,90,40,.18),rgba(122,90,40,.06));color:#5e3d14}
+[data-theme="pergamino"] .tbl tbody tr:nth-child(even) td{background:rgba(122,90,40,.05)}
+[data-theme="pergamino"] .bar{background:linear-gradient(180deg,#c9b88e,#e6d6ae);border-color:rgba(107,76,44,.5)}
+[data-theme="pergamino"] .tabs .tab{background:linear-gradient(180deg,#efe2c0,#e1cfa2);color:#5a4a33}
+[data-theme="pergamino"] .tabs .tab.on{background:#f3e8cc;color:#5e3d14}
+[data-theme="pergamino"] select,[data-theme="pergamino"] input[type=text],[data-theme="pergamino"] .search{background:#fbf6e8;color:var(--tx-1);box-shadow:inset 1px 1px 2px rgba(90,60,20,.25)}
+[data-theme="pergamino"] #tooltip{background:var(--papel),linear-gradient(180deg,#f8efd6,#ead9b0);color:#2a1f12;border-color:#8a6a42}
+[data-theme="pergamino"] .toast{background:var(--papel),linear-gradient(180deg,#f8efd6,#ead9b0);color:#2a1f12}
+[data-theme="pergamino"] .dim,[data-theme="pergamino"] .hint{color:#6a5a40}
+
+/* gama baja: sin texturas, sin animaciones ni brillos */
+/* (se sustituye cada fondo por un color sólido: quitar solo la imagen dejaría la ventana transparente) */
+:root[data-fx="0"] .window,:root[data-fx="0"] #battlepanel,:root[data-fx="0"] #navalpanel,:root[data-fx="0"] #statepanel,:root[data-fx="0"] #armypanel,:root[data-fx="0"] #seapanel,:root[data-fx="0"] #airmappanel,:root[data-fx="0"] #advisor,:root[data-fx="0"] .wd,:root[data-fx="0"] .toast,:root[data-fx="0"] #tooltip,:root[data-fx="0"] #topmenu,:root[data-fx="0"] #gfxpanel{background:var(--sup-1) !important}
+:root[data-fx="0"] .card,:root[data-fx="0"] .st-card,:root[data-fx="0"] .st-card2{background:var(--sup-2) !important}
+:root[data-fx="0"] #plaque,:root[data-fx="0"] #menu,:root[data-fx="0"] #datebox,:root[data-fx="0"] #modes{background:var(--marco) !important}
+:root[data-fx="0"] .wbody{background:none}
+:root[data-fx="0"] .evbox{background:#e9dcbc}
+:root[data-fx="0"] *{animation:none !important;transition:none !important}
+@media (prefers-reduced-motion:reduce){*{animation-duration:1ms !important;animation-iteration-count:1 !important;transition-duration:1ms !important}}
+
+/* ---------- 10 · RESPONSIVE Y TÁCTIL ---------- */
+@media (max-width:900px){
+  #windows .window{left:0 !important;right:0;top:0 !important;transform:none !important;width:100vw !important;max-height:100vh !important;height:100vh;border-radius:0 !important}
+  .window::after{display:none}
+  .whead h2{font-size:var(--t-l) !important;letter-spacing:var(--track) !important}
+  #menu{overflow-x:auto;scrollbar-width:none;max-width:calc(100vw - 16px)}
+}
+body.touch button,body.phone button{min-height:44px}
+body.touch .tabs .tab,body.phone .tabs .tab{min-height:44px;padding-top:var(--e3)}
+body.touch .mode,body.phone .mode{min-width:44px;min-height:44px}
+
+/* ---------- paneles inyectados por módulos (interfaz.js, calidad.js, campanas.js, rotulos.js): mismo lenguaje ---------- */
+html #topmenu,html #gfxpanel,html #campanas,html .camp-box{background:var(--grano),linear-gradient(180deg,var(--sup-1),#0d1621) !important;border:1px solid #1a1108 !important;border-radius:var(--r-2) !important;
+  box-shadow:0 0 0 2px var(--marco),0 0 0 3px var(--laton-700),var(--sombra-3) !important;color:var(--tx-1)}
+html #topmenu .tm-row:hover{background:rgba(184,144,62,.16) !important}
+html #topmenu .tm-row .tmi{color:var(--laton-300)}
+html .gfx-seg button.on{background:linear-gradient(180deg,#8a6c2c,#5c4519) !important;color:#fff3d0 !important}

@@ -19,7 +19,7 @@ function profileFor(h, gpu) {
 }
 const QRANK = {bajo: 0, medio: 1, alto: 2};
 function applyQuality(q, why) {
-  R.quality = q; R.lowEnd = q === 'bajo'; R.resScale = R.lowEnd ? Math.min(R.resScale || 1, 0.85) : 1;
+  R.quality = q; R.lowEnd = q === 'bajo'; if (typeof uiPrefs === 'function') uiPrefs(); R.resScale = R.lowEnd ? Math.min(R.resScale || 1, 0.85) : 1;
   if (R.tex) R.tex.anisotropy = R.lowEnd ? 1 : Math.min(8, R.renderer.capabilities.getMaxAnisotropy());
   if (R.waterU && R.waterU.foamK) R.waterU.foamK.value = R.lowEnd ? 0 : 1;
   R.lod = -1; if (typeof resizeRenderer === 'function') resizeRenderer(); if (typeof updateTerrainLOD === 'function') updateTerrainLOD();

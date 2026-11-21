@@ -42,23 +42,25 @@ const COACH_TXT = {
 };
 function coach(id) {
   if (COACH.done[id] || !COACH_TXT[id] || !UI.started || document.body.classList.contains('starting')) return; COACH.done[id] = 1; try { localStorage.setItem('vic_coach', JSON.stringify(COACH.done)); } catch (e) { }
-  const [title, steps] = COACH_TXT[id]; let i = 0, el = COACH.el; if (!el) { el = COACH.el = document.createElement('div'); el.id = 'coach'; el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);top:84px;z-index:80;max-width:min(440px,92vw);background:linear-gradient(180deg,#3a2a1c,#1f160e);border:2px solid #b8903e;border-radius:8px;padding:12px 14px;color:#f3e6c0;box-shadow:0 8px 28px rgba(0,0,0,.6);font:14px/1.4 sans-serif'; document.body.appendChild(el); }
+  const [title, steps] = COACH_TXT[id]; let i = 0, el = COACH.el; if (!el) { el = COACH.el = document.createElement('div'); el.id = 'coach'; el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:200px;z-index:80;max-width:min(440px,92vw);background:linear-gradient(180deg,#3a2a1c,#1f160e);border:2px solid #b8903e;border-radius:8px;padding:12px 14px;color:#f3e6c0;box-shadow:0 8px 28px rgba(0,0,0,.6);font:14px/1.4 sans-serif'; document.body.appendChild(el); }
   const draw = () => { el.style.display = 'block'; el.innerHTML = `<b style="color:#e0c27a;font-size:15px">${title}</b> <small style="opacity:.7">· ${i + 1}/${steps.length}</small><p style="margin:6px 0 10px">${steps[i]}</p><div style="display:flex;gap:8px;justify-content:flex-end"><button data-c="skip">Saltar</button><button data-c="next" style="border-color:#e0c27a">${i + 1 < steps.length ? 'Siguiente' : '¡Entendido!'}</button></div>`; };
   el.onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.c === 'skip' || ++i >= steps.length) el.style.display = 'none'; else draw(); }; draw();
 }
 const _setMapModeCo = setMapMode; setMapMode = function (m) { _setMapModeCo(m); if (m === 'naval') coach('naval'); else if (m === 'air') coach('air'); };
 const _openWinCo = openWindow; openWindow = function (id) { _openWinCo(id); if (id === 'trade') coach('trade'); else if (id === 'tech') coach('tech'); };
 const _vrCardCo = vrCard; vrCard = function () { setTimeout(() => coach('colony'), 300); return _vrCardCo(); };
-setInterval(() => { if (typeof abArmies === 'function' && UI.started && abArmies().length && G.date.t > 20) coach('bar'); }, 3000);
+setInterval(() => { if (typeof abArmies === 'function' && UI.started && !UI.win && abArmies().length && G.date.t > 20) coach('bar'); }, 3000);
 
 /* ---------- piloto automático ---------- */
-const AUTO_OPTS = [['research', '💡 Investigación'], ['build', '🏗️ Obras e inversión'], ['eco', '🎚️ Política económica'], ['recruit', '🪖 Reclutamiento y desmovilización']];
+const AUTO_OPTS = [['research', '💡 Investigación'], ['build', '🏗️ Obras e inversión'], ['eco', '🎚️ Política económica'], ['recruit', '🪖 Reclutamiento y desmovilización'], ['deficit', '📈 Corregir déficits de producción']];
 const autoOf = c => c.auto || (c.auto = {});
 function autoMonth(c) {
   if (c.tag !== G.player || !c.auto) return; const a = c.auto;
   try {
     if (a.research && !c.research) { const av = TECHS.filter(t => techAvailable(c, t)).sort((x, y) => (x.cat === 'Producción' ? 0 : 1) - (y.cat === 'Producción' ? 0 : 1) || techCost(c, x) - techCost(c, y)); if (av.length) setResearch(c, av[0].id); }
     if (a.build && c.queue.length < 3 && c.treasury > Math.max(1, c.stats.income) * 3) { for (let k = 0; k < 2; k++) { const cand = pickInvestment(c); if (cand) queueBuild(c, cand.state, cand.bld); } }
+    if (a.deficit && c.queue.length < 4 && c.treasury > Math.max(1, c.stats.income) * 3) { const need = GOODS.filter(g => G.ratio[g.id] !== undefined && G.ratio[g.id] < 0.85 && BUILDINGS.some(b => b.out === g.id && canBuild(null, b, c))).sort((x, y) => G.ratio[x.id] - G.ratio[y.id]).slice(0, 2);
+      need.forEach(g => { const bs = BUILDINGS.filter(b => b.out === g.id && canBuild(null, b, c)); let best = null, bv = 0; c.states.forEach(id => { const s = G.S[id]; bs.forEach(b => { const room = buildRoom(s, b.id); if (room >= 1 && room > bv) { bv = room; best = {id, b: b.id}; } }); }); if (best) queueBuild(c, best.id, best.b); }); }
     if (a.eco && typeof ecoAI === 'function' && c.influence > 20) ecoAI(c);
     if (a.recruit && typeof aiRecruitV3 === 'function') { aiRecruitV3(c.tag, c); if (typeof aiDisbandExcess === 'function') aiDisbandExcess(c); }
   } catch (e) { }

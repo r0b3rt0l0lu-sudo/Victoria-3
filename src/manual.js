@@ -462,3 +462,9 @@ MANUAL.push({id: 'lote21', title: '★ Paz parcial y capitulaciones', html: `
 <h3>Paz separada</h3><p>En Ejército → Guerra, junto a cada guerra aparece «Paz con X» por cada enemigo que no dirija su bando. Si ese país está lo bastante derrotado (puntuación contraria, capital ocupada, ≥25% de estados ocupados o mucho desgaste), se abre una conferencia de paz solo con él, con tus puntos de guerra y sus territorios. Él sale de la guerra y el resto sigue.</p>
 <h3>Retirarse y capitular</h3><p>Si no diriges tu bando, «Retirarme» te saca de la guerra con paz blanca (−5 prestigio y peor relación con tu líder). Con la capital ocupada o más de la mitad del país ocupado puedes «Capitular»: el enemigo dicta condiciones. Si diriges el bando, capitular termina la guerra.</p>
 <h3>Capitulación de la IA</h3><p>Un país de la IA cuya capital lleva 5 semanas ocupada capitula ante quien la ocupa (8 semanas si dirige el bando, y entonces la guerra termina). Si ese vencedor eres tú, eliges las condiciones.</p>`});
+
+MANUAL.push({id: 'lote22', title: '★ Calibración histórica del combate', html: `
+<h3>Batallas más fieles a la historia</h3><p>Las batallas duran de 5 a 10 días y dejan bajas coherentes con cada época: el atacante pierde cada vez más que el defensor (de ~1,7× con ánima lisa a ~3× con ametralladora y trincheras), y los atacantes sin artillería lo pagan caro.</p>
+<h3>Caballería y artillería</h3><p>La caballería pierde fuerza de choque con fusil rayado, retrocarga y ametralladora. La artillería mejora con cañones rayados, de acero y de tiro rápido.</p>
+<h3>Enfermedad</h3><p>Pesa más que antes en campaña; Saneamiento y Medicina la reducen.</p>
+<h3>Doctrinas 1914-1945</h3><p>Nuevos escalones: tropas de asalto, preparación artillera, armas combinadas, guerra relámpago, defensa móvil con contraataque blindado y movilización total. Ver ESTUDIO_CALIBRACION.md.</p>`});

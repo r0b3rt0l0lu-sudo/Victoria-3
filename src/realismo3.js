@@ -102,7 +102,8 @@ function rl3ArmyDay(a) {
   if (sup < 0.6) k *= 1.6; if (sup < 0.3) k *= 1.6;
   const own = controlled(a.tag, a.loc), resting = !a.path.length && !a.battle && own; if (resting) k *= 0.35; if (a.battle) k *= 1.2;
   k *= 1 + 0.08 * Math.max(0, a.divs.length - 4);
-  const loss = 0.00022 * k; let lost = 0;
+  const c0 = G.C[a.tag], medK = c0 && hasTech(c0, 'medicine') ? 0.45 : c0 && hasTech(c0, 'sanitation') ? 0.7 : 1;      // sanidad: la enfermedad mataba más que el combate hasta ~1880
+  const loss = 0.00045 * k * medK; let lost = 0;
   a.divs.forEach(d => { const l = Math.min(Math.max(0, d.s - 0.05), loss); if (l > 0) { d.s -= l; lost += l; } });
   a.wnd = (a.wnd || 0) + lost * 0.7;                                                                          // la mayoría de los enfermos se recupera
   if (resting && sup > 0.5 && a.wnd > 0) {                                                                    // hospital de campaña

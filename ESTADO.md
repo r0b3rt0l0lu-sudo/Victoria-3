@@ -318,3 +318,5 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - Lote 20: extras18.js (perfiles de producción, coalform, modo simple, controles táctiles del soldado), CSS móvil horizontal/vertical en compacto.css. Las coaliciones contra el jugador y las garantías ya existían (coalition.js).
 
 - Lote 21: paz_parcial.js (paz separada, retirada, capitulaciones); retratos recomprimidos (index.html 12,4 → 9,9 MB).
+
+- Lote 22: calibracion.js (+ orgK/casK en military.js), enfermedad con sanidad, doctrinas 1914-45; ver ESTUDIO_CALIBRACION.md. Banco de pruebas: scratchpad cal.js.

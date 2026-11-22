@@ -336,6 +336,9 @@ function battleEvents(b, sa, sb) {
   else if (kind === 'rain') { add('A', 'f', 0.85); add('B', 'f', 0.85); say('A', 'rain', 'Lluvia torrencial: el barro frena a ambos ejércitos.'); }
   return ev;
 }
+// ritmo y letalidad de la batalla (se recalibran por época en calibracion.js)
+function orgK(b) { return 1; }
+function casK(b) { return 0.8; }
 function battleDay(b) {
   b.day++;
   const A = b.A.map(armyById).filter(Boolean), B = b.B.map(armyById).filter(Boolean);
@@ -347,7 +350,8 @@ function battleDay(b) {
   const rnd1 = () => 0.85 + Math.random() * 0.3;
   const casA = typeof airCas === 'function' ? airCas(b.A0, b.state) : 0, casB = typeof airCas === 'function' ? airCas(b.B0, b.state) : 0;
   const rAB = sa.F * ev.fA * rnd1() * (1 + casA) / Math.max(1, sb.T), rBA = sb.F * ev.fB * rnd1() * (1 + casB) / Math.max(1, sa.T);
-  const dmg = (r) => clamp(4.4 * r, 0.6, 10.5);       // % de organización perdida por día (batallas más sangrientas: hacen falta menos para ganar la guerra)
+  const OK = orgK(b), dmg = (r) => clamp(4.4 * r * OK, 0.6, 10.5 * OK);       // % de organización perdida por día (batallas más sangrientas: hacen falta menos para ganar la guerra)
+  const CK = casK(b);
   const apply = (armies, orgLoss, extra, cas) => {
     let lost = 0;
     armies.forEach(a => { let act = 0;
@@ -355,7 +359,7 @@ function battleDay(b) {
         const fr = typeof divFrac === 'function' ? divFrac(d) : 1; if (fr <= 0 || act++ >= BATTLE_WIDTH) return;
         const info = DIVS[d.t];
         d.o = Math.max(0, d.o - info.org * (orgLoss + extra) / 100 * (0.8 + Math.random() * 0.4) * (1 - (typeof docMod === 'function' ? docMod(a.tag, 'org') : 0)) * ordFx(d).o * fr);
-        const sl = (orgLoss / 100) * 0.8 * (0.6 + 0.8 * (1 - d.o / info.org)) * cas * fr;
+        const sl = (orgLoss / 100) * CK * (0.6 + 0.8 * (1 - d.o / info.org)) * cas * fr;
         d.s = Math.max(0, d.s - sl); lost += sl * MEN_PER_DIV;
         d.tr = Math.min(1, (d.tr === undefined ? 0.5 : d.tr) + 0.004);      // la experiencia de combate entrena
       });

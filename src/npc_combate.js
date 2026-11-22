@@ -42,7 +42,7 @@ function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
     if (s.st !== 'idle') { npcRelease(S, s, key); setSt('idle'); }
     s.ox *= Math.exp(-dt * 0.5); s.oz *= Math.exp(-dt * 0.5);
     const T = 3.5 + h1 * 3.2, tt = tU + h2 * 20, seg = Math.floor(tt / T), fr = (tt % T) / T, amp = mode === 'hold' ? 1.2 : 2;
-    if (s.seg !== seg) { s.seg = seg; s.ax = (hash2(blk.id * 131 + f.i + j * 7, seg, 31) - 0.5) * 2 * amp; s.az = (hash2(blk.id * 131 + f.i + j * 7, seg, 32) - 0.5) * 2 * amp; s.idl = hash2(blk.id * 131 + f.i + j * 7, seg, 77) < 0.35 && (mode === 'hold' || mode === 'reserve' || mode === 'advance') ? NPC_IDLE[Math.floor(hash2(blk.id * 131 + f.i + j * 7, seg, 78) * NPC_IDLE.length) % NPC_IDLE.length] : null; }
+    if (s.seg !== seg) { s.seg = seg; s.ax = (hash2(blk.id * 131 + f.i + j * 7, seg, 31) - 0.5) * 2 * amp; s.az = (hash2(blk.id * 131 + f.i + j * 7, seg, 32) - 0.5) * 2 * amp; s.idl = hash2(blk.id * 131 + f.i + j * 7, seg, 77) < 0.35 && (mode === 'hold' || mode === 'reserve' || mode === 'advance') ? (mode === 'hold' && era >= 'C' && hash2(blk.id * 131 + f.i + j * 7, seg, 79) < 0.45 ? 'cavar' : NPC_IDLE[Math.floor(hash2(blk.id * 131 + f.i + j * 7, seg, 78) * NPC_IDLE.length) % NPC_IDLE.length]) : null; }
     if (fr < 0.25) { const L = Math.hypot(s.ax - s.ox, s.az - s.oz); if (L > 0.3) { const sp1 = NPC_V.walk * 0.7 * dt; s.ox += (s.ax - s.ox) / L * Math.min(L, sp1); s.oz += (s.az - s.oz) / L * Math.min(L, sp1);
       const mx = s.ax - s.ox, mz = s.az - s.oz, ml = Math.hypot(mx, mz) || 1, fx = Math.sin(yaw), fz = Math.cos(yaw), dot = (mx * fx + mz * fz) / ml, side = (-mx * Math.cos(yaw) + mz * Math.sin(yaw)) / ml;
       ncl = dot > 0.6 ? 'marcha' : dot < -0.6 ? npcClip('paso_atras', 'marcha') : side > 0 ? npcClip('paso_lateral_de', 'marcha') : npcClip('paso_lateral_iz', 'marcha'); if (dot > 0.6) face = Math.atan2(mx, mz); else face = yaw; start = null; } }
@@ -52,12 +52,38 @@ function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
     if (enemy) SOLD.visNew.set(key, {x: x + s.ox, z: z + s.oz, yaw: s.yaw, blk}); return {x: x + s.ox, z: z + s.oz, yaw: s.yaw, clip: ncl, start};
   }
   // ---- con amenaza: fuego y movimiento ----
-  const dxT = thr.x - px, dzT = thr.z - pz, dir = Math.atan2(dxT, dzT), ux = dxT / (dT || 1), uz = dzT / (dT || 1), post = s.post;
+  const dxT = thr.x - px, dzT = thr.z - pz, dir = Math.atan2(dxT, dzT), ux = dxT / (dT || 1), uz = dzT / (dT || 1), post = s.st === 'prone' ? 'tumbado' : s.post;
   const pitch = vsPlayer ? Math.atan2((b3H(S.tf, thr.x, thr.z) + 2.4) - (gy0 + (s.st === 'cover' ? 1.7 : 2.4)), dT) * 57.3 : 0;
   const defensive = mode === 'hold' || !!(blk.d && blk.d.plan && blk.d.plan.k === 'defend'), movers = ((Math.floor((tU + blk.id * 2.3) / 9) & 1) === s.grp);
   if (s.st === 'idle') { setSt(s.pin > 0 ? 'to_cover' : (!defensive && movers && dT > 45 && !s.shy ? 'bound' : 'fire')); if (s.st === 'to_cover' || (s.st === 'fire' && h2 < 0.6 && S.cov)) { const c = covFind(S, px, pz, thr.x, thr.z, 26); if (c) { npcClaim(S, s, key, c); setSt('to_cover'); } else if (s.pin > 0) setSt('prone'); } }
   if (s.pin > 0 && (s.st === 'fire' || s.st === 'bound')) { const c = covFind(S, px, pz, thr.x, thr.z, 30); if (c) { npcClaim(S, s, key, c); setSt('to_cover'); } else setSt('prone'); }
+  if (s.pin > 0 && blk.mm !== undefined && blk.mm < 0.22 && !['fallback', 'charge', 'melee', 'prone', 'crawl'].includes(s.st)) { npcRelease(S, s, key); s.fbx = undefined; setSt('fallback'); }
   switch (s.st) {
+    case 'fallback': {
+      if (s.fbx === undefined) { s.fbx = s.ox - ux * 14; s.fbz = s.oz - uz * 14; }
+      const done = goTo(x + s.fbx, z + s.fbz, NPC_V.run); ncl = npcClip('huir', 'correr_agachado'); start = null; face = Math.atan2(-ux, -uz);
+      if (done || tU - s.t0 > 5) { s.fbx = undefined; s.pin = 2; setSt('prone'); } break; }
+    case 'crawl': {
+      const done = goTo(s.ctx, s.ctz, 1.4); ncl = npcClip('reptar_rapido', 'reptar'); start = null; face = Math.atan2(s.ctx - px, s.ctz - pz);
+      if (done || tU - s.t0 > 9) { setSt('cover'); s.hide = tU + 1 + h1 * 2; } break; }
+    case 'shift': {
+      if (s.shtx === undefined) { const amt = (h2 < 0.5 ? -1 : 1) * (4 + h1 * 5); s.shtx = s.ox - uz * amt; s.shtz = s.oz + ux * amt; }
+      const done = goTo(x + s.shtx, z + s.shtz, NPC_V.crouch); ncl = npcClip('correr_agachado', 'marcha'); start = null; face = dir;
+      if (done || tU - s.t0 > 4) { s.shtx = undefined; setSt('fire'); } break; }
+    case 'throw': {
+      ncl = npcClip(post === 'rodilla' ? 'lanzar_granada_rodilla' : 'lanzar_granada_pie', 'idle_preparado'); start = s.t0; face = dir; const since = tU - s.t0;
+      if (!s.thrown && since > 0.62) { s.thrown = true; s.gn--; const jit = () => (Math.random() - 0.5) * 7; srThrowGren(S, {x: px + Math.sin(s.yaw) * 0.8, z: pz + Math.cos(s.yaw) * 0.8}, {x: thr.x + jit(), z: thr.z + jit()}, 0.9 + dT / 45, 'npc'); }
+      if (since > 1.5) { s.thrown = false; setSt(s.cov >= 0 ? 'cover' : 'fire'); s.hide = tU + 1; } break; }
+    case 'charge': {
+      const pc2 = SOLD.ctrl; if (!pc2 || pc2.dead) { setSt('fire'); break; } const dd = Math.hypot(pc2.x - px, pc2.z - pz) || 1;
+      if (dd <= 3.4) { setSt('melee'); s.mt0 = tU; s.mhit = false; break; }
+      goTo(pc2.x - (pc2.x - px) / dd * 2.6, pc2.z - (pc2.z - pz) / dd * 2.6, NPC_V.run); ncl = npcClip('cargar_bayoneta', 'correr_agachado'); start = null; face = Math.atan2(pc2.x - px, pc2.z - pz);
+      if (tU - s.t0 > 10) setSt('fire'); break; }
+    case 'melee': {
+      const pc2 = SOLD.ctrl; if (!pc2 || pc2.dead) { setSt('fire'); break; } const dd = Math.hypot(pc2.x - px, pc2.z - pz) || 1; face = Math.atan2(pc2.x - px, pc2.z - pz);
+      ncl = npcClip('melee_1', 'idle_preparado'); start = s.mt0; const ph = (tU - s.mt0) % 1.1;
+      if (ph > 0.5 && !s.mhit) { s.mhit = true; SOLD.melee.push({x: px, z: pz, ang: Math.atan2(pz - pc2.z, px - pc2.x)}); } if (ph < 0.3) s.mhit = false;
+      if (dd > 5.5) setSt('charge'); else if (tU - s.t0 > 14) setSt('fire'); break; }
     case 'bound': {
       if (!s.btx) { const len = 7 + h2 * 6, c = S.cov ? covFind(S, px + ux * len * 0.6, pz + uz * len * 0.6, thr.x, thr.z, 16) : null; if (c && Math.hypot(c.x - px, c.z - pz) > 3) { npcClaim(S, s, key, c); s.btx = c.x - x; s.btz = c.z - z; s.bcov = true; } else { s.btx = s.ox + ux * len; s.btz = s.oz + uz * len; s.bcov = false; } }
       const done = goTo(x + s.btx, z + s.btz, s.bcov ? NPC_V.crouch : NPC_V.crouch); ncl = npcClip('correr_agachado', 'marcha'); start = null; face = dir;
@@ -72,13 +98,22 @@ function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
       if (s.ph === 'aim2') { ncl = npcAim(era, pitch, 'rodilla', false); start = null; if (tU >= s.phT) { s.ph = 'shoot'; s.phT = tU + 0.7; s.fireT = tU; npcShot(S, V, s, x, z, thr, vsPlayer, dT, true, era, dir); } }
       if (s.ph === 'shoot') { ncl = npcAim(era, pitch, 'rodilla', true); start = s.fireT; if (tU >= s.phT) { s.ph = 'aim'; s.hide = tU + 1.5 + h1 * 3.5; setSt('cover'); s.t0 = tU; } }
       if (s.pin > 1.5 && s.ph !== 'aim') { s.ph = 'aim'; s.hide = tU + 2.5; } break; }
-    case 'prone': { ncl = npcClip('idle_tumbado', 'idle_rodilla'); start = null; face = dir; if (s.pin <= 0) setSt('fire'); break; }
+    case 'prone': {
+      face = dir;
+      if (s.pin > 1.2) { ncl = npcClip('idle_tumbado', 'idle_rodilla'); start = null; break; }
+      if (!s.crawlTried) { s.crawlTried = true; const cv = S.cov ? covFind(S, px, pz, thr.x, thr.z, 18) : null; if (cv && Math.hypot(cv.x - px, cv.z - pz) > 3) { npcClaim(S, s, key, cv); setSt('crawl'); break; } }
+      if (s.pin <= 0 && tU - s.t0 > 4 + h1 * 4) { s.crawlTried = false; setSt('fire'); break; }
+    }                                                    // sin amenaza inmediata dispara desde el suelo (sigue en la rama de fuego)
     default: {                                   // fire
       if (s.shy) { ncl = 'idle_rodilla'; start = null; face = dir; if (tU - s.t0 > 3 + h1 * 3) { s.shy = false; } break; }
       face = dir; const rel = (CTRL_RELOAD[era] || 1.6) * (1.4 + h1 * 1.0);
-      if (s.ph === 'aim') { ncl = npcAim(era, pitch, post, false); start = null; if (tU >= s.phT) { s.ph = 'shoot'; s.phT = tU + 0.7; s.fireT = tU; npcShot(S, V, s, x, z, thr, vsPlayer, dT, false, era, dir); } }
+      if (s.ph === 'aim') { ncl = npcAim(era, pitch, post, false); start = null; if (tU >= s.phT) {
+        const brave = s.brave !== undefined ? s.brave : (s.brave = h1 > 0.9), pcc = SOLD.ctrl;
+        if (vsPlayer && brave && dT < 42 && dT > 6 && pcc && !pcc.dead && (pcc.cd > 0.4 || pcc.rl) && s.st === 'fire') { npcRelease(S, s, key); setSt('charge'); break; }
+        if (era >= 'D' && dT > 9 && dT < 36 && (s.gn === undefined ? (s.gn = h2 > 0.62 ? 2 : 0) : s.gn) > 0 && Math.random() < 0.22) { setSt('throw'); break; }
+        s.ph = 'shoot'; s.phT = tU + 0.7; s.fireT = tU; npcShot(S, V, s, x, z, thr, vsPlayer, dT, false, era, dir); } }
       else if (s.ph === 'shoot') { ncl = npcAim(era, pitch, post, true); start = s.fireT; if (tU >= s.phT) { s.ph = 'reload'; s.phT = tU + rel; s.rt0 = tU; } }
-      else { ncl = npcClip('recargar_' + post + '_' + era, 'idle_preparado'); start = s.rt0; if (tU >= s.phT) { s.ph = 'aim'; s.phT = tU + 0.8 + h2 * 1.4; if (!defensive && movers && dT > 45 && h2 < 0.8) { setSt('bound'); } } }
+      else { ncl = npcClip('recargar_' + post + '_' + era, 'idle_preparado'); start = s.rt0; if (tU >= s.phT) { s.ph = 'aim'; s.phT = tU + 0.8 + h2 * 1.4; if (!defensive && movers && dT > 45 && h2 < 0.8) { setSt('bound'); } else if (dT > 22 && !s.shy && Math.random() < 0.15) { s.shtx = undefined; setSt('shift'); } } }
       break; }
   }
   s.yaw = angLerp(s.yaw, face, Math.min(1, dt * (moveV ? 9 : 5)));

@@ -67,7 +67,7 @@ uiPrefs();
 /* ---------- 4) controles táctiles del soldado (primera persona) ---------- */
 function tcBuild() {
   if (document.getElementById('sctouch')) return document.getElementById('sctouch');
-  const d = document.createElement('div'); d.id = 'sctouch'; d.innerHTML = `<div class="tc-look"></div><div class="tc-joy"><i></i></div><div class="tc-btns"><button data-k="fire">🔫</button><button data-k="ads">🎯</button><button data-k="run">💨</button><button data-k="kneel">⬇</button><button data-k="flag">🚩</button><button data-k="exit">✕</button></div>`; document.body.appendChild(d);
+  const d = document.createElement('div'); d.id = 'sctouch'; d.innerHTML = `<div class="tc-look"></div><div class="tc-joy"><i></i></div><div class="tc-btns"><button data-k="fire">🔫</button><button data-k="ads">🎯</button><button data-k="run">💨</button><button data-k="kneel">⬇</button><button data-k="prone">🛌</button><button data-k="reload">🔄</button><button data-k="gren">💣</button><button data-k="melee">🗡️</button><button data-k="band">🩹</button><button data-k="flag">🚩</button><button data-k="exit">✕</button></div>`; document.body.appendChild(d);
   const key = k => document.dispatchEvent(new KeyboardEvent('keydown', {key: k, bubbles: true}));
   const look = d.querySelector('.tc-look'); let lp = null;
   look.addEventListener('pointerdown', e => { lp = {id: e.pointerId, x: e.clientX, y: e.clientY}; look.setPointerCapture(e.pointerId); e.preventDefault(); });
@@ -82,7 +82,7 @@ function tcBuild() {
   d.querySelectorAll('.tc-btns button').forEach(b => {
     const k = b.dataset.k;
     if (k === 'fire' || k === 'ads') { const set = v => { CK[k] = v; b.classList.toggle('on', !!v); }; b.addEventListener('pointerdown', e => { set(1); b.setPointerCapture(e.pointerId); e.preventDefault(); }); b.addEventListener('pointerup', () => set(0)); b.addEventListener('pointercancel', () => set(0)); }
-    else b.addEventListener('pointerdown', e => { e.preventDefault(); if (k === 'run') { d.dataset.run = d.dataset.run === '1' ? '0' : '1'; CK.shift = d.dataset.run === '1' ? 1 : 0; b.classList.toggle('on', d.dataset.run === '1'); } else if (k === 'kneel') key('z'); else if (k === 'flag') key('f'); else if (k === 'exit') { try { ctrlExit(); } catch (er) { } } });
+    else b.addEventListener('pointerdown', e => { e.preventDefault(); if (k === 'run') { d.dataset.run = d.dataset.run === '1' ? '0' : '1'; CK.shift = d.dataset.run === '1' ? 1 : 0; b.classList.toggle('on', d.dataset.run === '1'); } else if (k === 'kneel') key('z'); else if (k === 'prone') key('x'); else if (k === 'reload') key('r'); else if (k === 'gren') key('g'); else if (k === 'melee') key('e'); else if (k === 'band') key('h'); else if (k === 'flag') key('f'); else if (k === 'exit') { try { ctrlExit(); } catch (er) { } } });
   });
   return d;
 }

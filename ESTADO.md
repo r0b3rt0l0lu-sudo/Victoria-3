@@ -320,3 +320,5 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - Lote 21: paz_parcial.js (paz separada, retirada, capitulaciones); retratos recomprimidos (index.html 12,4 → 9,9 MB).
 
 - Lote 22: calibracion.js (+ orgK/casK en military.js), enfermedad con sanidad, doctrinas 1914-45; ver ESTUDIO_CALIBRACION.md. Banco de pruebas: scratchpad cal.js.
+
+- Lote 23: soldado_real.js (posturas, munición por época, fatiga, heridas, granadas, bayoneta), npc_combate.js ampliado (crawl, throw, charge, melee, shift, fallback), controles táctiles ampliados. Pruebas: scratchpad sold.js y npcsim.js.

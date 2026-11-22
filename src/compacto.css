@@ -84,10 +84,10 @@ html[data-simple="1"] #mb-trade,html[data-simple="1"] .tab[data-t="air"],html[da
 #sctouch .tc-look{position:absolute;right:0;top:0;width:55%;height:100%;pointer-events:auto;touch-action:none}
 #sctouch .tc-joy{position:absolute;left:26px;bottom:34px;width:130px;height:130px;border-radius:50%;background:rgba(15,20,26,.45);border:2px solid rgba(224,194,122,.55);pointer-events:auto;touch-action:none;display:grid;place-items:center}
 #sctouch .tc-joy i{width:54px;height:54px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#f0d58a,#8a6a2c);box-shadow:0 2px 8px rgba(0,0,0,.6);display:block}
-#sctouch .tc-btns{position:absolute;right:22px;bottom:26px;display:grid;grid-template-columns:repeat(3,58px);gap:10px;pointer-events:none}
-#sctouch .tc-btns button{width:58px;height:58px;min-height:0;border-radius:50%;border:2px solid rgba(224,194,122,.7);background:rgba(15,20,26,.6);font-size:24px;padding:0;pointer-events:auto;touch-action:none;color:#fff}
+#sctouch .tc-btns{position:absolute;right:16px;bottom:20px;display:grid;grid-template-columns:repeat(4,54px);gap:8px;pointer-events:none}
+#sctouch .tc-btns button{width:54px;height:54px;min-height:0;border-radius:50%;border:2px solid rgba(224,194,122,.7);background:rgba(15,20,26,.6);font-size:24px;padding:0;pointer-events:auto;touch-action:none;color:#fff}
 #sctouch .tc-btns button.on{background:rgba(180,120,30,.8)}
-#sctouch .tc-btns button[data-k="fire"]{grid-column:3;grid-row:1;width:72px;height:72px;margin:-8px;background:rgba(170,50,40,.65)}
+#sctouch .tc-btns button[data-k="fire"]{grid-column:4;grid-row:1;background:rgba(170,50,40,.65)}
 
 /* ===== MÓVIL VERTICAL: ventanas sin desbordes ===== */
 body.pp .window .wbody{overflow-x:hidden}

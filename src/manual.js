@@ -468,3 +468,10 @@ MANUAL.push({id: 'lote22', title: '★ Calibración histórica del combate', htm
 <h3>Caballería y artillería</h3><p>La caballería pierde fuerza de choque con fusil rayado, retrocarga y ametralladora. La artillería mejora con cañones rayados, de acero y de tiro rápido.</p>
 <h3>Enfermedad</h3><p>Pesa más que antes en campaña; Saneamiento y Medicina la reducen.</p>
 <h3>Doctrinas 1914-1945</h3><p>Nuevos escalones: tropas de asalto, preparación artillera, armas combinadas, guerra relámpago, defensa móvil con contraataque blindado y movilización total. Ver ESTUDIO_CALIBRACION.md.</p>`});
+
+MANUAL.push({id: 'lote23', title: '★ Modo soldado: posturas, munición y combate cercano', html: `
+<h3>Posturas</h3><p><b>Z</b> de rodillas · <b>X</b> cuerpo a tierra (reptar con W; Mayús reptar rápido). Cada cambio tiene su animación y bloquea el disparo un instante. Tumbado eres un blanco pequeño y el terreno te tapa del fuego lejano, pero no puedes lanzar granadas.</p>
+<h3>Munición y fatiga</h3><p>El fusil depende de la época: avancarga y rayado cargan un cartucho por ciclo (lento); desde 1881 los de cerrojo llevan cargador de 5 (<b>R</b> recarga); en la época E, EE. UU., Australia y Canadá usan semiautomático de 8. Correr gasta aliento: sin él no corres y la mira tiembla. Con el botón derecho quieto la mira se asienta.</p>
+<h3>Heridas</h3><p>Ya no caes al primer impacto: tienes salud. Los disparos a la cabeza matan; en el tronco quitan 30-55 %. Herido cojeas y sangras: <b>H</b> te venda (3,5 s).</p>
+<h3>Granadas y bayoneta</h3><p>Desde 1914: <b>G</b> lanza una granada (explota a los 3,5 s). <b>B</b> cala la bayoneta y <b>E</b> golpea (bayoneta o culata) a menos de 3,6 u. Los enemigos valientes te embisten con la bayoneta si estás recargando.</p>
+<h3>Soldados que luchan por su cuenta</h3><p>Los soldados cercanos se tumban y disparan desde el suelo, reptan a una cobertura, lanzan granadas, se reposicionan lateralmente, cavan en defensa, se repliegan si la moral del regimiento cae y cargan con bayoneta.</p>`});

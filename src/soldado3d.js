@@ -38,7 +38,7 @@ function soldCamera(S, V, dt) {
   } else SOLD.deadT = 0;
   const w = soldWorld(S, blk, f, SOLD.j); SOLD.pos = SOLD.pos ? {x: SOLD.pos.x + (w.x - SOLD.pos.x) * Math.min(1, dt * 9), z: SOLD.pos.z + (w.z - SOLD.pos.z) * Math.min(1, dt * 9)} : {x: w.x, z: w.z};
   const ov = SOLD.ctrl && typeof ctrlStep === 'function' ? ctrlStep(S, V, blk, dt) : null;      // fase 2: el soldado lo maneja el jugador
-  const px = ov ? ov.x : SOLD.pos.x, pz = ov ? ov.z : SOLD.pos.z, gy = b3H(S.tf, px, pz), a = ov ? ov.aim : Math.atan2(w.fz, w.fx) + SOLD.yaw, dx = Math.cos(a), dz = Math.sin(a), cam = S.cam;
+  const pp0 = SOLD.pos || w, px = ov ? ov.x : pp0.x, pz = ov ? ov.z : pp0.z, gy = b3H(S.tf, px, pz), a = ov ? ov.aim : Math.atan2(w.fz, w.fx) + SOLD.yaw, dx = Math.cos(a), dz = Math.sin(a), cam = S.cam;
   B3.hide = SOLD.fp || SOLD.ctrl ? {bid: blk.id, fi: SOLD.fi, j: SOLD.j} : null;
   if (ov) { ctrlCam(S, ov); cam.updateMatrixWorld(); B3.cam.tx = ov.x; B3.cam.tz = ov.z; return true; }
   if (SOLD.fp) {
@@ -68,7 +68,7 @@ b3Frame = function (V, b, g, lines, all) {
 };
 document.addEventListener('keydown', e => {
   if (!SOLD.on || e.ctrlKey || e.metaKey || e.altKey || /input|select|textarea/i.test((e.target && e.target.tagName) || '')) return; const V = R.bviz; if (!V) return; const k = e.key.toLowerCase(); let used = true;
-  if (SOLD.ctrl && k !== 'escape' && k !== 'x') return;                     // en modo control las teclas las gestiona soldado3d_ctrl.js
+  if (SOLD.ctrl && k !== 'escape') return;                     // en modo control las teclas las gestiona soldado3d_ctrl.js
   if (k === 'q' || k === 'arrowleft') soldStep(V, -1); else if (k === 'e' || k === 'arrowright') soldStep(V, 1);
   else if (k === 'r') { const nb = soldPick(V, 'next'); if (nb) soldSet(nb); } else if (k === 'v') { SOLD.fp = !SOLD.fp; SOLD.pit = SOLD.fp ? 0.02 : 0.14; B3.hide = null; }
   else if (k === 'escape' || k === 'x') soldStop(); else used = false;

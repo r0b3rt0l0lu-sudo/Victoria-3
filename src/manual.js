@@ -475,3 +475,10 @@ MANUAL.push({id: 'lote23', title: '★ Modo soldado: posturas, munición y comba
 <h3>Heridas</h3><p>Ya no caes al primer impacto: tienes salud. Los disparos a la cabeza matan; en el tronco quitan 30-55 %. Herido cojeas y sangras: <b>H</b> te venda (3,5 s).</p>
 <h3>Granadas y bayoneta</h3><p>Desde 1914: <b>G</b> lanza una granada (explota a los 3,5 s). <b>B</b> cala la bayoneta y <b>E</b> golpea (bayoneta o culata) a menos de 3,6 u. Los enemigos valientes te embisten con la bayoneta si estás recargando.</p>
 <h3>Soldados que luchan por su cuenta</h3><p>Los soldados cercanos se tumban y disparan desde el suelo, reptan a una cobertura, lanzan granadas, se reposicionan lateralmente, cavan en defensa, se repliegan si la moral del regimiento cae y cargan con bayoneta.</p>`});
+
+MANUAL.push({id: 'lote24', title: '★ Obstáculos del mapa: ríos, cordilleras, pasos y puentes', html: `
+<h3>Ríos y puentes</h3><p>Cruzar un río mayor (Rin, Danubio, Vístula…) sin puente alarga la marcha (de ×1,25 a ×2 según su orden) y el atacante pierde algo de ataque los 3 primeros días de batalla. Hay puente si hay ferrocarril (infraestructura 3+), en capitales de estado o por puente histórico. Con puente solo hay un cuello de botella; con ferrocarril propio no hay retraso.</p>
+<h3>Cordilleras y pasos</h3><p>Una cresta de más de 700 m multiplica el tiempo de marcha (×1,4 a ×2,4). Los pasos son sus puntos bajos (×1,15) y el que los fuerza ataca peor mientras el defensor gana defensa.</p>
+<h3>Estaciones</h3><p>En invierno los ríos del norte se hielan (se cruzan) y los pasos se cierran con nieve; en primavera la crecida empeora los ríos grandes.</p>
+<h3>Volar puentes</h3><p>Con un ejército en una de las dos orillas, el botón 💥 del panel de estado vuela el puente 90 días. La IA también lo hace al retirarse cruzando un río grande.</p>
+<h3>Mapa «Obstáculos»</h3><p>Colorea los estados por la dificultad de sus fronteras (verde: abierto, rojo: muy accidentado). El panel del estado y el del ejército listan los obstáculos de las fronteras y de la ruta.</p>`});

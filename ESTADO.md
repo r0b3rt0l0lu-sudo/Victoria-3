@@ -322,3 +322,5 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - Lote 22: calibracion.js (+ orgK/casK en military.js), enfermedad con sanidad, doctrinas 1914-45; ver ESTUDIO_CALIBRACION.md. Banco de pruebas: scratchpad cal.js.
 
 - Lote 23: soldado_real.js (posturas, munición por época, fatiga, heridas, granadas, bayoneta), npc_combate.js ampliado (crawl, throw, charge, melee, shift, fallback), controles táctiles ampliados. Pruebas: scratchpad sold.js y npcsim.js.
+
+- Lote 24: obstaculos_mapa.js (ríos, cordilleras, pasos, puentes, estaciones; hopDays/terrMods; mapa Obstáculos; volar puentes). Datos: 585 fronteras con obstáculo (467 río, 144 cresta).

@@ -775,7 +775,7 @@ window.onMapClick = (id, e, pid) => {
   if (UI.draw && pid !== undefined && pid >= 0) { drawClick(pid); return; }
   if (UI.landNext && pid !== undefined && pid >= 0) { landClick(pid); return; }
   if (UI.selArmy && pid !== undefined && pid >= 0) { const a0 = armyById(UI.selArmy); if (a0 && ownsArmy(a0)) { orderArmies(pid, UI.patrolNext ? 'patrol' : e && e.shiftKey ? 'wp' : 'move'); return; } }
-  if (UI.selArmy && (pid === undefined || pid < 0)) { UI.selArmy = null; UI.selSet = new Set(); renderArmyPanel(); R.labelsDirty = true; }
+  if (UI.selArmy && (pid === undefined || pid < 0)) { const a1 = armyById(UI.selArmy); if (a1 && ownsArmy(a1)) { if (R.mode !== 'naval' && R.mode !== 'air') toast('🎯', 'No hay provincia ahí. Haz clic en tierra para mover el ejército, o pulsa Esc para soltarlo.'); return; } UI.selArmy = null; UI.selSet = new Set(); renderArmyPanel(); R.labelsDirty = true; }
   UI.sel = id >= 0 ? id : null; setSelected(id >= 0 ? id : -1); renderStatePanel();
 };
 

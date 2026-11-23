@@ -324,3 +324,5 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - Lote 23: soldado_real.js (posturas, munición por época, fatiga, heridas, granadas, bayoneta), npc_combate.js ampliado (crawl, throw, charge, melee, shift, fallback), controles táctiles ampliados. Pruebas: scratchpad sold.js y npcsim.js.
 
 - Lote 24: obstaculos_mapa.js (ríos, cordilleras, pasos, puentes, estaciones; hopDays/terrMods; mapa Obstáculos; volar puentes). Datos: 585 fronteras con obstáculo (467 río, 144 cresta).
+
+- Lote 25: obstaculos3d_v2.js (obstáculos por época), soldado_real2.js (combate entre soldados, supresión, voces, artillería, MG), mover_barra.js (modo mover con la barra inferior). Pruebas: scratchpad npc2.js, sold.js, obs3d.js, mv.js.

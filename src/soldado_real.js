@@ -146,7 +146,6 @@ ctrlStep = function (S, V, blk, dt) {
   if (SR_K.band) { SR_K.band = 0; if (tU >= c.busyUntil && !c.pt && (c.hp < 1 || c.bleed)) { c.bdT = tU; c.busyUntil = tU + 3.5; c.bandT = tU; if (SOLD.vm && SOLD.fp) { SOLD.vm.play('curar_vm', {next: c.prone ? 'tumbado_idle_vm' : 'idle_vm'}); c.vmBusy = tU + 3.5; } } }
   if (c.bandT && tU >= c.bandT + 3.5 - 0.02) { c.bandT = 0; c.bdT = 0; c.bleed = 0; c.hp = Math.min(1, c.hp + 0.14); toast('🩹', 'Te has vendado la herida: dejas de sangrar.'); }
   if (c.flag && Math.hypot(c.x - blk.x, c.z - blk.y) < 40) blk.mm = Math.min(1, (blk.mm !== undefined ? blk.mm : 0.8) + 0.006 * rdt);
-  if (V.klist) V.klist.forEach(e => { if (e.wound && tU - e.t0 > 3) { e.wound = false; e.clip = e.dClip === 'muerte_adelante' ? 'muerte_costado_iz' : e.dClip; e.t0 = tU; } else if (!e.wound && !e.still && tU - e.t0 > e.dur + 0.4) { e.still = true; e.clip = e.corpse; } });
   srGrenStep(S, V, c, rdt, tU);
   // disparos, golpes y metralla enemigos
   let died = false; const gyP = b3H(S.tf, c.x, c.z); SOLD.shots = SOLD.shotNew; SOLD.shotNew = [];

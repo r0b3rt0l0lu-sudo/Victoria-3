@@ -34,7 +34,7 @@ function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
   if (enemy && pc) { const dd = Math.hypot(pc.x - px, pc.z - pz); if (dd < 150) { thr = {x: pc.x, z: pc.z}; vsPlayer = true; dT = dd; } }
   if (!thr && blk.foe && blk.foe.role !== 'reserve' && (mode === 'fire' || mode === 'skirmish' || mode === 'hold' || mode === 'advance')) { const dd = Math.hypot(blk.foe.x - px, blk.foe.y - pz); if (dd < 190) { thr = {x: blk.foe.x, z: blk.foe.y}; dT = dd; } }
   let nx = px, nz = pz, ncl = clip, start, face = s.yaw, moveV = 0;
-  const sup = SOLD.suppress && tU - SOLD.suppress.t < 0.7 && Math.hypot(SOLD.suppress.x - px, SOLD.suppress.z - pz) < 9 && enemy;
+  const sup = SOLD.suppress && tU - SOLD.suppress.t < 0.7 && Math.hypot(SOLD.suppress.x - px, SOLD.suppress.z - pz) < 9;
   if (sup && s.pin <= 0 && thr) s.pin = 3 + h1 * 3; if (s.pin > 0) s.pin -= dt;
   const setSt = (st) => { if (s.st !== st) { s.st = st; s.t0 = tU; s.ph = 'aim'; s.phT = tU + 0.7 + h1 * 1.4; } };
   const goTo = (tx, tz, v) => { const dx = tx - s.ox - x, dz = tz - s.oz - z, d = Math.hypot(dx, dz); if (d < 0.35) return true; const st = Math.min(d, v * dt); s.ox += dx / d * st; s.oz += dz / d * st; face = Math.atan2(dx, dz); moveV = v; const q = covPush(S, x + s.ox, z + s.oz, 0.8); s.ox = q[0] - x; s.oz = q[1] - z; return false; };

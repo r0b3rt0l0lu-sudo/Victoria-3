@@ -45,7 +45,7 @@ function tacMoraleX(V, b, all, step) {
     if (ds < 0.003) dm += (0.011 + 0.007 * Math.min(3, mates)) * step; if (blk.garr) dm += 0.02 * step; if (blk.terr && blk.terr.village) dm += 0.02 * step;
     if (buffOn(V, blk.side, 'endure')) dm = Math.max(dm, 0);
     blk.mm = clamp(blk.mm + dm, 0, 1); blk.wav = blk.mm < 0.3;
-    const immune = blk.garr || buffOn(V, blk.side, 'endure') || buffOn(V, blk.side, 'inspire') || (blk.d.plan && blk.d.plan.k === 'defend' && blk.mm > 0.04);
+    const immune = (blk.garr && (typeof tacGarrIntact !== 'function' || tacGarrIntact(b, blk))) || buffOn(V, blk.side, 'endure') || buffOn(V, blk.side, 'inspire') || (blk.d.plan && blk.d.plan.k === 'defend' && blk.mm > 0.04);
     if (blk.mm < 0.07 && !immune && !(blk.brk > 0) && blk.mode !== 'rout' && blk.type !== 'tank') {
       blk.brk = 8; blk.mm = 0.32; blk.d.o = Math.max(0, blk.d.o - DIVS[blk.d.t].org * 0.12); blk.figs.forEach(f => { if (f.alive && !f.flee && Math.random() < 0.6) bvFlee(V, blk, f, 1.1); });
       bvBanner(V, `😱 ${G.C[blk.tag].name} rompe filas y el pánico se extiende`, blk.side, ''); (b.log = b.log || []).push({k: 'panic', d: b.day, t: `Una división de ${G.C[blk.tag].name} pierde la moral y rompe filas; el pánico cunde entre sus vecinos.`}); if (b.log.length > 30) b.log.shift();

@@ -326,3 +326,5 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - Lote 24: obstaculos_mapa.js (ríos, cordilleras, pasos, puentes, estaciones; hopDays/terrMods; mapa Obstáculos; volar puentes). Datos: 585 fronteras con obstáculo (467 río, 144 cresta).
 
 - Lote 25: obstaculos3d_v2.js (obstáculos por época), soldado_real2.js (combate entre soldados, supresión, voces, artillería, MG), mover_barra.js (modo mover con la barra inferior). Pruebas: scratchpad npc2.js, sold.js, obs3d.js, mv.js.
+
+- Lote 26: fuertes3d.js (obras huecas, muros obstáculo, brechas, escalas) y asalto_fuertes.js (asalto, rendición, captura, metralla, IA). Pruebas: scratchpad fz.js.

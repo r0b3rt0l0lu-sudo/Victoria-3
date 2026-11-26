@@ -127,6 +127,19 @@ Cada fase termina con commit, push y el `index.html` enviado.
 
 ---
 
+### Respuestas del usuario (decisiones tomadas)
+
+1. Entrada: **salto automático al contacto**.
+2. Escala: **~400 soldados con IA completa** (1 figura = 1 hombre), resto 1:10.
+3. Muerte: **herido y espera** (te arrastras unos segundos; si no te rescatan, mueres; luego reapareces).
+4. Mando: **órdenes básicas al pelotón** (rueda: avanzar, cubrirse, fuego a voluntad, mantener) dentro de la orden del bloque.
+5. Edificios: **aspilleras y ventanas**, sin interiores.
+6. Épocas: **solo avancarga (1836–1865) por ahora**; el resto después.
+7. Hardware: **PC con GPU dedicada**, con perfiles reducidos automáticos.
+8. Assets de Claude Design: por determinar (se probarán los prompts).
+
+---
+
 ## 7. Prompts para Claude Design
 
 Contexto común para pegar al inicio de cada prompt:

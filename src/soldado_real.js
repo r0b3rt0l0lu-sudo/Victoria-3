@@ -132,7 +132,7 @@ ctrlStep = function (S, V, blk, dt) {
   { const q = covPush(S, c.x, c.z, 0.9); c.x = q[0]; c.z = q[1]; }
   c.x = clamp(c.x, 6, BV_W - 6); c.z = clamp(c.z, 6, BV_H - 6);
   c.peek = c.kneel && (CK.ads || tU - c.fireT < 0.8); srPoseTick(c, tU);
-  const diff = Math.abs(((aim - c.hd + Math.PI) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI);
+  const diff = Math.abs(((aim - c.hd + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI);
   c.turn = !c.mv && diff > 0.5; c.hd = angLerp(c.hd, (c.mv && !SOLD.fp) ? c.face : aim, Math.min(1, rdt * (CK.fire || CK.space ? 14 : 5)));
   const O = S.cam.position, cp = Math.cos(c.pitch + c.kick);
   // recarga automática, fin de recarga y disparo
@@ -140,6 +140,7 @@ ctrlStep = function (S, V, blk, dt) {
   if (c.rl && tU >= c.rl.t1) { const n = c.rl.n; c.mag += n; c.pouch -= n; c.rl = null; }
   if ((CK.space || CK.fire) && c.cd <= 0 && !c.rl && !c.pt) ctrlFire(S, V, blk, {x: O.x, y: O.y, z: O.z}, {x: Math.cos(aim) * cp, y: Math.sin(c.pitch + c.kick), z: Math.sin(aim) * cp});
   // golpes cuerpo a cuerpo del jugador
+  if (SR_K.melee && typeof msUse === 'function' && msUse(c, tU)) SR_K.melee = 0;
   if (SR_K.melee && !c.pt && tU - c.melT > 1.0 && !c.rl) { SR_K.melee = 0; srMelee(S, V, c, tU); } else SR_K.melee = 0;
   if (SR_K.gren && !c.pt && !c.rl) { SR_K.gren = 0; srGrenade(S, V, c, tU, cp, aim); } else SR_K.gren = 0;
   if (SR_K.reload) { SR_K.reload = 0; if (c.cap > 1 && c.mag < c.cap && c.pouch > 0) srReload(c, tU); }
@@ -250,7 +251,7 @@ document.addEventListener('keydown', e => {
   if (!(SOLD.on && SOLD.ctrl) || e.ctrlKey || e.metaKey || e.altKey || /input|select|textarea/i.test((e.target && e.target.tagName) || '')) return; const c = SOLD.ctrl, k = e.key.toLowerCase(), tU = performance.now() / 1000; if (c.dead) return; let used = true;
   if (k === 'z') { srSetPose(c, c.pose === 'rodilla' ? 'pie' : 'rodilla', tU); c.kneelReq = 1; }
   else if (k === 'x') srSetPose(c, c.pose === 'tumbado' ? 'pie' : 'tumbado', tU);
-  else if (k === 'r') SR_K.reload = 1; else if (k === 'g') SR_K.gren = 1; else if (k === 'e') SR_K.melee = 1; else if (k === 'h') SR_K.band = 1;
+  else if (k === 'r') { SR_K.reload = 1; if (typeof MS !== 'undefined') MS.rHeld = true; } else if (k === 'g') SR_K.gren = 1; else if (k === 'e') SR_K.melee = 1; else if (k === 'h') SR_K.band = 1;
   else if (k === 'b') { c.bayo = !c.bayo; toast('🔪', c.bayo ? 'Bayoneta calada.' : 'Bayoneta descalada.'); } else used = false;
   if (used) { e.preventDefault(); e.stopImmediatePropagation(); }
 }, true);

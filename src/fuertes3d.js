@@ -12,12 +12,13 @@ const FZ = {box: null, cyl: null, cone: null, mats: {}};
 function fzMat() { return FZ.m || (FZ.m = new THREE.MeshLambertMaterial({color: 0xffffff})); }
 function fzBuild(S, b, f) {
   const boxes = [], cyls = [], cones = [], obs = [], dead = f.hp <= 0, r = clamp(f.hp / f.hpMax, 0, 1), dir = f.side === 'A' ? 1 : -1, W = f.w, H = f.h, X = f.x, Z = f.y, g = (x, z) => b3H(S.tf, x, z);
+  f._gaps = [];
   const era = typeof t3Era === 'function' ? t3Era() : 'C', hashf = k => hash2(f.id * 17 + 3, k, 91);
   const C = {stone: 0x9a8c72, stone2: 0x867a62, earth: 0x7a6342, earth2: 0x5f4d32, dirt: 0x8a7752, wood: 0x5a4028, wood2: 0x7a5a38, gab: 0x8a7448, roof: 0x7a3d2a, dark: 0x2f2820, sack: 0x9c8c64, iron: 0x3a3a3c, rubble: 0x4a4034};
   const box = (cx, by, cz, sx, sy, sz, col) => boxes.push({p: [cx, by + sy / 2, cz], s: [sx, sy, sz], c: col});
   const cyl = (cx, by, cz, rad, hh, col, roll, yaw) => cyls.push({p: [cx, by + (roll ? rad : hh / 2), cz], s: [rad, hh, rad], c: col, roll: !!roll, yaw: yaw || 0});
   const cone = (cx, by, cz, rad, hh, col) => cones.push({p: [cx, by + hh / 2, cz], s: [rad, hh, rad], c: col});
-  const ob = (cx, cz, hw, hd, h, kind) => obs.push({x: cx, z: cz, yaw: 0, hw, hd, h, kind: kind || 'fuerte', fort: f.id, fortRect: {x: X, z: Z, w: W, h: H}, gy: g(cx, cz), cs: 1, sn: 0, occ: 0, pass: false, soft: 0, nocov: false});
+  const ob = (cx, cz, hw, hd, h, kind, secId) => obs.push({secId, x: cx, z: cz, yaw: 0, hw, hd, h, kind: kind || 'fuerte', fort: f.id, fortRect: {x: X, z: Z, w: W, h: H}, gy: g(cx, cz), cs: 1, sn: 0, occ: 0, pass: false, soft: 0, nocov: false});
   // tramo de muro con almenas; i/n = posición para las brechas
   const secs = [];
   const wall = (x1, z1, x2, z2, th, hh, col, o) => {
@@ -67,22 +68,24 @@ function fzBuild(S, b, f) {
   }
   // brechas: se quitan tramos (primero los del frente y la puerta); destruida: todo escombros
   const order = secs.slice().sort((a, c) => nearFront(a) - nearFront(c)), nRem = dead ? secs.length : Math.min(secs.length, Math.round((1 - r) * secs.length * (kind === 'trench' ? 0.7 : 0.85) + (kind === 'fort' && r < 0.5 ? 1 : 0)));
-  const gone = new Set(order.slice(0, nRem).map(s => s.id));
+  const gone = new Set(order.slice(0, nRem).map(s => s.id)); (f._gone || []).forEach(i => gone.add(i));
   secs.forEach(s => {
     const sz = s.horiz ? [s.len, s.top - s.by, s.th] : [s.th, s.top - s.by, s.len];
-    if (gone.has(s.id) || (s.gate && f.kind === 'fort' && r < 0.5)) { for (let k = 0; k < 3; k++) box(s.cx + (hashf(s.id * 5 + k) - 0.5) * s.len * 0.8, g(s.cx, s.cz) - 0.3, s.cz + (hashf(s.id * 5 + k + 9) - 0.5) * s.th, 1.4 + hashf(k + s.id) * 1.4, 0.6 + hashf(k + 3) * 0.9, 1.2 + hashf(k) * 1.2, C.rubble); return; }
-    if (s.gate) { box(s.cx, s.by, s.cz, s.horiz ? 0.4 : s.th * 0.7, 5, s.horiz ? s.th * 0.7 : 0.4, C.wood); ob(s.cx, s.cz, s.hw, s.hd, 4.2, 'puerta'); return; }
+    if (gone.has(s.id) || (s.gate && f.kind === 'fort' && r < 0.5)) { f._gaps.push({x: s.cx, z: s.cz, gate: !!s.gate}); for (let k = 0; k < 3; k++) box(s.cx + (hashf(s.id * 5 + k) - 0.5) * s.len * 0.8, g(s.cx, s.cz) - 0.3, s.cz + (hashf(s.id * 5 + k + 9) - 0.5) * s.th, 1.4 + hashf(k + s.id) * 1.4, 0.6 + hashf(k + 3) * 0.9, 1.2 + hashf(k) * 1.2, C.rubble); return; }
+    if (s.gate) { box(s.cx, s.by, s.cz, s.horiz ? 0.4 : s.th * 0.7, 5, s.horiz ? s.th * 0.7 : 0.4, C.wood); ob(s.cx, s.cz, s.hw, s.hd, 4.2, 'puerta', s.id); return; }
     box(s.cx, s.by, s.cz, sz[0], sz[1], sz[2], s.col);
     if (s.merlons) { const nm = Math.max(2, Math.round(s.len / 3.2)); for (let k = 0; k < nm; k++) { const t = (k + 0.5) / nm; box(s.horiz ? s.cx - s.len / 2 + s.len * t : s.cx, s.top, s.horiz ? s.cz : s.cz - s.len / 2 + s.len * t, s.horiz ? 1.5 : s.th, 1.2, s.horiz ? s.th : 1.5, C.stone2); } }
     if (s.sacks) { box(s.cx, s.top, s.cz, s.horiz ? s.len : 1.4, 0.7, s.horiz ? 1.4 : s.len, C.sack); }
-    ob(s.cx, s.cz, s.hw, s.hd, Math.min(4.6, s.top - s.by - 0.5), kind === 'fort' ? 'muro_fuerte' : 'terraplen');
+    ob(s.cx, s.cz, s.hw, s.hd, Math.min(4.6, s.top - s.by - 0.5), kind === 'fort' ? 'muro_fuerte' : 'terraplen', s.id);
+    if (f._hit && f._hit[s.id] >= 0.4 && s.front) { const fx = s.cx + dir * (s.th / 2 + 0.06); for (let k = 0; k < 3; k++) box(fx, s.by + 1.2 + k * 1.6, s.cz + (k - 1) * s.len * 0.22, 0.12, 1.1 + (k % 2) * 0.6, 1.4 + k * 0.5, 0x3a3228); }
   });
+  (f._fas || []).forEach(q => { for (let k = 0; k < 3; k++) box(q.x, g(q.x, q.z) - 0.1 + k * 0.55, q.z + (k - 1) * 0.3, 0.9, 0.55, 3.4, 0x8a6a3a); });          // fajinas que rellenan el foso
   // escalas del asalto
   if (f._assault && !dead && (kind === 'fort' || kind === 'redoubt')) { const fs = secs.filter(s => s.front && !gone.has(s.id) && !s.gate); fs.filter((s, i) => i % 2 === 0).slice(0, 4).forEach(s => { const lx = s.cx - dir * 0.2, h = s.top - s.by; for (let k = 0; k < 2; k++) box(lx - dir * 1.6, s.by, s.cz + (k ? 0.5 : -0.5), 0.18, h + 0.8, 0.18, C.wood2); for (let k = 0; k < 6; k++) box(lx - dir * 1.6, s.by + 0.6 + k * h / 6, s.cz, 0.14, 0.14, 1.3, C.wood2); }); }
   return {boxes, cyls, cones, obs, secs: secs.length, gone: gone.size, dir, X, Z, W, H, r, dead};
 }
 b3Forts = function (S, b) {
-  const fl = b.forts || [], sig = fl.map(f => f.id + ':' + (f.hp > 0 ? Math.ceil(f.hp / f.hpMax * 10) : 0) + ':' + f.kind + ':' + f.side + ':' + (f.garr ? 1 : 0) + ':' + (f._assault ? 1 : 0) + ':' + (f.guns || 0)).join('|');
+  const fl = b.forts || [], sig = fl.map(f => f.id + ':' + (f.hp > 0 ? Math.ceil(f.hp / f.hpMax * 10) : 0) + ':' + f.kind + ':' + f.side + ':' + (f.garr ? 1 : 0) + ':' + (f._assault ? 1 : 0) + ':' + (f.guns || 0) + ':' + (f._gone ? f._gone.length : 0) + ':' + (f._fas ? f._fas.length : 0) + ':' + (f._hit ? Object.keys(f._hit).length : 0)).join('|');
   if (sig === S.fortSig) return; S.fortSig = sig;
   while (S.fortG.children.length) { const c = S.fortG.children.pop(); if (c.userData && c.userData.keep) continue; if (c.geometry) c.geometry.dispose(); if (c.material && !(c.material === FZ.m)) c.material.dispose(); }
   const mk = (geo, items) => { if (!items.length) return null; const m = new THREE.InstancedMesh(geo, fzMat(), items.length), mt = new THREE.Matrix4(), q = new THREE.Quaternion(), qz = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), z1 = new THREE.Vector3(0, 0, 1), col = new THREE.Color();
@@ -90,10 +93,10 @@ b3Forts = function (S, b) {
     m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; m.frustumCulled = false; return m; };
   const allObs = [], bx = [], cy = [], cn = [];
   fl.forEach(f => {
-    const R_ = fzBuild(S, b, f); bx.push(...R_.boxes); cy.push(...R_.cyls); cn.push(...R_.cones); allObs.push(...R_.obs);
+    const R_ = fzBuild(S, b, f); f._flag = null; bx.push(...R_.boxes); cy.push(...R_.cyls); cn.push(...R_.cones); allObs.push(...R_.obs);
     if (f.hp > 0) {
       const tag = f.side === 'A' ? b.A0 : b.B0, gy = b3H(S.tf, f.x, f.y), px = f.x - R_.dir * f.w * 0.2 * (f.kind === 'fort' ? 1 : 0), pz = f.y, fh = f.kind === 'fort' ? 17 : f.kind === 'redoubt' ? 8 : f.kind === 'battery' ? 7.5 : 5.5;
-      const fp = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 2.4, 8, 2).translate(1.8, 0, 0), new THREE.MeshBasicMaterial({map: b3FlagTex(tag), side: THREE.DoubleSide})); fp.position.set(px, gy + fh, pz); fp.userData.fortFlag = 1; S.fortG.add(fp);
+      const fp = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 2.4, 8, 2).translate(1.8, 0, 0), new THREE.MeshBasicMaterial({map: b3FlagTex(tag), side: THREE.DoubleSide})); fp.position.set(px, gy + fh, pz); fp.userData.fortFlag = 1; f._flag = {x: px, z: pz, y: gy + fh}; S.fortG.add(fp);
       cy.push({p: [px, gy + fh / 2 - 0.4, pz], s: [0.14, fh + 1.6, 0.14], c: 0x4a3a28, yaw: 0});
     }
   });

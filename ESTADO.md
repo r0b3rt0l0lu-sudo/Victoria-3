@@ -328,3 +328,5 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - Lote 25: obstaculos3d_v2.js (obstáculos por época), soldado_real2.js (combate entre soldados, supresión, voces, artillería, MG), mover_barra.js (modo mover con la barra inferior). Pruebas: scratchpad npc2.js, sold.js, obs3d.js, mv.js.
 
 - Lote 26: fuertes3d.js (obras huecas, muros obstáculo, brechas, escalas) y asalto_fuertes.js (asalto, rendición, captura, metralla, IA). Pruebas: scratchpad fz.js.
+
+- Lote 27: asedio_mision.js (misión de asalto a un fuerte en modo soldado: servicio del cañón, brecha por secciones, foso/fajina/petardo, asalto y bandera). Arreglo de angLerp (NPC miraban 180° al revés). Pruebas: scratchpad ms.js.

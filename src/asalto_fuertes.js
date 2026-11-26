@@ -68,3 +68,9 @@ tacFortDay = function (b) {
     if (!V.banAs || V.t - V.banAs > 10) { V.banAs = V.t; bvBanner(V, `🪜 ${G.C[side === 'A' ? b.A0 : b.B0].name} lanza el asalto a ${FORT_KINDS[f.kind].n.toLowerCase()}`, side, ''); }
   });
 };
+
+// la guarnición se rinde (por asalto o porque el jugador iza la bandera): la cuarta parte prisionera, el resto huye
+function tacForceSurrender(V, b, all, f) {
+  const enemy = f.side === 'A' ? 'B' : 'A', regs = tacGarrisonOf(b, f).map(d => all.find(o => o.d === d)).filter(Boolean); let men = 0;
+  regs.forEach(o => { men += o.d.s * MEN_PER_DIV * 0.25; o.d.s *= 0.6; o.d.o = 0; o.mode = 'rout'; o.mm = 0; o.brk = 8; }); b.pris = b.pris || {A: 0, B: 0}; b.pris[enemy] = (b.pris[enemy] || 0) + men; tacRelease(b, f); return men;
+}

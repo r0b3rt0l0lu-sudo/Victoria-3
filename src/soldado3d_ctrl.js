@@ -16,7 +16,7 @@
    el estandarte sube 0,006/s la moral del regimiento si estás a < 40 unidades de él y, si el abanderado cae, el regimiento pierde 0,12. */
 const CK = {w: 0, a: 0, s: 0, d: 0, shift: 0, space: 0, fire: 0, ads: 0};
 const CTRL_RELOAD = {A: 3.2, B: 2.6, C: 2.0, D: 1.6, E: 1.0}, HERO_MEN = 14, HERO_CAP = 30, CTRL_WALK = 2.4, CTRL_RUN = 6.5, CTRL_KNEEL = 1.1, CTRL_SLOW = 0.1;
-const angLerp = (a, b, k) => { const d = ((b - a + Math.PI) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI; return a + d * k; };
+const angLerp = (a, b, k) => { const d = ((b - a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI; return a + d * k; };          // (antes sumaba 3π y giraba hacia el lado contrario: los soldados miraban 180º al revés de su objetivo)
 SOLD.vis = new Map(); SOLD.visNew = new Map(); SOLD.shots = []; SOLD.shotNew = []; SOLD.suppress = null;
 const IDLE_VAR = ['mirar_alrededor', 'vigilar', 'senal', 'hablar', 'fumar', 'beber', 'atarse_bota', 'recolocar_mochila', 'estirarse', 'idle_preparado'];
 const ctrlFireClip = era => era === 'A' ? 'disparar_A' : era === 'B' ? 'disparar_B' : 'disparar_D';
@@ -110,7 +110,7 @@ function ctrlStep(S, V, blk, dt) {
   c.peek = c.kneel && (CK.ads || tU - c.fireT < 0.8);                                   // de rodillas detrás de una cobertura solo asomas la cabeza al apuntar o disparar
   c.head = c.kneel ? (c.peek ? 2.3 : 1.45) : 2.55;
   // el cuerpo gira con retardo respecto de la cámara (en primera persona la cámara manda)
-  const diff = Math.abs(((aim - c.hd + Math.PI) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI);
+  const diff = Math.abs(((aim - c.hd + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI);
   c.turn = !c.mv && diff > 0.5; c.hd = angLerp(c.hd, (c.mv && !SOLD.fp) ? c.face : aim, Math.min(1, rdt * (CK.fire || CK.space ? 14 : 5)));
   const O = S.cam.position, cp = Math.cos(c.pitch + c.kick);
   if ((CK.space || CK.fire) && c.cd <= 0) ctrlFire(S, V, blk, {x: O.x, y: O.y, z: O.z}, {x: Math.cos(aim) * cp, y: Math.sin(c.pitch + c.kick), z: Math.sin(aim) * cp});
@@ -162,7 +162,7 @@ document.addEventListener('keydown', e => {
   const c = SOLD.ctrl, V = R.bviz; let used = true;
   if (CKMAP[k]) CK[CKMAP[k]] = 1;
   else if (k === 'z') { if (!c.dead) c.kneel = !c.kneel; }
-  else if (k === 'f') { if (!c.dead) { const b = soldBlock(V); if (b && Math.hypot(c.x - b.x, c.z - b.y) < 30) { c.flag = !c.flag; toast('🚩', c.flag ? 'Llevas el estandarte: mientras estés cerca de tu regimiento, su moral sube.' : 'Sueltas el estandarte.'); } else toast('🚩', 'Acércate al centro de tu regimiento (30 unidades) para coger el estandarte.'); } }
+  else if (k === 'f') { if (!c.dead && !(typeof msNearPole === 'function' && msNearPole(c))) { const b = soldBlock(V); if (b && Math.hypot(c.x - b.x, c.z - b.y) < 30) { c.flag = !c.flag; toast('🚩', c.flag ? 'Llevas el estandarte: mientras estés cerca de tu regimiento, su moral sube.' : 'Sueltas el estandarte.'); } else toast('🚩', 'Acércate al centro de tu regimiento (30 unidades) para coger el estandarte.'); } }
   else if (k === 'v') { SOLD.fp = !SOLD.fp; }
   else if (k === 'tab' || k === 'c') ctrlExit();
   else used = false;

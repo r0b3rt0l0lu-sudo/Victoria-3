@@ -36,3 +36,44 @@ const _covEnsureV3 = covEnsure;
 covEnsure = function (S) { const had = !!S.cov, C = _covEnsureV3(S); if (!had || !C.vilSync) b3V3Sync(S); return C; };
 const _b3FortsV3 = b3Forts;
 b3Forts = function (S, b) { _b3FortsV3(S, b); if (S.vill) S.vill.groups.forEach(P => P.grupo.update && P.grupo.update(S.cam)); };
+
+/* ===== P1: salto hasta el contacto =====
+   Al entrar en la vista de soldado, la simulación del campo (con sus órdenes, formaciones y moral) avanza sola hasta que el bloque del soldado
+   está a unos 130 m del enemigo más cercano. El mando 2D no se rompe: son los mismos bloques con las mismas órdenes, solo avanzados en el tiempo.
+   Si las líneas no se acercan (defensa/espera), el soldado se une a la unidad propia que esté más cerca del enemigo. */
+const B3_CONTACTO = 220;                                       // u (≈ 130 m): al alcance del fuego de fusilería
+function b3V3Dist(V, blk) {
+  let d = 1e9; V.blocks.forEach(k => { if (k.side === blk.side || k.mode === 'rout' || !k.figs.some(f => f.alive)) return; d = Math.min(d, Math.hypot(k.x - blk.x, k.y - blk.y)); }); return d;
+}
+function b3V3Step(V, b, dt) {
+  V.t += dt; V.tf = battleTerrain(b); const lines = {A: bvLine(V, b, 'A'), B: bvLine(V, b, 'B')}, all = [...V.blocks.values()];
+  bvRelief(V, b, dt); if (typeof bvCorpsUpdate === 'function') bvCorpsUpdate(V);
+  all.forEach(blk => bvStepBlock(V, b, blk, dt * (typeof bvSpeedMul === 'function' ? bvSpeedMul(V, b, blk) : 1), lines, all)); bvSeparate(all, dt); if (typeof bvGround === 'function') bvGround(V, b, all, dt);
+  if (typeof tacThink === 'function') tacThink(V, b, all, dt); if (typeof tacMorale === 'function') tacMorale(V, b, all, dt);
+  all.forEach(blk => bvStepFigs(V, b, blk, dt)); V.ghosts.forEach(blk => bvStepFigs(V, b, blk, dt, true)); V.ghosts = V.ghosts.filter(blk => blk.figs.some(f => f.alive || f.dying > 0));
+  if (!b.ended) all.forEach(blk => bvFire(V, b, blk, dt, all));
+  V.parts = V.parts.filter(p => (p.age += dt) < p.life); V.corpses.forEach(c => c.age += dt); all.forEach(blk => { blk.figs = blk.figs.filter(f => !f.gone && (f.alive || f.dying > 0 || f.flee > 0)); });
+}
+function b3V3Skip(V, b, blk, maxS) {
+  if (!blk || b.ended || b.prep || V.over) return 0; let t = 0; const dt = 0.12;
+  while (t < maxS && b3V3Dist(V, blk) > B3_CONTACTO) { b3V3Step(V, b, dt); t += dt; if (b.ended) break; }
+  V.last = performance.now(); return t;
+}
+const _soldStartV3 = soldStart;
+soldStart = function () {
+  const V = R.bviz, b = V && G.battles.find(x => x.id === V.id);
+  if (V && b && B3.active && B3.S && !SOLD.on && !V._skipDone) {
+    const blk = soldPick(V), d0 = blk ? b3V3Dist(V, blk) : 0;
+    if (blk && d0 > B3_CONTACTO + 40) {
+      const t = b3V3Skip(V, b, blk, 90); V._skipDone = 1; let msg = t > 1 ? `Marcha hasta el contacto: ${Math.round(t)} s de campo.` : '';
+      if (b3V3Dist(V, blk) > B3_CONTACTO + 40) {
+        const mine = soldBlocks(V).filter(k => k.tag === G.player), list = (mine.length ? mine : soldBlocks(V)).filter(k => k.type !== 'cav' && k.type !== 'art');
+        const best = list.sort((p, q) => b3V3Dist(V, p) - b3V3Dist(V, q))[0];
+        if (best && b3V3Dist(V, best) < b3V3Dist(V, blk) - 30) { V.sel = best; msg = 'Tu unidad no está en contacto: te unes a la que combate en primera línea.'; }
+      }
+      if (msg) toast('🥁', msg);
+    }
+  }
+  return _soldStartV3();
+};
+ACT.soldier = () => { if (SOLD.on) soldStop(); else soldStart(); };

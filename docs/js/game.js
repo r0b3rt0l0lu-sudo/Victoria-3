@@ -28498,6 +28498,23 @@ soldStart = function () {
 };
 ACT.soldier = () => { if (SOLD.on) soldStop(); else soldStart(); };
 
+/* ===== pantalla completa =====
+   El lienzo del campo (#bmap) pasa a pantalla completa con la Fullscreen API (la imagen se escala a la pantalla conservando la proporción).
+   Botón en la barra de la cámara y tecla F10 (la tecla Esc la gestiona el navegador). En iOS Safari no existe esta API para elementos. */
+(function () {
+  const st = document.createElement('style');
+  st.textContent = '#bmap:fullscreen{width:100vw!important;height:100vh!important;object-fit:contain;background:#000;cursor:crosshair}#bmap:-webkit-full-screen{width:100vw!important;height:100vh!important;object-fit:contain;background:#000}';
+  document.head.appendChild(st);
+})();
+function b3V3FS() {
+  const cv = document.getElementById('bmap'); if (!cv) return;
+  const fs = document.fullscreenElement || document.webkitFullscreenElement;
+  try { if (fs) (document.exitFullscreen || document.webkitExitFullscreen).call(document); else if (cv.requestFullscreen || cv.webkitRequestFullscreen) (cv.requestFullscreen || cv.webkitRequestFullscreen).call(cv); else toast('⛶', 'Este navegador no permite pantalla completa para el campo.'); } catch (e) { toast('⛶', 'No se pudo activar la pantalla completa.'); }
+}
+ACT.bvfs = b3V3FS;
+setInterval(() => { const bar = document.getElementById('bt-cam'); if (bar && !bar.querySelector('[data-act=bvfs]')) { const b = document.createElement('button'); b.dataset.act = 'bvfs'; b.dataset.tip = 'Pantalla completa (F10)'; b.textContent = '⛶ Pantalla completa'; bar.appendChild(b); } }, 700);
+document.addEventListener('keydown', e => { if (e.key === 'F10' && document.getElementById('bmap')) { e.preventDefault(); b3V3FS(); } });
+
 /* ===== BATALLA NAVAL EN 3D =====
    Misma batalla que el visor 2D (navalviz.js: posiciones, daños, disparos y hundimientos), pero con el mar en 3D y buques modelados:
    veleros con aparejo, vapores, acorazados con torretas, destructores, portaaviones con cubierta de vuelo, submarinos… Los cascos llevan la franja y la bandera de su país.

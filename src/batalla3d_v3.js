@@ -167,3 +167,67 @@ function b3V3Minimap(V, b, g, S, all) {
 }
 const _b3FrameMM = b3Frame;
 b3Frame = function (V, b, g, lines, all) { const r = _b3FrameMM(V, b, g, lines, all); try { b3V3Minimap(V, b, g, B3.S, all); } catch (e) { if (!B3MM.err) { B3MM.err = 1; console.warn('minimapa', e); } } return r; };
+
+/* ===== rueda de órdenes al pelotón (Q) =====
+   Con el control del soldado, Q abre una rueda de 8 órdenes (teclas 1–8). Se aplican a tu bloque y cada soldado las ejecuta con su propia IA
+   (npc_combate.js, variable «po»): qué hace cada uno, cuándo dispara, a dónde corre y dónde se cubre sigue siendo decisión suya dentro de la orden. */
+const B3_ORD = [
+  {k: 'avanzar', n: 'Avanzar', ic: '⬆️', say: '¡Pelotón, adelante!', dur: 45}, {k: 'mantener', n: 'Mantener', ic: '🛡️', say: '¡Mantened la posición!', dur: 90},
+  {k: 'cubrirse', n: 'Cubrirse', ic: '🧱', say: '¡A cubierto!', dur: 40}, {k: 'fuego', n: 'Fuego a voluntad', ic: '🔫', say: '¡Fuego a discreción!', dur: 60},
+  {k: 'alto_fuego', n: 'Alto el fuego', ic: '✋', say: '¡Alto el fuego!', dur: 25}, {k: 'bayoneta', n: 'Bayoneta', ic: '🗡️', say: '¡Calad bayonetas! ¡Al asalto!', dur: 30},
+  {k: 'seguidme', n: 'Seguidme', ic: '🚩', say: '¡Seguidme!', dur: 60}, {k: 'reagrupar', n: 'Reagrupar', ic: '🔁', say: '¡Reagrupaos!', dur: 20}];
+const B3W = {open: false, last: null};
+function b3V3Order(i) {
+  const o = B3_ORD[i]; if (!o || !SOLD.ctrl) return; const V = R.bviz, blk = soldBlock(V); if (!blk) return;
+  blk._po = {k: o.k, t0: performance.now() / 1000, dur: o.dur}; B3W.last = o; B3W.open = false;
+  try { srBark(blk.side, 'Tú', o.say, SOLD.ctrl.x, SOLD.ctrl.z, performance.now() / 1000); } catch (e) { }
+  toast(o.ic, `Orden al pelotón: ${o.n}.`);
+}
+document.addEventListener('keydown', e => {
+  if (!SOLD.on || !SOLD.ctrl || SOLD.ctrl.dead || /INPUT|TEXTAREA|SELECT/.test((e.target || {}).tagName || '')) return;
+  const k = e.key.toLowerCase();
+  if (k === 'q') { B3W.open = !B3W.open; e.stopImmediatePropagation(); e.preventDefault(); return; }
+  if (B3W.open && /^[1-8]$/.test(k)) { b3V3Order(+k - 1); e.stopImmediatePropagation(); e.preventDefault(); return; }
+  if (B3W.open && k === 'escape') { B3W.open = false; e.stopImmediatePropagation(); }
+}, true);
+function b3V3Wheel(g) {
+  const c = SOLD.ctrl; if (!SOLD.on || !c) return; const blk = soldBlock(R.bviz), po = blk && blk._po && performance.now() / 1000 - blk._po.t0 < blk._po.dur ? B3_ORD.find(o => o.k === blk._po.k) : null;
+  g.save(); g.setTransform(1, 0, 0, 1, 0, 0);
+  if (po) { g.fillStyle = 'rgba(14,20,28,.82)'; g.strokeStyle = '#c8a860'; g.lineWidth = 1.5; g.fillRect(14, BV_H - 118, 262, 34); g.strokeRect(14, BV_H - 118, 262, 34); g.fillStyle = '#e8d8a8'; g.font = '600 16px sans-serif'; g.fillText(`${po.ic} Orden: ${po.n}`, 26, BV_H - 95); }
+  if (B3W.open) {
+    const cx = BV_W / 2, cy = BV_H / 2, r = 150; g.fillStyle = 'rgba(8,12,18,.55)'; g.fillRect(0, 0, BV_W, BV_H);
+    B3_ORD.forEach((o, i) => { const a = -Math.PI / 2 + i * Math.PI / 4, x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r, cur = po && po.k === o.k;
+      g.fillStyle = cur ? 'rgba(120,92,36,.95)' : 'rgba(20,32,48,.94)'; g.strokeStyle = cur ? '#f3d98c' : '#8a6c2c'; g.lineWidth = 2; g.beginPath(); g.arc(x, y, 52, 0, 6.3); g.fill(); g.stroke();
+      g.fillStyle = '#f2e6bf'; g.textAlign = 'center'; g.font = '28px sans-serif'; g.fillText(o.ic, x, y - 2); g.font = '600 13px sans-serif'; g.fillText(o.n, x, y + 20); g.fillStyle = '#c8a860'; g.font = '700 14px sans-serif'; g.fillText(String(i + 1), x - 38, y - 30); });
+    g.fillStyle = '#f2e6bf'; g.textAlign = 'center'; g.font = '700 20px serif'; g.fillText('ÓRDENES AL PELOTÓN', cx, cy - 4); g.font = '14px sans-serif'; g.fillStyle = '#c8b890'; g.fillText('Pulsa 1–8 · Q cierra', cx, cy + 18);
+  }
+  g.restore();
+}
+const _b3FrameW = b3Frame;
+b3Frame = function (V, b, g, lines, all) { const r = _b3FrameW(V, b, g, lines, all); try { b3V3Wheel(g); } catch (e) { } return r; };
+
+/* ===== heridas y espera =====
+   Al caer, el soldado no muere de golpe: queda herido en el suelo unos 10 s (se arrastra, no puede disparar). Si un compañero llega a menos de 4 m
+   durante 3 s se pone a salvo (sale con el 30 % de salud). Si no, muere y reapareces en otro soldado del pelotón. */
+const _ctrlStepW = ctrlStep;
+ctrlStep = function (S, V, blk, dt) {
+  const c = SOLD.ctrl; if (c) {
+    const now = performance.now();
+    if (c.dead && !c.wndUsed && !c.wnd) { c.wndUsed = true; c.dead = false; c.dieNow = false; c.hp = 0.1; c.bleed = 0; c.wnd = {t0: now, res: 0}; c.prone = true; c.kneel = false; c.clip = 'herido_grave'; toast('🩸', 'Estás herido y no puedes disparar. Arrástrate (W) hacia tus camaradas: si te alcanzan, te salvarán.'); }
+    if (c.wnd) {
+      c.prone = true; c.kneel = false; c.run = false; CK.fire = 0; CK.ads = 0; CK.shift = 0; c.hp = Math.max(0.05, Math.min(c.hp, 0.12)); c.bleed = 0;
+      const mates = [...SR2.all.values()].filter(p => p.side === blk.side && Math.hypot(p.x - c.x, p.z - c.z) < 4).length, dtw = Math.min(0.1, (now - (c.wnd.lt || now)) / 1000); c.wnd.lt = now;
+      c.wnd.res = mates ? c.wnd.res + dtw : Math.max(0, c.wnd.res - dtw * 0.5);
+      if (c.wnd.res >= 3) { c.wnd = null; c.hp = 0.3; toast('🤝', 'Un camarada te ha puesto a salvo. Quedas con el 30 % de salud.'); }
+      else if (now - c.wnd.t0 > 10000) { c.wnd = null; c.dead = true; c.deadAt = now - 1800; toast('💀', 'Nadie llegó a tiempo.'); }
+    }
+  }
+  return _ctrlStepW(S, V, blk, dt);
+};
+/* ===== el salto al contacto llega hasta el fuego: una vez a distancia de combate sigue unos segundos hasta que la unidad abre fuego ===== */
+const _b3V3SkipW = b3V3Skip;
+b3V3Skip = function (V, b, blk, maxS) {
+  let t = _b3V3SkipW(V, b, blk, maxS);
+  if (blk && !b.ended && !b.prep && b3V3Dist(V, blk) <= B3_CONTACTO + 40) { let extra = 0; while (extra < 40 && !(blk.mode === 'fire' || blk.mode === 'melee' || blk.mode === 'skirmish')) { b3V3Step(V, b, 0.12); extra += 0.12; } t += extra; V.last = performance.now(); }
+  return t;
+};

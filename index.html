@@ -26085,6 +26085,10 @@ MANUAL.push({id: 'lote30', title: '★ Rueda de órdenes, heridas y salto al fue
 <h3>Rueda de órdenes al pelotón (Q)</h3><p>Con el control del soldado, <b>Q</b> abre la rueda y las teclas <b>1–8</b> eligen: avanzar, mantener, cubrirse, fuego a voluntad, alto el fuego, bayoneta, seguidme y reagrupar. Cada soldado de tu bloque ejecuta la orden con su propia IA (cuándo dispara, a quién y dónde se cubre lo decide él). La orden activa aparece abajo a la izquierda y caduca sola.</p>
 <h3>Heridas y espera</h3><p>Al caer no mueres de golpe: quedas herido unos 10 s, sin poder disparar. Si un camarada llega a menos de 4 m durante 3 s te pone a salvo (30 % de salud); si no, mueres y pasas a otro soldado.</p>
 <h3>Entrada en combate</h3><p>El salto al contacto sigue ahora hasta que tu unidad abre fuego.</p>`});
+MANUAL.push({id: 'lote31', title: '★ Soldados con ficha propia', html: `
+<h3>Ficha de cada soldado</h3><p>Cada soldado que se dibuja tiene nombre (según su nación), empleo (teniente, sargento, cabo o soldado), cartuchos, moral propia y estado, que se conservan durante toda la batalla. Los regimientos se dibujan con 72 soldados.</p>
+<h3>Qué cambia en el combate</h3><p>Cada disparo gasta un cartucho: sin munición el soldado deja de disparar. La moral baja con el fuego que lo clava al suelo y con cada compañero que cae cerca; si muere el oficial, todo el pelotón pierde moral. Con la moral rota y bajo fuego, el soldado abandona su puesto.</p>
+<h3>Interfaz</h3><p>Brújula con marcas (▼ enemigo próximo, ◆ objetivo de tu unidad, ★ oficial), tu ficha y el estado del pelotón abajo a la izquierda, y la ficha del soldado al que miras (amigo o enemigo).</p>`});
 
 /* ===== REALISMO 3: pendiente, barro, incendios de bosque, hora del día, heridos y enfermedad =====
    BATALLA (visor táctico, 2D y 3D):
@@ -29435,7 +29439,8 @@ function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
   const me = SOLD._meT === tU ? SOLD._me : (SOLD._meT = tU, SOLD._me = soldBlock(V)); if (!me) return null;
   const enemy = blk.side !== me.side, key = blk.id + ':' + f.i + ':' + j, sp = blk.sp || 0, mode = blk.mode, era = t3Era(), gy0 = b3H(S.tf, x, z);
   let s = NPC.get(key); if (!s) { s = {ox: 0, oz: 0, yaw, st: 'idle', t0: tU, tE: tU + h1 * 2, cov: -1, pin: 0, lt: tU, fireT: -99, ph: 'aim', phT: tU + 0.6 + h2, post: h2 < 0.45 ? 'rodilla' : 'pie', grp: (f.i + j) & 1, shy: h1 < 0.3, tx: 0, tz: 0, hide: 0, seg: -1}; NPC.set(key, s); }
-  const dt = clamp(tU - s.lt, 0, 0.1); s.lt = tU;
+  if (!s.r && typeof b3V3Roster === 'function') s.r = b3V3Roster(blk, f, j);
+  const dt = clamp(tU - s.lt, 0, 0.1); s.lt = tU; if (s.r) b3V3MoraleStep(s, blk, dt);
   const nearP = enemy && SOLD.ctrl && !SOLD.ctrl.dead && Math.hypot(SOLD.ctrl.x - x - s.ox, SOLD.ctrl.z - z - s.oz) < 110;      // un bloque que avanza también reacciona si el jugador está cerca
   if (mode === 'rout' || f.flee > 0 || mode === 'charge' || mode === 'melee' || mode === 'gallop' || (sp > 8 && !nearP)) { npcRelease(S, s, key); s.st = 'idle'; s.ox *= 0.9; s.oz *= 0.9; if (enemy) SOLD.visNew.set(key, {x: x + s.ox, z: z + s.oz, yaw: s.yaw, blk}); return null; }
   // ---- amenaza ----
@@ -29470,6 +29475,7 @@ function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
   const defensive = po === 'mantener' || po !== 'avanzar' && (mode === 'hold' || !!(blk.d && blk.d.plan && blk.d.plan.k === 'defend')), movers = po === 'avanzar' || ((Math.floor((tU + blk.id * 2.3) / 9) & 1) === s.grp);
   if (s.st === 'idle') { setSt(s.pin > 0 ? 'to_cover' : (!defensive && movers && dT > 45 && !s.shy ? 'bound' : 'fire')); if (s.st === 'to_cover' || (s.st === 'fire' && h2 < 0.6 && S.cov)) { const c = covFind(S, px, pz, thr.x, thr.z, 26); if (c) { npcClaim(S, s, key, c); setSt('to_cover'); } else if (s.pin > 0) setSt('prone'); } }
   if (s.pin > 0 && (s.st === 'fire' || s.st === 'bound')) { const c = covFind(S, px, pz, thr.x, thr.z, 30); if (c) { npcClaim(S, s, key, c); setSt('to_cover'); } else setSt('prone'); }
+  if (s.pin > 0 && s.r && s.r.mor < 0.18 && !['fallback', 'charge', 'melee', 'prone', 'crawl'].includes(s.st)) { npcRelease(S, s, key); s.fbx = undefined; setSt('fallback'); if (!s.r.fled) { s.r.fled = 1; srBark(blk.side, s.r.rank, '¡No aguanto más!', px, pz, tU); } }
   if (s.pin > 0 && blk.mm !== undefined && blk.mm < 0.22 && !['fallback', 'charge', 'melee', 'prone', 'crawl'].includes(s.st)) { npcRelease(S, s, key); s.fbx = undefined; setSt('fallback'); }
   if (po === 'cubrirse' && s.pin < 2.5) s.pin = 2.5;
   if (po === 'bayoneta' && s.st !== 'charge' && s.st !== 'melee' && dT < 130 && dT > 3.5 && s.st !== 'fallback') setSt('charge');
@@ -29517,7 +29523,7 @@ function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
       ncl = 'idle_rodilla'; start = null; face = dir; const since = tU - s.t0;
       if (s.ph === 'aim') { if (tU < s.hide) { ncl = since < 0.9 ? npcClip('ponerse_a_cubierto', 'idle_rodilla') : npcClip(hideC, 'idle_rodilla'); start = since < 0.9 ? s.t0 : (npcHas(hideC) ? s.t0 + 0.9 : null); } else { s.ph = 'peek'; s.phT = tU + 0.55; } }
       if (s.ph === 'peek') { ncl = npcClip(peekC, npcClip('asomarse', 'idle_rodilla')); start = s.phT - 0.55; if (tU >= s.phT) { s.ph = 'aim2'; s.phT = tU + 0.7 + h2 * 0.9; } }
-      if (s.ph === 'aim2') { ncl = npcAim(era, pitch, 'rodilla', false); start = null; if (tU >= s.phT) { if (po === 'alto_fuego') { s.phT = tU + 0.4; } else if (!vsPlayer && po !== 'fuego' && npcVolleyWait(blk, s, tU, era, dT)) { s.phT = tU + 0.15; } else { s.ph = 'shoot'; s.phT = tU + 0.7; s.fireT = tU; if (npcMisfire(era, h1, h2)) fxFlash(x + s.ox, b3H(S.tf, x, z) + 1.9, z + s.oz, 0.05); else npcShot(S, V, s, x, z, thr, vsPlayer, dT, true, era, dir); } } }
+      if (s.ph === 'aim2') { ncl = npcAim(era, pitch, 'rodilla', false); start = null; if (tU >= s.phT) { if (po === 'alto_fuego' || (s.r && s.r.ammo <= 0)) { s.phT = tU + 0.6; } else if (!vsPlayer && po !== 'fuego' && npcVolleyWait(blk, s, tU, era, dT)) { s.phT = tU + 0.15; } else { s.ph = 'shoot'; s.phT = tU + 0.7; s.fireT = tU; if (npcMisfire(era, h1, h2)) fxFlash(x + s.ox, b3H(S.tf, x, z) + 1.9, z + s.oz, 0.05); else npcShot(S, V, s, x, z, thr, vsPlayer, dT, true, era, dir); } } }
       if (s.ph === 'shoot') { ncl = npcHas(shootC) ? shootC : npcAim(era, pitch, 'rodilla', true); start = s.fireT; if (tU >= s.phT) { s.ph = 'aim'; s.hide = tU + 1.5 + h1 * 3.5; setSt('cover'); s.t0 = tU; } }
       if (s.pin > 1.5 && s.ph !== 'aim') { s.ph = 'aim'; s.hide = tU + 2.5; } break; }
     case 'prone': {
@@ -29534,6 +29540,7 @@ function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
         if (vsPlayer && brave && dT < 42 && dT > 6 && pcc && !pcc.dead && (pcc.cd > 0.4 || pcc.rl) && s.st === 'fire') { npcRelease(S, s, key); setSt('charge'); break; }
         if (era >= 'D' && dT > 9 && dT < 36 && (s.gn === undefined ? (s.gn = h2 > 0.62 ? 2 : 0) : s.gn) > 0 && Math.random() < 0.22) { setSt('throw'); break; }
         if (po === 'alto_fuego') { s.phT = tU + 0.4; break; }
+        if (s.r && s.r.ammo <= 0) { s.phT = tU + 1.5; if (!s.dry) { s.dry = 1; srBark(blk.side, s.r.rank, '¡Sin cartuchos!', px, pz, tU); } break; }
         if (!vsPlayer && po !== 'fuego' && npcVolleyWait(blk, s, tU, era, dT)) { s.phT = tU + 0.15; break; }                       // disciplina de fuego: espera la voz de mando de su pelotón
         s.ph = 'shoot'; s.phT = tU + 0.7; s.fireT = tU; if (npcMisfire(era, h1, h2)) { s.mis = true; fxFlash(x + s.ox + Math.sin(s.yaw) * 1.4, b3H(S.tf, x, z) + 2.1, z + s.oz + Math.cos(s.yaw) * 1.4, 0.05); } else { s.mis = false; npcShot(S, V, s, x, z, thr, vsPlayer, dT, false, era, dir); } } }
       else if (s.ph === 'shoot') { ncl = npcAim(era, pitch, post, true); start = s.fireT; if (tU >= s.phT) { s.ph = 'reload'; s.phT = tU + rel; s.rt0 = tU; } }
@@ -29565,6 +29572,7 @@ function npcMeleeTarget(px, pz, blk, po, enemy) {
 }
 // disparo de un NPC: fogonazo (y humo de pólvora negra), y si apunta al jugador, evento para ctrlStep
 function npcShot(S, V, s, x, z, thr, vsPlayer, dT, cover, era, dir) {
+  if (s.r) { s.r.ammo--; s.r.shots++; }
   const fx = x + s.ox + Math.sin(s.yaw) * 1.6, fz = z + s.oz + Math.cos(s.yaw) * 1.6;
   fxFlash(fx, b3H(S.tf, fx, fz) + 2.1, fz, 0.1); if (era < 'D') bvPart(V, {k: 'smoke', x: fx + Math.sin(s.yaw) * 2, y: fz + Math.cos(s.yaw) * 2, life: 2.2});
   if (vsPlayer) SOLD.shotNew.push({x: x + s.ox, y: b3H(S.tf, x + s.ox, z + s.oz) + (cover ? 1.9 : (s.post === 'rodilla' ? 1.9 : 2.5)), z: z + s.oz, dd: dT, cover});
@@ -30318,7 +30326,7 @@ document.addEventListener('keydown', e => {
 function b3V3Wheel(g) {
   const c = SOLD.ctrl; if (!SOLD.on || !c) return; const blk = soldBlock(R.bviz), po = blk && blk._po && performance.now() / 1000 - blk._po.t0 < blk._po.dur ? B3_ORD.find(o => o.k === blk._po.k) : null;
   g.save(); g.setTransform(1, 0, 0, 1, 0, 0);
-  if (po) { g.fillStyle = 'rgba(14,20,28,.82)'; g.strokeStyle = '#c8a860'; g.lineWidth = 1.5; g.fillRect(14, BV_H - 118, 262, 34); g.strokeRect(14, BV_H - 118, 262, 34); g.fillStyle = '#e8d8a8'; g.font = '600 16px sans-serif'; g.fillText(`${po.ic} Orden: ${po.n}`, 26, BV_H - 95); }
+  if (po) { g.fillStyle = 'rgba(14,20,28,.82)'; g.strokeStyle = '#c8a860'; g.lineWidth = 1.5; g.fillRect(14, BV_H - 118, 330, 40); g.strokeRect(14, BV_H - 118, 330, 40); g.fillStyle = '#e8d8a8'; g.font = '600 20px sans-serif'; g.fillText(`${po.ic} Orden: ${po.n}`, 28, BV_H - 91); }
   if (B3W.open) {
     const cx = BV_W / 2, cy = BV_H / 2, r = 150; g.fillStyle = 'rgba(8,12,18,.55)'; g.fillRect(0, 0, BV_W, BV_H);
     B3_ORD.forEach((o, i) => { const a = -Math.PI / 2 + i * Math.PI / 4, x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r, cur = po && po.k === o.k;
@@ -30356,6 +30364,91 @@ b3V3Skip = function (V, b, blk, maxS) {
   if (blk && !b.ended && !b.prep && b3V3Dist(V, blk) <= B3_CONTACTO + 40) { let extra = 0; while (extra < 40 && !(blk.mode === 'fire' || blk.mode === 'melee' || blk.mode === 'skirmish')) { b3V3Step(V, b, 0.12); extra += 0.12; } t += extra; V.last = performance.now(); }
   return t;
 };
+
+/* ===== SOLDADOS CON FICHA PROPIA (N1) =====
+   Cada soldado que se dibuja en 3D tiene una ficha persistente durante la batalla (V.roster): nombre, empleo (teniente, sargento, cabo, soldado),
+   cartuchos, moral propia, disparos y estado. La ficha se deduce de forma determinista del bloque, la figura y el hueco, así que el mismo soldado
+   conserva nombre y empleo aunque salga del radio de IA y vuelva. La IA individual (npc_combate.js) la usa:
+   · MUNICIÓN: cada disparo gasta un cartucho; sin cartuchos no dispara («¡Sin cartuchos!»).
+   · MORAL: baja con el fuego que lo clava al suelo y con cada compañero que cae cerca (−0,07) y más aún si muere el oficial (−0,12 a todo el pelotón);
+     se recupera despacio sin fuego y más cerca de un oficial vivo. Por debajo de 0,18 y clavado a tierra abandona el puesto («¡No aguanto más!»).
+   · EMPLEOS: el oficial y los sargentos dan la voz de fuego (npcVolleyWait); su muerte se anuncia y cuesta moral.
+   Interfaz (lienzo del campo, también en pantalla completa): brújula con marcas, ficha del soldado que miras, estado del pelotón y tu empleo. */
+const B3N = {
+  nombres: {
+    ger: {n: ['Hans', 'Karl', 'Friedrich', 'Wilhelm', 'Johann', 'Georg', 'Ludwig', 'Otto', 'Heinrich', 'Franz', 'August', 'Emil', 'Paul', 'Max', 'Josef', 'Albrecht'], a: ['Müller', 'Schmidt', 'Weber', 'Fischer', 'Wagner', 'Becker', 'Hoffmann', 'Schulz', 'Koch', 'Richter', 'Klein', 'Wolf', 'Krüger', 'Neumann', 'Braun', 'Lange']},
+    fra: {n: ['Jean', 'Pierre', 'Louis', 'Antoine', 'François', 'Étienne', 'Henri', 'Claude', 'Michel', 'Jacques', 'Émile', 'Joseph', 'Paul', 'André', 'Marcel', 'Lucien'], a: ['Martin', 'Bernard', 'Dubois', 'Moreau', 'Laurent', 'Simon', 'Michel', 'Lefèvre', 'Leroy', 'Roux', 'Fournier', 'Girard', 'Bonnet', 'Mercier', 'Blanc', 'Garnier']},
+    ing: {n: ['William', 'John', 'George', 'Thomas', 'James', 'Henry', 'Charles', 'Edward', 'Robert', 'Samuel', 'Arthur', 'Frank', 'Albert', 'Harry', 'Walter', 'Joseph'], a: ['Smith', 'Jones', 'Taylor', 'Brown', 'Wilson', 'Evans', 'Walker', 'Wright', 'Hughes', 'Edwards', 'Turner', 'Hill', 'Cooper', 'Clarke', 'Baker', 'Ward']},
+    rus: {n: ['Ivan', 'Pyotr', 'Nikolai', 'Aleksei', 'Dmitri', 'Sergei', 'Mikhail', 'Vasili', 'Fyodor', 'Grigori', 'Pavel', 'Yakov', 'Stepan', 'Andrei', 'Yegor', 'Timofei'], a: ['Ivanov', 'Petrov', 'Smirnov', 'Kuznetsov', 'Popov', 'Sokolov', 'Lebedev', 'Kozlov', 'Novikov', 'Morozov', 'Volkov', 'Orlov', 'Belov', 'Zaitsev', 'Pavlov', 'Titov']},
+    esp: {n: ['Juan', 'José', 'Antonio', 'Manuel', 'Francisco', 'Luis', 'Miguel', 'Pedro', 'Ramón', 'Joaquín', 'Santiago', 'Fernando', 'Diego', 'Tomás', 'Pablo', 'Andrés'], a: ['García', 'Fernández', 'López', 'Martínez', 'Sánchez', 'Pérez', 'Gómez', 'Ruiz', 'Díaz', 'Hernández', 'Moreno', 'Muñoz', 'Álvarez', 'Romero', 'Navarro', 'Torres']},
+    ita: {n: ['Giuseppe', 'Giovanni', 'Antonio', 'Luigi', 'Francesco', 'Angelo', 'Pietro', 'Carlo', 'Domenico', 'Salvatore', 'Mario', 'Paolo', 'Vincenzo', 'Enrico', 'Alberto', 'Rocco'], a: ['Rossi', 'Russo', 'Ferrari', 'Esposito', 'Bianchi', 'Romano', 'Colombo', 'Ricci', 'Marino', 'Greco', 'Bruno', 'Gallo', 'Conti', 'De Luca', 'Costa', 'Giordano']},
+    jap: {n: ['Takeshi', 'Hiroshi', 'Kenji', 'Shigeru', 'Masao', 'Tadashi', 'Isamu', 'Yoshio', 'Minoru', 'Susumu', 'Akira', 'Ryo', 'Taro', 'Jiro', 'Saburo', 'Goro'], a: ['Sato', 'Suzuki', 'Takahashi', 'Tanaka', 'Watanabe', 'Ito', 'Yamamoto', 'Nakamura', 'Kobayashi', 'Kato', 'Yoshida', 'Yamada', 'Sasaki', 'Matsumoto', 'Inoue', 'Kimura']},
+    usa: {n: ['John', 'William', 'James', 'George', 'Charles', 'Henry', 'Samuel', 'Jesse', 'Wyatt', 'Elijah', 'Josiah', 'Walter', 'Frank', 'Amos', 'Ezra', 'Cyrus'], a: ['Miller', 'Davis', 'Johnson', 'Anderson', 'Thompson', 'White', 'Harris', 'Martin', 'Jackson', 'Lee', 'Carter', 'Mitchell', 'Roberts', 'Campbell', 'Parker', 'Stewart']}
+  },
+  cultura: tag => ({PRU: 'ger', GER: 'ger', AUS: 'ger', BAV: 'ger', SAX: 'ger', HAN: 'ger', WUR: 'ger', FRA: 'fra', BEL: 'fra', GBR: 'ing', ENG: 'ing', UK: 'ing', IRE: 'ing', RUS: 'rus', POL: 'rus', ESP: 'esp', POR: 'esp', ITA: 'ita', SAR: 'ita', SIC: 'ita', JAP: 'jap', JPN: 'jap', USA: 'usa', CSA: 'usa', CAN: 'usa'}[tag] || ['ger', 'fra', 'ing', 'esp', 'ita'][(String(tag).charCodeAt(0) + String(tag).charCodeAt(1 % String(tag).length || 0)) % 5]),
+  empleo: (fi, j) => fi === 0 && j === 0 ? 'Teniente' : (j === 0 ? 'Sargento' : (j === 5 ? 'Cabo' : 'Soldado'))
+};
+function b3V3Roster(blk, f, j) {
+  const V = R.bviz; if (!V) return null; V.roster = V.roster || new Map(); const key = blk.id + ':' + f.i + ':' + j; let r = V.roster.get(key); if (r) return r;
+  const h = k => hash2(blk.id * 131 + f.i, j, 500 + k), P = B3N.nombres[B3N.cultura(blk.tag)] || B3N.nombres.ger, ammoBase = {A: 38, B: 44, C: 70, D: 90, E: 100}[t3Era()] || 50;
+  r = {key, bk: blk.id, name: P.n[(h(1) * P.n.length) | 0] + ' ' + P.a[(h(2) * P.a.length) | 0], rank: B3N.empleo(f.i, j), ammo: Math.round(ammoBase * (0.75 + h(3) * 0.4)), mor: 0.72 + h(4) * 0.28, shots: 0, kills: 0, dead: false, fled: 0};
+  V.roster.set(key, r); return r;
+}
+// moral individual: el fuego sobre él la baja, el oficial vivo y el descanso la suben
+function b3V3MoraleStep(s, blk, dt) {
+  const r = s.r; if (!r || r.dead) return; let d = s.pin > 0 ? -0.04 : 0.012; if (!blk._offDead) d += 0.004; else d -= 0.003;
+  if (blk.mm !== undefined) d += (blk.mm - 0.5) * 0.006; r.mor = Math.max(0, Math.min(1, r.mor + d * dt));
+}
+// bajas: marcan la ficha, contagian miedo a los vecinos y, si cae el oficial, a todo el pelotón
+const _srKillNPCN1 = srKillNPC;
+srKillNPC = function (S, V, key, p, fx, fz, lethal, tag) {
+  const before = V.kmap && V.kmap[key]; _srKillNPCN1(S, V, key, p, fx, fz, lethal, tag); if (before) return;
+  try {
+    const r = V.roster && V.roster.get(key); if (r) { if (lethal) r.dead = true; else r.wounded = true; }
+    SR2.all.forEach((q, k2) => { if (k2 === key || q.side !== p.side) return; if (Math.hypot(q.x - p.x, q.z - p.z) < 14) { const r2 = V.roster && V.roster.get(k2); if (r2) r2.mor = Math.max(0, r2.mor - (lethal ? 0.07 : 0.04)); } });
+    if (r && r.rank === 'Teniente' && lethal && p.blk) { p.blk._offDead = true; V.roster.forEach(r3 => { if (r3.bk === r.bk) r3.mor = Math.max(0, r3.mor - 0.12); }); srBark(p.side, 'Sargento', '¡Han matado al teniente!', p.x, p.z, performance.now() / 1000); }
+    else if (r && r.rank === 'Sargento' && lethal) srBark(p.side, 'Cabo', '¡Sargento caído!', p.x, p.z, performance.now() / 1000);
+  } catch (e) { }
+};
+// al empezar el control, se crean las fichas de todo tu pelotón y tú te quedas con la tuya
+const _ctrlStartN1 = ctrlStart;
+ctrlStart = function () {
+  _ctrlStartN1(); const c = SOLD.ctrl, V = R.bviz, blk = soldBlock(V); if (!c || !blk) return;
+  blk.figs.forEach(f => { if (f.kind === 'gun' || !f.alive) return; for (let j = 0; j < (typeof B3_PER === 'number' ? B3_PER : 6); j++) b3V3Roster(blk, f, j); });
+  const me = b3V3Roster(blk, {i: SOLD.fi}, SOLD.j); c.rec = me; c.nombre = me ? me.name : 'Soldado'; c.empleo = me ? me.rank : 'Soldado';
+};
+/* ---------- interfaz ---------- */
+function b3V3HudN1(g, V) {
+  const c = SOLD.ctrl, blk = soldBlock(V); if (!SOLD.on || !c || !blk) return;
+  g.save(); g.setTransform(1, 0, 0, 1, 0, 0);
+  // brújula (arriba, centrada): E=0, S=π/2 (la z crece hacia el sur)
+  { g.save(); g.translate(BV_W / 2, 96); g.scale(1.5, 1.5); g.translate(-BV_W / 2, -96); const w = 440, x0 = (BV_W - w) / 2, y0 = 96, h = 26, yaw = c.cyaw; g.fillStyle = 'rgba(12,18,26,.72)'; g.fillRect(x0, y0, w, h); g.strokeStyle = 'rgba(200,168,96,.7)'; g.lineWidth = 1.5; g.strokeRect(x0, y0, w, h);
+    g.save(); g.beginPath(); g.rect(x0, y0, w, h); g.clip(); const X = a => { let d = ((a - yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI; return x0 + w / 2 + d / (Math.PI / 2) * (w / 2); };
+    g.font = '700 14px serif'; g.textAlign = 'center'; for (let k = 0; k < 24; k++) { const a = k * Math.PI / 12, x = X(a); g.strokeStyle = 'rgba(232,216,168,.55)'; g.beginPath(); g.moveTo(x, y0 + h - (k % 3 ? 5 : 9)); g.lineTo(x, y0 + h); g.stroke(); }
+    [['E', 0], ['S', Math.PI / 2], ['O', Math.PI], ['N', -Math.PI / 2]].forEach(([t, a]) => { g.fillStyle = t === 'N' ? '#e86a5a' : '#f2e6bf'; g.fillText(t, X(a), y0 + 15); });
+    // marcas: objetivo de tu unidad, oficial, enemigo más próximo
+    const mark = (x, z, col, sym) => { const a = Math.atan2(z - c.z, x - c.x); g.fillStyle = col; g.fillText(sym, X(a), y0 + 14); };
+    let near = null, nd = 1e9; V.blocks.forEach(k => { if (k.side === blk.side || !k.figs.some(q => q.alive)) return; const d = Math.hypot(k.x - c.x, k.y - c.z); if (d < nd) { nd = d; near = k; } }); if (near) mark(near.x, near.y, '#ff7a6a', '▼');
+    if (blk.foe) mark(blk.foe.x, blk.foe.y, '#ffb050', '◆'); const of = [...(V.roster || new Map()).values()].find(r => r.bk === blk.id && r.rank === 'Teniente' && !r.dead); if (of && SR2.all.get(of.key)) { const q = SR2.all.get(of.key); mark(q.x, q.z, '#f3d98c', '★'); }
+    g.restore(); g.fillStyle = '#f3d98c'; g.beginPath(); g.moveTo(x0 + w / 2 - 6, y0 - 7); g.lineTo(x0 + w / 2 + 6, y0 - 7); g.lineTo(x0 + w / 2, y0); g.fill(); g.restore(); }
+  // tu ficha y el estado del pelotón (abajo a la izquierda, sobre la orden activa)
+  { const rs = [...(V.roster || new Map()).values()].filter(r => r.bk === blk.id), alive = rs.filter(r => !r.dead), am = alive.length ? alive.reduce((n, r) => n + r.ammo, 0) / alive.length : 0, mm = alive.length ? alive.reduce((n, r) => n + r.mor, 0) / alive.length : 0, x0 = 14, y0 = BV_H - 300, w = 262, h = 170; g.save(); g.translate(14, BV_H - 130); g.scale(1.5, 1.5); g.translate(-14, -(BV_H - 130));
+    g.fillStyle = 'rgba(12,18,26,.8)'; g.fillRect(x0, y0, w, h); g.strokeStyle = 'rgba(200,168,96,.7)'; g.lineWidth = 1.5; g.strokeRect(x0, y0, w, h); g.textAlign = 'left';
+    g.fillStyle = '#f3d98c'; g.font = '700 15px serif'; g.fillText(`${c.empleo || 'Soldado'} ${c.nombre || ''}`, x0 + 10, y0 + 22); g.fillStyle = '#c8b890'; g.font = '12px sans-serif'; g.fillText(`${blk.a ? blk.a.name : 'Pelotón'} · ${c.wnd ? 'HERIDO' : c.dead ? 'CAÍDO' : 'en pie'}`, x0 + 10, y0 + 40);
+    const bar = (y, lab, v, col, txt) => { g.fillStyle = '#c8b890'; g.font = '12px sans-serif'; g.fillText(lab, x0 + 10, y + 11); g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(x0 + 92, y, 110, 11); g.fillStyle = col; g.fillRect(x0 + 92, y, 110 * Math.max(0, Math.min(1, v)), 11); g.fillStyle = '#f2e6bf'; g.fillText(txt, x0 + 208, y + 11); };
+    bar(y0 + 50, 'Salud', c.hp, c.hp > 0.5 ? '#6fae74' : '#e3746c', Math.round(c.hp * 100) + '%'); bar(y0 + 68, 'Cartuchos', (c.rec ? c.rec.ammo : 0) / 60 || (c.mag + c.pouch) / 60, '#d9b55a', String(c.cap === 1 ? c.mag + c.pouch : `${c.mag}/${c.pouch}`));
+    g.fillStyle = '#e8d8a8'; g.font = '700 12px serif'; g.fillText('PELOTÓN', x0 + 10, y0 + 104); g.fillStyle = '#f2e6bf'; g.font = '12px sans-serif';
+    g.fillText(`En pie ${alive.length} · caídos ${rs.length - alive.length} (de ${rs.length})`, x0 + 10, y0 + 120); bar(y0 + 128, 'Munición', am / 60, '#d9b55a', Math.round(am)); bar(y0 + 146, 'Moral', mm, mm > 0.5 ? '#6fae74' : mm > 0.3 ? '#f0b462' : '#e3746c', Math.round(mm * 100) + '%'); g.restore(); }
+  // ficha del soldado al que miras (amigo o enemigo, a menos de 60 u y dentro de ±7°)
+  { let best = null, bd = 1e9; SR2.all.forEach((p, k) => { const dx = p.x - c.x, dz = p.z - c.z, d = Math.hypot(dx, dz); if (d > 60 || d < 1.5) return; let da = Math.atan2(dz, dx) - c.cyaw; da = Math.abs(((da + Math.PI * 3) % (Math.PI * 2)) - Math.PI); if (da > 0.12) return; const sc = d * (1 + da * 8); if (sc < bd) { bd = sc; best = {k, p, d}; } });
+    if (!best) SOLD.visNew && SOLD.vis && SOLD.vis.forEach((p, k) => { const dx = p.x - c.x, dz = p.z - c.z, d = Math.hypot(dx, dz); if (d > 60 || d < 1.5) return; let da = Math.atan2(dz, dx) - c.cyaw; da = Math.abs(((da + Math.PI * 3) % (Math.PI * 2)) - Math.PI); if (da > 0.12) return; if (d < bd) { bd = d; best = {k, p: {x: p.x, z: p.z, side: p.blk && p.blk.side, blk: p.blk}, d}; } });
+    if (best) { const mine = best.p.side === blk.side, r = V.roster && V.roster.get(best.k), x = BV_W / 2, y = BV_H / 2 + 56; g.save(); g.translate(x, y); g.scale(1.5, 1.5); g.translate(-x, -y);
+      g.fillStyle = 'rgba(12,18,26,.8)'; g.fillRect(x - 118, y, 236, r && mine ? 50 : 36); g.strokeStyle = mine ? 'rgba(111,174,116,.8)' : 'rgba(227,116,108,.8)'; g.strokeRect(x - 118, y, 236, r && mine ? 50 : 36); g.textAlign = 'center'; g.fillStyle = mine ? '#9fd6a4' : '#ff9a8c'; g.font = '700 14px serif';
+      g.fillText(mine && r ? `${r.rank} ${r.name}` : mine ? 'Camarada' : 'Enemigo', x, y + 17); g.fillStyle = '#c8b890'; g.font = '12px sans-serif'; g.fillText(`${Math.round(best.d * 0.6)} m${mine && r ? ` · ${r.ammo} cartuchos · moral ${Math.round(r.mor * 100)}%` : ''}`, x, y + (r && mine ? 34 : 31)); if (r && mine) { g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(x - 100, y + 40, 200, 4); g.fillStyle = r.mor > 0.5 ? '#6fae74' : '#e3746c'; g.fillRect(x - 100, y + 40, 200 * r.mor, 4); } g.restore(); } }
+  g.restore();
+}
+const _b3FrameN1 = b3Frame;
+b3Frame = function (V, b, g, lines, all) { const r = _b3FrameN1(V, b, g, lines, all); try { b3V3HudN1(g, V); } catch (e) { if (!B3N.err) { B3N.err = 1; console.warn('hud n1', e); } } return r; };
 
 /* ===== BATALLA NAVAL EN 3D =====
    Misma batalla que el visor 2D (navalviz.js: posiciones, daños, disparos y hundimientos), pero con el mar en 3D y buques modelados:

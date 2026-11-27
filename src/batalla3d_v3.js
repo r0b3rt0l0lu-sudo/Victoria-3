@@ -193,7 +193,7 @@ document.addEventListener('keydown', e => {
 function b3V3Wheel(g) {
   const c = SOLD.ctrl; if (!SOLD.on || !c) return; const blk = soldBlock(R.bviz), po = blk && blk._po && performance.now() / 1000 - blk._po.t0 < blk._po.dur ? B3_ORD.find(o => o.k === blk._po.k) : null;
   g.save(); g.setTransform(1, 0, 0, 1, 0, 0);
-  if (po) { g.fillStyle = 'rgba(14,20,28,.82)'; g.strokeStyle = '#c8a860'; g.lineWidth = 1.5; g.fillRect(14, BV_H - 118, 262, 34); g.strokeRect(14, BV_H - 118, 262, 34); g.fillStyle = '#e8d8a8'; g.font = '600 16px sans-serif'; g.fillText(`${po.ic} Orden: ${po.n}`, 26, BV_H - 95); }
+  if (po) { g.fillStyle = 'rgba(14,20,28,.82)'; g.strokeStyle = '#c8a860'; g.lineWidth = 1.5; g.fillRect(14, BV_H - 118, 330, 40); g.strokeRect(14, BV_H - 118, 330, 40); g.fillStyle = '#e8d8a8'; g.font = '600 20px sans-serif'; g.fillText(`${po.ic} Orden: ${po.n}`, 28, BV_H - 91); }
   if (B3W.open) {
     const cx = BV_W / 2, cy = BV_H / 2, r = 150; g.fillStyle = 'rgba(8,12,18,.55)'; g.fillRect(0, 0, BV_W, BV_H);
     B3_ORD.forEach((o, i) => { const a = -Math.PI / 2 + i * Math.PI / 4, x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r, cur = po && po.k === o.k;

@@ -25,7 +25,8 @@ function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
   const me = SOLD._meT === tU ? SOLD._me : (SOLD._meT = tU, SOLD._me = soldBlock(V)); if (!me) return null;
   const enemy = blk.side !== me.side, key = blk.id + ':' + f.i + ':' + j, sp = blk.sp || 0, mode = blk.mode, era = t3Era(), gy0 = b3H(S.tf, x, z);
   let s = NPC.get(key); if (!s) { s = {ox: 0, oz: 0, yaw, st: 'idle', t0: tU, tE: tU + h1 * 2, cov: -1, pin: 0, lt: tU, fireT: -99, ph: 'aim', phT: tU + 0.6 + h2, post: h2 < 0.45 ? 'rodilla' : 'pie', grp: (f.i + j) & 1, shy: h1 < 0.3, tx: 0, tz: 0, hide: 0, seg: -1}; NPC.set(key, s); }
-  const dt = clamp(tU - s.lt, 0, 0.1); s.lt = tU;
+  if (!s.r && typeof b3V3Roster === 'function') s.r = b3V3Roster(blk, f, j);
+  const dt = clamp(tU - s.lt, 0, 0.1); s.lt = tU; if (s.r) b3V3MoraleStep(s, blk, dt);
   const nearP = enemy && SOLD.ctrl && !SOLD.ctrl.dead && Math.hypot(SOLD.ctrl.x - x - s.ox, SOLD.ctrl.z - z - s.oz) < 110;      // un bloque que avanza también reacciona si el jugador está cerca
   if (mode === 'rout' || f.flee > 0 || mode === 'charge' || mode === 'melee' || mode === 'gallop' || (sp > 8 && !nearP)) { npcRelease(S, s, key); s.st = 'idle'; s.ox *= 0.9; s.oz *= 0.9; if (enemy) SOLD.visNew.set(key, {x: x + s.ox, z: z + s.oz, yaw: s.yaw, blk}); return null; }
   // ---- amenaza ----
@@ -60,6 +61,7 @@ function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
   const defensive = po === 'mantener' || po !== 'avanzar' && (mode === 'hold' || !!(blk.d && blk.d.plan && blk.d.plan.k === 'defend')), movers = po === 'avanzar' || ((Math.floor((tU + blk.id * 2.3) / 9) & 1) === s.grp);
   if (s.st === 'idle') { setSt(s.pin > 0 ? 'to_cover' : (!defensive && movers && dT > 45 && !s.shy ? 'bound' : 'fire')); if (s.st === 'to_cover' || (s.st === 'fire' && h2 < 0.6 && S.cov)) { const c = covFind(S, px, pz, thr.x, thr.z, 26); if (c) { npcClaim(S, s, key, c); setSt('to_cover'); } else if (s.pin > 0) setSt('prone'); } }
   if (s.pin > 0 && (s.st === 'fire' || s.st === 'bound')) { const c = covFind(S, px, pz, thr.x, thr.z, 30); if (c) { npcClaim(S, s, key, c); setSt('to_cover'); } else setSt('prone'); }
+  if (s.pin > 0 && s.r && s.r.mor < 0.18 && !['fallback', 'charge', 'melee', 'prone', 'crawl'].includes(s.st)) { npcRelease(S, s, key); s.fbx = undefined; setSt('fallback'); if (!s.r.fled) { s.r.fled = 1; srBark(blk.side, s.r.rank, '¡No aguanto más!', px, pz, tU); } }
   if (s.pin > 0 && blk.mm !== undefined && blk.mm < 0.22 && !['fallback', 'charge', 'melee', 'prone', 'crawl'].includes(s.st)) { npcRelease(S, s, key); s.fbx = undefined; setSt('fallback'); }
   if (po === 'cubrirse' && s.pin < 2.5) s.pin = 2.5;
   if (po === 'bayoneta' && s.st !== 'charge' && s.st !== 'melee' && dT < 130 && dT > 3.5 && s.st !== 'fallback') setSt('charge');
@@ -107,7 +109,7 @@ function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
       ncl = 'idle_rodilla'; start = null; face = dir; const since = tU - s.t0;
       if (s.ph === 'aim') { if (tU < s.hide) { ncl = since < 0.9 ? npcClip('ponerse_a_cubierto', 'idle_rodilla') : npcClip(hideC, 'idle_rodilla'); start = since < 0.9 ? s.t0 : (npcHas(hideC) ? s.t0 + 0.9 : null); } else { s.ph = 'peek'; s.phT = tU + 0.55; } }
       if (s.ph === 'peek') { ncl = npcClip(peekC, npcClip('asomarse', 'idle_rodilla')); start = s.phT - 0.55; if (tU >= s.phT) { s.ph = 'aim2'; s.phT = tU + 0.7 + h2 * 0.9; } }
-      if (s.ph === 'aim2') { ncl = npcAim(era, pitch, 'rodilla', false); start = null; if (tU >= s.phT) { if (po === 'alto_fuego') { s.phT = tU + 0.4; } else if (!vsPlayer && po !== 'fuego' && npcVolleyWait(blk, s, tU, era, dT)) { s.phT = tU + 0.15; } else { s.ph = 'shoot'; s.phT = tU + 0.7; s.fireT = tU; if (npcMisfire(era, h1, h2)) fxFlash(x + s.ox, b3H(S.tf, x, z) + 1.9, z + s.oz, 0.05); else npcShot(S, V, s, x, z, thr, vsPlayer, dT, true, era, dir); } } }
+      if (s.ph === 'aim2') { ncl = npcAim(era, pitch, 'rodilla', false); start = null; if (tU >= s.phT) { if (po === 'alto_fuego' || (s.r && s.r.ammo <= 0)) { s.phT = tU + 0.6; } else if (!vsPlayer && po !== 'fuego' && npcVolleyWait(blk, s, tU, era, dT)) { s.phT = tU + 0.15; } else { s.ph = 'shoot'; s.phT = tU + 0.7; s.fireT = tU; if (npcMisfire(era, h1, h2)) fxFlash(x + s.ox, b3H(S.tf, x, z) + 1.9, z + s.oz, 0.05); else npcShot(S, V, s, x, z, thr, vsPlayer, dT, true, era, dir); } } }
       if (s.ph === 'shoot') { ncl = npcHas(shootC) ? shootC : npcAim(era, pitch, 'rodilla', true); start = s.fireT; if (tU >= s.phT) { s.ph = 'aim'; s.hide = tU + 1.5 + h1 * 3.5; setSt('cover'); s.t0 = tU; } }
       if (s.pin > 1.5 && s.ph !== 'aim') { s.ph = 'aim'; s.hide = tU + 2.5; } break; }
     case 'prone': {
@@ -124,6 +126,7 @@ function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
         if (vsPlayer && brave && dT < 42 && dT > 6 && pcc && !pcc.dead && (pcc.cd > 0.4 || pcc.rl) && s.st === 'fire') { npcRelease(S, s, key); setSt('charge'); break; }
         if (era >= 'D' && dT > 9 && dT < 36 && (s.gn === undefined ? (s.gn = h2 > 0.62 ? 2 : 0) : s.gn) > 0 && Math.random() < 0.22) { setSt('throw'); break; }
         if (po === 'alto_fuego') { s.phT = tU + 0.4; break; }
+        if (s.r && s.r.ammo <= 0) { s.phT = tU + 1.5; if (!s.dry) { s.dry = 1; srBark(blk.side, s.r.rank, '¡Sin cartuchos!', px, pz, tU); } break; }
         if (!vsPlayer && po !== 'fuego' && npcVolleyWait(blk, s, tU, era, dT)) { s.phT = tU + 0.15; break; }                       // disciplina de fuego: espera la voz de mando de su pelotón
         s.ph = 'shoot'; s.phT = tU + 0.7; s.fireT = tU; if (npcMisfire(era, h1, h2)) { s.mis = true; fxFlash(x + s.ox + Math.sin(s.yaw) * 1.4, b3H(S.tf, x, z) + 2.1, z + s.oz + Math.cos(s.yaw) * 1.4, 0.05); } else { s.mis = false; npcShot(S, V, s, x, z, thr, vsPlayer, dT, false, era, dir); } } }
       else if (s.ph === 'shoot') { ncl = npcAim(era, pitch, post, true); start = s.fireT; if (tU >= s.phT) { s.ph = 'reload'; s.phT = tU + rel; s.rt0 = tU; } }
@@ -155,6 +158,7 @@ function npcMeleeTarget(px, pz, blk, po, enemy) {
 }
 // disparo de un NPC: fogonazo (y humo de pólvora negra), y si apunta al jugador, evento para ctrlStep
 function npcShot(S, V, s, x, z, thr, vsPlayer, dT, cover, era, dir) {
+  if (s.r) { s.r.ammo--; s.r.shots++; }
   const fx = x + s.ox + Math.sin(s.yaw) * 1.6, fz = z + s.oz + Math.cos(s.yaw) * 1.6;
   fxFlash(fx, b3H(S.tf, fx, fz) + 2.1, fz, 0.1); if (era < 'D') bvPart(V, {k: 'smoke', x: fx + Math.sin(s.yaw) * 2, y: fz + Math.cos(s.yaw) * 2, life: 2.2});
   if (vsPlayer) SOLD.shotNew.push({x: x + s.ox, y: b3H(S.tf, x + s.ox, z + s.oz) + (cover ? 1.9 : (s.post === 'rodilla' ? 1.9 : 2.5)), z: z + s.oz, dd: dT, cover});

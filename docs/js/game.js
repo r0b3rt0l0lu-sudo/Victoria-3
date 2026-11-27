@@ -24420,7 +24420,7 @@ MANUAL.push({id: 'lote28', title: '★ Batalla 3D: pueblos con calles, cañones 
 <h3>Pueblos</h3><p>Los pueblos tienen calles, plaza con pozo e iglesia, casas sobre plataformas aplanadas (no flotan ni quedan enterradas) y muros que bloquean el paso. Estilo según bioma y época.</p>
 <h3>Vegetación</h3><p>Hierba con viento, arbustos, rocas y troncos caídos; rocas y troncos sirven de cobertura.</p>
 <h3>Artillería</h3><p>Las balas de cañón se ven volar, botan en el suelo y matan a los soldados que cruzan su trayectoria.</p>
-<h3>Pantalla completa</h3><p>Botón «⛶ Pantalla completa» bajo el campo, o tecla F10.</p>`});
+<h3>Minimapa</h3><p>Esquina superior derecha: terreno, pueblos, obras, bloques de ambos bandos (sin los ocultos por la niebla), tu unidad resaltada y tu posición con su cono de visión. Tecla M para ocultarlo.</p><h3>Pantalla completa</h3><p>Botón «⛶ Pantalla completa» bajo el campo, o tecla F10.</p>`});
 
 /* ===== REALISMO 3: pendiente, barro, incendios de bosque, hora del día, heridos y enfermedad =====
    BATALLA (visor táctico, 2D y 3D):
@@ -28565,6 +28565,34 @@ const _b3FortsV3b = b3Forts;
 b3Forts = function (S, b) { _b3FortsV3b(S, b); if (S.proj) b3V3ProjStep(S); };
 const _b3DisposeV3 = b3Dispose;
 b3Dispose = function (S) { try { if (S && S.proj && S.proj.liberar) S.proj.liberar(); } catch (e) { } return _b3DisposeV3(S); };
+
+/* ===== minimapa del campo (esquina superior derecha; tecla M lo oculta) =====
+   Terreno (agua, bosques, pueblos, obras), bloques de ambos bandos (los ocultos por la niebla no se dibujan), tu unidad resaltada y tu posición con su cono de visión. */
+const B3MM = {on: true, w: 300, h: 132};
+document.addEventListener('keydown', e => { if ((e.key === 'm' || e.key === 'M') && B3.active && document.getElementById('bmap') && !e.ctrlKey && !e.metaKey && !/INPUT|TEXTAREA/.test((e.target || {}).tagName || '')) { B3MM.on = !B3MM.on; } });
+function b3V3Minimap(V, b, g, S, all) {
+  if (!B3MM.on || !S) return; const w = B3MM.w, h = B3MM.h, x0 = BV_W - w - 14, y0 = 168, tf = S.tf, sx = w / BV_W, sy = h / BV_H, X = x => x0 + x * sx, Y = z => y0 + z * sy;
+  g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 0.93; g.fillStyle = '#1b1710'; g.fillRect(x0 - 5, y0 - 5, w + 10, h + 10);
+  g.beginPath(); g.rect(x0, y0, w, h); g.clip(); g.fillStyle = '#6d7a45'; g.fillRect(x0, y0, w, h);
+  (tf.hills || []).forEach(e => { g.fillStyle = 'rgba(120,100,60,.35)'; g.beginPath(); g.ellipse(X(e.x), Y(e.y), (e.rx || 40) * sx, (e.ry || 40) * sy, e.rot || 0, 0, 6.3); g.fill(); });
+  (tf.fields || []).forEach(f => { if (f.x !== undefined) { g.fillStyle = 'rgba(190,170,90,.4)'; g.fillRect(X(f.x - (f.w || 30) / 2), Y(f.y - (f.h || 30) / 2), (f.w || 30) * sx, (f.h || 30) * sy); } });
+  (tf.forests || []).forEach(f => { g.fillStyle = f.burnt ? '#2a2420' : '#2f4a2a'; g.beginPath(); g.ellipse(X(f.x), Y(f.y), f.r * sx, f.r * sy, 0, 0, 6.3); g.fill(); });
+  (tf.lakes || []).concat(tf.marsh || []).forEach(e => { g.fillStyle = '#4b7ea0'; g.beginPath(); g.ellipse(X(e.x), Y(e.y), (e.rx || 20) * sx, (e.ry || 20) * sy, e.rot || 0, 0, 6.3); g.fill(); });
+  if (tf.river && typeof tacRiverX === 'function') { g.strokeStyle = '#4b7ea0'; g.lineWidth = Math.max(2, (tf.river.w || 12) * sx); g.beginPath(); for (let z = 0; z <= BV_H; z += 20) { const px = X(tacRiverX(tf, z)), py = Y(z); z ? g.lineTo(px, py) : g.moveTo(px, py); } g.stroke(); }
+  (tf.villages || []).forEach(v => { g.fillStyle = '#b9ab8c'; g.fillRect(X(v.x) - 3, Y(v.y) - 3, 6, 6); });
+  (b.forts || []).forEach(f => { g.strokeStyle = f.side === 'A' ? '#e06a5a' : '#6aa0e0'; g.lineWidth = 1.5; g.strokeRect(X(f.x - f.w / 2), Y(f.y - f.h / 2), f.w * sx, f.h * sy); });
+  const sel = SOLD && SOLD.on ? SOLD.bid : -1;
+  all.forEach(k => { if (!k.figs.some(f => f.alive)) return; if (typeof bvSeen === 'function' && !bvSeen(V, b, k)) return; const mine = k.tag === G.player, col = k.side === 'A' ? '#d8584a' : '#4a86d8', bw = Math.max(5, (k.wid || 30) * sx), bh = Math.max(3, (k.dep || 20) * sy);
+    g.save(); g.translate(X(k.x), Y(k.y)); g.rotate(-(k.hd || 0) + 0); g.fillStyle = col; g.globalAlpha = k.mode === 'rout' ? 0.45 : 0.95; g.fillRect(-bh / 2, -bw / 2, bh, bw); g.restore(); g.globalAlpha = 0.93;
+    if (k.type === 'art') { g.fillStyle = '#111'; g.beginPath(); g.arc(X(k.x), Y(k.y), 1.8, 0, 6.3); g.fill(); } if (k.type === 'cav') { g.strokeStyle = '#fff'; g.lineWidth = 1; g.beginPath(); g.moveTo(X(k.x) - 3, Y(k.y) + 2); g.lineTo(X(k.x) + 3, Y(k.y) - 2); g.stroke(); }
+    if (k.id === sel) { g.strokeStyle = '#ffe680'; g.lineWidth = 2; g.strokeRect(X(k.x) - 7, Y(k.y) - 7, 14, 14); } });
+  const c = SOLD && SOLD.ctrl, pos = c ? {x: c.x, z: c.z, yaw: c.cyaw} : (B3.cam ? {x: B3.cam.tx, z: B3.cam.tz, yaw: null} : null);
+  if (pos) { const px = X(pos.x), py = Y(pos.z); g.fillStyle = '#fff'; g.strokeStyle = '#000'; g.lineWidth = 1; g.beginPath(); g.arc(px, py, 3.2, 0, 6.3); g.fill(); g.stroke();
+    if (pos.yaw !== null) { g.fillStyle = 'rgba(255,255,255,.28)'; g.beginPath(); g.moveTo(px, py); g.arc(px, py, 26, pos.yaw - 0.55, pos.yaw + 0.55); g.closePath(); g.fill(); } }
+  g.restore(); g.save(); g.globalAlpha = 0.95; g.strokeStyle = '#c8a860'; g.lineWidth = 2; g.strokeRect(x0 - 5, y0 - 5, w + 10, h + 10); g.fillStyle = '#e8d8a8'; g.font = '600 12px sans-serif'; g.fillText('MAPA · M', x0, y0 - 9); g.restore();
+}
+const _b3FrameMM = b3Frame;
+b3Frame = function (V, b, g, lines, all) { const r = _b3FrameMM(V, b, g, lines, all); try { b3V3Minimap(V, b, g, B3.S, all); } catch (e) { if (!B3MM.err) { B3MM.err = 1; console.warn('minimapa', e); } } return r; };
 
 /* ===== BATALLA NAVAL EN 3D =====
    Misma batalla que el visor 2D (navalviz.js: posiciones, daños, disparos y hundimientos), pero con el mar en 3D y buques modelados:

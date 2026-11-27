@@ -504,4 +504,4 @@ MANUAL.push({id: 'lote28', title: '★ Batalla 3D: pueblos con calles, cañones 
 <h3>Pueblos</h3><p>Los pueblos tienen calles, plaza con pozo e iglesia, casas sobre plataformas aplanadas (no flotan ni quedan enterradas) y muros que bloquean el paso. Estilo según bioma y época.</p>
 <h3>Vegetación</h3><p>Hierba con viento, arbustos, rocas y troncos caídos; rocas y troncos sirven de cobertura.</p>
 <h3>Artillería</h3><p>Las balas de cañón se ven volar, botan en el suelo y matan a los soldados que cruzan su trayectoria.</p>
-<h3>Pantalla completa</h3><p>Botón «⛶ Pantalla completa» bajo el campo, o tecla F10.</p>`});
+<h3>Minimapa</h3><p>Esquina superior derecha: terreno, pueblos, obras, bloques de ambos bandos (sin los ocultos por la niebla), tu unidad resaltada y tu posición con su cono de visión. Tecla M para ocultarlo.</p><h3>Pantalla completa</h3><p>Botón «⛶ Pantalla completa» bajo el campo, o tecla F10.</p>`});

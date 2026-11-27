@@ -94,3 +94,34 @@ function b3V3FS() {
 ACT.bvfs = b3V3FS;
 setInterval(() => { const bar = document.getElementById('bt-cam'); if (bar && !bar.querySelector('[data-act=bvfs]')) { const b = document.createElement('button'); b.dataset.act = 'bvfs'; b.dataset.tip = 'Pantalla completa (F10)'; b.textContent = '⛶ Pantalla completa'; bar.appendChild(b); } }, 700);
 document.addEventListener('keydown', e => { if (e.key === 'F10' && document.getElementById('bmap')) { e.preventDefault(); b3V3FS(); } });
+
+/* ===== artillería real (proyectiles3d.js) =====
+   Los disparos de la artillería del campo (partículas 'shell' del visor 2D) se lanzan también como balas redondas reales en el 3D: vuelan, botan
+   y matan a los soldados individuales (NPC) que cruzan. Las bajas de los bloques 2D siguen calculándose en la simulación del campo. */
+const B3_RANGO = [[588, 0.005], [826, 0.01], [1350, 0.02], [1888, 0.03], [2916, 0.05]];   // alcance al primer impacto (u) → elevación (rad), calibrado con proyectiles3d
+function b3V3Pitch(R, dy) { if (R <= B3_RANGO[0][0]) return -Math.atan2(dy + 0.5, R) * 0.95; for (let i = 1; i < B3_RANGO.length; i++) if (R <= B3_RANGO[i][0]) { const [r0, t0] = B3_RANGO[i - 1], [r1, t1] = B3_RANGO[i]; return t0 + (t1 - t0) * (R - r0) / (r1 - r0); } return 0.05; }
+function b3V3Proj(S) {
+  if (S.proj || !window.proyectiles3d) return S.proj;
+  S.rej = new proyectiles3d.RejillaSoldados(6);
+  S.proj = proyectiles3d.crearProyectiles(S.scene, {alturaFn: (x, z) => b3H(S.tf, x, z), rejilla: S.rej, semilla: (S.seed || 1) & 1023, viento: [0.6, 0, 0.2],
+    alAlcanzar: h => { try { const p = SR2.all.get(h.id); if (p && !p.dead) srKillNPC(S, R.bviz, h.id, p, h.pos[0], h.pos[2], true); } catch (e) { } }});
+  S.projT = performance.now(); return S.proj;
+}
+function b3V3ProjStep(S) {
+  const P = S.proj; if (!P) return; const now = performance.now(), dt = Math.min(0.05, (now - (S.projT || now)) / 1000) * (R.bviz && R.bviz.ts !== undefined ? R.bviz.ts : 1); S.projT = now;
+  S.rej.s.forEach((o, id) => { if (!SR2.all.has(id)) S.rej.quitar(id); });
+  SR2.all.forEach((p, id) => { if (p.dead) { S.rej.quitar(id); return; } S.rej.insertar(id, p.x, p.z, b3H(S.tf, p.x, p.z), 1.75 / 0.6, 0.28 / 0.6); });
+  if (dt > 0) P.actualizar(dt);
+}
+const _bvPartV3 = bvPart;
+bvPart = function (V, p) {
+  _bvPartV3(V, p);
+  try { if (p.k === 'shell' && B3.active && B3.S && B3.S.bid === V.id && typeof p.x2 === 'number' && window.proyectiles3d) {
+    const S = B3.S, P = b3V3Proj(S); if (!P) return; const dx = p.x2 - p.x, dz = p.y2 - p.y, R0 = Math.hypot(dx, dz) || 1, y0 = b3H(S.tf, p.x, p.y) + 2.2, th = b3V3Pitch(R0, y0 - b3H(S.tf, p.x2, p.y2));
+    P.disparar('bala_canon', 'A', [p.x, y0, p.y], [dx / R0 * Math.cos(th), Math.sin(th), dz / R0 * Math.cos(th)], {dispersion: 0.15});
+  } } catch (e) { }
+};
+const _b3FortsV3b = b3Forts;
+b3Forts = function (S, b) { _b3FortsV3b(S, b); if (S.proj) b3V3ProjStep(S); };
+const _b3DisposeV3 = b3Dispose;
+b3Dispose = function (S) { try { if (S && S.proj && S.proj.liberar) S.proj.liberar(); } catch (e) { } return _b3DisposeV3(S); };

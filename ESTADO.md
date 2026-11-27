@@ -330,3 +330,5 @@ Convoyes reales, guerra civil/secesión, coordinación entre aliados, prisionero
 - Lote 26: fuertes3d.js (obras huecas, muros obstáculo, brechas, escalas) y asalto_fuertes.js (asalto, rendición, captura, metralla, IA). Pruebas: scratchpad fz.js.
 
 - Lote 27: asedio_mision.js (misión de asalto a un fuerte en modo soldado: servicio del cañón, brecha por secciones, foso/fajina/petardo, asalto y bandera). Arreglo de angLerp (NPC miraban 180° al revés). Pruebas: scratchpad ms.js.
+
+- Lote 28: módulos de Claude Design integrados (terreno3d, pueblos3d, vegetacion3d, animaciones_cobertura, proyectiles3d, hud_soldado en src/) y glue batalla3d_v3.js: pueblos con colisión, vegetación, salto al contacto, cañones reales, pantalla completa. PENDIENTE: terreno3d como suelo, HUD hud_soldado, soldados N1 (~400, 1:1), IA de cobertura con las animaciones nuevas, herido/reaparición, rueda de órdenes. Plan en PLAN_BATALLA3D.md.

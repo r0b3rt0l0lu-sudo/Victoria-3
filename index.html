@@ -25885,6 +25885,12 @@ MANUAL.push({id: 'lote27', title: '★ Misión: asalto a un fuerte (modo soldado
 <h3>2. Foso, fajina y petardo</h3><p>El foso frena (×0,4). Con <b>T</b> echas una fajina y lo rellenas; con <b>P</b> colocas un petardo en la puerta (mecha de 6 s, acércate a menos de 9 u).</p>
 <h3>3. Asalto y bandera</h3><p>Con la brecha abierta, tu infantería recibe la orden de asaltar. Entra, despeja el patio de defensores y mantén <b>F</b> 4 s junto al mástil para izar la bandera: la guarnición se rinde, se capturan prisioneros y cañones y ganas experiencia y prestigio.</p>
 <p><i>Límites: no hay animación de trepar escalas y las baterías propias suelen estar lejos de la obra.</i></p>`});
+MANUAL.push({id: 'lote28', title: '★ Batalla 3D: pueblos con calles, cañones reales y pantalla completa', html: `
+<h3>Salto al contacto</h3><p>Al entrar en la vista de soldado, el campo avanza solo (con las órdenes y formaciones de cada bloque) hasta que tu unidad está a unos 130 m del enemigo. Si las líneas no se acercan, te unes a la unidad propia más cercana al frente.</p>
+<h3>Pueblos</h3><p>Los pueblos tienen calles, plaza con pozo e iglesia, casas sobre plataformas aplanadas (no flotan ni quedan enterradas) y muros que bloquean el paso. Estilo según bioma y época.</p>
+<h3>Vegetación</h3><p>Hierba con viento, arbustos, rocas y troncos caídos; rocas y troncos sirven de cobertura.</p>
+<h3>Artillería</h3><p>Las balas de cañón se ven volar, botan en el suelo y matan a los soldados que cruzan su trayectoria.</p>
+<h3>Pantalla completa</h3><p>Botón «⛶ Pantalla completa» bajo el campo, o tecla F10.</p>`});
 
 /* ===== REALISMO 3: pendiente, barro, incendios de bosque, hora del día, heridos y enfermedad =====
    BATALLA (visor táctico, 2D y 3D):
@@ -29916,16 +29922,30 @@ function b3V3Villages(S, b) {
 }
 function b3V3Sync(S) {            // mete los obstáculos de los pueblos en la rejilla de cobertura (una vez)
   const C = S.cov; if (!C || C.vilSync || !S.vill) return; C.vilSync = 1;
-  C.list = C.list.filter(o => !o.vil); S.vill.obs.forEach(o => C.list.push(o));
+  C.list = C.list.filter(o => !o.vil); S.vill.obs.forEach(o => C.list.push(o)); (S.vegObs || []).forEach(o => C.list.push(o));
   const grid = new Map(), CS = C.CS; C.list.forEach((o, i) => { const r = Math.max(o.hw, o.hd) + 1; for (let cx = Math.floor((o.x - r) / CS); cx <= Math.floor((o.x + r) / CS); cx++) for (let cz = Math.floor((o.z - r) / CS); cz <= Math.floor((o.z + r) / CS); cz++) { const k = cx * 1000 + cz; (grid.get(k) || grid.set(k, []).get(k)).push(i); } });
   C.grid = grid;
 }
+/* ===== vegetación (vegetacion3d.js): hierba, arbustos, setos, rocas y troncos; los árboles siguen siendo los del bosque pintado (se queman) ===== */
+function b3V3Veg(S, b) {
+  const tf = S.tf; S.vegObs = []; if (!window.vegetacion3d) return;
+  const bn = MAP.provs[b.prov].biome, bioma = bn === 3 ? 'mediterraneo' : bn === 8 ? 'nevado' : (bn === 5 || bn === 6) ? 'boreal' : 'templado', mo = G.date.m || 6, est = (mo === 12 || mo <= 2) ? 'invierno' : (mo >= 9 && mo <= 11) ? 'otono' : 'verano';
+  const ell = (tf.lakes || []).concat(tf.marsh || [], tf.cliffs || []);
+  const excluir = (x, z) => { for (const v of tf.villages || []) if (Math.hypot(x - v.x, z - v.y) < (v.big ? 150 : 100)) return true;
+    for (const e of ell) if (Math.hypot(x - e.x, z - e.y) < Math.max(e.rx || 20, e.ry || 20) + 6) return true;
+    if (tf.river && typeof tacRiverX === 'function' && Math.abs(x - tacRiverX(tf, z)) < (tf.river.w || 14) + 10) return true;
+    for (const f of b.forts || []) if (Math.abs(x - f.x) < f.w / 2 + 25 && Math.abs(z - f.y) < f.h / 2 + 25) return true; return false; };
+  const V3 = vegetacion3d.crearVegetacion({semilla: (S.seed || 1) & 4095, bioma, estacion: est, area: [0, 0, BV_W, BV_H], alturaFn: (x, z) => b3H(tf, x, z), excluir, arboles: 0, rocas: R.lowEnd ? 40 : 80, arbustos: R.lowEnd ? 90 : 200, troncos: 18, renderer: R.renderer});
+  S.veg = V3; S.scene.add(V3.grupo);
+  V3.objetos.forEach(o => { if (o.tipo === 'roca') S.vegObs.push({x: o.pos[0], z: o.pos[2], yaw: 0, hw: o.radio, hd: o.radio, h: o.alto, kind: 'piedra', gy: o.pos[1], cs: 1, sn: 0, occ: 0, pass: false, soft: 0, nocov: false, vil: true});
+    else if (o.tipo === 'tronco') { const cs = Math.cos(o.rot || 0), sn = Math.sin(o.rot || 0); S.vegObs.push({x: o.pos[0], z: o.pos[2], yaw: o.rot || 0, hw: (o.largo || 3) / 2, hd: Math.max(0.4, o.radio * 0.4), h: o.alto, kind: 'tronco', gy: o.pos[1], cs, sn, occ: 0, pass: true, soft: 0, nocov: false, vil: true}); } });
+}
 const _b3BuildV3 = b3Build;
-b3Build = function (V, b) { const S = _b3BuildV3(V, b); try { b3V3Villages(S, b); } catch (e) { console.warn('b3V3', e); } return S; };
+b3Build = function (V, b) { const S = _b3BuildV3(V, b); try { b3V3Villages(S, b); } catch (e) { console.warn('b3V3', e); } try { b3V3Veg(S, b); } catch (e) { console.warn('b3V3 veg', e); } return S; };
 const _covEnsureV3 = covEnsure;
 covEnsure = function (S) { const had = !!S.cov, C = _covEnsureV3(S); if (!had || !C.vilSync) b3V3Sync(S); return C; };
 const _b3FortsV3 = b3Forts;
-b3Forts = function (S, b) { _b3FortsV3(S, b); if (S.vill) S.vill.groups.forEach(P => P.grupo.update && P.grupo.update(S.cam)); };
+b3Forts = function (S, b) { _b3FortsV3(S, b); if (S.vill) S.vill.groups.forEach(P => P.grupo.update && P.grupo.update(S.cam)); if (S.veg) S.veg.actualizar(S.cam, performance.now() / 1000); };
 
 /* ===== P1: salto hasta el contacto =====
    Al entrar en la vista de soldado, la simulación del campo (con sus órdenes, formaciones y moral) avanza sola hasta que el bloque del soldado

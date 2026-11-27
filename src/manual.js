@@ -499,3 +499,9 @@ MANUAL.push({id: 'lote27', title: '★ Misión: asalto a un fuerte (modo soldado
 <h3>2. Foso, fajina y petardo</h3><p>El foso frena (×0,4). Con <b>T</b> echas una fajina y lo rellenas; con <b>P</b> colocas un petardo en la puerta (mecha de 6 s, acércate a menos de 9 u).</p>
 <h3>3. Asalto y bandera</h3><p>Con la brecha abierta, tu infantería recibe la orden de asaltar. Entra, despeja el patio de defensores y mantén <b>F</b> 4 s junto al mástil para izar la bandera: la guarnición se rinde, se capturan prisioneros y cañones y ganas experiencia y prestigio.</p>
 <p><i>Límites: no hay animación de trepar escalas y las baterías propias suelen estar lejos de la obra.</i></p>`});
+MANUAL.push({id: 'lote28', title: '★ Batalla 3D: pueblos con calles, cañones reales y pantalla completa', html: `
+<h3>Salto al contacto</h3><p>Al entrar en la vista de soldado, el campo avanza solo (con las órdenes y formaciones de cada bloque) hasta que tu unidad está a unos 130 m del enemigo. Si las líneas no se acercan, te unes a la unidad propia más cercana al frente.</p>
+<h3>Pueblos</h3><p>Los pueblos tienen calles, plaza con pozo e iglesia, casas sobre plataformas aplanadas (no flotan ni quedan enterradas) y muros que bloquean el paso. Estilo según bioma y época.</p>
+<h3>Vegetación</h3><p>Hierba con viento, arbustos, rocas y troncos caídos; rocas y troncos sirven de cobertura.</p>
+<h3>Artillería</h3><p>Las balas de cañón se ven volar, botan en el suelo y matan a los soldados que cruzan su trayectoria.</p>
+<h3>Pantalla completa</h3><p>Botón «⛶ Pantalla completa» bajo el campo, o tecla F10.</p>`});

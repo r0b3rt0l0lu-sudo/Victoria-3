@@ -2,6 +2,12 @@
 
 Estado: **solo planteamiento**. Nada de esto está implementado todavía.
 
+## 0. Decisiones del usuario
+1. IA de mando: **Estado Mayor por reglas y puntuación** (sin conexión, comprobable).
+2. Mando del jugador: **se elige al empezar** (realismo de mando con mensajeros activado o no).
+3. Escala: **grande, batallas campales de 4 cuerpos** (exige perfiles de calidad y N1/N2/N3 muy ajustados).
+4. Escenarios: **Waterloo, Borodinó, Solferino, Gettysburg, Königgrätz, Sedán, Primera Guerra Mundial y 1939-45**, además de **generación aleatoria y a elección** de escenarios.
+
 ## 1. Qué pides, traducido a requisitos
 
 | Petición | Requisito técnico |

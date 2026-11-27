@@ -24748,7 +24748,11 @@ function instBaseline(c, id, y) {
 }
 function instInit(c) { const o = {last: {}}; INST.forEach(d => { o[d.id] = instBaseline(c, d.id); }); return o; }
 function instMods(c) {
-  const I = instOf(c), m = {}; INST.forEach(d => { const lv = d.levels[I[d.id]]; if (lv) for (const k in lv.m) m[k] = (m[k] || 0) + lv.m[k]; }); return m;
+  const I = instOf(c), m = {}; INST.forEach(d => { const lv = d.levels[I[d.id]]; if (lv) for (const k in lv.m) m[k] = (m[k] || 0) + lv.m[k]; });
+  // obsolescencia: las fábricas rinden menos si el país va por detrás del estado de la técnica de su época (el capital se queda anticuado)
+  const nT = Object.keys(TECH).length, exp = nT * Math.min(0.85, Math.max(0.05, (G.date.y - 1830) / 125)) * 0.8, lag = Math.max(0, Math.min(1, (exp - c.techs.length) / Math.max(1, exp)));
+  if (lag > 0.1) { m.indOut = (m.indOut || 0) - 0.07 * lag; m.innov = (m.innov || 0) - 0.03 * lag; }
+  return m;
 }
 const _ecoModsE4 = ecoMods;
 ecoMods = function (c) { const m = _ecoModsE4(c); if (!c.eco) return m; const im = instMods(c), r = m || {}; for (const k in im) r[k] = (r[k] || 0) + im[k]; return r; };

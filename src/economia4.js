@@ -146,10 +146,40 @@ ecoBonds = function (c, weeks) {
   r.msg = `Emites bonos por ${money(b.amt)}: se devolverán con un ${pct}% de interés en 12 meses (según tu sistema monetario y bancario).`; return r;
 };
 /* ---------- interfaz ---------- */
+(function () {
+  const st = document.createElement('style');
+  st.textContent = `
+.inst-card .inst-row{display:grid;grid-template-columns:minmax(150px,1.1fr) 2fr;gap:6px 18px;padding:10px 4px 11px;border-top:1px solid var(--filete-suave)}
+.inst-card .inst-row:first-of-type{border-top:0}
+.inst-row .ih{display:flex;align-items:center;gap:9px;font-family:var(--f-tit);letter-spacing:var(--track);font-size:var(--t-s);color:var(--tx-tit);text-transform:uppercase}
+.inst-row .ih .ic{width:30px;height:30px;display:grid;place-items:center;font-size:17px;background:radial-gradient(circle at 35% 30%,var(--pizarra-500),var(--pizarra-800));border:1px solid var(--filete);border-radius:50%;box-shadow:var(--luz-filo)}
+.inst-row .steps{display:flex;align-items:center;gap:0;min-width:0}
+.inst-row .stp{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;min-width:0}
+.inst-row .stp::before{content:'';position:absolute;top:13px;left:-50%;right:50%;height:2px;background:var(--filete-suave)}
+.inst-row .stp:first-child::before{display:none}
+.inst-row .stp.done::before,.inst-row .stp.cur::before{background:linear-gradient(90deg,var(--laton-700),var(--laton-500))}
+.inst-row .stp button{position:relative;z-index:1;width:26px;height:26px;border-radius:50%;padding:0;border:1.5px solid var(--filete);background:var(--sup-0);color:var(--tx-3);font-family:var(--f-tit);font-size:11px;font-weight:700;cursor:pointer;box-shadow:var(--sombra-1);transition:transform var(--t-rapido),box-shadow var(--t-rapido)}
+.inst-card .inst-row .stp button{background:var(--sup-0)!important;color:var(--tx-2)!important}.inst-card .inst-row .stp.done button{background:linear-gradient(180deg,var(--laton-700),#4b3a16)!important;color:var(--laton-100)!important;border-color:var(--laton-500)}
+.inst-card .inst-row .stp.cur button{width:30px;height:30px;margin-top:-2px;background:radial-gradient(circle at 35% 30%,#f3d98c,var(--laton-500) 60%,var(--laton-700))!important;color:#2a1d08!important;border-color:#f3e3b4;box-shadow:0 0 0 3px rgba(224,194,122,.22),0 0 14px rgba(224,194,122,.45)}
+.inst-row .stp.lock button{opacity:.38;cursor:not-allowed}
+.inst-row .stp button:not(:disabled):hover{transform:translateY(-1px) scale(1.07)}
+.inst-row .stp .yr{font-size:10px;color:var(--tx-3);margin-top:3px;letter-spacing:.02em}
+.inst-row .stp.cur .yr{color:var(--laton-300)}
+.inst-row .det{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:2px 2px 0 39px}
+.inst-row .det b{color:var(--pergamino-100);font-family:var(--f-cap);font-size:var(--t-m)}
+.inst-row .det .ds{color:var(--tx-2);font-size:var(--t-s);flex:1 1 280px}
+.inst-row .chips{display:flex;flex-wrap:wrap;gap:4px;padding:0 0 0 39px;grid-column:1/-1}
+.inst-row .chip{font-size:10.5px;padding:1px 7px;border-radius:9px;border:1px solid;background:rgba(0,0,0,.18);white-space:nowrap}
+.inst-row .chip.p{color:var(--bueno);border-color:rgba(111,174,116,.45)}.inst-row .chip.n{color:var(--malo);border-color:rgba(227,116,108,.45)}.inst-row .chip.c{color:var(--aviso);border-color:rgba(240,180,98,.45)}
+`;
+  document.head.appendChild(st);
+})();
 function instCardHtml(c) {
-  const I = instOf(c), effs = m => Object.keys(m).map(k => { const nm = {tax: 'impuestos', invest: 'inversión', innov: 'innovación', indOut: 'industria', out: 'producción', lab: 'trabajadores', rad: 'radicalismo', stab: 'estabilidad', crisis: 'resistencia a crisis', constr: 'construcción', lit: 'alfabetización', army: 'ejército', milCost: 'coste militar', logistics: 'logística'}[k] || k, v = m[k], pct = Math.abs(v) < 0.5 && k !== 'stab' ? (v > 0 ? '+' : '') + Math.round(v * 1000) / 10 + '%' : (v > 0 ? '+' : '') + v; return `${nm} ${pct}`; }).join(', ');
-  return `<div class="card"><h3>🏛️ Instituciones económicas</h3><p class="hint">Se reforman de una en una, desde el año en que existieron. Subir cuesta 18 de influencia y 1,5 semanas de ingresos; después, 12 meses de espera.</p>
-  ${INST.map(d => { const cur = I[d.id], lv = d.levels[cur]; return `<div class="kv inst"><span>${d.icon} ${d.name}</span><span class="seg sm">${d.levels.map((l, i) => { const can = i === cur ? {ok: true} : instCan(c, d.id, i), tip = `<b>${l.n}</b>${l.y ? ` <i>(desde ${l.y})</i>` : ''}<br>${l.d}<br><small>${effs(l.m) || 'Sin efectos directos'}${l.cost ? ` · coste ${Math.round(l.cost * 1000) / 10}% de los ingresos` : ''}</small>${i !== cur && !can.ok && can.msg ? `<br><span class="warn">${can.msg}</span>` : ''}`; return `<button class="${i === cur ? 'on' : ''}" style="${i === cur ? 'background:#c8a860;color:#1b1710;font-weight:700;' : !can.ok ? 'opacity:.45;' : ''}" data-act="eco4" data-k="${d.id}" data-v="${i}" data-tip="${escA(tip)}">${['I', 'II', 'III', 'IV', 'V'][i]}</button>`; }).join('')}</span></div><div class="kv sm"><span></span><b style="color:#e8d8a8">${lv.n}</b></div>`; }).join('')}</div>`;
+  const I = instOf(c), NM = {tax: 'impuestos', invest: 'inversión', innov: 'innovación', indOut: 'industria', out: 'producción', lab: 'obreros', rad: 'radicalismo', stab: 'estabilidad', crisis: 'resistencia a crisis', constr: 'construcción', lit: 'alfabetización', army: 'ejército', milCost: 'coste militar', logistics: 'logística', grow: 'crecimiento'},
+    GOODNEG = {rad: 1, milCost: 1}, pct = (k, v) => k === 'stab' ? (v > 0 ? '+' : '') + v : (v > 0 ? '+' : '') + Math.round(v * 1000) / 10 + '%',
+    chips = l => Object.keys(l.m).map(k => { const v = l.m[k], good = GOODNEG[k] ? v < 0 : v > 0; return `<span class="chip ${good ? 'p' : 'n'}">${NM[k] || k} ${pct(k, v)}</span>`; }).join('') + (l.cost ? `<span class="chip c">coste ${Math.round(l.cost * 1000) / 10}% de ingresos/mes</span>` : '');
+  return `<div class="card inst-card"><h3>🏛️ Instituciones económicas</h3><p class="hint">Se reforman de una en una y solo desde el año en que existieron. Subir cuesta 18 de influencia y 1,5 semanas de ingresos; después, 12 meses de espera.</p>
+  ${INST.map(d => { const cur = I[d.id], lv = d.levels[cur]; return `<div class="inst-row"><div class="ih"><span class="ic">${d.icon}</span>${d.name}</div><div class="steps">${d.levels.map((l, i) => { const can = i === cur ? {ok: true} : instCan(c, d.id, i), cls = i === cur ? 'cur' : i < cur ? 'done' : '', lock = i !== cur && !can.ok ? ' lock' : '', tip = `<b>${l.n}</b>${l.y ? ` <i>(desde ${l.y})</i>` : ''}<br>${l.d}${i !== cur && !can.ok && can.msg ? `<br><span class="warn">${can.msg}</span>` : ''}`; return `<div class="stp ${cls}${lock}"><button data-act="eco4" data-k="${d.id}" data-v="${i}" data-tip="${escA(tip)}">${['I', 'II', 'III', 'IV', 'V'][i]}</button><span class="yr">${l.y > 0 ? l.y : '—'}</span></div>`; }).join('')}</div><div class="det"><b>${lv.n}</b><span class="ds">${lv.d}</span></div><div class="chips">${chips(lv)}</div></div>`; }).join('')}</div>`;
 }
 const _budgetRenderE4 = WINDOWS.budget.render;
 WINDOWS.budget.render = function () { return _budgetRenderE4.call(this) + instCardHtml(me()); };

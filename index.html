@@ -24809,10 +24809,40 @@ ecoBonds = function (c, weeks) {
   r.msg = `Emites bonos por ${money(b.amt)}: se devolverán con un ${pct}% de interés en 12 meses (según tu sistema monetario y bancario).`; return r;
 };
 /* ---------- interfaz ---------- */
+(function () {
+  const st = document.createElement('style');
+  st.textContent = `
+.inst-card .inst-row{display:grid;grid-template-columns:minmax(150px,1.1fr) 2fr;gap:6px 18px;padding:10px 4px 11px;border-top:1px solid var(--filete-suave)}
+.inst-card .inst-row:first-of-type{border-top:0}
+.inst-row .ih{display:flex;align-items:center;gap:9px;font-family:var(--f-tit);letter-spacing:var(--track);font-size:var(--t-s);color:var(--tx-tit);text-transform:uppercase}
+.inst-row .ih .ic{width:30px;height:30px;display:grid;place-items:center;font-size:17px;background:radial-gradient(circle at 35% 30%,var(--pizarra-500),var(--pizarra-800));border:1px solid var(--filete);border-radius:50%;box-shadow:var(--luz-filo)}
+.inst-row .steps{display:flex;align-items:center;gap:0;min-width:0}
+.inst-row .stp{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;min-width:0}
+.inst-row .stp::before{content:'';position:absolute;top:13px;left:-50%;right:50%;height:2px;background:var(--filete-suave)}
+.inst-row .stp:first-child::before{display:none}
+.inst-row .stp.done::before,.inst-row .stp.cur::before{background:linear-gradient(90deg,var(--laton-700),var(--laton-500))}
+.inst-row .stp button{position:relative;z-index:1;width:26px;height:26px;border-radius:50%;padding:0;border:1.5px solid var(--filete);background:var(--sup-0);color:var(--tx-3);font-family:var(--f-tit);font-size:11px;font-weight:700;cursor:pointer;box-shadow:var(--sombra-1);transition:transform var(--t-rapido),box-shadow var(--t-rapido)}
+.inst-card .inst-row .stp button{background:var(--sup-0)!important;color:var(--tx-2)!important}.inst-card .inst-row .stp.done button{background:linear-gradient(180deg,var(--laton-700),#4b3a16)!important;color:var(--laton-100)!important;border-color:var(--laton-500)}
+.inst-card .inst-row .stp.cur button{width:30px;height:30px;margin-top:-2px;background:radial-gradient(circle at 35% 30%,#f3d98c,var(--laton-500) 60%,var(--laton-700))!important;color:#2a1d08!important;border-color:#f3e3b4;box-shadow:0 0 0 3px rgba(224,194,122,.22),0 0 14px rgba(224,194,122,.45)}
+.inst-row .stp.lock button{opacity:.38;cursor:not-allowed}
+.inst-row .stp button:not(:disabled):hover{transform:translateY(-1px) scale(1.07)}
+.inst-row .stp .yr{font-size:10px;color:var(--tx-3);margin-top:3px;letter-spacing:.02em}
+.inst-row .stp.cur .yr{color:var(--laton-300)}
+.inst-row .det{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:2px 2px 0 39px}
+.inst-row .det b{color:var(--pergamino-100);font-family:var(--f-cap);font-size:var(--t-m)}
+.inst-row .det .ds{color:var(--tx-2);font-size:var(--t-s);flex:1 1 280px}
+.inst-row .chips{display:flex;flex-wrap:wrap;gap:4px;padding:0 0 0 39px;grid-column:1/-1}
+.inst-row .chip{font-size:10.5px;padding:1px 7px;border-radius:9px;border:1px solid;background:rgba(0,0,0,.18);white-space:nowrap}
+.inst-row .chip.p{color:var(--bueno);border-color:rgba(111,174,116,.45)}.inst-row .chip.n{color:var(--malo);border-color:rgba(227,116,108,.45)}.inst-row .chip.c{color:var(--aviso);border-color:rgba(240,180,98,.45)}
+`;
+  document.head.appendChild(st);
+})();
 function instCardHtml(c) {
-  const I = instOf(c), effs = m => Object.keys(m).map(k => { const nm = {tax: 'impuestos', invest: 'inversión', innov: 'innovación', indOut: 'industria', out: 'producción', lab: 'trabajadores', rad: 'radicalismo', stab: 'estabilidad', crisis: 'resistencia a crisis', constr: 'construcción', lit: 'alfabetización', army: 'ejército', milCost: 'coste militar', logistics: 'logística'}[k] || k, v = m[k], pct = Math.abs(v) < 0.5 && k !== 'stab' ? (v > 0 ? '+' : '') + Math.round(v * 1000) / 10 + '%' : (v > 0 ? '+' : '') + v; return `${nm} ${pct}`; }).join(', ');
-  return `<div class="card"><h3>🏛️ Instituciones económicas</h3><p class="hint">Se reforman de una en una, desde el año en que existieron. Subir cuesta 18 de influencia y 1,5 semanas de ingresos; después, 12 meses de espera.</p>
-  ${INST.map(d => { const cur = I[d.id], lv = d.levels[cur]; return `<div class="kv inst"><span>${d.icon} ${d.name}</span><span class="seg sm">${d.levels.map((l, i) => { const can = i === cur ? {ok: true} : instCan(c, d.id, i), tip = `<b>${l.n}</b>${l.y ? ` <i>(desde ${l.y})</i>` : ''}<br>${l.d}<br><small>${effs(l.m) || 'Sin efectos directos'}${l.cost ? ` · coste ${Math.round(l.cost * 1000) / 10}% de los ingresos` : ''}</small>${i !== cur && !can.ok && can.msg ? `<br><span class="warn">${can.msg}</span>` : ''}`; return `<button class="${i === cur ? 'on' : ''}" style="${i === cur ? 'background:#c8a860;color:#1b1710;font-weight:700;' : !can.ok ? 'opacity:.45;' : ''}" data-act="eco4" data-k="${d.id}" data-v="${i}" data-tip="${escA(tip)}">${['I', 'II', 'III', 'IV', 'V'][i]}</button>`; }).join('')}</span></div><div class="kv sm"><span></span><b style="color:#e8d8a8">${lv.n}</b></div>`; }).join('')}</div>`;
+  const I = instOf(c), NM = {tax: 'impuestos', invest: 'inversión', innov: 'innovación', indOut: 'industria', out: 'producción', lab: 'obreros', rad: 'radicalismo', stab: 'estabilidad', crisis: 'resistencia a crisis', constr: 'construcción', lit: 'alfabetización', army: 'ejército', milCost: 'coste militar', logistics: 'logística', grow: 'crecimiento'},
+    GOODNEG = {rad: 1, milCost: 1}, pct = (k, v) => k === 'stab' ? (v > 0 ? '+' : '') + v : (v > 0 ? '+' : '') + Math.round(v * 1000) / 10 + '%',
+    chips = l => Object.keys(l.m).map(k => { const v = l.m[k], good = GOODNEG[k] ? v < 0 : v > 0; return `<span class="chip ${good ? 'p' : 'n'}">${NM[k] || k} ${pct(k, v)}</span>`; }).join('') + (l.cost ? `<span class="chip c">coste ${Math.round(l.cost * 1000) / 10}% de ingresos/mes</span>` : '');
+  return `<div class="card inst-card"><h3>🏛️ Instituciones económicas</h3><p class="hint">Se reforman de una en una y solo desde el año en que existieron. Subir cuesta 18 de influencia y 1,5 semanas de ingresos; después, 12 meses de espera.</p>
+  ${INST.map(d => { const cur = I[d.id], lv = d.levels[cur]; return `<div class="inst-row"><div class="ih"><span class="ic">${d.icon}</span>${d.name}</div><div class="steps">${d.levels.map((l, i) => { const can = i === cur ? {ok: true} : instCan(c, d.id, i), cls = i === cur ? 'cur' : i < cur ? 'done' : '', lock = i !== cur && !can.ok ? ' lock' : '', tip = `<b>${l.n}</b>${l.y ? ` <i>(desde ${l.y})</i>` : ''}<br>${l.d}${i !== cur && !can.ok && can.msg ? `<br><span class="warn">${can.msg}</span>` : ''}`; return `<div class="stp ${cls}${lock}"><button data-act="eco4" data-k="${d.id}" data-v="${i}" data-tip="${escA(tip)}">${['I', 'II', 'III', 'IV', 'V'][i]}</button><span class="yr">${l.y > 0 ? l.y : '—'}</span></div>`; }).join('')}</div><div class="det"><b>${lv.n}</b><span class="ds">${lv.d}</span></div><div class="chips">${chips(lv)}</div></div>`; }).join('')}</div>`;
 }
 const _budgetRenderE4 = WINDOWS.budget.render;
 WINDOWS.budget.render = function () { return _budgetRenderE4.call(this) + instCardHtml(me()); };
@@ -28499,6 +28529,7 @@ function b3Clip(blk, f, era, cav) {
   if (m === 'fire' || m === 'fixing' || m === 'skirmish') return moving ? 'marcha' : fire;
   return moving ? 'marcha' : 'idle';
 }
+const B3_PER = 12, b3LayX = (j, sp) => (Math.floor(j / 4) - 1) * sp * 0.95, b3LayY = (j, sp) => ((j % 4) - 1.5) * sp * 0.9;       // 12 soldados por figura: 3 filas de 4
 function b3Fig(S, V, blk, f, era, tU, cp, ca) {
   const c = Math.cos(blk.hd), s = Math.sin(blk.hd), tag = blk.tag, tf = S.tf, cx = ca.x, cy = ca.y, cz = ca.z;
   const d3 = (x, y, z) => Math.hypot(x - cx, y - cy, z - cz);
@@ -28512,11 +28543,11 @@ function b3Fig(S, V, blk, f, era, tU, cp, ca) {
   const cav = blk.type === 'cav', tank = blk.type === 'tank', E = era === 'E', comp = E && typeof t3Comp === 'function' && blk.d ? t3Comp(blk.d, tag) : null;
   const kind = tank ? (E ? (comp && comp.spg > comp.tank ? 'cazacarros' : 'tanque_medio') : 'tanque') : cav ? (E ? 'dragon' : B3_CAV[blk.id % B3_CAV.length]) : 'fusilero', set = b3Set(S, kind, era, tag, null);
   const vk = E && !tank && !cav && comp ? (comp.mech > 3 ? 'semioruga' : comp.mot > 3 ? 'camion' : null) : null, vset = vk ? b3Set(S, vk, era, tag, null) : null, mgset = E && !tank && !cav && comp && comp.mg ? b3Set(S, 'ametrallador', era, tag, null) : null;
-  const m = tank ? 1 : cav ? 2 : (R.lowEnd ? 2 : 6), sp = cav ? 2.9 : tank ? 0 : 1.65 * (blk.comp || 1);
+  const m = tank ? 1 : cav ? 2 : (R.lowEnd ? 2 : B3_PER), sp = cav ? 2.9 : tank ? 0 : 1.65 * (blk.comp || 1);
   const dyingK = !f.alive && f.dying > 0;
   for (let j = 0; j < m; j++) {
     if (typeof b3Hid === 'function' && b3Hid(blk.id, f.i, j)) continue;          // soldado seguido o abatido (soldado3d.js)
-    const lx = tank || cav ? 0 : R.lowEnd ? 0 : (j < 3 ? -0.5 : 0.5) * sp * 1.1, ly = tank ? 0 : cav ? (j ? sp : -sp) : R.lowEnd ? (j ? sp / 2 : -sp / 2) : ((j % 3) - 1) * sp;
+    const lx = tank || cav ? 0 : R.lowEnd ? 0 : b3LayX(j, sp), ly = tank ? 0 : cav ? (j ? sp : -sp) : R.lowEnd ? (j ? sp / 2 : -sp / 2) : b3LayY(j, sp);
     let x = f.x + c * lx - s * ly, z = f.y + s * lx + c * ly, y = b3H(tf, x, z);
     const h1 = hash2(blk.id * 131 + f.i, j, 11), h2 = hash2(blk.id * 131 + f.i, j, 13); _b3o.phase = h1; _b3o.h = (h2 - 0.5) * 0.12; _b3o.bright = (h1 * 7.3) % 1; _b3o.skin = (h2 * 4) | 0; _b3o.horse = (h1 * 4) | 0; _b3o.start = null;
     let yaw = Math.PI / 2 - blk.hd + (h1 - 0.5) * 0.12, clip;
@@ -28693,11 +28724,11 @@ ACT.bvretreat = () => {
    Solo infantería y caballería (no artillería ni carros). Se apoya en la misma fórmula de colocación de figuras que b3Fig (batalla3d.js). */
 const SOLD = {on: false, bid: -1, fi: 0, j: 0, fp: false, yaw: 0, pit: 0.12, dist: 8, pos: null, saved: null, deadT: 0};
 const soldBlocks = V => [...V.blocks.values()].filter(k => (k.type === 'inf' || k.type === 'cav' || (k.type !== 'art' && k.type !== 'tank')) && k.figs && k.figs.some(f => f.alive));
-const soldSlots = blk => { const m = blk.type === 'cav' ? 2 : R.lowEnd ? 2 : 6, out = []; blk.figs.forEach(f => { if (f.kind === 'gun' || !f.alive) return; for (let j = 0; j < m; j++) out.push([f.i, j]); }); return out; };
+const soldSlots = blk => { const m = blk.type === 'cav' ? 2 : R.lowEnd ? 2 : B3_PER, out = []; blk.figs.forEach(f => { if (f.kind === 'gun' || !f.alive) return; for (let j = 0; j < m; j++) out.push([f.i, j]); }); return out; };
 const soldBlock = V => V && [...V.blocks.values()].find(k => k.id === SOLD.bid);
 function soldWorld(S, blk, f, j) {         // misma colocación que b3Fig
   const cav = blk.type === 'cav', c = Math.cos(blk.hd), s = Math.sin(blk.hd), sp = cav ? 2.9 : 1.65 * (blk.comp || 1);
-  const lx = cav ? 0 : R.lowEnd ? 0 : (j < 3 ? -0.5 : 0.5) * sp * 1.1, ly = cav ? (j ? sp : -sp) : R.lowEnd ? (j ? sp / 2 : -sp / 2) : ((j % 3) - 1) * sp;
+  const lx = cav ? 0 : R.lowEnd ? 0 : b3LayX(j, sp), ly = cav ? (j ? sp : -sp) : R.lowEnd ? (j ? sp / 2 : -sp / 2) : b3LayY(j, sp);
   const x = f.x + c * lx - s * ly, z = f.y + s * lx + c * ly; return {x, z, y: b3H(S.tf, x, z), fx: Math.cos(blk.hd), fz: Math.sin(blk.hd)};
 }
 function soldPick(V, prefer) {
@@ -29464,11 +29495,14 @@ function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
       const done = goTo(s.ctx, s.ctz, NPC_V.run); ncl = npcClip('correr_a_cubierto', 'correr_agachado'); start = null; face = Math.atan2(s.ctx - px, s.ctz - pz);
       if (done) { setSt('cover'); s.hide = tU + 1.2 + h1 * 2.5; } else if (tU - s.t0 > 6) setSt('fire'); break; }
     case 'cover': {
+      const co = s.cov >= 0 && S.cov ? S.cov.list[s.cov] : null, kd = co ? co.kind : '', alto = co ? co.h : 1.6, suf = era <= 'B' ? '_A' : '_D';
+      const HI = co && (alto >= 2.2 || co.vil && kd === 'muro' && co.hw > 2.5 && co.hd > 2.5 || kd === 'fuerte'), ROC = kd === 'piedra', TRU = kd === 'tronco';
+      const hideC = HI ? 'pegarse_pared' : ROC ? 'tras_roca' : TRU ? 'agachado_muro_bajo' : 'agachado_muro_bajo', peekC = HI ? 'asomar_esquina_der' : 'asomar_sobre_muro_apuntar', shootC = HI ? 'esquina_der_disparar' + suf : 'muro_disparar' + suf;
       ncl = 'idle_rodilla'; start = null; face = dir; const since = tU - s.t0;
-      if (s.ph === 'aim') { if (tU < s.hide) { ncl = since < 0.9 ? npcClip('ponerse_a_cubierto', 'idle_rodilla') : 'idle_rodilla'; start = since < 0.9 ? s.t0 : null; } else { s.ph = 'peek'; s.phT = tU + 0.55; } }
-      if (s.ph === 'peek') { ncl = npcClip('asomarse', 'idle_rodilla'); start = s.phT - 0.55; if (tU >= s.phT) { s.ph = 'aim2'; s.phT = tU + 0.7 + h2 * 0.9; } }
-      if (s.ph === 'aim2') { ncl = npcAim(era, pitch, 'rodilla', false); start = null; if (tU >= s.phT) { s.ph = 'shoot'; s.phT = tU + 0.7; s.fireT = tU; npcShot(S, V, s, x, z, thr, vsPlayer, dT, true, era, dir); } }
-      if (s.ph === 'shoot') { ncl = npcAim(era, pitch, 'rodilla', true); start = s.fireT; if (tU >= s.phT) { s.ph = 'aim'; s.hide = tU + 1.5 + h1 * 3.5; setSt('cover'); s.t0 = tU; } }
+      if (s.ph === 'aim') { if (tU < s.hide) { ncl = since < 0.9 ? npcClip('ponerse_a_cubierto', 'idle_rodilla') : npcClip(hideC, 'idle_rodilla'); start = since < 0.9 ? s.t0 : (npcHas(hideC) ? s.t0 + 0.9 : null); } else { s.ph = 'peek'; s.phT = tU + 0.55; } }
+      if (s.ph === 'peek') { ncl = npcClip(peekC, npcClip('asomarse', 'idle_rodilla')); start = s.phT - 0.55; if (tU >= s.phT) { s.ph = 'aim2'; s.phT = tU + 0.7 + h2 * 0.9; } }
+      if (s.ph === 'aim2') { ncl = npcAim(era, pitch, 'rodilla', false); start = null; if (tU >= s.phT) { if (!vsPlayer && npcVolleyWait(blk, s, tU, era, dT)) { s.phT = tU + 0.15; } else { s.ph = 'shoot'; s.phT = tU + 0.7; s.fireT = tU; if (npcMisfire(era, h1, h2)) fxFlash(x + s.ox, b3H(S.tf, x, z) + 1.9, z + s.oz, 0.05); else npcShot(S, V, s, x, z, thr, vsPlayer, dT, true, era, dir); } } }
+      if (s.ph === 'shoot') { ncl = npcHas(shootC) ? shootC : npcAim(era, pitch, 'rodilla', true); start = s.fireT; if (tU >= s.phT) { s.ph = 'aim'; s.hide = tU + 1.5 + h1 * 3.5; setSt('cover'); s.t0 = tU; } }
       if (s.pin > 1.5 && s.ph !== 'aim') { s.ph = 'aim'; s.hide = tU + 2.5; } break; }
     case 'prone': {
       face = dir;
@@ -29483,7 +29517,8 @@ function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
         const brave = s.brave !== undefined ? s.brave : (s.brave = h1 > 0.9), pcc = SOLD.ctrl;
         if (vsPlayer && brave && dT < 42 && dT > 6 && pcc && !pcc.dead && (pcc.cd > 0.4 || pcc.rl) && s.st === 'fire') { npcRelease(S, s, key); setSt('charge'); break; }
         if (era >= 'D' && dT > 9 && dT < 36 && (s.gn === undefined ? (s.gn = h2 > 0.62 ? 2 : 0) : s.gn) > 0 && Math.random() < 0.22) { setSt('throw'); break; }
-        s.ph = 'shoot'; s.phT = tU + 0.7; s.fireT = tU; npcShot(S, V, s, x, z, thr, vsPlayer, dT, false, era, dir); } }
+        if (!vsPlayer && npcVolleyWait(blk, s, tU, era, dT)) { s.phT = tU + 0.15; break; }                       // disciplina de fuego: espera la voz de mando de su pelotón
+        s.ph = 'shoot'; s.phT = tU + 0.7; s.fireT = tU; if (npcMisfire(era, h1, h2)) { s.mis = true; fxFlash(x + s.ox + Math.sin(s.yaw) * 1.4, b3H(S.tf, x, z) + 2.1, z + s.oz + Math.cos(s.yaw) * 1.4, 0.05); } else { s.mis = false; npcShot(S, V, s, x, z, thr, vsPlayer, dT, false, era, dir); } } }
       else if (s.ph === 'shoot') { ncl = npcAim(era, pitch, post, true); start = s.fireT; if (tU >= s.phT) { s.ph = 'reload'; s.phT = tU + rel; s.rt0 = tU; } }
       else { ncl = npcClip('recargar_' + post + '_' + era, 'idle_preparado'); start = s.rt0; if (tU >= s.phT) { s.ph = 'aim'; s.phT = tU + 0.8 + h2 * 1.4; if (!defensive && movers && dT > 45 && h2 < 0.8) { setSt('bound'); } else if (dT > 22 && !s.shy && Math.random() < 0.15) { s.shtx = undefined; setSt('shift'); } } }
       break; }
@@ -29493,6 +29528,17 @@ function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
   const fx = x + s.ox, fz = z + s.oz; if (enemy) SOLD.visNew.set(key, {x: fx, z: fz, yaw: s.yaw, blk});
   return {x: fx, z: fz, yaw: s.yaw, clip: ncl, start};
 }
+/* disciplina de fuego del avancarga: las líneas disparan a la voz del oficial, por mitades alternas (fuego de pelotones: mientras una mitad
+   dispara, la otra recarga), con una ventana de ~1 s por voz. Los tiradores sueltos (skirmish), los que huyen o los que disparan al jugador
+   a quemarropa no esperan. Si pasan más de dos periodos sin voz disparan por su cuenta (humo, ruido y nervios rompen la disciplina). */
+function npcVolleyWait(blk, s, tU, era, dT) {
+  if (era > 'B' || blk.mode === 'skirmish' || blk.role === 'skirmish' || dT < 22 || s.shy || s.pin > 0) { s.vw = 0; return false; }
+  const P = (CTRL_RELOAD[era] || 3) * 1.9 + 1.2, slot = ((tU + blk.id * 0.7) % P + P) % P, w = slot - (s.grp ? P / 2 : 0);
+  if (w >= 0 && w < 1.1) { if (blk._volT !== Math.floor(tU / P)) { blk._volT = Math.floor(tU / P); try { srBark(blk.side, 'Oficial', '¡Fuego!', blk.x, blk.y, tU); } catch (e) { } } s.vw = 0; return false; }
+  s.vw = (s.vw || 0) + 0.15; return s.vw < P * 2;
+}
+// fallos de ignición: la chispa de pedernal falla ~1 de cada 6-7 disparos; la cápsula de percusión, muchos menos
+function npcMisfire(era, h1, h2) { return Math.random() < (era === 'A' ? 0.13 : era === 'B' ? 0.04 : 0.01); }
 // disparo de un NPC: fogonazo (y humo de pólvora negra), y si apunta al jugador, evento para ctrlStep
 function npcShot(S, V, s, x, z, thr, vsPlayer, dT, cover, era, dir) {
   const fx = x + s.ox + Math.sin(s.yaw) * 1.6, fz = z + s.oz + Math.cos(s.yaw) * 1.6;
@@ -29787,6 +29833,8 @@ function srKillNPC(S, V, key, p, fx, fz, lethal, tag) {
   const T3 = window.Troops3D, inf = T3 && T3.clipInfo ? T3.clipInfo('fusilero', dClip) : null, crawl = !lethal && Math.random() < 0.65 && npcHas('herido_arrastrandose');
   const e = {key, x: p.x, z: p.z, yaw: p.yaw, tag: tag || (p.blk && p.blk.tag), era, wound: !lethal, crawl, cx: dx / L, cz: dz / L, t0: tU, clip: lethal ? dClip : 'herido_grave', dClip, dur: inf && inf.dur ? inf.dur : 2, corpse: 'cuerpo_inerte_' + dClip.replace(/^muerte_/, ''), npc: true};
   V.kmap[key] = e; V.klist.push(e); SR2.kills++;
+  // la baja cuenta: cada soldado abatido resta su parte de hombres a su unidad en el campo (acertar = eliminar y debilitar al regimiento)
+  try { const bk = p.blk; if (bk && bk.d && typeof bk.d.s === 'number' && bk.type === 'inf') { const N = Math.max(12, bk.figs.filter(q => q.alive).length * (typeof B3_PER === 'number' ? B3_PER : 6)); bk.d.s = Math.max(0.02, bk.d.s - (lethal ? 1 : 0.4) * bk.d.s / N * 0.8); SR2.menLost = (SR2.menLost || 0) + (lethal ? 1 : 0.4) / N; } } catch (er) { }
   fxFlash(p.x, b3H(S.tf, p.x, p.z) + 1.6, p.z, 0.16); bvPart(V, {k: 'dust', x: p.x, y: p.z, life: 0.7});
   const eside = p.side === 'A' ? 'B' : 'A'; SR2.sup.push({x: p.x, z: p.z, t: tU, r: 12, side: eside}); if (SR2.sup.length > 60) SR2.sup.shift();            // el compañero que cae obliga a cubrirse a los de su bando
   srBark(p.side, 'Soldado', lethal ? '¡Han abatido a uno!' : '¡Hombre herido! ¡Médico!', p.x, p.z, tU);

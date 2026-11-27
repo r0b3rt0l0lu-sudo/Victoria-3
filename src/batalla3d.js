@@ -193,6 +193,7 @@ function b3Clip(blk, f, era, cav) {
   if (m === 'fire' || m === 'fixing' || m === 'skirmish') return moving ? 'marcha' : fire;
   return moving ? 'marcha' : 'idle';
 }
+const B3_PER = 12, b3LayX = (j, sp) => (Math.floor(j / 4) - 1) * sp * 0.95, b3LayY = (j, sp) => ((j % 4) - 1.5) * sp * 0.9;       // 12 soldados por figura: 3 filas de 4
 function b3Fig(S, V, blk, f, era, tU, cp, ca) {
   const c = Math.cos(blk.hd), s = Math.sin(blk.hd), tag = blk.tag, tf = S.tf, cx = ca.x, cy = ca.y, cz = ca.z;
   const d3 = (x, y, z) => Math.hypot(x - cx, y - cy, z - cz);
@@ -206,11 +207,11 @@ function b3Fig(S, V, blk, f, era, tU, cp, ca) {
   const cav = blk.type === 'cav', tank = blk.type === 'tank', E = era === 'E', comp = E && typeof t3Comp === 'function' && blk.d ? t3Comp(blk.d, tag) : null;
   const kind = tank ? (E ? (comp && comp.spg > comp.tank ? 'cazacarros' : 'tanque_medio') : 'tanque') : cav ? (E ? 'dragon' : B3_CAV[blk.id % B3_CAV.length]) : 'fusilero', set = b3Set(S, kind, era, tag, null);
   const vk = E && !tank && !cav && comp ? (comp.mech > 3 ? 'semioruga' : comp.mot > 3 ? 'camion' : null) : null, vset = vk ? b3Set(S, vk, era, tag, null) : null, mgset = E && !tank && !cav && comp && comp.mg ? b3Set(S, 'ametrallador', era, tag, null) : null;
-  const m = tank ? 1 : cav ? 2 : (R.lowEnd ? 2 : 6), sp = cav ? 2.9 : tank ? 0 : 1.65 * (blk.comp || 1);
+  const m = tank ? 1 : cav ? 2 : (R.lowEnd ? 2 : B3_PER), sp = cav ? 2.9 : tank ? 0 : 1.65 * (blk.comp || 1);
   const dyingK = !f.alive && f.dying > 0;
   for (let j = 0; j < m; j++) {
     if (typeof b3Hid === 'function' && b3Hid(blk.id, f.i, j)) continue;          // soldado seguido o abatido (soldado3d.js)
-    const lx = tank || cav ? 0 : R.lowEnd ? 0 : (j < 3 ? -0.5 : 0.5) * sp * 1.1, ly = tank ? 0 : cav ? (j ? sp : -sp) : R.lowEnd ? (j ? sp / 2 : -sp / 2) : ((j % 3) - 1) * sp;
+    const lx = tank || cav ? 0 : R.lowEnd ? 0 : b3LayX(j, sp), ly = tank ? 0 : cav ? (j ? sp : -sp) : R.lowEnd ? (j ? sp / 2 : -sp / 2) : b3LayY(j, sp);
     let x = f.x + c * lx - s * ly, z = f.y + s * lx + c * ly, y = b3H(tf, x, z);
     const h1 = hash2(blk.id * 131 + f.i, j, 11), h2 = hash2(blk.id * 131 + f.i, j, 13); _b3o.phase = h1; _b3o.h = (h2 - 0.5) * 0.12; _b3o.bright = (h1 * 7.3) % 1; _b3o.skin = (h2 * 4) | 0; _b3o.horse = (h1 * 4) | 0; _b3o.start = null;
     let yaw = Math.PI / 2 - blk.hd + (h1 - 0.5) * 0.12, clip;

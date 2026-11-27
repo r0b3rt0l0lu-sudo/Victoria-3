@@ -25,6 +25,8 @@ function srKillNPC(S, V, key, p, fx, fz, lethal, tag) {
   const T3 = window.Troops3D, inf = T3 && T3.clipInfo ? T3.clipInfo('fusilero', dClip) : null, crawl = !lethal && Math.random() < 0.65 && npcHas('herido_arrastrandose');
   const e = {key, x: p.x, z: p.z, yaw: p.yaw, tag: tag || (p.blk && p.blk.tag), era, wound: !lethal, crawl, cx: dx / L, cz: dz / L, t0: tU, clip: lethal ? dClip : 'herido_grave', dClip, dur: inf && inf.dur ? inf.dur : 2, corpse: 'cuerpo_inerte_' + dClip.replace(/^muerte_/, ''), npc: true};
   V.kmap[key] = e; V.klist.push(e); SR2.kills++;
+  // la baja cuenta: cada soldado abatido resta su parte de hombres a su unidad en el campo (acertar = eliminar y debilitar al regimiento)
+  try { const bk = p.blk; if (bk && bk.d && typeof bk.d.s === 'number' && bk.type === 'inf') { const N = Math.max(12, bk.figs.filter(q => q.alive).length * (typeof B3_PER === 'number' ? B3_PER : 6)); bk.d.s = Math.max(0.02, bk.d.s - (lethal ? 1 : 0.4) * bk.d.s / N * 0.8); SR2.menLost = (SR2.menLost || 0) + (lethal ? 1 : 0.4) / N; } } catch (er) { }
   fxFlash(p.x, b3H(S.tf, p.x, p.z) + 1.6, p.z, 0.16); bvPart(V, {k: 'dust', x: p.x, y: p.z, life: 0.7});
   const eside = p.side === 'A' ? 'B' : 'A'; SR2.sup.push({x: p.x, z: p.z, t: tU, r: 12, side: eside}); if (SR2.sup.length > 60) SR2.sup.shift();            // el compañero que cae obliga a cubrirse a los de su bando
   srBark(p.side, 'Soldado', lethal ? '¡Han abatido a uno!' : '¡Hombre herido! ¡Médico!', p.x, p.z, tU);

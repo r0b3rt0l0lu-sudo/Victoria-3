@@ -6,11 +6,11 @@
    Solo infantería y caballería (no artillería ni carros). Se apoya en la misma fórmula de colocación de figuras que b3Fig (batalla3d.js). */
 const SOLD = {on: false, bid: -1, fi: 0, j: 0, fp: false, yaw: 0, pit: 0.12, dist: 8, pos: null, saved: null, deadT: 0};
 const soldBlocks = V => [...V.blocks.values()].filter(k => (k.type === 'inf' || k.type === 'cav' || (k.type !== 'art' && k.type !== 'tank')) && k.figs && k.figs.some(f => f.alive));
-const soldSlots = blk => { const m = blk.type === 'cav' ? 2 : R.lowEnd ? 2 : 6, out = []; blk.figs.forEach(f => { if (f.kind === 'gun' || !f.alive) return; for (let j = 0; j < m; j++) out.push([f.i, j]); }); return out; };
+const soldSlots = blk => { const m = blk.type === 'cav' ? 2 : R.lowEnd ? 2 : B3_PER, out = []; blk.figs.forEach(f => { if (f.kind === 'gun' || !f.alive) return; for (let j = 0; j < m; j++) out.push([f.i, j]); }); return out; };
 const soldBlock = V => V && [...V.blocks.values()].find(k => k.id === SOLD.bid);
 function soldWorld(S, blk, f, j) {         // misma colocación que b3Fig
   const cav = blk.type === 'cav', c = Math.cos(blk.hd), s = Math.sin(blk.hd), sp = cav ? 2.9 : 1.65 * (blk.comp || 1);
-  const lx = cav ? 0 : R.lowEnd ? 0 : (j < 3 ? -0.5 : 0.5) * sp * 1.1, ly = cav ? (j ? sp : -sp) : R.lowEnd ? (j ? sp / 2 : -sp / 2) : ((j % 3) - 1) * sp;
+  const lx = cav ? 0 : R.lowEnd ? 0 : b3LayX(j, sp), ly = cav ? (j ? sp : -sp) : R.lowEnd ? (j ? sp / 2 : -sp / 2) : b3LayY(j, sp);
   const x = f.x + c * lx - s * ly, z = f.y + s * lx + c * ly; return {x, z, y: b3H(S.tf, x, z), fx: Math.cos(blk.hd), fz: Math.sin(blk.hd)};
 }
 function soldPick(V, prefer) {

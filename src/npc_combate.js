@@ -92,11 +92,14 @@ function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
       const done = goTo(s.ctx, s.ctz, NPC_V.run); ncl = npcClip('correr_a_cubierto', 'correr_agachado'); start = null; face = Math.atan2(s.ctx - px, s.ctz - pz);
       if (done) { setSt('cover'); s.hide = tU + 1.2 + h1 * 2.5; } else if (tU - s.t0 > 6) setSt('fire'); break; }
     case 'cover': {
+      const co = s.cov >= 0 && S.cov ? S.cov.list[s.cov] : null, kd = co ? co.kind : '', alto = co ? co.h : 1.6, suf = era <= 'B' ? '_A' : '_D';
+      const HI = co && (alto >= 2.2 || co.vil && kd === 'muro' && co.hw > 2.5 && co.hd > 2.5 || kd === 'fuerte'), ROC = kd === 'piedra', TRU = kd === 'tronco';
+      const hideC = HI ? 'pegarse_pared' : ROC ? 'tras_roca' : TRU ? 'agachado_muro_bajo' : 'agachado_muro_bajo', peekC = HI ? 'asomar_esquina_der' : 'asomar_sobre_muro_apuntar', shootC = HI ? 'esquina_der_disparar' + suf : 'muro_disparar' + suf;
       ncl = 'idle_rodilla'; start = null; face = dir; const since = tU - s.t0;
-      if (s.ph === 'aim') { if (tU < s.hide) { ncl = since < 0.9 ? npcClip('ponerse_a_cubierto', 'idle_rodilla') : 'idle_rodilla'; start = since < 0.9 ? s.t0 : null; } else { s.ph = 'peek'; s.phT = tU + 0.55; } }
-      if (s.ph === 'peek') { ncl = npcClip('asomarse', 'idle_rodilla'); start = s.phT - 0.55; if (tU >= s.phT) { s.ph = 'aim2'; s.phT = tU + 0.7 + h2 * 0.9; } }
-      if (s.ph === 'aim2') { ncl = npcAim(era, pitch, 'rodilla', false); start = null; if (tU >= s.phT) { s.ph = 'shoot'; s.phT = tU + 0.7; s.fireT = tU; npcShot(S, V, s, x, z, thr, vsPlayer, dT, true, era, dir); } }
-      if (s.ph === 'shoot') { ncl = npcAim(era, pitch, 'rodilla', true); start = s.fireT; if (tU >= s.phT) { s.ph = 'aim'; s.hide = tU + 1.5 + h1 * 3.5; setSt('cover'); s.t0 = tU; } }
+      if (s.ph === 'aim') { if (tU < s.hide) { ncl = since < 0.9 ? npcClip('ponerse_a_cubierto', 'idle_rodilla') : npcClip(hideC, 'idle_rodilla'); start = since < 0.9 ? s.t0 : (npcHas(hideC) ? s.t0 + 0.9 : null); } else { s.ph = 'peek'; s.phT = tU + 0.55; } }
+      if (s.ph === 'peek') { ncl = npcClip(peekC, npcClip('asomarse', 'idle_rodilla')); start = s.phT - 0.55; if (tU >= s.phT) { s.ph = 'aim2'; s.phT = tU + 0.7 + h2 * 0.9; } }
+      if (s.ph === 'aim2') { ncl = npcAim(era, pitch, 'rodilla', false); start = null; if (tU >= s.phT) { if (!vsPlayer && npcVolleyWait(blk, s, tU, era, dT)) { s.phT = tU + 0.15; } else { s.ph = 'shoot'; s.phT = tU + 0.7; s.fireT = tU; if (npcMisfire(era, h1, h2)) fxFlash(x + s.ox, b3H(S.tf, x, z) + 1.9, z + s.oz, 0.05); else npcShot(S, V, s, x, z, thr, vsPlayer, dT, true, era, dir); } } }
+      if (s.ph === 'shoot') { ncl = npcHas(shootC) ? shootC : npcAim(era, pitch, 'rodilla', true); start = s.fireT; if (tU >= s.phT) { s.ph = 'aim'; s.hide = tU + 1.5 + h1 * 3.5; setSt('cover'); s.t0 = tU; } }
       if (s.pin > 1.5 && s.ph !== 'aim') { s.ph = 'aim'; s.hide = tU + 2.5; } break; }
     case 'prone': {
       face = dir;
@@ -111,7 +114,8 @@ function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
         const brave = s.brave !== undefined ? s.brave : (s.brave = h1 > 0.9), pcc = SOLD.ctrl;
         if (vsPlayer && brave && dT < 42 && dT > 6 && pcc && !pcc.dead && (pcc.cd > 0.4 || pcc.rl) && s.st === 'fire') { npcRelease(S, s, key); setSt('charge'); break; }
         if (era >= 'D' && dT > 9 && dT < 36 && (s.gn === undefined ? (s.gn = h2 > 0.62 ? 2 : 0) : s.gn) > 0 && Math.random() < 0.22) { setSt('throw'); break; }
-        s.ph = 'shoot'; s.phT = tU + 0.7; s.fireT = tU; npcShot(S, V, s, x, z, thr, vsPlayer, dT, false, era, dir); } }
+        if (!vsPlayer && npcVolleyWait(blk, s, tU, era, dT)) { s.phT = tU + 0.15; break; }                       // disciplina de fuego: espera la voz de mando de su pelotón
+        s.ph = 'shoot'; s.phT = tU + 0.7; s.fireT = tU; if (npcMisfire(era, h1, h2)) { s.mis = true; fxFlash(x + s.ox + Math.sin(s.yaw) * 1.4, b3H(S.tf, x, z) + 2.1, z + s.oz + Math.cos(s.yaw) * 1.4, 0.05); } else { s.mis = false; npcShot(S, V, s, x, z, thr, vsPlayer, dT, false, era, dir); } } }
       else if (s.ph === 'shoot') { ncl = npcAim(era, pitch, post, true); start = s.fireT; if (tU >= s.phT) { s.ph = 'reload'; s.phT = tU + rel; s.rt0 = tU; } }
       else { ncl = npcClip('recargar_' + post + '_' + era, 'idle_preparado'); start = s.rt0; if (tU >= s.phT) { s.ph = 'aim'; s.phT = tU + 0.8 + h2 * 1.4; if (!defensive && movers && dT > 45 && h2 < 0.8) { setSt('bound'); } else if (dT > 22 && !s.shy && Math.random() < 0.15) { s.shtx = undefined; setSt('shift'); } } }
       break; }
@@ -121,6 +125,17 @@ function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
   const fx = x + s.ox, fz = z + s.oz; if (enemy) SOLD.visNew.set(key, {x: fx, z: fz, yaw: s.yaw, blk});
   return {x: fx, z: fz, yaw: s.yaw, clip: ncl, start};
 }
+/* disciplina de fuego del avancarga: las líneas disparan a la voz del oficial, por mitades alternas (fuego de pelotones: mientras una mitad
+   dispara, la otra recarga), con una ventana de ~1 s por voz. Los tiradores sueltos (skirmish), los que huyen o los que disparan al jugador
+   a quemarropa no esperan. Si pasan más de dos periodos sin voz disparan por su cuenta (humo, ruido y nervios rompen la disciplina). */
+function npcVolleyWait(blk, s, tU, era, dT) {
+  if (era > 'B' || blk.mode === 'skirmish' || blk.role === 'skirmish' || dT < 22 || s.shy || s.pin > 0) { s.vw = 0; return false; }
+  const P = (CTRL_RELOAD[era] || 3) * 1.9 + 1.2, slot = ((tU + blk.id * 0.7) % P + P) % P, w = slot - (s.grp ? P / 2 : 0);
+  if (w >= 0 && w < 1.1) { if (blk._volT !== Math.floor(tU / P)) { blk._volT = Math.floor(tU / P); try { srBark(blk.side, 'Oficial', '¡Fuego!', blk.x, blk.y, tU); } catch (e) { } } s.vw = 0; return false; }
+  s.vw = (s.vw || 0) + 0.15; return s.vw < P * 2;
+}
+// fallos de ignición: la chispa de pedernal falla ~1 de cada 6-7 disparos; la cápsula de percusión, muchos menos
+function npcMisfire(era, h1, h2) { return Math.random() < (era === 'A' ? 0.13 : era === 'B' ? 0.04 : 0.01); }
 // disparo de un NPC: fogonazo (y humo de pólvora negra), y si apunta al jugador, evento para ctrlStep
 function npcShot(S, V, s, x, z, thr, vsPlayer, dT, cover, era, dir) {
   const fx = x + s.ox + Math.sin(s.yaw) * 1.6, fz = z + s.oz + Math.cos(s.yaw) * 1.6;

@@ -82,3 +82,15 @@ function b3V3HudN1(g, V) {
 }
 const _b3FrameN1 = b3Frame;
 b3Frame = function (V, b, g, lines, all) { const r = _b3FrameN1(V, b, g, lines, all); try { b3V3HudN1(g, V); } catch (e) { if (!B3N.err) { B3N.err = 1; console.warn('hud n1', e); } } return r; };
+
+/* ===== modelos de infantería de Claude Design (infanteria3d.js): cada soldado se dibuja según su empleo y su variación personal ===== */
+const B3VAR = {complexion: 1, barba: 0, pelo: 0, desgaste: 0};
+function b3V3InfKind(blk, f, j, era, h1, h2) {
+  if (!window.infanteria3d || blk.type !== 'inf') return null; const emp = B3N.empleo(f.i, j);
+  let k = emp === 'Teniente' ? 'inf_teniente' : emp === 'Sargento' ? 'inf_sargento' : emp === 'Cabo' ? 'inf_cabo' : 'inf_soldado';
+  if (emp === 'Soldado') { if (f.i === 1 && j === 1 && era < 'D') k = 'inf_tambor'; else if (f.i === 2 && j === 1 && era < 'D') k = 'inf_corneta'; else if (f.i === 4 && j === 3 && blk.tag === 'GBR' && era < 'C') k = 'inf_gaitero'; else if (blk.mode === 'skirmish' && j % 3 === 1) k = 'inf_jager'; else if (f.i === 5 && j === 2) k = 'inf_zapador'; }
+  B3VAR.complexion = Math.floor(h1 * 3); B3VAR.barba = Math.floor(h2 * 5); B3VAR.pelo = Math.floor(hash2(blk.id * 7 + f.i, j, 21) * 6); B3VAR.desgaste = 0; _b3o.variacion = B3VAR;
+  return k;
+}
+// el desgaste del uniforme (barro, polvo, sangre) crece con el tiempo y con las bajas del campo
+setInterval(() => { try { const V = R.bviz; if (V && window.infanteria3d && infanteria3d.desgaste) infanteria3d.desgaste.value = Math.min(0.9, (V.t || 0) / 700 + (SR2.kills || 0) / 260); } catch (e) { } }, 1500);

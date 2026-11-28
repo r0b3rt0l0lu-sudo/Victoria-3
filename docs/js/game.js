@@ -9794,6 +9794,3748 @@ root.Troops3D = api;
 ['TROOP_KINDS', 'TROOP_ERAS', 'buildTroop', 'poseTroop', 'blendPose', 'uniformPalette', 'troopStats'].forEach(k => { root[k] = api[k]; });
 })(typeof window !== 'undefined' ? window : globalThis);
 
+/* ===== infanteria3d.js — infantería de línea 1836–1945 para el modo «Batalla» de Victoria (three.js r152, sin archivos externos) =====
+   Amplía troops3d.js sin reemplazar nada: registrar(Troops3D, op) añade
+   · MODELOS: soldado de infantería por época (A–E), nación (PRU/GER, AUT, FRA, GBR, RUS/URSS, USA, CSA, ESP, ITA, JPN, TUR y genérico)
+     y rango (soldado, cabo, sargento, teniente, capitán, abanderado, corneta, tambor, gaitero, zapador, tirador/jäger, granadero).
+     LOD0 ≤ 900 triángulos con tocado reconocible, cuello y botonadura, correajes, cartuchera, mochila y manta o capote enrollado,
+     morral, cantimplora, bayoneta y vaina, polainas/vendas/botas, distintivos de rango, instrumentos y armas por época.
+     LOD1 ≤ 60 y LOD2 ≤ 10 con la silueta del tocado, de la bandera y del tambor. Tipos: inf_soldado, inf_cabo… (ver TIPOS).
+   · VARIACIÓN por instancia (lotes GPU de troops3d): complexión (delgado / medio / recio), bigote, patillas o barba (vértices propios
+     que se pliegan si la instancia no los lleva), color de pelo y desgaste del uniforme (barro, polvo, sangre) con un control global 0–1.
+   · ANIMACIONES nuevas del soldado (formato CLIPS.soldado): marchas (ordinario, carga, gimnástico × al hombro, a la funerala, a discreción),
+     descarga por filas, recarga completa de avancarga y fallos de ignición, cuadro, carga a la bayoneta, cuerpo a cuerpo emparejado,
+     duelo a sable, escaramuzador apoyado, reacciones (impactos 6× por región, tambaleo, explosión, encogerse, dudar, pánico, capturado),
+     vida de campamento y mando (voz de mando, catalejo, despacho, mensajero, corneta, tambor, gaita, bandera).
+   Raíz asentada con la cinemática real de troops3d (pies en el suelo ± 3 cm), META por clip y grafo de transiciones.
+   Fuentes de uniformes y equipo: Knötel, «Uniformenkunde»; Funcken, «L'uniforme et les armes des soldats du XIXe siècle» y «…de la guerre
+   1914-18»; Osprey Men-at-Arms por ejército; reglamentos de ejercicios citados junto a cada clip. «aprox.» donde el detalle variaba por cuerpo.
+   API: registrar(Troops3D, op) → {tipos, clips} · prepararLote(lote) · variar(lote, i, {complexion, barba, pelo, desgaste}) · desgaste (uniforme)
+        TIPOS · META · TRANSICIONES · rutaTransicion · prueba(Troops3D) · demoInfanteria(cont) */
+(function (root) {
+'use strict';
+const THREE = root.THREE;
+const Z = {MAIN: 0, TRIM: 1, ACC: 2, HAT: 3, F1: 4, F2: 5, F3: 6, FIX: 12};
+const V = {NONE: 0, SKIN: 1, BARBA: 3, BIGOTE: 4, PATILLAS: 5, PELO: 6};
+const C = {cuero: 0x5a3a22, cueroN: 0x26201c, correaB: 0xe8e2d0, madera: 0x7a5232, maderaO: 0x4e3420, acero: 0x9aa0a6, hierro: 0x3a3c40, laton: 0xc8a048, oro: 0xd8b04a, plata: 0xd8dade,
+  bota: 0x1e1a18, suela: 0x141210, mochila: 0x6a5238, pelleja: 0x8a6a48, manta: 0x8a7a62, gris: 0x6e6e66, lona: 0x8a8460, negro: 0x1c1a1a, blanco: 0xece6d6, rojo: 0xa81c1c, carmesi: 0x8a1c2c,
+  verde: 0x3a5a32, piel: 0xe0b48c, pelo: 0x3a2a1c, ojo: 0x1a1410, boton: 0xc8a650, botonB: 0xd8d8d0, botonO: 0x5a5440, hebilla: 0xb89a50, panno: 0x5a4a3a, tartan: 0x2a3a2a, tartanR: 0x8a1c1c, venda: 0x6a6450, caqui: 0x8a7a52};
+
+/* ===================================================================================== */
+/* MODELOS POR NACIÓN Y ÉPOCA
+   toc: tocado · abrigo: casaca (A, faldones) | levita (B) | guerrera (C/D) | capote (abrigo largo con los faldones recogidos) | chaqueta (E)
+   pierna: polaina_b (blanca) | polaina_n (negra) | pantalon | botas | vendas | leggins (polainas de lona) · kit: A | B | C | D | E (correaje)
+   cor: correajes cruzados blancos (A/B) · rollo: manta | capote_hombro (capote en bandolera, ruso) | ninguno · mochila: piel (pelleja) | cuero | lona | no */
+const MOD = {
+  PRU: {A: {toc: 'pickel', abrigo: 'casaca', pierna: 'pantalon', mochila: 'piel', cor: 'negro', nota: 'Waffenrock de 1842, casco de pinchos M1842, mochila de piel de becerro.'},
+        B: {toc: 'pickel', abrigo: 'levita', pierna: 'pantalon', mochila: 'piel', cor: 'negro', nota: 'Waffenrock con faldas largas (1866–70), fusil de aguja Dreyse.'},
+        C: {toc: 'pickel', abrigo: 'guerrera', pierna: 'botas', mochila: 'piel', nota: 'Botas altas; Gewehr 88/98; cartucheras M1887 al frente.'},
+        D: {toc: 'stahl', abrigo: 'guerrera', pierna: 'botas', mochila: 'no', rollo: 'capote_mochila', nota: 'Feldgrau M1915, Stahlhelm M1916; botas (en 1917 a menudo botines y vendas).'},
+        E: {toc: 'stahl', abrigo: 'chaqueta', pierna: 'botas', mochila: 'no', nota: 'Feldbluse M36, Stahlhelm M35, correaje en Y con cartucheras K98.'}},
+  AUT: {A: {toc: 'chaco_aut', abrigo: 'casaca', pierna: 'pantalon', mochila: 'piel', cor: 'blanco', nota: 'Rock blanco, chacó troncocónico con visera y pompón; correajes blancos.'},
+        B: {toc: 'chaco_aut', abrigo: 'levita', pierna: 'pantalon', mochila: 'piel', cor: 'blanco', nota: 'Waffenrock blanco hasta 1868; chacó M1861.'},
+        C: {toc: 'kepi_aut', abrigo: 'guerrera', pierna: 'pantalon', mochila: 'piel', nota: 'Waffenrock azul oscuro (1868–1908), gorra de campaña (Feldkappe); Mannlicher M1895.'},
+        D: {toc: 'stahl', abrigo: 'guerrera', pierna: 'vendas', mochila: 'lona', nota: 'Hechtgrau (gris lucio) M1908/15, Stahlhelm M1917, vendas.'}},
+  FRA: {A: {toc: 'chaco', abrigo: 'capote', pierna: 'polaina_b', mochila: 'cuero', cor: 'blanco', nota: 'Capote gris azulado con faldones recogidos, pantalón garance, chacó de 1837 (quepis en campaña desde 1840).'},
+        B: {toc: 'kepi', abrigo: 'capote', pierna: 'polaina_b', mochila: 'cuero', cor: 'negro', nota: 'Capote azul y pantalón garance, quepis, polainas de cuero; Chassepot.'},
+        C: {toc: 'kepi', abrigo: 'capote', pierna: 'polaina_n', mochila: 'cuero', nota: 'Capote azul y pantalón garance hasta 1914; Lebel.'},
+        D: {toc: 'adrian', abrigo: 'capote', pierna: 'vendas', mochila: 'lona', nota: 'Azul horizonte (1915), casco Adrian M1915, vendas.'},
+        E: {toc: 'adrian', abrigo: 'capote', pierna: 'vendas', mochila: 'lona', nota: 'Caqui (1935), casco Adrian M1926, MAS 36.'}},
+  GBR: {A: {toc: 'chaco', abrigo: 'casaca', pierna: 'pantalon', mochila: 'cuero', cor: 'blanco', nota: 'Casaca escarlata, correajes blancos cruzados, chacó Albert (1844).'},
+        B: {toc: 'chaco', abrigo: 'guerrera', pierna: 'pantalon', mochila: 'cuero', cor: 'blanco', nota: 'Túnica escarlata (1855), chacó de 1861; Enfield 1853.'},
+        C: {toc: 'casco_hs', abrigo: 'guerrera', pierna: 'polaina_n', mochila: 'cuero', nota: 'Home Service Helmet (1878), túnica roja; en campaña colonial caqui y salacot.'},
+        D: {toc: 'brodie', abrigo: 'guerrera', pierna: 'vendas', mochila: 'lona', nota: 'Service Dress caqui, casco Brodie, correaje de lona P1908, vendas.'},
+        E: {toc: 'brodie', abrigo: 'chaqueta', pierna: 'leggins', mochila: 'lona', nota: 'Battledress 1937, casco Mk II, correaje P1937 con polainas cortas.'}},
+  RUS: {A: {toc: 'chaco', abrigo: 'casaca', pierna: 'pantalon', mochila: 'cuero', cor: 'blanco', nota: 'Casaca verde oscuro y chacó/kiwer (aprox.).'},
+        B: {toc: 'kepi_bajo', abrigo: 'levita', pierna: 'botas', mochila: 'cuero', rollo: 'capote_hombro', nota: 'Quepis ruso (1862), botas, capote en bandolera.'},
+        C: {toc: 'gorra_rusa', abrigo: 'guerrera', pierna: 'botas', mochila: 'no', rollo: 'capote_hombro', nota: 'Gorra sin visera, gimnastiorka, capote enrollado al hombro; Mosin-Nagant.'},
+        D: {toc: 'gorra_rusa', abrigo: 'guerrera', pierna: 'botas', mochila: 'no', rollo: 'capote_hombro', nota: 'Igual en 1914–17; cascos Adrian en algunas unidades (no modelado).'},
+        E: {toc: 'ssh40', abrigo: 'guerrera', pierna: 'botas', mochila: 'no', rollo: 'capote_hombro', nota: 'Gimnastiorka M35/43, casco SSh-40, rollo de capote; Mosin 91/30.'}},
+  USA: {A: {toc: 'chaco', abrigo: 'casaca', pierna: 'pantalon', mochila: 'cuero', cor: 'blanco', nota: 'Casaca azul y pantalón celeste (1833–51, aprox.).'},
+        B: {toc: 'gorra_campana', abrigo: 'levita', pierna: 'pantalon', mochila: 'cuero', cor: 'negro', nota: 'Sack coat azul, pantalón celeste, gorra de campaña M1858; Springfield 1861.'},
+        C: {toc: 'slouch', abrigo: 'guerrera', pierna: 'leggins', mochila: 'no', rollo: 'manta_hombro', nota: 'Sombrero de campaña, camisa azul o caqui (1898), manta en bandolera; Krag.'},
+        D: {toc: 'brodie', abrigo: 'guerrera', pierna: 'vendas', mochila: 'lona', nota: 'M1917, casco M1917 (Brodie), cinturón de cartuchos; Springfield/Enfield.'},
+        E: {toc: 'm1', abrigo: 'chaqueta', pierna: 'leggins', mochila: 'lona', nota: 'Chaqueta M41, casco M1, polainas de lona; Garand.'}},
+  CSA: {B: {toc: 'slouch', abrigo: 'levita', pierna: 'pantalon', mochila: 'no', rollo: 'manta_hombro', cor: 'negro', nota: 'Chaqueta gris o «butternut», sombrero, manta en bandolera, sin mochila (aprox.: muy variable).'}},
+  ESP: {A: {toc: 'chaco', abrigo: 'levita', pierna: 'pantalon', mochila: 'cuero', cor: 'blanco', nota: 'Levita azul, pantalón rojo o garance, chacó (aprox.).'},
+        B: {toc: 'ros', abrigo: 'levita', pierna: 'pantalon', mochila: 'cuero', cor: 'negro', nota: 'Ros (1855), levita azul, pantalón rojo.'},
+        C: {toc: 'ros', abrigo: 'guerrera', pierna: 'pantalon', mochila: 'no', rollo: 'manta_hombro', nota: 'Rayadillo en Cuba/Filipinas (aprox.), Mauser 93.'},
+        D: {toc: 'gorra', abrigo: 'guerrera', pierna: 'vendas', mochila: 'lona', nota: 'Caqui (1914–26), gorra de plato (aprox.).'},
+        E: {toc: 'm33', abrigo: 'chaqueta', pierna: 'vendas', mochila: 'lona', nota: 'Casco «modelo Trubia» (aprox. con el M33), caqui.'}},
+  ITA: {A: {toc: 'chaco', abrigo: 'casaca', pierna: 'pantalon', mochila: 'cuero', cor: 'blanco', nota: 'Cerdeña-Piamonte: azul oscuro, chacó (aprox.).'},
+        B: {toc: 'kepi', abrigo: 'levita', pierna: 'pantalon', mochila: 'cuero', cor: 'negro', nota: 'Quepis y levita azul (1860–70).'},
+        C: {toc: 'kepi', abrigo: 'guerrera', pierna: 'pantalon', mochila: 'cuero', nota: 'Azul oscuro hasta 1908; Carcano 91.'},
+        D: {toc: 'adrian', abrigo: 'guerrera', pierna: 'vendas', mochila: 'lona', nota: 'Grigio-verde (1909), casco Adrian (italiano), vendas.'},
+        E: {toc: 'm33', abrigo: 'guerrera', pierna: 'vendas', mochila: 'lona', nota: 'Grigio-verde, casco M33.'}},
+  JPN: {B: {toc: 'kepi', abrigo: 'guerrera', pierna: 'pantalon', mochila: 'cuero', nota: 'Uniforme de estilo francés (1870–86, aprox.).'},
+        C: {toc: 'kepi_bajo', abrigo: 'guerrera', pierna: 'polaina_b', mochila: 'cuero', nota: 'Azul oscuro con banda amarilla en la gorra (1886–1905); Arisaka 30.'},
+        D: {toc: 'kepi_bajo', abrigo: 'guerrera', pierna: 'vendas', mochila: 'cuero', nota: 'Caqui M1906; Arisaka 38.'},
+        E: {toc: 'casco_jp', abrigo: 'guerrera', pierna: 'vendas', mochila: 'lona', nota: 'Tipo 98, casco Tipo 90 con funda de tela; Arisaka 99.'}},
+  TUR: {A: {toc: 'fez', abrigo: 'casaca', pierna: 'pantalon', mochila: 'cuero', cor: 'blanco', nota: 'Fez y casaca azul de estilo europeo (Nizam-ı Cedid tardío, aprox.).'}, C: {toc: 'fez', abrigo: 'guerrera', pierna: 'vendas', mochila: 'cuero', nota: 'Aprox.'}, D: {toc: 'kabalak', abrigo: 'guerrera', pierna: 'vendas', mochila: 'lona', nota: 'Enverie/kabalak (1915).'}},
+  GEN: {A: {toc: 'chaco', abrigo: 'casaca', pierna: 'pantalon', mochila: 'cuero', cor: 'blanco'}, B: {toc: 'kepi', abrigo: 'levita', pierna: 'pantalon', mochila: 'cuero', cor: 'negro'}, C: {toc: 'pickel', abrigo: 'guerrera', pierna: 'pantalon', mochila: 'cuero'},
+        D: {toc: 'stahl', abrigo: 'guerrera', pierna: 'vendas', mochila: 'lona'}, E: {toc: 'stahl', abrigo: 'chaqueta', pierna: 'botas', mochila: 'no'}}};
+MOD.GER = MOD.PRU; MOD.URS = MOD.RUS;
+const ERAS = ['A', 'B', 'C', 'D', 'E'];
+function modelo(nat, era) { const m = MOD[nat] || MOD.GEN; if (m[era]) return m[era]; const i = ERAS.indexOf(era); for (let d = 1; d < 5; d++) { if (m[ERAS[i - d]]) return m[ERAS[i - d]]; if (m[ERAS[i + d]]) return m[ERAS[i + d]]; } return MOD.GEN[era]; }
+// arma larga por época y nación
+function armaDe(nat, era, rango) {
+  if (rango === 'jager') return era === 'A' ? 'rifle_a' : era === 'B' ? 'rifle_b' : 'cerrojo';
+  return era === 'A' ? 'mosquete' : era === 'B' ? 'rifle_b' : 'cerrojo';
+}
+
+/* ===================================================================================== */
+function crear(T3) {
+const GB = T3._dev.GeoBuilder, P = {}; T3.RIGS.soldado.forEach((p, i) => { P[p[0]] = i; });
+
+/* ---------- cabeza: cuello, cráneo, nariz, ojos, orejas, pelo (zona de pelo variable) y vello facial plegable ---------- */
+function cabeza(g, h, o) {
+  const S = Z.FIX, sk = C.piel, vs = V.SKIN;
+  g.loft(h, S, sk, [[-0.02, 0.05, 0.052, 0, 0.005], [0.07, 0.05, 0.055, 0, 0.01]], 6, {});
+  g.loft(h, S, sk, [[0.06, 0.03, 0.03, 0, 0.07], [0.1, 0.064, 0.072, 0, 0.022], [0.17, 0.075, 0.095, 0, 0.004], [0.24, 0.077, 0.098, 0, -0.006], [0.272, 0.055, 0.07, 0, -0.01]], 6, {capA: true, capB: true, domeB: 0.02, vr: vs, a0: Math.PI / 6});
+  g.loft(h, S, C.pelo, [[0.18, 0.081, 0.1, 0, -0.014], [0.258, 0.072, 0.09, 0, -0.012]], 6, {capB: true, domeB: 0.035, a0: Math.PI / 6, vr: V.PELO});
+  g.tri([0, 0.2, 0.1], [0.018, 0.15, 0.106], [0, 0.145, 0.128], h, S, sk, vs); g.tri([0, 0.2, 0.1], [0, 0.145, 0.128], [-0.018, 0.15, 0.106], h, S, sk, vs);
+  [1, -1].forEach(s => { g.quad([0.032 * s - 0.015, 0.196, 0.095], [0.032 * s + 0.015, 0.196, 0.095], [0.032 * s + 0.013, 0.186, 0.097], [0.032 * s - 0.013, 0.186, 0.097], h, S, C.ojo);
+    g.tri([0.078 * s, 0.205, 0.0], [0.074 * s, 0.155, 0.025], [0.078 * s, 0.2, 0.03], h, S, sk, vs); });
+  g.quad([-0.045, 0.214, 0.098], [0.045, 0.214, 0.098], [0.04, 0.205, 0.104], [-0.04, 0.205, 0.104], h, S, C.pelo, V.PELO);   // cejas
+  // vello facial (se pliega en el sombreador si la instancia no lo lleva; con o.barbaFija se dibuja siempre)
+  const vb = o.barbaFija ? V.PELO : V.BIGOTE, vp = o.barbaFija ? V.PELO : V.PATILLAS, vf = o.barbaFija ? V.PELO : V.BARBA;
+  g.quad([-0.034, 0.13, 0.121], [0.034, 0.13, 0.121], [0.028, 0.116, 0.117], [-0.028, 0.116, 0.117], h, S, C.pelo, vb);
+  [1, -1].forEach(s => g.quad([0.074 * s, 0.19, 0.03], [0.07 * s, 0.13, 0.05], [0.068 * s, 0.12, 0.02], [0.074 * s, 0.185, 0.0], h, S, C.pelo, vp));
+  g.tri([-0.06, 0.13, 0.08], [0, 0.06, 0.1], [0, 0.11, 0.122], h, S, C.pelo, vf); g.tri([0, 0.11, 0.122], [0, 0.06, 0.1], [0.06, 0.13, 0.08], h, S, C.pelo, vf);
+  g.tri([-0.06, 0.13, 0.08], [-0.05, 0.11, 0.03], [0, 0.06, 0.1], h, S, C.pelo, vf); g.tri([0.06, 0.13, 0.08], [0, 0.06, 0.1], [0.05, 0.11, 0.03], h, S, C.pelo, vf);
+  if (o.toc) tocado(g, h, o.toc, o);
+}
+
+/* ---------- tocados (cabeza: frente a y 0,215, coronilla 0,29, radio 0,08 × 0,1) ---------- */
+const H = Z.HAT;
+function visera(g, h, y, z, w, col, ang) { w = w || 0.085; const c = col || C.cueroN, dz = 0.06, dy = -(ang == null ? 0.025 : ang); g.quad([-w, y, z], [w, y, z], [w * 0.85, y + dy, z + dz], [-w * 0.85, y + dy, z + dz], h, Z.FIX, c); g.quad([w, y, z], [-w, y, z], [-w * 0.85, y + dy, z + dz], [w * 0.85, y + dy, z + dz], h, Z.FIX, 0x2a2420); }
+function placa(g, h, y, z, s, col) { g.quad([-s, y - s, z], [s, y - s, z], [s * 0.8, y + s, z - 0.004], [-s * 0.8, y + s, z - 0.004], h, Z.FIX, col || C.laton); }
+function pompon(g, h, y, z, r, col, zona) { g.octa(h, zona != null ? zona : Z.FIX, col || 0, [0, y, z], r); }
+function cupula(g, h, zona, col, rings, n) { g.loft(h, zona, col || 0, rings, n || 8, {capB: true, domeB: 0.02, a0: Math.PI / 8}); }
+function tocado(g, h, toc, o) {
+  const lujo = o.oficial;   // galón dorado en oficiales
+  switch (toc) {
+    case 'chaco': g.cyl(h, H, 0, [0, 0.31, -0.004], 0.094, 0.112, 0.2, 8, {top: true}); visera(g, h, 0.222, 0.088); placa(g, h, 0.3, 0.108, 0.026, o.placa || C.laton); pompon(g, h, 0.43, 0.05, 0.026, null, Z.TRIM);
+      if (lujo) g.cyl(h, Z.FIX, C.oro, [0, 0.4, -0.004], 0.113, 0.113, 0.016, 8); break;
+    case 'chaco_aut': g.cyl(h, Z.FIX, C.negro, [0, 0.32, -0.006], 0.097, 0.088, 0.22, 8, {top: true}); visera(g, h, 0.222, 0.088); g.octa(h, Z.FIX, C.oro, [0, 0.4, 0.086], 0.022, {rz: 0.006}); pompon(g, h, 0.44, 0.05, 0.022, 0x2a2010); if (lujo) g.cyl(h, Z.FIX, C.oro, [0, 0.415, -0.006], 0.09, 0.089, 0.018, 8); break;
+    case 'kepi': g.cyl(h, Z.MAIN, 0, [0, 0.24, 0], 0.092, 0.095, 0.05, 8); g.cyl(h, H, 0, [0, 0.31, -0.012], 0.095, 0.08, 0.1, 8, {top: true, rot: [-9, 0, 0]}); visera(g, h, 0.222, 0.088);
+      if (lujo || o.galon) g.cyl(h, Z.FIX, C.oro, [0, 0.265, 0], 0.096, 0.096, 0.012, 8); break;
+    case 'kepi_aut': g.cyl(h, H, 0, [0, 0.27, -0.006], 0.094, 0.098, 0.12, 8, {top: true}); visera(g, h, 0.222, 0.086); g.octa(h, Z.FIX, C.oro, [0, 0.29, 0.095], 0.015); break;
+    case 'kepi_bajo': g.cyl(h, Z.TRIM, 0, [0, 0.235, 0], 0.092, 0.094, 0.04, 8); g.cyl(h, H, 0, [0, 0.28, -0.004], 0.094, 0.1, 0.05, 8, {top: true}); visera(g, h, 0.222, 0.085); g.octa(h, Z.FIX, C.oro, [0, 0.27, 0.098], 0.014); break;
+    case 'gorra_campana': g.cyl(h, H, 0, [0, 0.245, 0], 0.092, 0.094, 0.05, 8); g.loft(h, H, 0, [[0.27, 0.094, 0.1, 0, 0], [0.34, 0.085, 0.09, 0, 0.04], [0.37, 0.06, 0.05, 0, 0.075]], 8, {capB: true, a0: Math.PI / 8}); visera(g, h, 0.222, 0.088, 0.08, null, 0.035); break;
+    case 'ros': g.cyl(h, H, 0, [0, 0.3, -0.004], 0.096, 0.1, 0.17, 8, {top: true}); visera(g, h, 0.222, 0.088); visera(g, h, 0.222, -0.088, 0.07); g.cyl(h, Z.TRIM, 0, [0, 0.37, -0.004], 0.1, 0.1, 0.02, 8); pompon(g, h, 0.4, 0.07, 0.018, null, Z.TRIM); break;
+    case 'slouch': g.cyl(h, H, 0, [0, 0.255, 0], 0.18, 0.17, 0.016, 8, {top: false, bottom: true}); g.cyl(h, H, 0, [0, 0.3, 0], 0.095, 0.085, 0.09, 8, {top: true, dome: -0.02}); g.cyl(h, Z.FIX, C.negro, [0, 0.27, 0], 0.096, 0.095, 0.02, 8); break;
+    case 'salacot': g.loft(h, H, 0, [[0.2, 0.15, 0.19, 0, -0.01], [0.225, 0.1, 0.12], [0.31, 0.094, 0.11], [0.35, 0.05, 0.06]], 8, {capB: true, domeB: 0.02, a0: Math.PI / 8}); break;
+    case 'casco_hs': g.loft(h, H, 0, [[0.21, 0.12, 0.16, 0, 0], [0.23, 0.098, 0.12], [0.32, 0.09, 0.1], [0.36, 0.05, 0.06]], 8, {capB: true, domeB: 0.02, a0: Math.PI / 8}); g.cyl(h, Z.FIX, C.laton, [0, 0.4, 0], 0.012, 0.0, 0.07, 4); placa(g, h, 0.29, 0.118, 0.03); break;
+    case 'pickel': case 'pickel_cub': { const col = toc === 'pickel_cub' ? 0x8a8462 : C.negro;
+      g.loft(h, Z.FIX, col, [[0.21, 0.1, 0.12, 0, 0], [0.27, 0.095, 0.11], [0.33, 0.07, 0.08], [0.36, 0.03, 0.035]], 8, {capB: true, a0: Math.PI / 8}); visera(g, h, 0.215, 0.1, 0.08, col); visera(g, h, 0.215, -0.1, 0.07, col, 0.04);
+      if (toc === 'pickel') { placa(g, h, 0.28, 0.112, 0.035, o.placa || C.laton); g.cyl(h, Z.FIX, C.laton, [0, 0.41, 0], 0.016, 0.0, 0.09, 4); } break; }
+    case 'stahl': g.loft(h, H, 0, [[0.13, 0.13, 0.145, 0, -0.015], [0.17, 0.112, 0.128, 0, -0.008], [0.21, 0.104, 0.12], [0.29, 0.098, 0.112], [0.34, 0.06, 0.07]], 8, {capB: true, domeB: 0.02, a0: Math.PI / 8, inside: false}); break;
+    case 'adrian': cupula(g, h, H, 0, [[0.215, 0.1, 0.12], [0.3, 0.092, 0.11], [0.34, 0.05, 0.06]]); g.quad([0, 0.35, -0.11], [0, 0.35, 0.11], [0, 0.385, 0.07], [0, 0.385, -0.07], h, H, 0); g.quad([0, 0.35, 0.11], [0, 0.35, -0.11], [0, 0.385, -0.07], [0, 0.385, 0.07], h, H, 0);
+      visera(g, h, 0.218, 0.115, 0.09, 0x4a5058, 0.03); visera(g, h, 0.218, -0.115, 0.09, 0x4a5058, 0.02); placa(g, h, 0.27, 0.118, 0.018, 0x8a8a7a); break;
+    case 'brodie': g.cyl(h, H, 0, [0, 0.235, 0], 0.17, 0.165, 0.012, 8, {top: false, bottom: true}); cupula(g, h, H, 0, [[0.24, 0.105, 0.12], [0.3, 0.095, 0.105], [0.32, 0.05, 0.055]]); break;
+    case 'm1': g.loft(h, H, 0, [[0.16, 0.112, 0.13, 0, -0.01], [0.21, 0.104, 0.122], [0.3, 0.096, 0.11], [0.35, 0.05, 0.06]], 8, {capB: true, domeB: 0.02, a0: Math.PI / 8}); g.strap(h, Z.FIX, 0x5a5238, [[0.1, 0.2, 0.03], [0.07, 0.1, 0.05], [0, 0.07, 0.07], [-0.07, 0.1, 0.05], [-0.1, 0.2, 0.03]], 0.014, [0, -0.3, 1]); break;
+    case 'ssh40': g.loft(h, H, 0, [[0.18, 0.11, 0.128, 0, -0.008], [0.22, 0.104, 0.12], [0.3, 0.096, 0.108], [0.345, 0.05, 0.055]], 8, {capB: true, domeB: 0.025, a0: Math.PI / 8}); g.octa(h, Z.FIX, C.rojo, [0, 0.29, 0.11], 0.016); break;
+    case 'm33': g.loft(h, H, 0, [[0.2, 0.118, 0.14, 0, -0.01], [0.22, 0.1, 0.12], [0.3, 0.094, 0.108], [0.345, 0.05, 0.055]], 8, {capB: true, domeB: 0.02, a0: Math.PI / 8}); break;
+    case 'casco_jp': g.loft(h, H, 0, [[0.2, 0.11, 0.13, 0, -0.005], [0.22, 0.1, 0.118], [0.3, 0.094, 0.106], [0.345, 0.05, 0.055]], 8, {capB: true, domeB: 0.022, a0: Math.PI / 8}); g.octa(h, Z.FIX, 0xd0b040, [0, 0.29, 0.112], 0.014, {rz: 0.004}); break;
+    case 'gorra': g.cyl(h, H, 0, [0, 0.245, 0], 0.092, 0.094, 0.05, 8); g.loft(h, H, 0, [[0.265, 0.096, 0.1], [0.29, 0.125, 0.13, 0, 0.01], [0.3, 0.12, 0.125, 0, 0.012]], 8, {capB: true, a0: Math.PI / 8}); visera(g, h, 0.222, 0.088); g.octa(h, Z.FIX, C.oro, [0, 0.26, 0.098], 0.013); break;
+    case 'gorra_rusa': g.cyl(h, Z.TRIM, 0, [0, 0.235, 0], 0.093, 0.095, 0.035, 8); g.cyl(h, H, 0, [0, 0.27, 0], 0.096, 0.11, 0.04, 8, {top: true}); g.octa(h, Z.FIX, C.oro, [0, 0.24, 0.097], 0.012); break;
+    case 'bicornio': g.quad([-0.2, 0.25, 0.0], [0.2, 0.25, 0.0], [0.04, 0.38, 0.03], [-0.04, 0.38, 0.03], h, Z.FIX, C.negro); g.quad([0.2, 0.25, 0.0], [-0.2, 0.25, 0.0], [-0.04, 0.38, -0.03], [0.04, 0.38, -0.03], h, Z.FIX, C.negro);
+      g.quad([-0.2, 0.25, 0.0], [-0.04, 0.38, 0.03], [-0.04, 0.38, -0.03], [-0.2, 0.25, 0], h, Z.FIX, C.negro); g.octa(h, Z.TRIM, 0, [0.05, 0.33, 0.03], 0.02); g.strap(h, Z.FIX, C.oro, [[-0.2, 0.252, 0.004], [0, 0.32, 0.03], [0.2, 0.252, 0.004]], 0.01, [0, 0, 1]); break;
+    case 'fez': g.cyl(h, Z.FIX, 0x9a1c1c, [0, 0.28, 0], 0.09, 0.075, 0.13, 8, {top: true}); g.strap(h, Z.FIX, C.negro, [[0, 0.345, 0], [-0.04, 0.32, -0.05], [-0.06, 0.26, -0.07]], 0.02, [1, 0, 0]); break;
+    case 'kabalak': g.loft(h, H, 0, [[0.21, 0.1, 0.12], [0.27, 0.11, 0.13], [0.33, 0.08, 0.09]], 8, {capB: true, a0: Math.PI / 8}); g.cyl(h, H, 0, [0, 0.24, 0], 0.1, 0.11, 0.04, 8); break;
+    case 'osos': g.loft(h, Z.FIX, C.negro, [[0.2, 0.1, 0.115], [0.36, 0.118, 0.13], [0.54, 0.075, 0.08]], 8, {capB: true, domeB: 0.03, a0: Math.PI / 8}); visera(g, h, 0.22, 0.09, 0.07); g.octa(h, Z.TRIM, 0, [0.1, 0.42, 0.02], 0.022, {ry: 0.06}); break;
+    case 'jagerhut': g.cyl(h, Z.FIX, 0x2a2a24, [0, 0.245, 0], 0.15, 0.15, 0.012, 8, {bottom: true}); g.cyl(h, Z.FIX, 0x2a2a24, [0, 0.3, -0.005], 0.094, 0.07, 0.11, 8, {top: true}); g.cyl(h, Z.FIX, 0x1a2a1a, [0.06, 0.38, -0.04], 0.012, 0.045, 0.16, 4, {rot: [-30, 0, -25]}); break;
+    case 'bersagliere': g.cyl(h, Z.FIX, C.negro, [0, 0.25, 0], 0.17, 0.17, 0.012, 8, {bottom: true}); g.cyl(h, Z.FIX, C.negro, [0, 0.29, 0], 0.096, 0.09, 0.07, 8, {top: true});
+      for (let k = 0; k < 4; k++) g.quad([0.07, 0.3, 0.02], [0.08, 0.31, -0.02], [0.2 + k * 0.01, 0.2 - k * 0.04, -0.12 + k * 0.03], [0.19, 0.21 - k * 0.04, -0.08 + k * 0.03], h, Z.FIX, 0x14221a); break;
+    case 'glengarry': g.quad([0.06, 0.22, -0.1], [0.06, 0.22, 0.1], [0.0, 0.31, 0.08], [0.0, 0.31, -0.08], h, Z.FIX, 0x1a1a2a); g.quad([-0.06, 0.22, 0.1], [-0.06, 0.22, -0.1], [0.0, 0.31, -0.08], [0.0, 0.31, 0.08], h, Z.FIX, 0x1a1a2a); g.strap(h, Z.FIX, C.negro, [[0, 0.25, -0.1], [0, 0.12, -0.14]], 0.02, [1, 0, 0]); break;
+    case 'bonete_plumas': g.loft(h, Z.FIX, C.negro, [[0.2, 0.098, 0.115], [0.34, 0.12, 0.135], [0.5, 0.1, 0.11], [0.56, 0.05, 0.05]], 8, {capB: true, a0: Math.PI / 8}); g.cyl(h, Z.FIX, 0xd8d0c0, [0, 0.235, 0], 0.099, 0.1, 0.04, 8); g.box(h, Z.FIX, C.blanco, [0.08, 0.42, 0.03], [0.02, 0.18, 0.04], {rot: [0, 0, -10]}); g.strap(h, Z.FIX, C.negro, [[0, 0.3, -0.11], [0, 0.12, -0.16]], 0.04, [1, 0, 0]); break;
+    case 'pilotka': g.quad([0.07, 0.23, -0.1], [0.07, 0.23, 0.1], [0.0, 0.3, 0.09], [0.0, 0.3, -0.09], h, H, 0); g.quad([-0.07, 0.23, 0.1], [-0.07, 0.23, -0.1], [0.0, 0.3, -0.09], [0.0, 0.3, 0.09], h, H, 0); g.octa(h, Z.FIX, C.rojo, [0.0, 0.26, 0.1], 0.012); break;
+    default: break;
+  }
+}
+const TOC_LOD = {chaco: 'chaco', chaco_aut: 'chaco', kepi: 'kepi', kepi_aut: 'kepi', kepi_bajo: 'gorra_rusa', gorra_campana: 'kepi', ros: 'kepi', slouch: 'sombrero', salacot: 'salacot', casco_hs: 'salacot', pickel: 'pickel', pickel_cub: 'pickel',
+  stahl: 'stahl', adrian: 'adrian', brodie: 'brodie', m1: 'stahl', ssh40: 'stahl', m33: 'stahl', casco_jp: 'stahl', gorra: 'gorra', gorra_rusa: 'gorra_rusa', bicornio: 'bicornio', fez: 'fez', kabalak: 'kabalak', osos: 'osos',
+  jagerhut: 'sombrero', bersagliere: 'bersagliere', glengarry: 'gorra_rusa', bonete_plumas: 'osos', pilotka: 'gorra_rusa'};
+
+/* ---------- armas (pivote en la culata, +y hacia la boca; manos en y 0,32 y 0,82 como los clips de troops3d) ---------- */
+function arma(g, a, w, o) {
+  o = o || {};
+  switch (w) {
+    case 'mosquete': case 'rifle_a': case 'rifle_b': case 'cerrojo': case 'carabina': {
+      const L = w === 'mosquete' ? 1.5 : w === 'rifle_b' ? 1.4 : w === 'rifle_a' ? 1.22 : o.era === 'E' ? 1.1 : 1.25, ls = w === 'cerrojo' ? 0.42 : 0.48;
+      g.box(a, Z.FIX, C.madera, [0, ls / 2, -0.012], [0.05, ls, 0.12], {taper: 0.35, taperZ: 0.55, noTop: true, bottom: true});                 // culata
+      g.box(a, Z.FIX, C.maderaO, [0, ls + (L - ls - 0.12) / 2, 0.01], [0.042, L - ls - 0.12, 0.045], {noTop: true, noBottom: true});             // caja
+      g.cyl(a, Z.FIX, C.hierro, [0, (ls + L) / 2 + 0.05, 0.03], 0.011, 0.01, L - ls + 0.1, 4);                                                // cañón
+      if (w === 'mosquete') { g.box(a, Z.FIX, C.hierro, [-0.028, ls + 0.04, 0.02], [0.012, 0.09, 0.04], {noTop: true}); g.tet(a, Z.FIX, C.hierro, [-0.03, ls + 0.09, 0.03], 0.018); }   // llave de chispa y pie de gato
+      else if (w === 'cerrojo') { g.tet(a, Z.FIX, C.hierro, [-0.04, ls + 0.06, 0.02], 0.022); g.box(a, Z.FIX, C.hierro, [0, ls + 0.12, -0.04], [0.03, 0.08, 0.04], {noTop: true}); }   // manubrio y cargador
+      else g.tet(a, Z.FIX, C.hierro, [-0.03, ls + 0.04, 0.025], 0.016);                                                                      // llave de percusión
+      if (w !== 'cerrojo') [0.62, 0.95].forEach(y => g.cyl(a, Z.FIX, C.laton, [0, y, 0.02], 0.026, 0.026, 0.02, 4));                        // abrazaderas
+      if (o.bayoneta) { if (w === 'cerrojo') g.box(a, Z.FIX, C.acero, [0, L + 0.17, 0.035], [0.012, 0.34, 0.03], {taper: 0.7, noTop: true});
+        else g.cyl(a, Z.FIX, C.acero, [0, L + 0.22, 0.045], 0.016, 0, 0.44, 3); }
+      break; }
+    case 'espada': g.octa(a, Z.FIX, C.laton, [0, 0.0, 0], 0.04, {ry: 0.05}); g.box(a, Z.FIX, C.laton, [0, 0.06, 0], [0.1, 0.012, 0.02]); g.box(a, Z.FIX, 0xd8dce0, [0, 0.46, 0.0], [0.024, 0.8, 0.04], {taper: 0.7, noTop: true}); break;
+    case 'sable': g.octa(a, Z.FIX, C.laton, [0, 0.0, 0], 0.04, {ry: 0.05}); g.strap(a, Z.FIX, C.laton, [[0, -0.04, 0.04], [0, 0.06, 0.06]], 0.015, [1, 0, 0]); g.box(a, Z.FIX, 0xd8dce0, [0, 0.47, 0.025], [0.022, 0.84, 0.045], {taper: 0.6, rot: [7, 0, 0], noTop: true}); break;
+    case 'hacha': g.cyl(a, Z.FIX, C.madera, [0, 0.42, 0], 0.016, 0.016, 0.84, 4); g.box(a, Z.FIX, C.acero, [0, 0.8, 0.07], [0.02, 0.12, 0.16], {taperZ: -0.4}); break;
+    case 'corneta': g.cyl(a, Z.FIX, C.laton, [0, 0.12, 0.0], 0.008, 0.008, 0.22, 4); g.cyl(a, Z.FIX, C.laton, [0, 0.2, -0.05], 0.009, 0.009, 0.16, 4, {rot: [0, 0, 0]}); g.cyl(a, Z.FIX, C.laton, [0, 0.32, 0.0], 0.012, 0.05, 0.1, 6); g.octa(a, Z.FIX, C.laton, [0, 0.01, 0], 0.012); break;
+    case 'palillo': g.cyl(a, Z.FIX, 0xc8a880, [0, 0.16, 0], 0.008, 0.006, 0.36, 3); break;
+    case 'puntero': g.cyl(a, Z.FIX, C.negro, [0, 0.18, 0], 0.012, 0.016, 0.36, 4); g.cyl(a, Z.FIX, 0xd8d0c0, [0, 0.38, 0], 0.02, 0.028, 0.04, 4); break;
+    case 'baston': g.cyl(a, Z.FIX, 0x3a2a1a, [0, 0.1, 0], 0.012, 0.012, 0.6, 4); g.octa(a, Z.FIX, C.plata, [0, -0.2, 0], 0.02); break;
+    case 'astil': { const lay = o.flagLayout || 'horiz';
+      g.cyl(a, Z.FIX, C.madera, [0, 1.2, 0], 0.018, 0.018, 2.5, 4); g.octa(a, Z.FIX, C.oro, [0, 2.5, 0], 0.05, {ry: 0.1}); g.cyl(a, Z.FIX, C.oro, [0.03, 2.3, 0], 0.01, 0.01, 0.25, 3, {rot: [0, 0, 10]});
+      g.sheet(a, [0.02, 2.42, 0], 1.0, 0.8, 4, 3, (i, j) => zonaBandera(lay, i, j)); break; }
+    default: break;
+  }
+}
+function zonaBandera(lay, i, j) { return lay === 'vert' ? Z.F1 + Math.min(2, Math.floor(i * 3 / 4)) : lay === 'horiz' ? Z.F1 + j : lay === 'cruz' ? (i === 1 || j === 1 ? Z.F2 : Z.F1) : lay === 'usa' ? (i < 2 && j < 2 ? Z.F3 : (j % 2 ? Z.F2 : Z.F1)) : (i === 1 || j === 1 ? Z.F1 : Z.F2); }
+
+/* ---------- cuerpo ---------- */
+// cotas (m): pelvis 0,90; hombros 1,40; base del cuello 1,46; coronilla 1,75; tobillo 0,08 (las del soldado de troops3d)
+const TR = [[0.0, 0.165, 0.105, 0, 0.0], [0.2, 0.18, 0.12, 0, 0.012], [0.36, 0.184, 0.118, 0, 0.006], [0.45, 0.14, 0.09, 0, -0.008], [0.5, 0.06, 0.055, 0, -0.005]];
+const fz = (y, x) => { const r = TR.reduce((a, b) => b[0] <= y ? b : a, TR[0]); const u = Math.min(0.98, Math.abs(x) / r[1]); return (r[4] || 0) + r[2] * Math.pow(1 - Math.pow(u, 3), 1 / 3); };
+function soldado(o) {
+  const g = new GB(), era = o.era, AB = era === 'A' || era === 'B', M = o.mod, coat = Z.MAIN, T = Z.TRIM, pants = Z.ACC, of = o.oficial;
+  /* --- pelvis y faldones según el abrigo --- */
+  if (o.kilt) { g.loft(P.pelvis, Z.FIX, C.tartan, [[-0.43, 0.2, 0.15, 0, 0.0], [-0.2, 0.19, 0.13], [0.03, 0.172, 0.112]], 8, {capA: false, p: 2.4, zoneFn: (k, i) => Z.FIX});
+    g.loft(P.pelvis, Z.FIX, C.tartanR, [[-0.43, 0.2, 0.15], [-0.39, 0.201, 0.151]], 8, {p: 2.4}); g.box(P.pelvis, Z.FIX, 0xd8d0c0, [0, -0.18, 0.15], [0.14, 0.18, 0.04], {taper: -0.3, noBack: true}); }   // falda escocesa y escarcela
+  else g.loft(P.pelvis, pants, 0, [[-0.13, 0.15, 0.1], [-0.04, 0.174, 0.112], [0.09, 0.165, 0.105]], 6, {capA: true, p: 2.6});
+  const ab = o.abrigo || M.abrigo;
+  if (ab === 'casaca') [1, -1].forEach(s => { const a = [0.03 * s, 0.04, -0.112], b = [0.15 * s, 0.04, -0.09], c = [0.09 * s, -0.38, -0.17], d = [0.015 * s, -0.38, -0.165];
+    if (s > 0) { g.quad(a, b, c, d, P.pelvis, coat, 0); g.quad(a, d, c, b, P.pelvis, T, 0); } else { g.quad(a, d, c, b, P.pelvis, coat, 0); g.quad(a, b, c, d, P.pelvis, T, 0); } });
+  else if (!o.kilt) { const L = ab === 'levita' ? -0.34 : ab === 'capote' ? -0.42 : ab === 'guerrera' ? -0.2 : -0.13, fl = ab === 'capote' ? 0.05 : ab === 'levita' ? 0.035 : 0.02;
+    g.loft(P.pelvis, coat, 0, [[L, 0.19 + fl, 0.13 + fl * 0.6, 0, -0.01], [0.06, 0.174, 0.114]], 6, {p: 2.6});
+    if (ab === 'capote') [1, -1].forEach(s => g.quad([0.06 * s, L + 0.02, 0.15], [0.17 * s, L + 0.02, 0.09], [0.15 * s, L + 0.2, 0.12], [0.07 * s, L + 0.16, 0.16], P.pelvis, T, 0));   // faldones recogidos (forro a la vista)
+  }
+  /* --- torso --- */
+  g.loft(P.torso, coat, 0, TR, 6, {capB: true, p: 3});
+  if (era < 'E' || ab !== 'chaqueta') g.loft(P.torso, T, 0, [[0.485, 0.07, 0.066], [0.55, 0.066, 0.062, 0, 0.004]], 6, {});                           // cuello alto
+  else g.loft(P.torso, coat, 0, [[0.46, 0.11, 0.08], [0.53, 0.072, 0.07, 0, 0.004]], 6, {});                                                        // cuello vuelto
+  if (o.pechera) g.quad([-0.07, 0.08, fz(0.08, 0.07) + 0.004], [0.07, 0.08, fz(0.08, 0.07) + 0.004], [0.09, 0.44, fz(0.44, 0.09) + 0.004], [-0.09, 0.44, fz(0.44, 0.09) + 0.004], P.torso, T, 0);   // pechera
+  { const dos = ab === 'capote' || (AB && o.nat === 'RUS'), bc = era >= 'D' ? C.botonO : C.boton, nb = era === 'E' ? 4 : ab === 'capote' || (AB && o.nat === 'RUS') ? 5 : 6;
+    for (let i = 0; i < nb; i++) { const y = 0.07 + i * (0.36 / (nb - 1)); (dos ? [-0.055, 0.055] : [0]).forEach(x => { const z = fz(y, x) + 0.006, r = 0.013; g.tri([x - r, y - r * 0.7, z], [x + r, y - r * 0.7, z], [x, y + r, z], P.torso, Z.FIX, bc); }); } }   // botones (un triángulo: a 3 m se lee igual)
+  if (era >= 'C' && ab !== 'capote') [1, -1].forEach(s => { const z = fz(0.33, 0.1) + 0.008; g.quad([0.1 * s - 0.04, 0.3, z], [0.1 * s + 0.04, 0.3, z], [0.1 * s + 0.04, 0.36, z - 0.006], [0.1 * s - 0.04, 0.36, z - 0.006], P.torso, coat, 0); });   // bolsillos de pecho
+  // hombreras / nidos de golondrina (músicos) / charreteras (oficiales A–C)
+  [1, -1].forEach(s => { if (o.nidos) g.loft(P.torso, T, 0, [[0.4, 0.06, 0.07], [0.46, 0.08, 0.08]], 6, {at: [0.18 * s, 0, 0], capB: true});
+    else g.box(P.torso, era >= 'C' ? coat : T, 0, [0.15 * s, 0.452, -0.004], [0.11, 0.012, 0.06], {rot: [0, 0, -28 * s]}); });
+  /* --- equipo --- */
+  const blanco = M.cor === 'blanco', cor = blanco ? C.correaB : C.cuero;
+  if (!of && !o.musico) {
+    g.loft(P.torso, Z.FIX, cor, [[0.0, 0.17, 0.11], [0.045, 0.172, 0.113]], 6, {p: 3, flatN: true}); g.box(P.torso, Z.FIX, C.hebilla, [0, 0.022, fz(0.022, 0) + 0.006], [0.055, 0.045, 0.01], {noBack: true});
+    if (AB && M.cor) [1, -1].forEach(s => { const pts = [[-0.17 * s, 0.03], [-0.07 * s, 0.14], [0.06 * s, 0.3], [0.165 * s, 0.44]];
+      g.strap(P.torso, Z.FIX, cor, pts.map(([x, y]) => [x, y, fz(y, x) + 0.006 + (s > 0 ? 0.002 : 0)]), 0.05, [0, 0, 1]); g.strap(P.torso, Z.FIX, cor, pts.slice().reverse().map(([x, y]) => [x, y, -fz(y, x) + 0.006]), 0.05, [0, 0, -1]);
+      if (s > 0) g.box(P.torso, Z.FIX, C.laton, [0, 0.215, fz(0.215, 0) + 0.012], [0.045, 0.055, 0.01], {noBack: true}); });
+    if (AB) g.box(P.torso, Z.FIX, C.cueroN, [-0.12, -0.03, -0.13], [0.2, 0.13, 0.07], {bottom: true});                                         // cartuchera trasera
+    else [0.08, -0.08].forEach(x => g.box(P.torso, Z.FIX, era >= 'D' && o.nat === 'GBR' ? C.lona : C.cuero, [x, 0.01, fz(0.01, x) + 0.02], [0.07, 0.08, 0.04], {bottom: true}));   // cartucheras delanteras
+    g.box(P.torso, Z.FIX, C.cueroN, [0.18, -0.13, -0.06], [0.03, 0.3, 0.04], {rot: [-12, 0, 6], taper: 0.4, noTop: true});                                    // vaina de la bayoneta
+    g.box(P.torso, Z.FIX, era >= 'C' ? 0x6a6448 : 0x5a4a36, [-0.2, -0.04, -0.05], [0.05, 0.14, 0.11], {taper: 0.2, bottom: true});   // cantimplora
+    g.box(P.torso, Z.FIX, era >= 'C' ? C.lona : C.cuero, [0.17, -0.07, -0.05], [0.05, 0.18, 0.19], {rot: [0, 0, 4], bottom: true});              // morral
+    if (era >= 'C') g.box(P.torso, Z.FIX, C.hierro, [0.17, -0.1, -0.13], [0.02, 0.2, 0.15], {rot: [0, 0, 6]});                                 // pala de zapa
+    if (era >= 'D' && o.nat !== 'GBR' && o.nat !== 'USA') g.cyl(P.torso, Z.FIX, era === 'E' ? 0x5a5e4a : 0x6a6a5a, [-0.05, -0.04, -0.17], 0.05, 0.05, 0.26, 6, {top: true, bottom: true, rot: [0, 0, 90]});   // careta antigás en bote
+    if (era >= 'D' && (o.nat === 'GBR' || o.nat === 'USA')) g.box(P.torso, Z.FIX, C.lona, [0, 0.2, fz(0.2, 0) + 0.04], [0.2, 0.15, 0.07], {bottom: true});   // careta antigás en bolsa de pecho
+  }
+  // mochila y rollo
+  if (!of && !o.musico && M.mochila !== 'no' && o.mochila !== false) {
+    const col = M.mochila === 'piel' ? C.pelleja : M.mochila === 'lona' ? C.lona : C.mochila;
+    g.box(P.torso, Z.FIX, col, [0, 0.27, -0.18], [0.32, 0.32, 0.11], {taper: 0.04, bottom: true});
+    if (era < 'D') g.loft(P.torso, Z.FIX, era === 'A' ? C.manta : 0x5a5e6a, [[-0.18, 0.05, 0.05], [0.18, 0.05, 0.05]], 6, {axis: 'x', at: [0, 0.47, -0.17], capA: true, capB: true});   // manta / capote sobre la mochila
+    else g.box(P.torso, Z.FIX, C.hierro, [0, 0.4, -0.25], [0.15, 0.06, 0.04]);                                                                // marmita
+    [1, -1].forEach(s => g.strap(P.torso, Z.FIX, cor, [[0.12 * s, 0.44, fz(0.44, 0.12) + 0.004], [0.12 * s, 0.25, fz(0.25, 0.12) + 0.006], [0.15 * s, 0.08, fz(0.08, 0.15) + 0.005]], 0.035, [0, 0, 1]));
+  }
+  const rollo = o.rollo || M.rollo;
+  if (!of && (rollo === 'capote_hombro' || rollo === 'manta_hombro')) {      // capote o manta en bandolera, del hombro izquierdo a la cadera derecha
+    const col = rollo === 'capote_hombro' ? 0x6a6458 : 0x7a6a50, pts = [[0.17, 0.47, 0], [0.06, 0.3, 0], [-0.08, 0.12, 0], [-0.18, 0.0, 0]];
+    g.tube(P.torso, Z.FIX, col, [0.17, 0.47, fz(0.4, 0.15) + 0.03], [-0.18, 0.0, fz(0.0, 0.17) + 0.03], [[0, 0.045], [0.5, 0.052], [1, 0.045]], 6);
+    g.tube(P.torso, Z.FIX, col, [-0.18, 0.0, -fz(0.0, 0.17) - 0.03], [0.17, 0.47, -fz(0.4, 0.15) - 0.03], [[0, 0.045], [0.5, 0.05], [1, 0.045]], 6);
+  }
+  /* --- rango --- */
+  if (of) {
+    if (AB) { g.loft(P.torso, Z.FIX, o.nat === 'GBR' ? C.carmesi : C.oro, [[0.03, 0.176, 0.116], [0.09, 0.18, 0.12]], 6, {p: 3, flatN: true}); g.box(P.torso, Z.FIX, o.nat === 'GBR' ? C.carmesi : C.oro, [0.15, -0.08, 0.06], [0.05, 0.2, 0.02], {rot: [0, 0, 10]});   // faja y borla
+      if (era === 'A') g.quad([-0.06, 0.4, fz(0.4, 0.06) + 0.012], [0.06, 0.4, fz(0.4, 0.06) + 0.012], [0.035, 0.36, fz(0.36, 0.035) + 0.014], [-0.035, 0.36, fz(0.36, 0.035) + 0.014], P.torso, Z.FIX, C.plata); }   // gola
+    else { g.loft(P.torso, Z.FIX, C.cuero, [[0.0, 0.17, 0.11], [0.045, 0.172, 0.113]], 6, {p: 3, flatN: true}); g.strap(P.torso, Z.FIX, C.cuero, [[-0.17, 0.03], [0.165, 0.44]].map(([x, y]) => [x, y, fz(y, x) + 0.006]), 0.032, [0, 0, 1]); }   // Sam Browne
+    g.box(P.torso, Z.FIX, C.cueroN, [-0.19, -0.08, 0.03], [0.04, 0.14, 0.08], {bottom: true});                                                  // cartera / pistolera
+    if (era >= 'D') { g.box(P.torso, Z.FIX, 0x2a2a26, [-0.05, 0.25, fz(0.25, 0.05) + 0.04], [0.11, 0.07, 0.05]); }                           // prismáticos
+    if (era <= 'D') g.tube(P.pelvis, Z.FIX, era <= 'C' ? 0x3a3a3c : C.cuero, [0.19, 0.02, 0.05], [0.2, -0.72, -0.28], [[0, 0.018], [1, 0.012]], 4);   // vaina del sable
+  }
+  if (o.musico) {   // tahalí del instrumento
+    g.strap(P.torso, Z.FIX, o.musico === 'tambor' ? C.correaB : T === Z.TRIM ? C.correaB : C.correaB, [[0.165, 0.44], [0.06, 0.3], [-0.07, 0.14], [-0.17, 0.03]].map(([x, y]) => [x, y, fz(y, x) + 0.007]), 0.045, [0, 0, 1]);
+    g.loft(P.torso, Z.FIX, cor, [[0.0, 0.17, 0.11], [0.045, 0.172, 0.113]], 6, {p: 3, flatN: true});
+  }
+  if (o.mandil) g.quad([-0.14, 0.42, fz(0.42, 0.14) + 0.02], [0.14, 0.42, fz(0.42, 0.14) + 0.02], [0.16, -0.05, fz(-0.05, 0.16) + 0.03], [-0.16, -0.05, fz(-0.05, 0.16) + 0.03], P.torso, Z.FIX, 0xd8ccb0),
+    g.quad([-0.16, 0.0, 0.16], [0.16, 0.0, 0.16], [0.17, -0.4, 0.17], [-0.17, -0.4, 0.17], P.pelvis, Z.FIX, 0xd8ccb0);                       // mandil de cuero blanco (zapadores)
+  if (o.abanderado) g.strap(P.torso, Z.FIX, C.correaB, [[0.165, 0.44], [0.06, 0.3], [-0.07, 0.14], [-0.17, 0.03]].map(([x, y]) => [x, y, fz(y, x) + 0.007]), 0.06, [0, 0, 1]);
+  if (o.gaita) { g.loft(P.torso, Z.FIX, C.tartan, [[-0.08, 0.07, 0.06], [0.0, 0.1, 0.08], [0.09, 0.07, 0.06]], 6, {at: [0.2, 0.22, 0.12], rot: [0, 0, -70], capA: true, capB: true});   // bolsa bajo el brazo
+    [0, 1, 2].forEach(k => g.cyl(P.torso, Z.FIX, C.negro, [0.17 + k * 0.03, 0.62 + k * 0.05, -0.02 - k * 0.04], 0.012, 0.009, 0.42 + k * 0.08, 4, {rot: [-25 - k * 6, 0, 18 + k * 4]})); }   // roncones
+  /* --- cabeza --- */
+  cabeza(g, P.cabeza, {toc: o.toc, oficial: of, placa: o.placa, barbaFija: o.barbaFija, galon: o.galones >= 2});
+  /* --- brazos (pivote en el hombro; brazo 0,29 m, antebrazo 0,27 m) --- */
+  [['brazoIz', 'antebrazoIz', 1], ['brazoDe', 'antebrazoDe', -1]].forEach(([u, l, s]) => {
+    g.loft(P[u], coat, 0, [[-0.29, 0.045, 0.05], [-0.12, 0.058, 0.064, 0.005 * s, 0], [0.03, 0.06, 0.064]], 6, {capB: true, domeB: 0.02});
+    if (of && AB) g.loft(P[u], Z.FIX, C.oro, [[0.0, 0.08, 0.075], [0.04, 0.062, 0.058]], 6, {at: [0.012 * s, 0, 0], capB: true});           // charretera
+    if (o.galones) for (let k = 0; k < o.galones; k++) { const y = -0.1 - k * 0.028, x = 0.06 * s; g.strap(P[u], Z.FIX, o.galonCol || C.oro, [[x, y, 0.035], [x + 0.003 * s, y - 0.03, 0.0], [x, y, -0.035]], 0.012, [s, 0, 0]); }   // galones de cabo / sargento
+    g.loft(P[l], coat, 0, [[-0.215, 0.038, 0.04], [-0.1, 0.046, 0.05, 0, 0.004], [0.02, 0.046, 0.05]], 6, {});
+    g.loft(P[l], T, 0, [[-0.235, 0.044, 0.046], [-0.17, 0.05, 0.052]], 6, {capA: true});                                                     // vuelta
+    g.loft(P[l], Z.FIX, C.piel, [[-0.24, 0.032, 0.024], [-0.32, 0.042, 0.024, 0, 0.012]], 6, {capB: true, vr: V.SKIN, p: 3});                  // mano
+    g.tet(P[l], Z.FIX, C.piel, [0.03 * s, -0.29, 0.034], 0.022, {rot: [-30, 0, 25 * s], vr: V.SKIN});            // pulgar
+  });
+  if (o.catalejo) g.loft(P.antebrazoIz, Z.FIX, C.laton, [[-0.04, 0.022, 0.022], [0.2, 0.016, 0.016]], 6, {axis: 'z', at: [0, -0.3, 0.02], capA: true, capB: true});
+  if (o.musico === 'tambor') g.cyl(P.antebrazoIz, Z.FIX, 0xc8a880, [0, -0.3, 0.14], 0.008, 0.006, 0.36, 3, {rot: [90, 0, 0]});                  // palillo izquierdo
+  /* --- piernas --- */
+  const pie = o.pierna || M.pierna;
+  [['musloIz', 'piernaIz', 'pieIz', 1], ['musloDe', 'piernaDe', 'pieDe', -1]].forEach(([u, l, f, s]) => {
+    if (o.kilt) { g.loft(P[u], Z.FIX, C.piel, [[-0.43, 0.052, 0.058], [-0.1, 0.075, 0.08], [0.02, 0.085, 0.088]], 6, {vr: V.SKIN}); g.loft(P[l], Z.FIX, 0xc8b8a0, [[-0.33, 0.046, 0.052], [-0.05, 0.058, 0.064], [0.03, 0.058, 0.062]], 6, {}); }
+    else { g.loft(P[u], pants, 0, [[-0.43, 0.055, 0.06], [-0.18, 0.074, 0.08, 0.005 * s, 0.004], [0.04, 0.088, 0.09]], 6, {});
+      if (pie === 'botas') g.loft(P[l], Z.FIX, C.bota, [[-0.34, 0.047, 0.054], [-0.04, 0.058, 0.066], [0.03, 0.06, 0.066]], 6, {});
+      else if (pie === 'vendas') { g.loft(P[l], Z.FIX, C.venda, [[-0.33, 0.044, 0.05], [-0.13, 0.054, 0.062, 0, -0.006]], 6, {}); g.loft(P[l], pants, 0, [[-0.13, 0.055, 0.064], [0.03, 0.058, 0.062]], 6, {});
+        [-0.28, -0.2].forEach(y => g.strap(P[l], Z.FIX, 0x5a5440, [[0.05, y, 0.03], [-0.05, y - 0.02, 0.03]], 0.008, [0, 0, 1])); }
+      else if (pie === 'polaina_b' || pie === 'polaina_n' || pie === 'leggins') { const c = pie === 'polaina_b' ? C.blanco : pie === 'polaina_n' ? C.negro : 0x8a8264;
+        g.loft(P[l], Z.FIX, c, [[-0.34, 0.048, 0.054], [-0.18, 0.055, 0.062]], 6, {}); g.loft(P[l], pants, 0, [[-0.18, 0.054, 0.061], [0.03, 0.058, 0.062]], 6, {});
+        for (let i = 0; i < 3; i++) g.quad([0.05 * s, -0.31 + i * 0.05, 0.0], [0.05 * s, -0.31 + i * 0.05, 0.013], [0.05 * s, -0.3 + i * 0.05, 0.013], [0.05 * s, -0.3 + i * 0.05, 0.0], P[l], Z.FIX, C.botonB); }
+      else g.loft(P[l], pants, 0, [[-0.36, 0.05, 0.057], [-0.1, 0.055, 0.063], [0.03, 0.058, 0.062]], 6, {});
+    }
+    g.loft(P[f], Z.FIX, pie === 'botas' ? C.bota : C.cueroN, [[-0.065, 0.036, 0.034, 0, -0.045], [0.02, 0.046, 0.05, 0, -0.035], [0.175, 0.034, 0.02, 0, -0.062]], 6, {axis: 'z', capA: true, capB: true, domeB: 0.012, p: 2.4});
+    g.quad([-0.04, -0.081, -0.07], [0.04, -0.081, -0.07], [0.042, -0.081, 0.19], [-0.042, -0.081, 0.19], P[f], Z.FIX, C.suela);
+  });
+  if (o.musico === 'tambor') { g.cyl(P.musloIz, Z.FIX, C.laton, [0.06, -0.08, 0.12], 0.17, 0.17, 0.26, 8, {rot: [0, 0, 0], top: true, topColor: 0xe8e0c8, topZone: Z.FIX}); g.cyl(P.musloIz, T, 0, [0.06, 0.06, 0.12], 0.175, 0.175, 0.04, 8); g.cyl(P.musloIz, T, 0, [0.06, -0.22, 0.12], 0.175, 0.175, 0.04, 8); }   // tambor (cuerpo de latón y aros del color de ribete)
+  arma(g, P.arma, o.arma, o);
+  return g;
+}
+
+/* ---------- LOD1 (≤ 60 triángulos) y LOD2 (≤ 10) ---------- */
+const HAT1 = {chaco: [[0.25, 0.22, 0.25], 0.33, Z.HAT], kepi: [[0.24, 0.14, 0.25], 0.3, Z.HAT], gorra_rusa: [[0.25, 0.08, 0.25], 0.28, Z.HAT], sombrero: [[0.4, 0.09, 0.4], 0.29, Z.HAT], salacot: [[0.32, 0.16, 0.38], 0.3, Z.HAT],
+  pickel: [[0.25, 0.22, 0.28], 0.32, Z.FIX, C.negro], stahl: [[0.3, 0.16, 0.32], 0.27, Z.HAT], adrian: [[0.28, 0.14, 0.34], 0.29, Z.HAT], brodie: [[0.38, 0.07, 0.38], 0.27, Z.HAT], gorra: [[0.28, 0.07, 0.3], 0.3, Z.HAT],
+  bicornio: [[0.42, 0.14, 0.1], 0.31, Z.FIX, C.negro], fez: [[0.19, 0.14, 0.19], 0.29, Z.FIX, 0x9a1c1c], kabalak: [[0.24, 0.12, 0.26], 0.28, Z.HAT], osos: [[0.26, 0.36, 0.28], 0.38, Z.FIX, C.negro], bersagliere: [[0.36, 0.09, 0.36], 0.28, Z.FIX, C.negro]};
+function sombrero1(g, h, toc, top) { const d = HAT1[TOC_LOD[toc] || 'kepi'] || HAT1.kepi, [s, y, z, c] = d; if (top) { const w = s[0] / 2, dd = s[2] / 2, yy = y + s[1] / 2; g.quad([-w, yy, dd], [w, yy, dd], [w, yy, -dd], [-w, yy, -dd], h, z, c || 0); return; } g.box(h, z, c || 0, [0, y, 0], s, {bottom: false}); }
+function lod(o, nivel) {
+  const g = new GB();
+  if (nivel === 2) { g.box(P.torso, Z.MAIN, 0, [0, -0.08, 0], [0.42, 1.84, 0.26], {noTop: true, taper: -0.12}); sombrero1(g, P.cabeza, o.toc, true); return g; }   // 8 + 2
+  g.box(P.torso, Z.MAIN, 0, [0, 0.12, 0], [0.44, 0.8, 0.25], {taper: -0.05});                                                              // 10
+  g.octa(P.cabeza, Z.FIX, C.piel, [0, 0.12, 0.005], 0.13, {ry: 0.14, vr: V.SKIN});                                                       // 8
+  if (o.toc) sombrero1(g, P.cabeza, o.toc);                                                                                               // 10
+  ['musloIz', 'musloDe'].forEach(k => g.cyl(P[k], o.kilt ? Z.FIX : Z.ACC, o.kilt ? C.tartan : 0, [0, -0.43, 0.01], 0.06, 0.085, 0.9, 3));   // 12
+  if (!o.unBrazo) g.cyl(P.brazoIz, Z.MAIN, 0, [0, -0.26, 0], 0.05, 0.065, 0.56, 3);                                                        // 6
+  g.cyl(P.brazoDe, Z.MAIN, 0, [0, -0.26, 0], 0.05, 0.065, 0.56, 3);                                                                       // 6
+  if (o.abanderado) { g.cyl(P.arma, Z.FIX, C.madera, [0, 1.25, 0], 0.025, 0.025, 2.5, 2); g.quad([0.02, 2.42, 0], [1.0, 2.42, 0], [1.0, 1.62, 0], [0.02, 1.62, 0], P.arma, Z.F1, 0); }   // 4 + 2 (el lote es de doble cara)
+  else if (o.musico === 'tambor') g.cyl(P.musloIz, Z.FIX, C.laton, [0.06, -0.08, 0.12], 0.17, 0.17, 0.26, 3);                             // 6
+  else if (o.arma && o.arma !== 'ninguna') { const L = {mosquete: 1.94, rifle_a: 1.5, rifle_b: 1.8, cerrojo: 1.5, espada: 0.84, sable: 0.9, hacha: 0.9, corneta: 0.35, puntero: 0.4, palillo: 0.36, baston: 0.6}[o.arma] || 1.2;
+    g.cyl(P.arma, Z.FIX, o.arma === 'espada' || o.arma === 'sable' ? 0xd8dce0 : C.maderaO, [0, L / 2, 0], 0.03, 0.02, L, 3); }         // 6
+  return g;
+}
+
+/* ---------- tipos (KINDS) por rango ---------- */
+const RANGO = {
+  soldado: {pal: 'linea', nombre: 'Soldado de infantería'},
+  cabo: {pal: 'linea', nombre: 'Cabo', galones: 2, galonCol: null},
+  sargento: {pal: 'linea', nombre: 'Sargento', galones: 3},
+  teniente: {pal: 'linea', nombre: 'Teniente', oficial: true, arma: 'espada'},
+  capitan: {pal: 'linea', nombre: 'Capitán (a pie; a caballo en caballeria3d)', oficial: true, arma: 'sable', catalejo: true},
+  abanderado: {pal: 'linea', nombre: 'Portabandera', abanderado: true, arma: 'astil', dobleCara: true, unBrazo: false},
+  corneta: {pal: 'linea', nombre: 'Corneta', musico: 'corneta', arma: 'corneta', nidos: true},
+  tambor: {pal: 'linea', nombre: 'Tambor', musico: 'tambor', arma: 'palillo', nidos: true},
+  gaitero: {pal: 'linea', nombre: 'Gaitero (regimientos escoceses)', musico: 'gaita', arma: 'puntero', gaita: true, kilt: true, naciones: ['GBR']},
+  zapador: {pal: 'linea', nombre: 'Zapador (hacha y mandil)', arma: 'hacha', mandil: true, barbaFija: true},
+  jager: {pal: 'ligera', nombre: 'Tirador / jäger (fusil rayado)', mochila: false},
+  granadero: {pal: 'guardia', nombre: 'Granadero (gorro alto)'}};
+function opciones(rango, era, nat) {
+  const R = RANGO[rango], M = modelo(nat, era), AB = era === 'A' || era === 'B';
+  let toc = M.toc;
+  if (rango === 'granadero' && era <= 'C') toc = nat === 'GBR' || nat === 'FRA' || nat === 'RUS' || nat === 'PRU' ? (nat === 'PRU' ? 'pickel' : 'osos') : M.toc;
+  if (rango === 'jager') toc = nat === 'ITA' && era <= 'C' ? 'bersagliere' : nat === 'AUT' && era <= 'B' ? 'jagerhut' : M.toc;
+  if (rango === 'gaitero') toc = era <= 'C' ? 'bonete_plumas' : era === 'D' ? 'glengarry' : 'glengarry';
+  if (R.oficial && era >= 'D') toc = era === 'E' && (nat === 'PRU' || nat === 'GER' || nat === 'RUS' || nat === 'URS') ? M.toc : 'gorra';
+  if (R.oficial && era === 'A' && nat === 'GBR' && rango === 'capitan') toc = 'chaco';
+  if (rango === 'zapador' && AB && (nat === 'FRA' || nat === 'GBR')) toc = 'osos';
+  const arma = R.arma || armaDe(nat, era, rango), cabo = rango === 'cabo' || rango === 'sargento';
+  return Object.assign({}, R, {era, nat, rango, mod: M, toc, arma: R.oficial && era === 'E' ? 'baston' : arma, galones: R.galones ? (era === 'A' && rango === 'cabo' ? 1 : R.galones) : 0, galonCol: cabo && era >= 'D' ? 0x5a5238 : C.oro,
+    bayoneta: !R.oficial && !R.musico && rango !== 'abanderado' && rango !== 'zapador' && (AB || era === 'D'), flagLayout: (T3.NACIONES[nat] || T3.NACIONES.GEN).bandera, modelo: `${nat}_${era}_${rango}`, placa: era === 'A' && nat === 'GBR' ? C.laton : null});
+}
+const TIPOS = {};
+Object.keys(RANGO).forEach(r => { TIPOS['inf_' + r] = {rig: 'soldado', clase: 'inf', pal: RANGO[r].pal, nombre: RANGO[r].nombre, eras: ERAS.slice(), dobleCara: !!RANGO[r].dobleCara, naciones: RANGO[r].naciones || null,
+  o: (era, nat) => opciones(r, era, nat || 'GEN'), build: o => soldado(o), lod: (o, l) => lod(o, l)}; });
+
+return {soldado, lod, opciones, TIPOS, modelo, tocado, arma, cabeza, RANGO, P};
+}
+
+/* ===================================================================================== */
+/* VARIACIÓN POR INSTANCIA (lotes GPU de troops3d)
+   iVar = (complexión −1 delgado … 0 medio … 1 recio, vello 0 nada · 1 bigote · 2 bigote y patillas · 3 barba, pelo 0–3, desgaste propio 0–1)
+   desgaste.value (0–1, global): el juego lo sube con el tiempo de combate. Barro en las piernas, polvo en la ropa, sangre en el torso.
+   Las figuras sin variar llevan complexión media y no muestran vello (los vértices de vello se pliegan). */
+const desgaste = {value: 0};
+const PELOS = [0x2a1e14, 0x5a3e24, 0x8a6a3a, 0x8a8478];
+function prepararLote(lote) {
+  if (!lote || lote._iVar) return lote; const cap = lote.cap || lote.mesh.instanceMatrix.count, geo = lote.mesh.geometry;
+  lote._iVar = new THREE.InstancedBufferAttribute(new Float32Array(cap * 4), 4); lote._iVar.setUsage(THREE.DynamicDrawUsage); geo.setAttribute('iVar', lote._iVar);
+  const mat = lote.mesh.material, prev = mat.onBeforeCompile, key = mat.customProgramCacheKey ? mat.customProgramCacheKey() : '';
+  mat.onBeforeCompile = function (sh, r) {
+    if (prev) prev.call(this, sh, r);
+    sh.uniforms.uDesgaste = desgaste; sh.uniforms.uPelo = {value: PELOS.map(h => new THREE.Color(h))};
+    sh.vertexShader = sh.vertexShader.replace('attribute vec4 iLook;', 'attribute vec4 iLook; attribute vec4 iVar; uniform float uDesgaste; uniform vec3 uPelo[4];\nfloat h13(vec3 p){ p = fract(p * 0.3183 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }')
+      .replace('vec3 pos0 = position;', `vec3 pos0 = position;
+{ float cx = iVar.x, ap = aPart;                                            // complexión: ensancha o estrecha torso, pelvis y miembros alrededor de su eje
+  float k = ap < 1.5 ? 0.11 : (ap > 2.5 && ap < 10.5 && ap != 11.0) ? 0.08 : 0.0;
+  float ax = ap > 2.5 && ap < 4.5 ? 0.205 : ap > 4.5 && ap < 6.5 ? -0.205 : ap > 6.5 && ap < 8.5 ? 0.095 : ap > 8.5 && ap < 10.5 ? -0.095 : 0.0;
+  pos0.x = ax + (pos0.x - ax) * (1.0 + cx * k); pos0.z *= 1.0 + cx * k * (ap < 1.5 ? 1.2 : 1.0);
+  float vb = iVar.y;                                                       // vello: 4 bigote, 5 patillas, 3 barba
+  bool oculto = (aVar > 3.5 && aVar < 4.5 && vb < 0.5) || (aVar > 4.5 && aVar < 5.5 && vb < 1.5) || (aVar > 2.5 && aVar < 3.5 && vb < 2.5);
+  if (oculto) pos0 = vec3(0.0, 1.62, 0.0); }`)
+      .replace('vColor = zc * (', `if (aVar > 2.5) zc = uPelo[int(clamp(iVar.z, 0.0, 3.0))];
+vColor = zc * (`)
+      .replace('#include <color_vertex>', '#include <color_vertex>');
+    sh.vertexShader = sh.vertexShader.replace(/(vColor = zc \* \([^;]*;)/, `$1
+{ float w = clamp(uDesgaste * (0.55 + 0.9 * iVar.w), 0.0, 1.0);
+  if (w > 0.001) { float hy = position.y, n = h13(position * 13.7 + iLook.x);
+    float barro = smoothstep(0.62, 0.08, hy) * w * (0.6 + 0.4 * n);                                  // barro de las botas a las rodillas
+    vColor = mix(vColor, vec3(0.16, 0.12, 0.08), barro * 0.85);
+    if (aZone < 3.5) vColor = mix(vColor, vec3(0.42, 0.38, 0.31), w * 0.3);                         // polvo en la ropa
+    if (aPart > 0.5 && aPart < 1.5 && n > 0.83 - 0.25 * w && w > 0.4) vColor = mix(vColor, vec3(0.22, 0.03, 0.02), (w - 0.4) * 1.3);   // sangre
+    if (aVar > 0.5 && aVar < 1.5) vColor *= 1.0 - 0.25 * w * n; } }`);
+  };
+  mat.customProgramCacheKey = () => key + '|inf3d';
+  mat.needsUpdate = true; return lote;
+}
+function variar(lote, i, v) { prepararLote(lote); v = v || {}; lote._iVar.setXYZW(i, v.complexion || 0, v.barba || 0, v.pelo || 0, v.desgaste != null ? v.desgaste : 0.5); lote._iVar.needsUpdate = true; }
+// sorteo verosímil por época: más barbas en B, más bigotes en C–D, afeitados en E (aprox. por fotografías de la época)
+function variacionAleatoria(era, rnd) { rnd = rnd || Math.random; const r = rnd(), pv = {A: [0.55, 0.25, 0.15, 0.05], B: [0.3, 0.25, 0.2, 0.25], C: [0.3, 0.45, 0.1, 0.15], D: [0.4, 0.5, 0.03, 0.07], E: [0.85, 0.13, 0.01, 0.01]}[era] || [0.5, 0.3, 0.1, 0.1];
+  let acc = 0, b = 0; for (let k = 0; k < 4; k++) { acc += pv[k]; if (r < acc) { b = k; break; } }
+  const c = rnd(); return {complexion: c < 0.25 ? -1 : c < 0.8 ? 0 : 1, barba: b, pelo: Math.floor(rnd() * 4), desgaste: rnd()}; }
+
+/* ===================================================================================== */
+/* ANIMACIONES (formato CLIPS.soldado de troops3d: grados Euler XYZ; armaP/armaR en el espacio del torso; agarre escalonado; raíz en m)
+   Convenios del esqueleto: muslo rx < 0 = adelante; rodilla rx > 0 = flexión; pie rx > 0 = punta abajo; torso rx > 0 = inclinarse;
+   cabeza rx < 0 = mirar arriba; brazo rx < 0 = levantar al frente (−90 horizontal, −170 vertical); antebrazo rx < 0 = doblar el codo;
+   brazoIz rz > 0 y brazoDe rz < 0 = separar del cuerpo; ry > 0 = girar a la izquierda. El soldado mira hacia +z. */
+const D2R = Math.PI / 180;
+function rotDe(dx, dy, dz) { const v = new THREE.Vector3(dx, dy, dz).normalize(), q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), v), e = new THREE.Euler().setFromQuaternion(q, 'XYZ'); return [e.x / D2R, e.y / D2R, e.z / D2R]; }
+// posiciones del arma (torso); g = [y mano derecha, y mano izquierda] a lo largo del arma (−1 = mano libre)
+const W = {
+  ORDEN: {P: [-0.27, -0.95, 0.1], R: [0, 0, 0], g: [0.92, -1]}, HOMBRO: {P: [-0.25, 0.08, 0.17], R: [-32, 0, -6], g: [0.1, -1]}, APUNTA: {P: [-0.15, 0.38, 0.06], R: [90, 3, 0], g: [0.32, 0.82]},
+  LISTO: {P: [-0.12, -0.02, 0.24], R: [52, 0, -6], g: [0.42, 0.74]}, BAYO: {P: [-0.14, -0.08, 0.22], R: [76, 0, 0], g: [0.3, 0.85]}, BAYO_ALTA: {P: [-0.14, 0.02, 0.2], R: [62, 0, 0], g: [0.3, 0.85]},
+  PORTA: {P: [-0.04, 0.04, 0.2], R: [8, 0, -30], g: [0.3, 0.72]}, PREPAREN: {P: [-0.12, -0.12, 0.26], R: [22, 0, -8], g: [0.34, 0.62]}, CARGA: {P: [0.02, -0.95, 0.34], R: [10, 0, 0], g: [-1, 0.95]},
+  CARGA_RODILLA: {P: [0.02, -0.55, 0.36], R: [12, 0, 0], g: [-1, 0.75]}, CEBAR: {P: [-0.16, -0.12, 0.3], R: [80, 0, -8], g: [-1, 0.62]}, FUNERALA: {P: [0.13, 0.38, 0.22], R: [-143, 0, 0], g: [-1, 0.35]},
+  DISCRECION: {P: [-0.25, 0.02, -0.62], R: [100, 0, 0], g: [0.7, -1]}, CUADRO1: {P: [-0.1, -0.5, 0.22], R: [48, 0, 0], g: [0.3, 0.8]}, CULATA_ARRIBA: {P: [-0.05, 0.5, 0.1], R: [-150, 0, 10], g: [1.0, 0.55]},
+  HORIZONTAL: {P: [0.45, 0.25, 0.32], R: [0, 0, 90], g: [0.62, 0.15]}, ESPALDA: {P: [0.05, 0.12, -0.17], R: [0, 0, 28], g: [-1, -1]}, SUELO: {P: [0.6, -0.9, 0.5], R: [0, 0, 90], g: [-1, -1]},
+  // espada / sable (empuñadura en el pivote)
+  ESP_BAJA: {P: [-0.27, -0.1, 0.08], R: [180, 0, 0], g: [0, -1]}, ESP_ALTA: {P: [-0.25, 0.86, 0.12], R: [-12, 0, 8], g: [0, -1]}, ESP_FRENTE: {P: [-0.22, 0.42, 0.5], R: [84, 0, 0], g: [0, -1]},
+  ESP_GUARDIA: {P: [-0.12, 0.12, 0.42], R: [40, 0, -10], g: [0, -1]}, ESP_TAJO_ARRIBA: {P: [-0.18, 0.72, 0.18], R: [-40, 0, 20], g: [0, -1]}, ESP_TAJO_ABAJO: {P: [-0.05, 0.05, 0.5], R: [110, 0, -20], g: [0, -1]},
+  ESP_PARADA: {P: [-0.1, 0.48, 0.38], R: [10, 0, 75], g: [0, -1]}, ESP_ESTOCADA: {P: [-0.16, 0.36, 0.62], R: [88, 0, 0], g: [0, -1]},
+  // instrumentos
+  CORNETA: {P: [0.0, 0.6, 0.15], R: [72, 0, 0], g: [0.18, -1]}, CORNETA_LADO: {P: [-0.24, -0.25, 0.06], R: [180, 0, 0], g: [-1, -1]},
+  CHANTER: {P: [0.02, 0.28, 0.22], R: [165, 0, 0], g: [0.3, 0.12]}, BANDERA_ALTA: {P: [-0.1, -0.1, 0.24], R: [-4, 0, -6], g: [0.95, 0.55]}, BANDERA_HOMBRO: {P: [-0.18, -0.35, 0.12], R: [-18, 0, -14], g: [0.62, -1]},
+  BANDERA_ONDEA: {P: [-0.06, -0.12, 0.2], R: [-4, 0, -10], g: [0.62, 0.3]}, BANDERA_CLAVAR: {P: [-0.05, -0.2, 0.32], R: [5, 0, 0], g: [0.55, 0.85]}};
+W.PALILLO_ARR = {P: [-0.03, -0.02, 0.27], R: rotDe(0.7, 0.2, -0.3), g: [0.02, -1]}; W.PALILLO_ABA = {P: [-0.02, -0.07, 0.24], R: rotDe(0.75, -0.45, -0.45), g: [0.02, -1]};
+const AW = (a, m) => ({P: a.P.map((v, i) => v + (m.P ? m.P[i] : 0)), R: a.R.map((v, i) => v + (m.R ? m.R[i] : 0)), g: m.g || a.g});
+// posturas del cuerpo
+const PIE = {pelvis: [0, 0, 0], torso: [0, 0, 0], cabeza: [0, 0, 0], musloIz: [-3, 0, 2], musloDe: [2, 0, -2], piernaIz: [2, 0, 0], piernaDe: [2, 0, 0], pieIz: [0, 0, 0], pieDe: [0, 0, 0]};
+const FIRME = Object.assign({}, PIE, {musloIz: [0, 0, 1], musloDe: [0, 0, -1], piernaIz: [0, 0, 0], piernaDe: [0, 0, 0]});
+const TIRADOR = {pelvis: [0, 0, 0], musloIz: [-16, 0, 4], musloDe: [6, 0, -4], piernaIz: [6, 0, 0], piernaDe: [2, 0, 0], pieIz: [0, 0, 0], pieDe: [0, 0, 0], torso: [4, -14, 0], cabeza: [10, -4, 4]};
+const RODILLA = {pelvis: [0, 0, 0], pieIz: [0, 0, 0], pieDe: [72, 0, 0], musloIz: [-85, 0, 4], piernaIz: [85, 0, 0], musloDe: [-8, 0, -4], piernaDe: [95, 0, 0], torso: [4, 0, 0], cabeza: [0, 0, 0]};
+const RODILLA_TIRO = Object.assign({}, RODILLA, {torso: [6, -16, 0], cabeza: [10, -4, 4]});
+const SENTADO = {pelvis: [-75, 0, 0], torso: [55, 0, 0], cabeza: [12, 0, 0], musloIz: [-25, 0, 10], musloDe: [-25, 0, -10], piernaIz: [100, 0, 0], piernaDe: [100, 0, 0], pieIz: [-10, 0, 0], pieDe: [-10, 0, 0]};
+const AGACHADO = {pelvis: [10, 0, 0], torso: [22, 0, 0], cabeza: [-20, 0, 0], musloIz: [-78, 0, 8], piernaIz: [110, 0, 0], musloDe: [-50, 0, -8], piernaDe: [100, 0, 0], pieIz: [-20, 0, 0], pieDe: [10, 0, 0]};
+const TUMBADO_ESP = {pelvis: [-88, 0, 0], torso: [0, 0, 0], cabeza: [30, 0, 0], musloIz: [0, 0, 6], musloDe: [0, 0, -6], piernaIz: [4, 0, 0], piernaDe: [4, 0, 0], pieIz: [-60, 0, 0], pieDe: [-60, 0, 0]};
+const BOCA_ABAJO = {pelvis: [88, 0, 0], torso: [-18, 0, 0], cabeza: [-58, 0, 0], musloIz: [0, 0, 8], musloDe: [0, 0, -8], piernaIz: [12, 0, 0], piernaDe: [8, 0, 0], pieIz: [78, 0, 10], pieDe: [78, 0, -10]};
+const mezcla = (a, b, k) => { const o = {}; new Set([...Object.keys(a), ...Object.keys(b)]).forEach(p => { const x = a[p] || [0, 0, 0], y = b[p] || [0, 0, 0]; o[p] = x.map((v, i) => v + (y[i] - v) * k); }); return o; };
+const mas = (a, b) => { const o = Object.assign({}, a); Object.entries(b).forEach(([p, v]) => { const x = o[p] || [0, 0, 0]; o[p] = x.map((q, i) => q + v[i]); }); return o; };
+const con = (a, b) => Object.assign({}, a, b);
+
+function Clip(dur, loop) { this.c = {dur, loop, tracks: {}, ev: []}; }
+Clip.prototype.k = function (t, pose) { Object.entries(pose).forEach(([p, v]) => { (this.c.tracks[p] = this.c.tracks[p] || []).push([t].concat(v)); }); return this; };
+Clip.prototype.a = function (t, w, agarre) { const T = this.c.tracks; (T.armaP = T.armaP || []).push([t].concat(w.P)); (T.armaR = T.armaR || []).push([t].concat(w.R)); (T.agarre = T.agarre || []).push([t].concat(agarre || w.g)); return this; };
+Clip.prototype.g = function (t, d, iz) { (this.c.tracks.agarre = this.c.tracks.agarre || []).push([t, d, iz]); return this; };
+Clip.prototype.r = function (t, x, y, z) { (this.c.root = this.c.root || []).push([t, x, y || 0, z]); return this; };
+Clip.prototype.e = function (t, n) { this.c.ev.push([t, n]); return this; };
+Clip.prototype.oculta = function (parte, claves) { (this.c.hide = this.c.hide || {})[parte] = claves; return this; };
+Clip.prototype.fin = function () { const c = this.c; Object.keys(c.tracks).forEach(k => { const tr = c.tracks[k].sort((a, b) => a[0] - b[0]); const u = []; tr.forEach(q => { if (u.length && Math.abs(u[u.length - 1][0] - q[0]) < 1e-6) u[u.length - 1] = q; else u.push(q); }); c.tracks[k] = u; });
+  if (c.root) c.root.sort((a, b) => a[0] - b[0]); c.ev.sort((a, b) => a[0] - b[0]); return c; };
+
+const CLIPS = {}, META = {};
+function def(nombre, clip, meta) { CLIPS[nombre] = clip.fin(); META[nombre] = Object.assign({suelo: 'pie', avance: 0, desplazamiento: [0, 0, 0], armaCompatible: ['A', 'B', 'C', 'D', 'E'], transiciones: []}, meta || {}); META[nombre].eventos = CLIPS[nombre].ev.map(e => e[1]); }
+
+/* ---------- ciclo de marcha ----------
+   A amplitud del muslo (°), rod flexión de la rodilla en vuelo, inc inclinación del torso, brazos: qué brazos braccean ('iz', 'de', 'ambos' o null = los dos; 'ninguno' = brazos fijados por el clip)
+   La raíz se asienta después (el bamboleo vertical sale solo: el pie de apoyo queda siempre en el suelo). */
+function zancada(C, A, rod, inc, brazos, op) {
+  op = op || {}; const N = 16, carrera = op.carrera;
+  for (let i = 0; i <= N; i++) { const t = i / N, ph = 2 * Math.PI * t;
+    const leg = s => { const p = ph + (s > 0 ? 0 : Math.PI), th = -A * Math.cos(p);   // izquierda adelante en t = 0
+      const vuelo = Math.max(0, Math.sin(p)), kn = 6 + (carrera ? 25 : 4) * Math.max(0, -Math.sin(p)) + rod * Math.pow(vuelo, 1.5), ft = -8 * Math.max(0, Math.cos(p)) + 14 * Math.max(0, -Math.cos(p - 0.6)) * (carrera ? 1.8 : 1);
+      return {th: th + (carrera ? -10 : 0), kn, ft}; };
+    const L = leg(1), R = leg(-1), pose = {musloIz: [L.th, 0, 2], piernaIz: [L.kn, 0, 0], pieIz: [L.ft, 0, 0], musloDe: [R.th, 0, -2], piernaDe: [R.kn, 0, 0], pieDe: [R.ft, 0, 0],
+      pelvis: [0, 4 * Math.cos(ph), -2 * Math.sin(ph)], torso: [inc + (carrera ? 3 * Math.cos(2 * ph) : 1.5 * Math.cos(2 * ph)), -4 * Math.cos(ph), 2 * Math.sin(ph)], cabeza: [-inc * 0.6, 3 * Math.cos(ph), -1.5 * Math.sin(ph)]};
+    const sw = op.braceo || 18;
+    if (!brazos || brazos === 'iz' || brazos === 'ambos') Object.assign(pose, {brazoIz: [-sw * Math.cos(ph + Math.PI) - (carrera ? 20 : 4), 0, 6], antebrazoIz: [-(carrera ? 80 : 18) - 8 * Math.max(0, Math.cos(ph)), 0, 0]});
+    if (!brazos || brazos === 'de' || brazos === 'ambos') Object.assign(pose, {brazoDe: [-sw * Math.cos(ph) - (carrera ? 20 : 4), 0, -6], antebrazoDe: [-(carrera ? 80 : 18) - 8 * Math.max(0, Math.cos(ph + Math.PI)), 0, 0]});
+    C.k(t, pose);
+  }
+  C.e(0, 'pisada_iz').e(0.5, 'pisada_de');
+}
+// marchas: paso ordinario (76/min), de carga (120/min), gimnástico (165/min); al hombro, a la funerala y a discreción
+// Fuentes: «Field Exercise and Evolutions of the Army» (1833) y «Ordonnance du 4 mars 1831» (paso ordinario 76, accelerado 100–120); paso gimnástico (Francia, 1845).
+[['ordinario', 76, 0.65, 22, 24, 1], ['carga', 120, 0.7, 25, 34, 4], ['gimnastico', 165, 0.85, 30, 60, 8]].forEach(([n, ppm, paso, A, rod, inc]) => {
+  const dur = 2 * 60 / ppm, carrera = n === 'gimnastico';
+  [['hombro', W.HOMBRO, 'iz'], ['funerala', W.FUNERALA, 'de'], ['discrecion', W.DISCRECION, 'iz']].forEach(([m, w, libre]) => {
+    const C = new Clip(dur, true); zancada(C, A, rod, inc, libre, {carrera, braceo: carrera ? 35 : 18});
+    const wb = carrera && m === 'hombro' ? W.PORTA : w; C.a(0, wb).a(0.5, AW(wb, {P: [0, 0.01, 0]})).a(1, wb);
+    def(`marcha_${n}_${m}`, C, {suelo: carrera ? 'carrera' : 'pie', avance: 2 * paso, simetrico: true, transiciones: ['idle', `marcha_${n}_hombro`]});
+  });
+});
+
+/* ---------- descarga por filas («¡Preparen! ¡Apunten! ¡Fuego!»): fila 1 de rodillas, fila 2 de pie ----------
+   A: llave de chispa (amartillar al «preparen»; fogonazo en la cazoleta 0,05 s antes del disparo); B: pistón; D: cerrojo (sin cebo, recarga del cerrojo al final).
+   Fuentes: «Ordonnance» de 1831 (feux de deux rangs) y «Field Exercise» (1833); el primer rango rodilla en tierra solo en el cuadro o a voluntad del jefe. */
+['A', 'B', 'D'].forEach(v => [1, 2].forEach(fila => {
+  const dur = v === 'D' ? 3.2 : 4.4, C = new Clip(dur, false), base = fila === 1 ? RODILLA : FIRME, tiro = fila === 1 ? RODILLA_TIRO : TIRADOR, sig = fila === 1 ? 'idle_rodilla' : 'idle';
+  const tP = v === 'D' ? 0.12 : 0.15, tA = v === 'D' ? 0.38 : 0.45, tF = v === 'D' ? 0.62 : 0.7;
+  C.k(0, FIRME).k(tP, fila === 1 ? mezcla(FIRME, RODILLA, 0.6) : FIRME).k(tP + 0.1, base).k(tA, tiro).k(tF, tiro).k(tF + 0.03, mas(tiro, {torso: [-4, 0, 0], cabeza: [-3, 0, 0], brazoDe: [0, 0, -3]})).k(tF + 0.1, tiro).k(1, mas(base, {torso: [3, 0, 0]}));
+  C.a(0, W.HOMBRO).a(tP, W.PREPAREN).a(tP + 0.12, W.PREPAREN).a(tA, W.APUNTA).a(tF, W.APUNTA).a(tF + 0.03, AW(W.APUNTA, {P: [0, 0.02, -0.07], R: [-7, 0, 0]})).a(tF + 0.1, W.APUNTA).a(1, v === 'D' ? W.APUNTA : W.LISTO);
+  C.e(tP, 'preparen'); if (v === 'A') C.e(tP + 0.08, 'amartillar'); C.e(tA, 'apunten'); if (v === 'A') C.e(tF - 0.012, 'cazoleta'); C.e(tF, 'disparo'); if (v === 'D') { C.e(0.82, 'cerrojo_atras'); C.e(0.9, 'cerrojo_adelante'); }
+  if (v === 'D') { C.a(0.8, AW(W.APUNTA, {R: [-4, 0, -12]})).a(0.92, W.APUNTA); C.g(0.8, 0.5, 0.82).g(0.92, 0.32, 0.82); }
+  def(`descarga_fila${fila}_${v}`, C, {armaCompatible: v === 'D' ? ['C', 'D', 'E'] : v === 'A' ? ['A'] : ['B'], transiciones: [sig, v === 'D' ? sig : `recarga_completa_${v}`], sincronizar: ['preparen', 'apunten', 'disparo']});
+}));
+
+/* ---------- recarga completa de avancarga y fallos de ignición ----------
+   A (chispa, «charge en douze temps»): media monta y abrir la cazoleta, morder el cartucho, cebar, cerrar, armas al frente, verter, sacar la baqueta,
+   atacar (dos golpes), devolver la baqueta, al hombro. B (pistón, Minié): sin cebar la cazoleta; al final, pistón en la chimenea.
+   Unos 15–20 s por disparo: 3 tiros por minuto (el reglamento pedía 3–4; en combate, 2). */
+function recargaCompleta(v) {
+  const dur = v === 'A' ? 17 : 15, C = new Clip(dur, false), T = f => f, b = TIRADOR, pie = con(FIRME, {torso: [6, -8, 0], cabeza: [16, 0, 0]});
+  const pasos = v === 'A' ? [[0, W.LISTO, 'media_monta'], [0.06, W.CEBAR, 'abrir_cazoleta'], [0.12, W.CEBAR, 'morder_cartucho'], [0.2, W.CEBAR, 'cebar'], [0.26, W.CEBAR, 'cerrar_cazoleta'], [0.32, W.CARGA, 'armas_al_frente'],
+    [0.4, W.CARGA, 'verter'], [0.48, W.CARGA, 'baqueta_fuera'], [0.58, W.CARGA, 'atacar'], [0.66, W.CARGA, 'atacar'], [0.76, W.CARGA, 'baqueta_dentro'], [0.88, W.LISTO, 'al_hombro'], [1, W.PREPAREN, 'listo']]
+    : [[0, W.LISTO, 'media_monta'], [0.08, W.CARGA, 'armas_al_frente'], [0.16, W.CARGA, 'morder_cartucho'], [0.26, W.CARGA, 'verter'], [0.36, W.CARGA, 'baqueta_fuera'], [0.48, W.CARGA, 'atacar'], [0.58, W.CARGA, 'atacar'],
+      [0.7, W.CARGA, 'baqueta_dentro'], [0.8, W.CEBAR, 'piston'], [0.9, W.LISTO, 'al_hombro'], [1, W.PREPAREN, 'listo']];
+  pasos.forEach(([t, w, ev]) => { C.a(t, w); if (t > 0 && t < 1) C.e(t, ev); });
+  // la mano derecha: a la boca (morder), a la cazoleta (cebar), a la baqueta (sacar, atacar, devolver)
+  const BD = [[0, -40, 0, -10], [0.1, -40, 0, -10]];
+  const boca = t => { BD.push([t - 0.02, -60, 0, -25], [t, -70, 0, -30], [t + 0.04, -55, 0, -20]); C.k(t, {antebrazoDe: [-128, 0, 0]}); C.k(t + 0.05, {antebrazoDe: [-40, 0, 0]}); C.k(t - 0.03, {antebrazoDe: [-40, 0, 0]}); };
+  const baqueta = (t0, t1) => { BD.push([t0, -90, 0, -10], [t0 + 0.03, -168, 0, -10]); for (let t = t0 + 0.08; t < t1 - 0.04; t += 0.05) BD.push([t, -120, 0, -8], [t + 0.025, -150, 0, -8]); BD.push([t1, -168, 0, -10], [t1 + 0.04, -60, 0, -10]); };
+  if (v === 'A') { boca(0.12); baqueta(0.46, 0.78); C.g(0.06, -1, 0.62).g(0.3, -1, 0.62).g(0.32, -1, 0.95).g(0.84, 0.35, 0.8).g(0.9, 0.42, 0.74).g(1, 0.34, 0.62); }
+  else { boca(0.16); baqueta(0.34, 0.72); C.g(0.08, -1, 0.95).g(0.78, -1, 0.62).g(0.86, 0.42, 0.74).g(1, 0.34, 0.62); }
+  BD.push([1, -40, 0, -10]); BD.sort((a, b) => a[0] - b[0]).forEach(k => C.k(k[0], {brazoDe: k.slice(1)}));
+  C.k(0, b).k(0.08, pie).k(0.9, pie).k(1, b);
+  def(`recarga_completa_${v}`, C, {armaCompatible: [v], transiciones: [`descarga_fila2_${v}`, 'idle']});
+}
+recargaCompleta('A'); recargaCompleta('B');
+function falloIgnicion(v) {   // A: «fogonazo en la cazoleta» sin salir el tiro; B: el pistón no detona
+  const C = new Clip(5.0, false);
+  C.k(0, TIRADOR).k(0.12, TIRADOR).k(0.16, mas(TIRADOR, {cabeza: [-6, 0, -4], torso: [-2, 0, 0]})).k(0.3, con(TIRADOR, {torso: [8, -8, 0], cabeza: [22, 0, 0]})).k(0.82, con(TIRADOR, {torso: [8, -8, 0], cabeza: [22, 0, 0]})).k(0.92, TIRADOR).k(1, TIRADOR);
+  C.a(0, W.APUNTA).a(0.12, W.APUNTA).a(0.16, AW(W.APUNTA, {R: [-3, 0, 0]})).a(0.3, W.CEBAR).a(0.82, W.CEBAR).a(0.92, W.APUNTA).a(1, W.APUNTA);
+  if (v === 'A') { C.e(0.12, 'chispa').e(0.13, 'cazoleta').e(0.18, 'fallo').e(0.36, 'abrir_cazoleta').e(0.5, 'cebar').e(0.64, 'cerrar_cazoleta').e(0.74, 'amartillar').e(0.92, 'apuntar'); }
+  else { C.e(0.12, 'chasquido').e(0.18, 'fallo').e(0.4, 'quitar_piston').e(0.58, 'piston').e(0.74, 'amartillar').e(0.92, 'apuntar'); }
+  [[0.3, -50, 0, -14], [0.4, -62, 0, -20], [0.5, -50, 0, -14], [0.6, -62, 0, -20], [0.7, -50, 0, -14], [0.82, -45, 0, -12]].forEach(k => C.k(k[0], {brazoDe: k.slice(1)}));
+  C.g(0.3, -1, 0.62).g(0.84, 0.32, 0.82);
+  def(`fallo_ignicion_${v}`, C, {armaCompatible: [v], transiciones: [`descarga_fila2_${v}`, `recarga_completa_${v}`]});
+}
+falloIgnicion('A'); falloIgnicion('B');
+
+/* ---------- cuadro contra caballería: 1.ª fila rodilla en tierra con la culata apoyada y la bayoneta hacia fuera; 2.ª fila de pie ---------- */
+{ const C = new Clip(1.6, false); C.k(0, FIRME).k(0.35, mezcla(FIRME, RODILLA, 0.5)).k(0.7, RODILLA).k(1, con(RODILLA, {torso: [12, 0, 0]})); C.a(0, W.HOMBRO).a(0.35, W.PREPAREN).a(0.75, W.CUADRO1).a(1, W.CUADRO1); C.e(0.3, 'rodilla').e(0.75, 'culata_en_tierra');
+  def('cuadro_formar_fila1', C, {transiciones: ['cuadro_fila1']}); }
+{ const C = new Clip(4, true); [0, 0.5, 1].forEach((t, i) => C.k(t, con(RODILLA, {torso: [12 + (i === 1 ? 1.5 : 0), 0, 0], cabeza: [-4 + (i === 1 ? 2 : 0), [0, 12, 0][i], 0]}))); C.a(0, W.CUADRO1).a(1, W.CUADRO1); def('cuadro_fila1', C, {transiciones: ['cuadro_romper']}); }
+{ const C = new Clip(3.5, true); [0, 0.5, 1].forEach((t, i) => C.k(t, con(TIRADOR, {torso: [6, -8 + (i === 1 ? 2 : 0), 0], cabeza: [0, [0, -10, 0][i], 0]}))); C.a(0, W.BAYO_ALTA).a(0.5, AW(W.BAYO_ALTA, {P: [0, 0.01, 0.01]})).a(1, W.BAYO_ALTA); def('cuadro_fila2', C, {transiciones: ['cuadro_romper', 'descarga_fila2_A']}); }
+{ const C = new Clip(1.6, false); C.k(0, RODILLA).k(0.45, mezcla(RODILLA, FIRME, 0.5)).k(0.8, FIRME).k(1, FIRME); C.a(0, W.CUADRO1).a(0.5, W.PREPAREN).a(1, W.HOMBRO); C.e(0.45, 'levantarse').e(0.95, 'al_hombro'); def('cuadro_romper', C, {transiciones: ['idle', 'marcha_ordinario_hombro']}); }
+
+/* ---------- carga a la bayoneta ---------- */
+[['trote', 0.8, 26, 50, 10, 1.9], ['galope', 0.62, 30, 70, 16, 2.4], ['grito', 0.66, 29, 64, 12, 2.2]].forEach(([n, dur, A, rod, inc, av]) => {
+  const C = new Clip(dur, true); zancada(C, A, rod, inc, null, {carrera: true}); C.a(0, n === 'galope' ? W.BAYO : W.BAYO).a(0.5, AW(W.BAYO, {P: [0, 0.03, 0.03]})).a(1, W.BAYO);
+  if (n === 'grito') { C.k(0, {cabeza: [-12, 0, 0]}).k(0.5, {cabeza: [-16, 0, 0]}).k(1, {cabeza: [-12, 0, 0]}); C.e(0.05, 'grito'); }
+  def('carga_bayoneta_' + n, C, {suelo: 'carrera', avance: av * 2 * 0.5 * 2 / 2, simetrico: n !== 'grito', transiciones: ['cc_estocada_a', 'cc_culatazo_a', 'cc_empujon_a', 'idle']});
+});
+
+/* ---------- cuerpo a cuerpo emparejado (atacante _a, defensor _d; el defensor está a 1,4 m delante, mirando al atacante) ---------- */
+const GUARDIA = con(TIRADOR, {musloIz: [-22, 0, 6], piernaIz: [18, 0, 0], musloDe: [12, 0, -6], piernaDe: [10, 0, 0], torso: [10, -10, 0], cabeza: [4, 0, 0]});
+function pareja(n, dur, tImp, ataque, defensa, extra) { def(n + '_a', ataque, Object.assign({pareja: {clip: n + '_d', desfase: [0, 1.4, 180]}, transiciones: ['idle']}, extra && extra.a)); def(n + '_d', defensa, Object.assign({pareja: {clip: n + '_a', desfase: [0, 1.4, 180]}, transiciones: ['idle']}, extra && extra.d)); }
+{ // estocada que alcanza: el defensor recibe en el pecho y cae de rodillas
+  const d = 1.4, ti = 0.36, A = new Clip(d, false), B = new Clip(d, false);
+  A.k(0, GUARDIA).k(0.22, mas(GUARDIA, {torso: [-6, 6, 0], musloIz: [8, 0, 0]})).k(ti, con(GUARDIA, {musloIz: [-40, 0, 6], piernaIz: [38, 0, 0], musloDe: [24, 0, -6], torso: [24, -16, 0]})).k(0.55, con(GUARDIA, {musloIz: [-36, 0, 6], piernaIz: [34, 0, 0], torso: [16, -10, 0]})).k(1, GUARDIA);
+  A.a(0, W.BAYO).a(0.22, AW(W.BAYO, {P: [0, 0.02, -0.18]})).a(ti, AW(W.BAYO, {P: [0, 0.1, 0.3], R: [8, 0, 0]})).a(0.55, AW(W.BAYO, {P: [0, 0.06, 0.12]})).a(1, W.BAYO); A.r(0, 0, 0, 0).r(ti, 0, 0, 0.3).r(1, 0, 0, 0.25);
+  B.k(0, GUARDIA).k(ti, GUARDIA).k(ti + 0.06, mas(GUARDIA, {torso: [-22, 8, 0], cabeza: [-20, 0, 0], brazoIz: [-30, 0, 20]})).k(0.62, con(RODILLA, {torso: [30, 0, 0], cabeza: [20, 0, 0]})).k(1, con(RODILLA, {torso: [45, 0, 0], cabeza: [30, 0, 0]}));
+  B.a(0, W.BAYO).a(ti, W.BAYO).a(ti + 0.06, AW(W.BAYO, {P: [0.1, 0.1, -0.1], R: [-20, 0, 20]})).a(0.62, W.SUELO).a(1, W.SUELO); B.g(ti + 0.065, -1, -1); B.r(0, 0, 0, 0).r(ti + 0.1, 0, 0, -0.25).r(1, 0, 0, -0.3);
+  [A, B].forEach(c => c.e(ti, 'impacto')); B.e(0.62, 'cae'); B.e(ti + 0.1, 'suelta_arma');
+  pareja('cc_estocada', d, ti, A, B);
+}
+{ // estocada parada: el defensor desvía con un barrido del fusil y el atacante queda descubierto
+  const d = 1.3, ti = 0.34, A = new Clip(d, false), B = new Clip(d, false);
+  A.k(0, GUARDIA).k(0.2, mas(GUARDIA, {torso: [-6, 6, 0]})).k(ti, con(GUARDIA, {musloIz: [-38, 0, 6], piernaIz: [36, 0, 0], torso: [22, -16, 0]})).k(0.5, con(GUARDIA, {torso: [10, 14, 0], musloIz: [-30, 0, 6]})).k(1, GUARDIA);
+  A.a(0, W.BAYO).a(0.2, AW(W.BAYO, {P: [0, 0.02, -0.16]})).a(ti, AW(W.BAYO, {P: [0, 0.1, 0.28]})).a(0.5, AW(W.BAYO, {P: [0.2, 0.05, 0.1], R: [0, 0, 30]})).a(1, W.BAYO); A.r(0, 0, 0, 0).r(ti, 0, 0, 0.28).r(1, 0, 0, 0.1);
+  B.k(0, GUARDIA).k(0.26, GUARDIA).k(ti, mas(GUARDIA, {torso: [-4, 18, 0]})).k(0.5, mas(GUARDIA, {torso: [6, -6, 0]})).k(1, GUARDIA);
+  B.a(0, W.BAYO).a(0.26, AW(W.BAYO, {P: [-0.05, 0.1, 0]})).a(ti, AW(W.BAYO, {P: [0.15, 0.15, 0.05], R: [-10, 0, 40]})).a(0.5, W.BAYO).a(1, W.BAYO);
+  [A, B].forEach(c => c.e(ti, 'parada'));
+  pareja('cc_parada', d, ti, A, B);
+}
+{ // culatazo a la cabeza
+  const d = 1.6, ti = 0.42, A = new Clip(d, false), B = new Clip(d, false);
+  A.k(0, GUARDIA).k(0.25, con(GUARDIA, {torso: [-8, -30, 0], musloDe: [20, 0, -8]})).k(ti, con(GUARDIA, {torso: [18, 25, 0], musloIz: [-34, 0, 6], piernaIz: [30, 0, 0]})).k(0.6, con(GUARDIA, {torso: [12, 10, 0]})).k(1, GUARDIA);
+  A.a(0, W.BAYO).a(0.25, AW(W.CULATA_ARRIBA, {P: [0, -0.3, -0.1], R: [60, 0, 0]})).a(ti, W.CULATA_ARRIBA).a(0.6, AW(W.CULATA_ARRIBA, {P: [0, -0.2, 0], R: [40, 0, 0]})).a(1, W.BAYO); A.r(0, 0, 0, 0).r(ti, 0, 0, 0.2).r(1, 0, 0, 0.2);
+  B.k(0, GUARDIA).k(ti, GUARDIA).k(ti + 0.05, mas(GUARDIA, {cabeza: [-30, -30, 20], torso: [-10, -20, 10]})).k(0.7, con(BOCA_ABAJO, {pelvis: [60, 40, 0], torso: [-30, 0, 0]})).k(1, con(TUMBADO_ESP, {pelvis: [-88, 30, 0]}));
+  B.a(0, W.BAYO).a(ti, W.BAYO).a(ti + 0.08, W.SUELO).a(1, W.SUELO); B.g(ti + 0.01, -1, -1); B.r(0, 0, 0, 0).r(0.7, -0.3, 0, -0.6).r(1, -0.4, 0, -0.9);
+  [A, B].forEach(c => c.e(ti, 'impacto')); B.e(0.7, 'cae'); B.e(ti + 0.05, 'suelta_arma');
+  pareja('cc_culatazo', d, ti, A, B, {d: {suelo: 'pie'}});
+}
+{ // empujón con el fusil atravesado
+  const d = 1.2, ti = 0.3, A = new Clip(d, false), B = new Clip(d, false);
+  A.k(0, GUARDIA).k(ti, con(GUARDIA, {musloIz: [-40, 0, 6], piernaIz: [30, 0, 0], musloDe: [26, 0, -6], torso: [22, 0, 0]})).k(0.6, GUARDIA).k(1, GUARDIA);
+  A.a(0, W.BAYO).a(0.15, AW(W.HORIZONTAL, {P: [0, 0, -0.1]})).a(ti, AW(W.HORIZONTAL, {P: [0, 0, 0.25]})).a(0.6, W.BAYO).a(1, W.BAYO); A.r(0, 0, 0, 0).r(ti, 0, 0, 0.4).r(1, 0, 0, 0.45);
+  B.k(0, GUARDIA).k(ti, GUARDIA).k(0.45, con(FIRME, {torso: [-20, 0, 0], musloIz: [20, 0, 4], musloDe: [-30, 0, -4], piernaDe: [30, 0, 0], brazoIz: [-60, 0, 30]})).k(0.7, con(FIRME, {torso: [-6, 0, 0], musloDe: [-12, 0, 0]})).k(1, GUARDIA);
+  B.a(0, W.BAYO).a(ti, W.BAYO).a(0.45, AW(W.PORTA, {P: [0, 0.2, 0]})).a(1, W.BAYO); B.r(0, 0, 0, 0).r(ti, 0, 0, 0).r(0.7, 0, 0, -0.9).r(1, 0, 0, -1.0);
+  [A, B].forEach(c => c.e(ti, 'impacto')); B.e(0.5, 'tambalea');
+  pareja('cc_empujon', d, ti, A, B);
+}
+{ // duelo de oficiales a sable: tajo de A (parada de B), contraataque de B (parada de A), estocada de A que alcanza
+  const d = 3.4, A = new Clip(d, false), B = new Clip(d, false), G = con(GUARDIA, {torso: [6, -25, 0], musloIz: [-26, 0, 6]});
+  const lado = (C, w, t) => C.a(t, w);
+  [[0, 'ESP_GUARDIA', 'ESP_GUARDIA'], [0.12, 'ESP_TAJO_ARRIBA', 'ESP_GUARDIA'], [0.2, 'ESP_TAJO_ABAJO', 'ESP_PARADA'], [0.32, 'ESP_GUARDIA', 'ESP_GUARDIA'], [0.42, 'ESP_GUARDIA', 'ESP_TAJO_ARRIBA'], [0.5, 'ESP_PARADA', 'ESP_TAJO_ABAJO'],
+    [0.62, 'ESP_GUARDIA', 'ESP_GUARDIA'], [0.72, 'ESP_GUARDIA', 'ESP_GUARDIA'], [0.8, 'ESP_ESTOCADA', 'ESP_GUARDIA'], [0.86, 'ESP_GUARDIA', 'ESP_BAJA'], [1, 'ESP_GUARDIA', 'ESP_BAJA']].forEach(([t, a, b]) => { lado(A, W[a], t); lado(B, W[b], t); });
+  A.k(0, G).k(0.2, mas(G, {torso: [12, 10, 0], musloIz: [-10, 0, 0]})).k(0.5, mas(G, {torso: [-6, 0, 0]})).k(0.8, con(G, {musloIz: [-44, 0, 6], piernaIz: [40, 0, 0], torso: [22, -20, 0]})).k(1, G);
+  B.k(0, G).k(0.2, mas(G, {torso: [-6, 0, 0]})).k(0.5, mas(G, {torso: [12, 10, 0]})).k(0.8, G).k(0.86, mas(G, {torso: [-20, 10, 0], cabeza: [-15, 0, 0]})).k(1, con(RODILLA, {torso: [35, 0, 0]}));
+  A.r(0, 0, 0, 0).r(0.2, 0, 0, 0.15).r(0.5, 0, 0, 0.0).r(0.8, 0, 0, 0.35).r(1, 0, 0, 0.3); B.r(0, 0, 0, 0).r(0.2, 0, 0, -0.1).r(0.5, 0, 0, 0.15).r(0.8, 0, 0, 0).r(1, 0, 0, -0.15);
+  [A, B].forEach(c => c.e(0.2, 'parada').e(0.5, 'parada').e(0.8, 'impacto')); B.e(0.95, 'cae');
+  def('duelo_sable_a', A, {pareja: {clip: 'duelo_sable_b', desfase: [0, 1.7, 180]}, armaCompatible: ['A', 'B', 'C', 'D'], transiciones: ['idle_oficial']});
+  def('duelo_sable_b', B, {pareja: {clip: 'duelo_sable_a', desfase: [0, 1.7, 180]}, armaCompatible: ['A', 'B', 'C', 'D'], transiciones: []});
+}
+
+/* ---------- escaramuzador ---------- */
+{ const C = new Clip(3, true); const P0 = con(TIRADOR, {torso: [4, 6, -10], cabeza: [8, 4, 10], musloIz: [-10, 0, 10], musloDe: [8, 0, -2]}); [0, 0.5, 1].forEach((t, i) => C.k(t, mas(P0, {torso: [i === 1 ? 1 : 0, 0, 0]}))); C.r(0, 0.12, 0, 0).r(1, 0.12, 0, 0);
+  C.a(0, AW(W.APUNTA, {P: [0.06, 0, 0], R: [0, 6, 0]})).a(1, AW(W.APUNTA, {P: [0.06, 0, 0], R: [0, 6, 0]})); def('apuntar_apoyado_arbol', C, {cobertura: 'arbol', transiciones: ['disparar_apoyado', 'idle']}); }
+{ const C = new Clip(3, true); const P0 = con(RODILLA_TIRO, {torso: [16, -12, 0], cabeza: [4, -4, 4]}); [0, 0.5, 1].forEach((t, i) => C.k(t, mas(P0, {torso: [i === 1 ? 1 : 0, 0, 0]})));
+  C.a(0, AW(W.APUNTA, {P: [0, -0.08, 0.04], R: [-4, 0, 0]})).a(1, AW(W.APUNTA, {P: [0, -0.08, 0.04], R: [-4, 0, 0]})); def('apuntar_apoyado_roca', C, {cobertura: 'roca', transiciones: ['idle_rodilla']}); }
+{ const C = new Clip(2.4, false); const P = (k, t) => C.k(t, k);
+  // tres zancadas de carrera, frenada y cuerpo a tierra
+  for (let i = 0; i <= 6; i++) { const t = i / 6 * 0.55, ph = i * Math.PI; P(con(PIE, {musloIz: [-28 * Math.cos(ph) - 10, 0, 2], musloDe: [28 * Math.cos(ph) - 10, 0, -2], piernaIz: [30 + 40 * Math.max(0, Math.sin(ph)), 0, 0], piernaDe: [30 + 40 * Math.max(0, -Math.sin(ph)), 0, 0], torso: [18, 0, 0], cabeza: [-14, 0, 0]}), t); }
+  P(con(RODILLA, {torso: [30, 0, 0]}), 0.7); P(con(BOCA_ABAJO, {pelvis: [40, 0, 0], torso: [30, 0, 0], brazoIz: [-70, 0, 10]}), 0.82); P(BOCA_ABAJO, 1);
+  C.a(0, W.DISCRECION).a(0.55, W.DISCRECION).a(0.82, AW(W.LISTO, {P: [0, -0.1, 0.1]})).a(1, {P: [-0.12, 0.38, -0.05], R: [20, 0, 0], g: [0.3, 0.75]});
+  C.r(0, 0, 0, 0).r(0.55, 0, 0, 2.6).r(0.7, 0, 0, 3.0).r(0.82, 0, 0, 3.3).r(1, 0, 0, 3.6); C.e(0.08, 'pisada_iz').e(0.18, 'pisada_de').e(0.27, 'pisada_iz').e(0.37, 'pisada_de').e(0.7, 'rodilla').e(0.95, 'cuerpo_a_tierra');
+  def('escaramuza_salto_tumbarse', C, {suelo: 'carrera', desplazamiento: [0, 0, 3.6], transiciones: ['idle_tumbado', 'apuntar_tumbado']}); }
+
+/* ---------- reacciones ---------- */
+// impacto(nombre, {sacude: pose sumada en el instante del impacto, final: pose final, cae, sueltaArma, mano: 'iz' | 'de' (se lleva a la herida), raiz: [x, z], dur})
+function impacto(n, o) {
+  const d = o.dur || 1.5, C = new Clip(d, false), b = o.base || FIRME, s = mas(b, o.sacude), f = o.final || mas(b, o.recupera || {});
+  C.k(0, b).k(0.06, s).k(0.18, mas(s, o.sigue || {})).k(o.cae ? 0.7 : 0.55, o.medio || mezcla(s, f, 0.6)).k(1, f);
+  if (o.mano) { const B = o.mano === 'iz' ? 'brazoIz' : 'brazoDe', A2 = o.mano === 'iz' ? 'antebrazoIz' : 'antebrazoDe'; C.k(0.12, {[B]: o.manoPose || [-30, 0, o.mano === 'iz' ? -30 : 30], [A2]: [-110, 0, 0]}).k(1, {[B]: o.manoPose || [-30, 0, o.mano === 'iz' ? -30 : 30], [A2]: [-110, 0, 0]}); }
+  C.a(0, W.PORTA).a(0.06, AW(W.PORTA, {P: [0, 0.04, -0.06], R: [-10, 0, 12]}));
+  if (o.sueltaArma) { C.a(0.25, W.SUELO).a(1, W.SUELO); C.g(0.1, -1, -1); C.e(0.12, 'suelta_arma'); } else if (o.mano === 'de') { C.a(0.25, AW(W.PORTA, {P: [0.05, -0.15, 0]})).a(1, AW(W.PORTA, {P: [0.05, -0.15, 0]})); C.g(0.1, -1, 0.72); } else { C.a(0.4, W.PORTA).a(1, W.PORTA); }
+  C.r(0, 0, 0, 0).r(0.2, (o.raiz || [0, 0])[0] * 0.6, 0, (o.raiz || [0, 0])[1] * 0.6).r(1, (o.raiz || [0, 0])[0], 0, (o.raiz || [0, 0])[1]);
+  C.e(0, 'impacto'); if (o.cae) C.e(0.7, 'cae');
+  def(n, C, {desplazamiento: [(o.raiz || [0, 0])[0], 0, (o.raiz || [0, 0])[1]], region: o.region, transiciones: o.cae ? [] : ['idle', 'cojear'], suelo: 'pie'});
+}
+// brazo (4 nuevas; ya había impacto_brazo_izq/der): sacudida, soltar el arma, girar sobre sí, agarrarse
+impacto('impacto_brazo_izq_2', {region: 'brazo', sacude: {brazoIz: [20, 0, 35], torso: [-4, 18, 6]}, mano: 'de', recupera: {torso: [10, 10, 0]}});
+impacto('impacto_brazo_der_2', {region: 'brazo', sacude: {brazoDe: [20, 0, -35], torso: [-4, -18, -6]}, mano: 'iz', sueltaArma: true, recupera: {torso: [10, -10, 0]}});
+impacto('impacto_brazo_giro', {region: 'brazo', sacude: {torso: [0, 45, 0], pelvis: [0, 25, 0], brazoIz: [10, 0, 40]}, sigue: {torso: [0, 15, 0]}, recupera: {torso: [6, 30, 0], pelvis: [0, 20, 0]}, mano: 'de', raiz: [0.1, -0.15]});
+impacto('impacto_brazo_rodilla', {region: 'brazo', sacude: {brazoDe: [25, 0, -30], torso: [6, -10, 0]}, final: con(RODILLA, {torso: [20, -10, 0]}), mano: 'iz', sueltaArma: true, dur: 1.8});
+// pierna (4 nuevas): cojea, cae de rodillas, se derrumba de lado, salta a la pata coja
+impacto('impacto_pierna_izq_2', {region: 'pierna', sacude: {musloIz: [-20, 0, 0], piernaIz: [50, 0, 0], torso: [14, 0, 10], pelvis: [0, 0, 8]}, final: con(RODILLA, {torso: [20, 0, 0]}), mano: 'iz', manoPose: [10, 0, 10], dur: 1.6});
+impacto('impacto_pierna_der_2', {region: 'pierna', sacude: {musloDe: [-20, 0, 0], piernaDe: [50, 0, 0], torso: [14, 0, -10], pelvis: [0, 0, -8]}, final: con(RODILLA, {torso: [20, 0, 0]}), mano: 'de', manoPose: [10, 0, -10], dur: 1.6});
+impacto('impacto_pierna_derrumbe', {region: 'pierna', sacude: {musloIz: [-30, 0, 0], piernaIz: [70, 0, 0], torso: [20, 0, 15]}, medio: con(RODILLA, {torso: [30, 0, 30]}), final: con(TUMBADO_ESP, {pelvis: [-80, 0, 60], torso: [20, 0, 0], musloIz: [-50, 0, 0], piernaIz: [70, 0, 0]}), cae: true, sueltaArma: true, dur: 2.0, raiz: [0.3, -0.2]});
+impacto('impacto_pierna_cojea', {region: 'pierna', sacude: {musloDe: [-35, 0, 0], piernaDe: [60, 0, 0], torso: [10, 0, -12]}, sigue: {pelvis: [0, 0, -6]}, final: con(PIE, {musloDe: [-25, 0, -4], piernaDe: [45, 0, 0], torso: [8, 0, -8]}), mano: 'de', manoPose: [5, 0, -15], raiz: [0, -0.25]});
+// torso (1 nueva: giro y caída de espaldas)
+impacto('impacto_torso_giro', {region: 'torso', sacude: {torso: [-20, 50, 0], pelvis: [0, 30, 0], cabeza: [-20, 0, 0]}, medio: con(RODILLA, {torso: [0, 60, -20]}), final: con(TUMBADO_ESP, {pelvis: [-88, 70, 0], musloIz: [-20, 0, 10]}), cae: true, sueltaArma: true, dur: 2.0, raiz: [0.2, -0.6]});
+// cabeza (4 nuevas): rozadura (se lleva la mano y sigue), golpe en el casco, lateral izq/der con caída
+impacto('impacto_cabeza_rozadura', {region: 'cabeza', sacude: {cabeza: [-25, 20, 10], torso: [-8, 10, 0]}, mano: 'iz', manoPose: [-150, 0, 20], recupera: {torso: [14, 0, 0], cabeza: [20, 0, 0]}, dur: 1.8});
+impacto('impacto_cabeza_casco', {region: 'cabeza', sacude: {cabeza: [-35, 0, 0], torso: [-12, 0, 0]}, sigue: {musloDe: [-10, 0, 0], piernaDe: [20, 0, 0]}, medio: con(RODILLA, {torso: [10, 0, 0], cabeza: [20, 0, 0]}), final: mas(FIRME, {torso: [4, 0, 0]}), raiz: [0, -0.3], dur: 2.2});
+impacto('impacto_cabeza_izq', {region: 'cabeza', sacude: {cabeza: [-10, 0, -40], torso: [-6, -20, -20]}, medio: con(RODILLA, {torso: [10, -30, -40]}), final: con(TUMBADO_ESP, {pelvis: [-88, 0, -70], cabeza: [0, 0, -30]}), cae: true, sueltaArma: true, raiz: [-0.5, 0], dur: 1.8});
+impacto('impacto_cabeza_der', {region: 'cabeza', sacude: {cabeza: [-10, 0, 40], torso: [-6, 20, 20]}, medio: con(RODILLA, {torso: [10, 30, 40]}), final: con(TUMBADO_ESP, {pelvis: [-88, 0, 70], cabeza: [0, 0, 30]}), cae: true, sueltaArma: true, raiz: [0.5, 0], dur: 1.8});
+// tambaleo, caída, explosión cercana, encogerse, dudar, retroceder, pánico, capturado y escolta
+{ const C = new Clip(2.0, false); C.k(0, FIRME).k(0.15, con(PIE, {musloIz: [20, 0, 6], torso: [-10, 0, 8], brazoIz: [-40, 0, 40]})).k(0.35, con(PIE, {musloDe: [25, 0, -6], piernaDe: [10, 0, 0], torso: [-8, 0, -10], brazoIz: [-30, 0, 30]})).k(0.6, con(PIE, {musloIz: [-15, 0, 4], torso: [6, 0, 4]})).k(1, FIRME);
+  C.a(0, W.PORTA).a(0.15, AW(W.PORTA, {P: [0, 0.1, 0], R: [-10, 0, 20]})).a(0.6, W.PORTA).a(1, W.PORTA); C.g(0.12, 0.3, -1).g(0.6, 0.3, 0.72); C.r(0, 0, 0, 0).r(0.35, 0.1, 0, -0.5).r(0.6, 0.05, 0, -0.7).r(1, 0, 0, -0.7);
+  C.e(0, 'impacto').e(0.15, 'pisada_iz').e(0.35, 'pisada_de'); def('tambaleo', C, {desplazamiento: [0, 0, -0.7], transiciones: ['idle']}); }
+{ const C = new Clip(2.4, false); C.k(0, FIRME).k(0.2, con(PIE, {musloIz: [-20, 0, 6], torso: [20, 0, 6]})).k(0.4, con(PIE, {musloDe: [-30, 0, -6], piernaDe: [20, 0, 0], torso: [30, 0, -4]})).k(0.62, con(RODILLA, {torso: [40, 0, 0]})).k(0.85, con(BOCA_ABAJO, {pelvis: [60, 0, 0], torso: [0, 0, 0]})).k(1, con(BOCA_ABAJO, {cabeza: [-30, 30, 0]}));
+  C.a(0, W.PORTA).a(0.4, AW(W.PORTA, {R: [30, 0, 0]})).a(0.6, W.SUELO).a(1, W.SUELO); C.g(0.45, -1, -1); C.r(0, 0, 0, 0).r(0.4, 0, 0, 0.5).r(0.62, 0, 0, 0.8).r(0.85, 0, 0, 1.2).r(1, 0, 0, 1.3);
+  C.e(0, 'impacto').e(0.62, 'rodilla').e(0.85, 'cae').e(0.6, 'suelta_arma'); def('tambaleo_caida', C, {desplazamiento: [0, 0, 1.3], transiciones: ['cuerpo_inerte_adelante']}); }
+{ const C = new Clip(3.6, false); C.k(0, FIRME).k(0.04, con(PIE, {torso: [-25, 0, 20], cabeza: [-20, 0, 20], brazoIz: [-60, 0, 70], brazoDe: [-60, 0, -70]})).k(0.18, con(TUMBADO_ESP, {pelvis: [-60, 0, 30], torso: [10, 0, 0], brazoIz: [-90, 0, 60], brazoDe: [-40, 0, -50]})).k(0.3, TUMBADO_ESP)
+    .k(0.55, con(TUMBADO_ESP, {torso: [40, 0, 0], cabeza: [10, 10, 0], brazoIz: [40, 0, 20], antebrazoIz: [-90, 0, 0]})).k(0.75, con(SENTADO, {cabeza: [0, 25, 0], brazoDe: [-150, 0, -10], antebrazoDe: [-120, 0, 0]})).k(1, con(SENTADO, {cabeza: [10, -20, 0], torso: [40, 0, 0], brazoDe: [-150, 0, -10], antebrazoDe: [-120, 0, 0]}));
+  C.a(0, W.PORTA).a(0.06, W.SUELO).a(1, W.SUELO); C.g(0.03, -1, -1); C.r(0, 0, 0, 0).r(0.18, 0.3, 0, -1.2).r(1, 0.35, 0, -1.4); C.e(0, 'onda').e(0.04, 'suelta_arma').e(0.18, 'cae').e(0.75, 'aturdido');
+  def('sacudida_explosion', C, {suelo: 'pie', desplazamiento: [0.35, 0, -1.4], transiciones: ['levantarse_sentado']}); }
+{ const C = new Clip(2.4, true); const E = con(AGACHADO, {torso: [45, 0, 0], cabeza: [30, 0, 0], brazoIz: [-150, 0, 30], antebrazoIz: [-130, 0, 0], brazoDe: [-150, 0, -30], antebrazoDe: [-130, 0, 0]});
+  [0, 0.15, 0.3, 1].forEach((t, i) => C.k(t, mas(E, {torso: [[0, 0, 0], [6, 0, 3], [0, 0, -2], [0, 0, 0]][i], cabeza: [[0, 0, 0], [8, 0, 0], [0, 0, 0], [0, 0, 0]][i]}))); C.a(0, W.SUELO).a(1, W.SUELO); C.g(0, -1, -1); C.e(0.15, 'temblor');
+  def('encogerse', C, {transiciones: ['idle', 'huida_panico']}); }
+{ const C = new Clip(4.0, true); const P0 = con(FIRME, {torso: [2, 0, 0]}); C.k(0, P0).k(0.2, mas(P0, {cabeza: [0, 50, 0], torso: [0, 20, 0]})).k(0.4, P0).k(0.55, con(PIE, {musloDe: [20, 0, -4], torso: [-6, -10, 0], cabeza: [0, -40, 0]})).k(0.75, con(PIE, {torso: [6, 0, 0], cabeza: [10, 0, 0]})).k(1, P0);
+  C.a(0, W.PORTA).a(0.55, AW(W.PORTA, {P: [0, 0.05, -0.05]})).a(1, W.PORTA); C.r(0, 0, 0, 0).r(0.55, 0, 0, -0.3).r(1, 0, 0, 0); C.e(0.2, 'mirar_atras').e(0.55, 'paso_atras'); def('dudar', C, {moral: 'baja', transiciones: ['retroceder', 'huida_panico', 'idle']}); }
+{ const C = new Clip(1.9, true); zancada(C, -16, 18, -4, 'ambos', {braceo: 6}); C.a(0, W.PORTA).a(1, W.PORTA); C.k(0, {cabeza: [0, 20, 0]}).k(0.5, {cabeza: [0, -20, 0]}).k(1, {cabeza: [0, 20, 0]}); def('retroceder', C, {avance: -0.9, moral: 'baja', simetrico: true, transiciones: ['dudar', 'huida_panico']}); }
+{ const C = new Clip(0.6, true); zancada(C, 32, 75, 14, null, {carrera: true, braceo: 55}); C.k(0, {cabeza: [-20, 30, 0]}).k(0.5, {cabeza: [-20, -10, 0]}).k(1, {cabeza: [-20, 30, 0]}); C.a(0, W.SUELO).a(1, W.SUELO); C.g(0, -1, -1); C.oculta('arma', [[0, 0]]); C.e(0.1, 'grito');
+  def('huida_panico', C, {suelo: 'carrera', avance: 2.6, moral: 'rota', transiciones: ['rendirse', 'encogerse']}); }
+{ const C = new Clip(1.6, true); zancada(C, 18, 18, 4, 'ninguno'); const ar = {brazoIz: [-150, 0, 40], antebrazoIz: [-140, 0, 0], brazoDe: [-150, 0, -40], antebrazoDe: [-140, 0, 0]};
+  [0, 1].forEach(t => C.k(t, Object.assign({cabeza: [14, 0, 0]}, ar))); C.a(0, W.SUELO).a(1, W.SUELO); C.g(0, -1, -1); C.oculta('arma', [[0, 0]]); def('capturado_escoltado', C, {avance: 1.15, simetrico: false, pareja: {clip: 'escoltar_prisionero', desfase: [0.6, -1.6, 0]}, transiciones: ['manos_arriba']}); }
+{ const C = new Clip(1.6, true); zancada(C, 18, 18, 2, 'iz'); C.a(0, AW(W.BAYO, {P: [0, -0.04, 0], R: [-12, 0, 0]})).a(1, AW(W.BAYO, {P: [0, -0.04, 0], R: [-12, 0, 0]})); def('escoltar_prisionero', C, {avance: 1.15, pareja: {clip: 'capturado_escoltado', desfase: [-0.6, 1.6, 0]}, transiciones: ['idle']}); }
+
+/* ---------- vida de campamento y relevo ---------- */
+function sentadoBucle(n, dur, brazos, ev, extra) { const C = new Clip(dur, true); brazos.forEach(([t, p]) => C.k(t, con(SENTADO, p))); C.a(0, W.SUELO).a(1, W.SUELO); C.g(0, -1, -1); C.oculta('arma', [[0, 0]]); (ev || []).forEach(([t, e]) => C.e(t, e)); def(n, C, Object.assign({suelo: 'sentado', transiciones: ['levantarse_sentado']}, extra)); }
+sentadoBucle('descansar_sentado', 6, [[0, {brazoIz: [-30, 0, 20], antebrazoIz: [-40, 0, 0], brazoDe: [-30, 0, -20], antebrazoDe: [-40, 0, 0]}], [0.5, {brazoIz: [-32, 0, 20], antebrazoIz: [-44, 0, 0], brazoDe: [-30, 0, -20], antebrazoDe: [-40, 0, 0], cabeza: [20, 10, 0], torso: [58, 0, 0]}], [1, {brazoIz: [-30, 0, 20], antebrazoIz: [-40, 0, 0], brazoDe: [-30, 0, -20], antebrazoDe: [-40, 0, 0]}]], [[0.5, 'suspiro']]);
+sentadoBucle('beber_sentado', 5, [[0, {brazoDe: [-30, 0, -20], antebrazoDe: [-40, 0, 0], brazoIz: [-30, 0, 20], antebrazoIz: [-40, 0, 0]}], [0.25, {brazoDe: [-70, 0, -10], antebrazoDe: [-130, 0, 0], cabeza: [-25, 0, 0], torso: [40, 0, 0]}], [0.55, {brazoDe: [-70, 0, -10], antebrazoDe: [-130, 0, 0], cabeza: [-25, 0, 0], torso: [40, 0, 0]}], [0.75, {brazoDe: [-30, 0, -20], antebrazoDe: [-40, 0, 0]}], [1, {brazoDe: [-30, 0, -20], antebrazoDe: [-40, 0, 0]}]], [[0.3, 'trago'], [0.45, 'trago']]);
+sentadoBucle('fumar_pipa', 7, [[0, {brazoDe: [-45, 0, -15], antebrazoDe: [-110, 0, 0], brazoIz: [-30, 0, 20], antebrazoIz: [-40, 0, 0]}], [0.2, {brazoDe: [-50, 0, -15], antebrazoDe: [-140, 0, 0], cabeza: [-6, 0, 0]}], [0.32, {brazoDe: [-45, 0, -15], antebrazoDe: [-110, 0, 0], cabeza: [-10, 10, 0]}], [1, {brazoDe: [-45, 0, -15], antebrazoDe: [-110, 0, 0], brazoIz: [-30, 0, 20], antebrazoIz: [-40, 0, 0]}]], [[0.2, 'calada'], [0.34, 'humo']]);
+sentadoBucle('escribir_carta', 6, [[0, {torso: [70, 0, 0], cabeza: [30, 0, 0], brazoIz: [-40, 0, 10], antebrazoIz: [-80, 0, 0], brazoDe: [-40, 0, -10], antebrazoDe: [-80, 0, 0]}], [0.25, {torso: [70, 0, 0], cabeza: [30, 0, 0], brazoDe: [-38, 0, -6], antebrazoDe: [-84, 0, 0]}], [0.5, {torso: [70, 0, 0], cabeza: [30, 0, 0], brazoDe: [-42, 0, -14], antebrazoDe: [-78, 0, 0]}], [1, {torso: [70, 0, 0], cabeza: [30, 0, 0], brazoIz: [-40, 0, 10], antebrazoIz: [-80, 0, 0], brazoDe: [-40, 0, -10], antebrazoDe: [-80, 0, 0]}]], [[0.6, 'pensar']]);
+sentadoBucle('ser_vendado', 4, [[0, {musloIz: [-60, 0, 10], piernaIz: [60, 0, 0], musloDe: [-10, 0, -10], piernaDe: [10, 0, 0], brazoIz: [20, 0, 20], antebrazoIz: [-10, 0, 0], brazoDe: [20, 0, -20], antebrazoDe: [-10, 0, 0], torso: [30, 0, 0], cabeza: [0, 20, 0]}], [1, {musloIz: [-60, 0, 10], piernaIz: [60, 0, 0], musloDe: [-10, 0, -10], piernaDe: [10, 0, 0], brazoIz: [20, 0, 20], antebrazoIz: [-10, 0, 0], brazoDe: [20, 0, -20], antebrazoDe: [-10, 0, 0], torso: [30, 0, 0], cabeza: [0, 20, 0]}]], [[0.5, 'queja']], {pareja: {clip: 'vendar_companero', desfase: [0.55, 0.35, -110]}});
+{ const C = new Clip(4, true); const P0 = con(RODILLA, {torso: [40, 0, 0], cabeza: [30, 0, 0]}); [0, 0.25, 0.5, 0.75, 1].forEach((t, i) => C.k(t, con(P0, {brazoIz: [-60 + (i % 2) * 10, 0, 10], antebrazoIz: [-60 - (i % 2) * 20, 0, 0], brazoDe: [-55 - (i % 2) * 10, 0, -10], antebrazoDe: [-70 + (i % 2) * 20, 0, 0]})));
+  C.a(0, W.SUELO).a(1, W.SUELO); C.g(0, -1, -1); C.oculta('arma', [[0, 0]]); C.e(0.25, 'vuelta').e(0.75, 'vuelta'); def('vendar_companero', C, {pareja: {clip: 'ser_vendado', desfase: [-0.55, 0.35, 110]}, transiciones: ['idle']}); }
+{ const C = new Clip(1.3, true); zancada(C, 16, 22, 14, 'ninguno'); [0, 1].forEach(t => C.k(t, {brazoIz: [-150, 0, 20], antebrazoIz: [-90, 0, 0], brazoDe: [-20, 0, -10], antebrazoDe: [-60, 0, 0], cabeza: [-10, 0, 0]})); C.a(0, W.ESPALDA).a(1, W.ESPALDA);
+  C.e(0, 'pisada_iz').e(0.5, 'pisada_de'); def('cargar_herido', C, {avance: 1.0, pareja: {clip: 'ser_cargado', desfase: [0, 0, 0], sobreHombros: true}, transiciones: ['idle']}); }
+{ const C = new Clip(1.3, true); const P0 = {pelvis: [-10, 0, 90], torso: [70, 0, 0], cabeza: [40, 0, 0], brazoIz: [10, 0, 20], antebrazoIz: [-20, 0, 0], brazoDe: [10, 0, -20], antebrazoDe: [-10, 0, 0], musloIz: [-60, 0, 0], piernaIz: [70, 0, 0], musloDe: [-50, 0, 0], piernaDe: [60, 0, 0]};
+  C.k(0, P0).k(0.5, mas(P0, {brazoIz: [8, 0, 0], brazoDe: [8, 0, 0], cabeza: [6, 0, 0]})).k(1, P0); C.r(0, 0.05, 1.42, -0.05).r(0.5, 0.05, 1.46, -0.05).r(1, 0.05, 1.42, -0.05); C.a(0, W.SUELO).a(1, W.SUELO); C.g(0, -1, -1); C.oculta('arma', [[0, 0]]);
+  def('ser_cargado', C, {suelo: 'libre', avance: 1.0, pareja: {clip: 'cargar_herido', desfase: [0, 0, 0]}, transiciones: []}); }
+{ const C = new Clip(1.5, true); zancada(C, 18, 22, 8, 'ninguno'); [0, 0.5, 1].forEach((t, i) => C.k(t, {brazoIz: [-28, 0, 12], antebrazoIz: [-70 - (i === 1 ? 4 : 0), 0, 0], brazoDe: [-28, 0, -12], antebrazoDe: [-70 - (i === 1 ? 4 : 0), 0, 0]})); C.a(0, W.ESPALDA).a(1, W.ESPALDA);
+  def('llevar_municion', C, {avance: 1.1, objeto: 'caja_municion', transiciones: ['idle']}); }
+{ const C = new Clip(1.8, true); zancada(C, 14, 26, 38, 'ninguno'); [0, 0.5, 1].forEach((t, i) => C.k(t, {brazoIz: [-75, 0, 10], antebrazoIz: [-25 - (i === 1 ? 6 : 0), 0, 0], brazoDe: [-75, 0, -10], antebrazoDe: [-25 - (i === 1 ? 6 : 0), 0, 0], cabeza: [-30, 0, 0]})); C.a(0, W.ESPALDA).a(1, W.ESPALDA);
+  C.e(0.25, 'esfuerzo').e(0.75, 'esfuerzo'); def('empujar_pieza', C, {avance: 0.7, pareja: {clip: null, desfase: [0, 0.8, 0], objeto: 'rueda_de_pieza'}, transiciones: ['idle']}); }
+{ const C = new Clip(1.4, false); C.k(0, SENTADO).k(0.35, con(RODILLA, {torso: [35, 0, 0]})).k(0.7, con(AGACHADO, {torso: [25, 0, 0]})).k(1, FIRME); C.a(0, W.SUELO).a(0.5, W.SUELO).a(0.8, W.PORTA).a(1, W.PORTA); C.g(0, -1, -1).g(0.6, 0.3, 0.72); C.oculta('arma', [[0, 0], [0.55, 1]]);
+  C.e(0.35, 'rodilla').e(0.6, 'recoge_arma').e(0.95, 'en_pie'); def('levantarse_sentado', C, {transiciones: ['idle']}); }
+
+/* ---------- mando, música y bandera ---------- */
+{ const C = new Clip(2.6, true); const P0 = con(FIRME, {musloIz: [-12, 0, 6]}); C.k(0, P0).k(0.2, mas(P0, {torso: [-4, 10, 0], cabeza: [-12, 10, 0]})).k(0.45, mas(P0, {torso: [8, -6, 0], cabeza: [-4, 0, 0], musloIz: [-10, 0, 0]})).k(0.8, P0).k(1, P0);
+  C.a(0, W.ESP_BAJA).a(0.15, W.ESP_ALTA).a(0.3, W.ESP_ALTA).a(0.45, W.ESP_FRENTE).a(0.75, W.ESP_FRENTE).a(0.9, W.ESP_BAJA).a(1, W.ESP_BAJA); C.e(0.2, 'voz').e(0.45, 'voz');
+  def('voz_mando', C, {armaCompatible: ['A', 'B', 'C', 'D'], rango: 'oficial', transiciones: ['idle_oficial', 'alzar_espada_cargar']}); }
+{ const C = new Clip(4, true); const P0 = con(FIRME, {musloIz: [-14, 0, 6], torso: [0, 20, 0], cabeza: [0, 20, 0], brazoIz: [-92, 0, 8], antebrazoIz: [-6, 0, 0]}); C.k(0, P0).k(0.5, mas(P0, {brazoIz: [-4, 0, 0], torso: [0, -6, 0], cabeza: [0, -8, 0]})).k(1, P0);
+  C.a(0, W.ESP_BAJA).a(1, W.ESP_BAJA); C.e(0.1, 'senalar'); def('senalar_catalejo', C, {rango: 'oficial', transiciones: ['observar_catalejo', 'idle_oficial']}); }
+{ const C = new Clip(5, true); const P0 = con(FIRME, {cabeza: [24, 0, 0], torso: [4, 0, 0], brazoIz: [-40, 10, 20], antebrazoIz: [-90, 0, 0], brazoDe: [-40, -10, -20], antebrazoDe: [-90, 0, 0]}); C.k(0, P0).k(0.5, mas(P0, {cabeza: [6, 0, 0]})).k(1, P0);
+  C.a(0, W.ESP_BAJA, [-1, -1]).a(1, W.ESP_BAJA, [-1, -1]); C.oculta('arma', [[0, 0]]); C.e(0.5, 'pasar_pagina'); def('leer_despacho', C, {rango: 'oficial', objeto: 'papel', transiciones: ['idle_oficial', 'dar_orden_mensajero']}); }
+{ const C = new Clip(3, false); C.k(0, FIRME).k(0.2, con(FIRME, {brazoIz: [-85, 30, 30], antebrazoIz: [-10, 0, 0], cabeza: [0, 30, 0], torso: [0, 15, 0]})).k(0.45, con(FIRME, {brazoIz: [-85, 30, 30], antebrazoIz: [-10, 0, 0], cabeza: [0, 30, 0], torso: [0, 15, 0]}))
+    .k(0.6, con(FIRME, {brazoDe: [-60, 0, -10], antebrazoDe: [-40, 0, 0]})).k(0.8, con(FIRME, {brazoDe: [-60, 0, -10], antebrazoDe: [-40, 0, 0]})).k(1, FIRME);
+  C.a(0, W.ESP_BAJA).a(1, W.ESP_BAJA); C.e(0.2, 'senalar').e(0.6, 'entregar').e(0.75, 'recibido'); def('dar_orden_mensajero', C, {rango: 'oficial', pareja: {clip: 'recibir_orden', desfase: [0, 1.0, 180]}, transiciones: ['idle_oficial']}); }
+{ const C = new Clip(3, false); C.k(0, FIRME).k(0.15, con(FIRME, {brazoDe: [-150, 0, -40], antebrazoDe: [-130, 0, 0]})).k(0.3, FIRME).k(0.6, con(FIRME, {brazoIz: [-60, 0, 10], antebrazoIz: [-40, 0, 0]})).k(0.8, con(FIRME, {brazoIz: [-40, 0, 10], antebrazoIz: [-90, 0, 0]})).k(1, FIRME);
+  C.a(0, W.HOMBRO).a(1, W.HOMBRO); C.e(0.15, 'saludo').e(0.6, 'entregar').e(0.75, 'recibido'); def('recibir_orden', C, {pareja: {clip: 'dar_orden_mensajero', desfase: [0, 1.0, 180]}, transiciones: ['marcha_gimnastico_discrecion', 'idle']}); }
+{ const C = new Clip(0.66, true); zancada(C, 28, 62, 12, 'iz', {carrera: true, braceo: 40}); C.a(0, W.ESP_ALTA).a(0.5, AW(W.ESP_ALTA, {P: [0, 0.04, 0.04], R: [8, 0, 0]})).a(1, W.ESP_ALTA); C.k(0, {cabeza: [-14, 0, 0]}).k(1, {cabeza: [-14, 0, 0]}); C.e(0.05, 'grito');
+  def('alzar_espada_cargar', C, {suelo: 'carrera', avance: 2.2, rango: 'oficial', armaCompatible: ['A', 'B', 'C', 'D'], transiciones: ['voz_mando']}); }
+// corneta: toques de 1,2 s con respiración entre frases; reglamentos de toques (Francia 1831, Reino Unido «Bugle sounds» 1798/1890)
+{ const C = new Clip(4, true); const P0 = con(FIRME, {cabeza: [-10, 0, 0], torso: [-3, 0, 0], brazoIz: [-10, 0, 25], antebrazoIz: [-100, 0, 0]}); C.k(0, P0).k(0.15, mas(P0, {torso: [-3, 0, 0]})).k(0.5, P0).k(0.62, mas(P0, {torso: [-3, 0, 0]})).k(1, P0);
+  C.a(0, W.CORNETA).a(0.48, W.CORNETA).a(0.52, AW(W.CORNETA, {P: [0, -0.06, 0.03], R: [15, 0, 0]})).a(0.56, W.CORNETA).a(1, W.CORNETA); [0.05, 0.15, 0.25, 0.35, 0.6, 0.7, 0.8].forEach(t => C.e(t, 'nota')); C.e(0.5, 'respira');
+  def('corneta_tocar', C, {musico: 'corneta', transiciones: ['corneta_reposo']}); }
+{ const C = new Clip(3.4, true); C.k(0, FIRME).k(0.5, mas(FIRME, {torso: [1, 0, 0]})).k(1, FIRME); C.a(0, W.CORNETA_LADO).a(1, W.CORNETA_LADO); C.g(0, -1, -1); def('corneta_reposo', C, {musico: 'corneta', transiciones: ['corneta_tocar']}); }
+// tambor: redoble de marcha (2/4); el palillo derecho es el arma, el izquierdo va en la mano izquierda
+function tambor(C, t0, t1, golpes) { for (let i = 0; i <= golpes; i++) { const t = t0 + (t1 - t0) * i / golpes, der = i % 2 === 0; C.a(t, der ? W.PALILLO_ABA : W.PALILLO_ARR); C.k(t, {antebrazoIz: der ? [-75, 0, 0] : [-95, 0, 0], brazoIz: [-30, 0, 18]}); if (i < golpes) C.e(t, der ? 'golpe_de' : 'golpe_iz'); } }
+{ const C = new Clip(1.6, true); C.k(0, con(FIRME, {cabeza: [6, 0, 0]})).k(1, con(FIRME, {cabeza: [6, 0, 0]})); tambor(C, 0, 1, 8); def('tambor_tocar', C, {musico: 'tambor', transiciones: ['tambor_marcha']}); }
+{ const C = new Clip(1.58, true); zancada(C, 22, 24, 1, 'ninguno'); tambor(C, 0, 1, 8); def('tambor_marcha', C, {musico: 'tambor', avance: 1.3, simetrico: true, transiciones: ['tambor_tocar']}); }
+// gaita: puntero en las dos manos, bolsa bajo el brazo izquierdo, balanceo del cuerpo
+{ const C = new Clip(2.4, true); const P0 = con(FIRME, {cabeza: [-4, 0, 0], brazoIz: [-25, 0, 22], brazoDe: [-25, 0, -12]}); C.k(0, P0).k(0.25, mas(P0, {torso: [0, 4, 2], brazoIz: [-4, 0, 0]})).k(0.75, mas(P0, {torso: [0, -4, -2]})).k(1, P0);
+  C.a(0, W.CHANTER).a(1, W.CHANTER); [0, 0.25, 0.5, 0.75].forEach(t => C.e(t, 'nota')); def('gaita_tocar', C, {musico: 'gaita', transiciones: ['gaita_marcha']}); }
+{ const C = new Clip(1.58, true); zancada(C, 20, 22, 0, 'ninguno'); C.a(0, W.CHANTER).a(1, W.CHANTER); [0, 0.25, 0.5, 0.75].forEach(t => C.e(t, 'nota')); def('gaita_marcha', C, {musico: 'gaita', avance: 1.3, simetrico: true, transiciones: ['gaita_tocar']}); }
+// bandera: clavar el asta en el suelo y alzar la bandera
+{ const C = new Clip(2.6, false); C.k(0, FIRME).k(0.3, con(FIRME, {torso: [-4, 0, 0], brazoDe: [-30, 0, -10]})).k(0.55, con(PIE, {musloIz: [-30, 0, 4], piernaIz: [30, 0, 0], torso: [24, 0, 0]})).k(0.75, con(PIE, {musloIz: [-26, 0, 4], piernaIz: [28, 0, 0], torso: [20, 0, 0]})).k(1, con(FIRME, {torso: [2, 0, 0]}));
+  C.a(0, W.BANDERA_HOMBRO).a(0.3, AW(W.BANDERA_CLAVAR, {P: [0, 0.22, 0]})).a(0.55, AW(W.BANDERA_CLAVAR, {P: [0, -0.18, 0.05]})).a(0.75, AW(W.BANDERA_CLAVAR, {P: [0, -0.24, 0.05]})).a(1, AW(W.BANDERA_CLAVAR, {P: [0, -0.24, 0.0], g: [0.55, -1]}));
+  C.e(0.55, 'clavar').e(0.75, 'clavar'); def('abanderado_clavar_asta', C, {abanderado: true, transiciones: ['abanderado_alzar']}); }
+{ const C = new Clip(3.2, true); const P0 = con(FIRME, {musloIz: [-12, 0, 6], cabeza: [-16, 0, 0], torso: [-4, 0, 0]}); C.k(0, P0).k(0.5, mas(P0, {torso: [-3, 6, 4]})).k(1, P0);
+  C.a(0, W.BANDERA_ALTA).a(0.25, AW(W.BANDERA_ALTA, {P: [0.03, 0.04, 0], R: [0, 0, 12]})).a(0.5, AW(W.BANDERA_ALTA, {P: [0, 0.06, 0], R: [0, 0, -4]})).a(0.75, AW(W.BANDERA_ALTA, {P: [-0.03, 0.04, 0], R: [0, 0, -14]})).a(1, W.BANDERA_ALTA);
+  C.e(0.05, 'viva'); def('abanderado_alzar', C, {abanderado: true, transiciones: ['ondear', 'abanderado_clavar_asta']}); }
+
+/* ---------- transiciones generales (además de META[clip].transiciones) ---------- */
+const TRANSICIONES = {};
+Object.entries(META).forEach(([n, m]) => { TRANSICIONES[n] = {}; (m.transiciones || []).forEach(t => { TRANSICIONES[n][t] = 0.2; }); });
+Object.assign(TRANSICIONES, {idle: Object.assign(TRANSICIONES.idle || {}, {marcha_ordinario_hombro: 0.3, marcha_carga_hombro: 0.25, descarga_fila2_A: 0.2, descarga_fila2_B: 0.2, descarga_fila2_D: 0.2, cuadro_formar_fila1: 0.2, cuadro_fila2: 0.3,
+  carga_bayoneta_trote: 0.25, tambaleo: 0.1, dudar: 0.3, descansar_sentado: 0.6, encogerse: 0.15, escoltar_prisionero: 0.3, capturado_escoltado: 0.3}),
+  idle_oficial: {voz_mando: 0.2, senalar_catalejo: 0.2, leer_despacho: 0.3, dar_orden_mensajero: 0.2, alzar_espada_cargar: 0.2, duelo_sable_a: 0.15}, idle_rodilla: {descarga_fila1_A: 0.2, descarga_fila1_B: 0.2, descarga_fila1_D: 0.2},
+  marcha_ordinario_hombro: Object.assign(TRANSICIONES.marcha_ordinario_hombro || {}, {marcha_carga_hombro: 0.3, marcha_ordinario_funerala: 0.4, marcha_ordinario_discrecion: 0.3, idle: 0.3})});
+function rutaTransicion(desde, hasta) { const cola = [[desde]], vis = new Set([desde]); while (cola.length) { const r = cola.shift(), u = r[r.length - 1]; if (u === hasta) return r.slice(1).map((c, i) => ({clip: c, mezcla: (TRANSICIONES[r[i]] || {})[c]}));
+  Object.keys(TRANSICIONES[u] || {}).forEach(v => { if (!vis.has(v)) { vis.add(v); cola.push(r.concat([v])); } }); } return null; }
+
+/* ---------- manos al arma: el IK de troops3d no estira el brazo más de 0,57 m (0,29 + 0,28). Si un punto de agarre queda fuera de alcance,
+   primero se acerca la mano izquierda hacia la culata (hasta y = 0,5) y después se acerca el arma a los hombros lo justo. Se hace en las claves. */
+function muestreo3(tr, t) { return [1, 2, 3].map(k => muestreo(tr, t, k)); }
+function escalon(tr, t) { let a = tr[0]; for (const x of tr) if (x[0] <= t + 1e-9) a = x; return a; }
+function alcanzar(T3, clip, alcance) {
+  const T = clip.tracks; if (!T.armaP || !T.agarre) return clip; alcance = alcance || 0.55; const NA = Math.max(48, Math.ceil(clip.dur * 60));
+  const R = T3.RIGS.soldado, hom = n => { const p = R.find(q => q[0] === n)[2]; return new THREE.Vector3(p[0], p[1], p[2]); }, SD = hom('brazoDe'), SI = hom('brazoIz');
+  const ts = [...new Set([].concat(T.armaP, T.armaR || [], T.agarre).map(k => +k[0].toFixed(5)).concat(Array.from({length: NA + 1}, (_, i) => +(i / NA).toFixed(5))))].sort((a, b) => a - b), P2 = [], R2 = [], G2 = [];
+  const e = new THREE.Euler(), q = new THREE.Quaternion(), eje = new THREE.Vector3(), p = new THREE.Vector3(), g = new THREE.Vector3(), d = new THREE.Vector3();
+  ts.forEach(t => { const P = muestreo3(T.armaP, t), Rr = T.armaR ? muestreo3(T.armaR, t) : [0, 0, 0], ag = escalon(T.agarre, t); let yd = ag[1], yi = ag[2];
+    e.set(Rr[0] * D2R, Rr[1] * D2R, Rr[2] * D2R, 'XYZ'); q.setFromEuler(e); eje.set(0, 1, 0).applyQuaternion(q); p.set(P[0], P[1], P[2]);
+    const lejos = (y, S) => g.copy(p).addScaledVector(eje, y).distanceTo(S) - alcance;
+    if (yi >= 0) while (yi > 0.5 && lejos(yi, SI) > 0) yi = Math.max(0.5, yi - 0.02);
+    for (let it = 0; it < 12; it++) { let mov = false; [[yd, SD], [yi, SI]].forEach(([y, S]) => { if (y < 0) return; const x = lejos(y, S); if (x > 1e-3) { d.copy(S).sub(g).normalize(); p.addScaledVector(d, x); mov = true; } }); if (!mov) break; }
+    P2.push([t, +p.x.toFixed(4), +p.y.toFixed(4), +p.z.toFixed(4)]); R2.push([t].concat(Rr.map(v => +v.toFixed(3)))); G2.push([t, yd, +yi.toFixed(3)]); });
+  T.armaP = P2; T.armaR = R2; T.agarre = G2; return clip;
+}
+
+/* ---------- asentar la raíz con la cinemática de troops3d ---------- */
+const PTS = [['cabeza', [0, 0.29, 0]], ['cabeza', [0, 0.16, 0.11]], ['torso', [0.17, 0.42, 0.1]], ['torso', [-0.17, 0.42, 0.1]], ['torso', [0.17, 0.42, -0.12]], ['torso', [-0.17, 0.42, -0.12]], ['torso', [0, 0.15, 0.13]], ['torso', [0, 0.25, -0.2]],
+  ['pelvis', [0.16, -0.08, -0.12]], ['pelvis', [-0.16, -0.08, -0.12]], ['pelvis', [0, -0.1, 0.12]], ['antebrazoIz', [0, -0.33, 0]], ['antebrazoDe', [0, -0.33, 0]], ['brazoIz', [0, -0.29, 0]], ['brazoDe', [0, -0.29, 0]], ['piernaIz', [0, 0, 0.07]], ['piernaDe', [0, 0, 0.07]],
+  ['pieIz', [0, -0.081, -0.065]], ['pieIz', [0, -0.081, 0.175]], ['pieDe', [0, -0.081, -0.065]], ['pieDe', [0, -0.081, 0.175]]];
+function bajo(T3, M) { const IX = {}; T3.RIGS.soldado.forEach((p, i) => { IX[p[0]] = i; }); let low = Infinity; PTS.forEach(([p, v]) => { const o = IX[p] * 16, y = M[o + 1] * v[0] + M[o + 5] * v[1] + M[o + 9] * v[2] + M[o + 13]; if (y < low) low = y; }); return low; }
+function asentar(T3, nombre, clip, meta, N) {
+  if (meta.suelo === 'libre') return clip; N = N || 96; const S = T3.CLIPS.soldado, base = (clip.root && clip.root.length) ? clip.root : [[0, 0, 0, 0]], out = [], tmp = '__inf3d_tmp';
+  const rx = t => muestreo(base, t, 1), ry = t => muestreo(base, t, 2), rz = t => muestreo(base, t, 3);
+  for (let i = 0; i <= N; i++) { const t = i / N; S[tmp] = Object.assign({}, clip, {root: [[0, rx(t), 0, rz(t)]]}); const M = T3.poseTroop('soldado', tmp, t); const low = bajo(T3, M);
+    let y = -low; if (meta.suelo === 'carrera') y = Math.max(ry(t), -low) + Math.max(0, ry(t)); out.push([+t.toFixed(4), +rx(t).toFixed(4), +y.toFixed(4), +rz(t).toFixed(4)]); }
+  delete S[tmp]; clip.root = out; return clip;
+}
+function muestreo(tr, t, k) { if (tr.length === 1 || t <= tr[0][0]) return tr[0][k]; for (let i = 0; i < tr.length - 1; i++) if (t <= tr[i + 1][0]) { const a = tr[i], b = tr[i + 1], u = (t - a[0]) / Math.max(1e-6, b[0] - a[0]), s = u * u * (3 - 2 * u); return a[k] + (b[k] - a[k]) * s; } return tr[tr.length - 1][k]; }
+
+/* ===== registro (se completa con variación y animaciones en las secciones siguientes) ===== */
+let _I = null;
+function registrar(T3, op) {
+  op = op || {}; _I = _I || crear(T3); const tipos = [];
+  Object.entries(_I.TIPOS).forEach(([k, K]) => { if (T3.KINDS[k] && !op.reemplazar) return; T3.KINDS[k] = K; if (!T3.TROOP_KINDS.includes(k)) T3.TROOP_KINDS.push(k); tipos.push(k); });
+  // clips nuevos (sin pisar los existentes) asentados con la cinemática real
+  const S = T3.CLIPS.soldado, clips = [], saltados = [];
+  Object.entries(CLIPS).forEach(([n, c]) => { if (S[n] && !op.reemplazar) { saltados.push(n); return; } const copia = JSON.parse(JSON.stringify(c)); alcanzar(T3, copia); asentar(T3, n, copia, META[n]); S[n] = copia; clips.push(n); });
+  // los lotes de los tipos inf_* se preparan solos al añadir la primera figura (variación y vello plegado); add() acepta o.variacion
+  const TB = T3.TroopBatch.prototype;
+  if (!TB._inf3d) { const add0 = TB.add; TB.add = function (x, y, z, yaw, scale, nation, clip, o) { const inf = /^inf_/.test(this.kind); if (inf && !this._iVar) prepararLote(this);
+      const i = add0.call(this, x, y, z, yaw, scale, nation, clip, o); if (inf && i >= 0) variar(this, i, (o && o.variacion) || (op.sortear !== false ? variacionAleatoria(this.era) : {})); return i; }; TB._inf3d = true; }
+  return {tipos, clips, saltados};
+}
+
+/* ===================================================================================== */
+/* DEMOSTRACIÓN: demoInfanteria(contenedor, {vista: 'clips' | 'naciones' | 'rangos', clip, nat, era, rango, par, t})
+   Requiere Troops3D cargado. Menú para elegir clip, nación, era y rango; la pareja (cuerpo a cuerpo, escolta, vendar…) aparece sola. */
+function demoInfanteria(cont, op) {
+  op = op || {}; const T3 = root.Troops3D; if (!T3) throw new Error('demoInfanteria necesita Troops3D (troops3d.js)');
+  registrar(T3); const q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new Map(), arg = k => op[k] != null ? op[k] : q.get(k);
+  const NAT = ['PRU', 'AUT', 'FRA', 'GBR', 'RUS', 'USA', 'CSA', 'ESP', 'ITA', 'JPN'], RANGOS = Object.keys(_I.TIPOS).map(k => k.slice(4));
+  const R = new THREE.WebGLRenderer({antialias: true}); R.setPixelRatio(Math.min(2, root.devicePixelRatio || 1)); R.domElement.style.cssText = 'display:block;width:100%;height:100%'; cont.appendChild(R.domElement);
+  const S = new THREE.Scene(); S.background = new THREE.Color(0xc9d2d4); S.fog = new THREE.Fog(0xc9d2d4, 30, 90);
+  S.add(new THREE.HemisphereLight(0xffffff, 0x5d6b48, 0.85)); const L = new THREE.DirectionalLight(0xfff1dc, 1.25); L.position.set(-4, 8, 6); S.add(L);
+  const suelo = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), new THREE.MeshLambertMaterial({color: 0x86965f})); suelo.rotation.x = -Math.PI / 2; S.add(suelo);
+  const cam = new THREE.PerspectiveCamera(32, 1, 0.1, 300); let az = 0.5, el = 0.18, dist = 7, mira = new THREE.Vector3(0, 0.9, 0);
+  const sh = new T3.TroopShared(NAT.concat(['TUR', 'GEN'])); let lotes = [];
+  const panel = document.createElement('div'); panel.style.cssText = 'position:absolute;right:8px;top:8px;z-index:6;background:#2a1d12e8;color:#f0dfb4;padding:8px 10px;font:13px Georgia,serif;border:1px solid #b08a3e;max-width:300px';
+  if (getComputedStyle(cont).position === 'static') cont.style.position = 'relative'; cont.appendChild(panel);
+  const sel = (id, ops, v) => `<label style="display:block;margin:3px 0">${id} <select id="i3d_${id}" style="max-width:200px">${ops.map(o => `<option ${o === v ? 'selected' : ''}>${o}</option>`).join('')}</select></label>`;
+  const clips = Object.keys(CLIPS), est = {vista: arg('vista') || 'clips', clip: arg('clip') || 'cc_estocada_a', nat: arg('nat') || 'FRA', era: arg('era') || 'A', rango: arg('rango') || 'auto', t: arg('t') != null ? +arg('t') : null};
+  panel.innerHTML = sel('vista', ['clips', 'naciones', 'rangos'], est.vista) + sel('clip', clips, est.clip) + sel('nat', NAT, est.nat) + sel('era', ['A', 'B', 'C', 'D', 'E'], est.era) + sel('rango', ['auto'].concat(RANGOS), est.rango)
+    + `<label style="display:block;margin:3px 0">t <input id="i3d_t" type="range" min="0" max="1" step="0.01" value="${est.t == null ? 0 : est.t}" style="width:150px"> <input id="i3d_play" type="checkbox" ${est.t == null ? 'checked' : ''}> en marcha</label><div id="i3d_info" style="font-size:12px;opacity:.85;margin-top:4px"></div>`;
+  const $ = id => panel.querySelector('#i3d_' + id);
+  const tipoDe = cl => { const m = META[cl] || {}; if (est.rango !== 'auto') return 'inf_' + est.rango; return m.musico === 'corneta' ? 'inf_corneta' : m.musico === 'tambor' ? 'inf_tambor' : m.musico === 'gaita' ? 'inf_gaitero' : m.abanderado ? 'inf_abanderado' : m.rango === 'oficial' || /duelo/.test(cl) ? 'inf_teniente' : 'inf_soldado'; };
+  const lote = (k, e, n, cap) => { const b = new T3.TroopBatch(sh, k, e, n, cap || 16, {lod: 0}); S.add(b.mesh); lotes.push(b); return b; };
+  let tActual = 0, reloj = 0;
+  function montar() {
+    lotes.forEach(b => { S.remove(b.mesh); b.mesh.geometry.dispose(); }); lotes = []; const info = [];
+    if (est.vista === 'clips') { const c = est.clip, m = META[c], C = T3.CLIPS.soldado[c], nat = tipoDe(c) === 'inf_gaitero' ? 'GBR' : est.nat;
+      const ph = C.loop ? 0 : 0; lote(tipoDe(c), est.era, nat).add(0, 0, 0, 0, 1, nat, c, {phase: ph, h: 0, bright: 0.5, skin: 0});
+      if (m.pareja && m.pareja.clip) { const d = m.pareja.desfase, nat2 = NAT[(NAT.indexOf(nat) + 3) % NAT.length]; lote(tipoDe(m.pareja.clip), est.era, nat2).add(d[0], 0, d[1], d[2] * Math.PI / 180, 1, nat2, m.pareja.clip, {phase: ph, h: 0, bright: 0.5, skin: 2}); }
+      info.push(`<b>${c}</b> · ${C.dur.toFixed(2)} s ${C.loop ? '(bucle)' : ''}`, `eventos: ${(C.ev || []).map(e => e[1] + '@' + e[0].toFixed(2)).join(', ') || '—'}`, `armas: ${m.armaCompatible.join('')} · suelo: ${m.suelo}`, m.pareja ? `pareja: ${m.pareja.clip}` : '', `transiciones: ${m.transiciones.join(', ') || '—'}`);
+      mira.set(0, 0.9, m.desplazamiento ? m.desplazamiento[2] / 2 : 0); dist = 6; }
+    else if (est.vista === 'naciones') { const k = est.rango === 'auto' ? 'inf_soldado' : 'inf_' + est.rango;
+      NAT.forEach((n, i) => ['A', 'B', 'C', 'D', 'E'].forEach((e, j) => lote(k, e, n, 2).add((j - 2) * 1.2, 0, -i * 1.5, 0, 1, n, 'idle', {phase: Math.random(), h: 0, bright: 0.5, skin: i % 4})));
+      info.push(`${k}: naciones (filas) × eras A–E (columnas)`); mira.set(0, 0.9, -6.5); dist = 17; az = 0.35; }
+    else { RANGOS.forEach((r, i) => { const n = r === 'gaitero' ? 'GBR' : est.nat; lote('inf_' + r, est.era, n, 2).add((i - (RANGOS.length - 1) / 2) * 0.95, 0, 0, 0, 1, n, /teniente|capitan/.test(r) ? 'idle_oficial' : 'idle', {phase: Math.random(), h: 0, bright: 0.5, skin: i % 4}); });
+      info.push(`rangos · ${est.nat} · era ${est.era}`); mira.set(0, 0.95, 0); dist = 11.5; az = 0; }
+    $('info').innerHTML = info.filter(Boolean).join('<br>'); reloj = 0;
+  }
+  ['vista', 'clip', 'nat', 'era', 'rango'].forEach(k => $(k).onchange = () => { est[k] = $(k).value; montar(); });
+  let arr = null; R.domElement.onpointerdown = e => { arr = [e.clientX, e.clientY]; }; root.addEventListener('pointerup', () => { arr = null; });
+  R.domElement.onpointermove = e => { if (!arr) return; az -= (e.clientX - arr[0]) * 0.008; el = Math.max(0.02, Math.min(1.3, el + (e.clientY - arr[1]) * 0.006)); arr = [e.clientX, e.clientY]; };
+  R.domElement.onwheel = e => { dist = Math.max(2, Math.min(40, dist * (1 + Math.sign(e.deltaY) * 0.1))); e.preventDefault(); };
+  montar(); let prev = performance.now(), vivo = true;
+  (function paso() { if (!vivo) return; const now = performance.now(), dt = (now - prev) / 1000; prev = now; const w = cont.clientWidth || innerWidth, h = cont.clientHeight || innerHeight;
+    if (R.domElement.width !== Math.round(w * R.getPixelRatio()) || R.domElement.height !== Math.round(h * R.getPixelRatio())) R.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix();
+    const C = T3.CLIPS.soldado[est.clip]; if ($('play').checked) { reloj += dt; tActual = C.loop ? (reloj / C.dur) % 1 : Math.min(1, (reloj % (C.dur + 1)) / C.dur); $('t').value = tActual; } else tActual = +$('t').value;
+    // el tiempo se congela en t·dur: en bucle la fase manda; en un solo pase, el inicio queda en 0
+    sh.timeU.value = est.vista === 'clips' ? tActual * C.dur : now / 1000;
+    cam.position.set(mira.x + Math.sin(az) * Math.cos(el) * dist, mira.y + Math.sin(el) * dist, mira.z + Math.cos(az) * Math.cos(el) * dist); cam.lookAt(mira); R.render(S, cam); requestAnimationFrame(paso); })();
+  return {renderer: R, escena: S, camara: cam, montar, estado: est, parar() { vivo = false; R.dispose(); }};
+}
+
+const API = {MOD, ERAS, modelo, armaDe, Z, V, C, CLIPS, META, TRANSICIONES, rutaTransicion, POSES: {W, PIE, FIRME, TIRADOR, RODILLA, SENTADO, AGACHADO, BOCA_ABAJO, TUMBADO_ESP}, registrar, demoInfanteria, instancia: T3 => (_I = _I || crear(T3)), _herramientas: {Clip, asentar, alcanzar, mezcla, mas, con, AW, zancada}, prepararLote, variar, variacionAleatoria, desgaste, PELOS, _crear: crear};
+root.infanteria3d = API;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ===== caballeria3d.js — caballería 1836–1945 para el modo «Batalla» de Victoria (three.js r152, sin archivos externos) =====
+   Amplía troops3d.js (y usa infanteria3d.js para cabezas, tocados comunes y los jinetes desmontados) sin reemplazar nada.
+   registrar(Troops3D, op) añade:
+   · CABALLOS: cuerpo ligero (árabe/anglo-árabe de húsares y cazadores), medio (dragones, lanceros, oficiales) y pesado (coraceros,
+     caballería de reserva, generales); los 4 pelajes de troops3d (castaño, alazán, negro, tordo) con calcetines, lucero, crin y cola
+     de color propio y moteado del tordo por instancia; crin, tupé y cola con ondulación secundaria en el sombreador según el aire.
+     Montura y arreos por tipo: silla húngara con piel de oveja (húsares, cazadores), silla de dragón con gualdrapa, silla cosaca alta
+     con cojín, fundas de pistola, portacapas, maleta, portapliegos, bolsa de pienso, cabezada con bocado y filete.
+   · JINETES (rig «jinete», ≤ 20 partes, LOD0 ≤ 1 800 triángulos con el caballo, LOD1 ≤ 140, LOD2 ≤ 24):
+     húsar, coracero, lancero, dragón, cazador a caballo, cosaco, caballería de reserva (carabinero / guardia pesada),
+     oficial montado, general y mensajero; caballos sin jinete (cab_caballo_ligero/medio/pesado) para los que huyen o se llevan de la brida.
+     Jinetes desmontados (rig «soldado», tipos inf_cab_*) con el uniforme de su arma: el dragón a pie y el jinete derribado.
+   · ANIMACIONES (CLIPS.jinete y CLIPS.soldado, mismo formato): aires con sable y con lanza (parado, paso, trote sentado y levantado,
+     galope, galope de carga con suspensión), rampa, giros cerrados, salto de obstáculo, paso atrás; carga con lanza (ristre → impacto →
+     soltar), carga con sable (alzar, tajo, reponer), golpe a un infante y a otro jinete (emparejados, eventos coincidentes), parada entre
+     jinetes, cojera, caída del caballo con el jinete derribado (grupo: caballo + jinete a pie), jinete que cae y se levanta, caballo sin
+     jinete huyendo, persecución con el sable bajo, desmontar y montar, saludo y señal del oficial.
+   · ESCUADRONES: formacion(tipo, n, op) devuelve posiciones relativas (línea de dos filas, columna de a cuatro, columna de escuadrones).
+   Fuentes: «Ordonnance du 6 décembre 1829 sur l'exercice et les évolutions de la cavalerie»; «Instructions and Regulations for the
+   Formations and Movements of the Cavalry» (1833) y «Cavalry Drill» (1896, 1912); Muybridge, «Animals in Motion» (1899) para los aires;
+   Clayton, «The Dynamic Horse» (2004); Funcken y Osprey Men-at-Arms para uniformes; «aprox.» donde variaba por regimiento.
+   API: registrar(Troops3D, op) → {tipos, clips} · prepararLote(lote) · marcar(lote, i, {pelaje, marcas, crin}) · TIPOS · META · TRANSICIONES ·
+        rutaTransicion · GRUPOS · formacion(tipo, n, op) · demoCaballeria(cont) */
+(function (root) {
+'use strict';
+const THREE = root.THREE;
+const Z = {MAIN: 0, TRIM: 1, ACC: 2, HAT: 3, F1: 4, F2: 5, F3: 6, FIX: 12};
+// aVar: 1 piel · 2 pelaje · 3–6 vello y pelo del jinete (infanteria3d) · 7–10 calcetín de cada pata (MI, MD, PI, PD) · 11 lucero
+//       12 + w·0,9 crin, tupé y cola (w = peso de la ondulación, 0 en la raíz) · 13 casco del caballo
+const V = {SKIN: 1, CAB: 2, CALC: 7, LUCERO: 11, CRIN: 12, CASCO: 13};
+const C = {cuero: 0x5a3a22, cueroN: 0x26201c, cueroR: 0x7a4a2a, correaB: 0xe8e2d0, madera: 0x7a5232, acero: 0x9aa0a6, hierro: 0x3a3c40, laton: 0xc8a048, oro: 0xd8b04a,
+  plata: 0xd8dade, bota: 0x1e1a18, negro: 0x1c1a1a, blanco: 0xece6d6, rojo: 0xa81c1c, piel: 0xe0b48c, pellejo: 0xd8ccb0, pielO: 0x2e2620, pielG: 0x4a443c, crinN: 0x16120e,
+  lona: 0x8a8460, manta: 0x6a5e4a, casco: 0x2a2420, ojo: 0x16120e, hoja: 0xd8dce0, rosa: 0xc89080, caqui: 0x8a7a52};
+const ERAS = ['A', 'B', 'C', 'D', 'E'];
+const D2R = Math.PI / 180;
+
+/* ===================================================================================== */
+/* TIPOS DE JINETE
+   cuerpo: ligero | medio | pesado · silla: hungara (piel de oveja) | dragon (gualdrapa) | cosaca · arma: sable_curvo | sable_recto | shashka |
+   lanza | pica · pal: papel de la paleta de troops3d · toc(era, nat) → tocado (los de caballería se dibujan aquí; el resto, infanteria3d) */
+const TOC_LINEA = (nat, era) => ({A: 'kepi', B: 'kepi', C: 'kepi', D: nat === 'PRU' || nat === 'GER' || nat === 'AUT' ? 'stahl' : nat === 'GBR' ? 'brodie' : nat === 'RUS' ? 'gorra_rusa' : 'adrian', E: nat === 'GER' || nat === 'PRU' ? 'stahl' : nat === 'RUS' || nat === 'URS' ? 'ssh40' : nat === 'GBR' ? 'brodie' : nat === 'USA' ? 'm1' : nat === 'JPN' ? 'casco_jp' : 'adrian'}[era]);
+const JINETES = {
+  husar: {nombre: 'Húsar', cuerpo: 'ligero', silla: 'hungara', arma: 'sable_curvo', pal: 'caballeria', eras: ['A', 'B', 'C', 'D'], carabina: e => e >= 'C',
+    toc: (e, n) => e <= 'C' ? (n === 'GBR' || n === 'PRU' || n === 'GER' ? 'colback' : 'chaco') : TOC_LINEA(n, e), alamares: e => e <= 'C', pelliza: e => e <= 'B', portapliegos: e => e <= 'B'},
+  coracero: {nombre: 'Coracero', cuerpo: 'pesado', silla: 'dragon', arma: 'sable_recto', pal: 'linea', eras: ['A', 'B', 'C', 'D'], coraza: e => e <= 'D',
+    toc: (e, n) => e <= 'D' ? 'casco_cor' : TOC_LINEA(n, e)},
+  lancero: {nombre: 'Lancero', cuerpo: 'medio', silla: 'dragon', arma: 'lanza', pal: 'caballeria', eras: ['A', 'B', 'C', 'D'], dobleCara: true, plastron: e => e <= 'C',
+    toc: (e, n) => e <= 'C' ? 'czapka' : TOC_LINEA(n, e), carabina: e => e >= 'C'},
+  dragon: {nombre: 'Dragón', cuerpo: 'medio', silla: 'dragon', arma: 'sable_recto', pal: 'linea', eras: ['A', 'B', 'C', 'D', 'E'], carabina: () => true, pie: true,
+    toc: (e, n) => e <= 'B' ? (n === 'PRU' || n === 'GER' ? 'pickel' : 'casco_dragon') : e === 'C' ? (n === 'PRU' || n === 'GER' ? 'pickel' : n === 'FRA' ? 'casco_dragon' : 'kepi') : TOC_LINEA(n, e)},
+  cazador: {nombre: 'Cazador a caballo', cuerpo: 'ligero', silla: 'hungara', arma: 'sable_curvo', pal: 'caballeria', eras: ['A', 'B', 'C', 'D'], carabina: () => true,
+    toc: (e, n) => e <= 'B' ? 'chaco' : e === 'C' ? 'kepi' : TOC_LINEA(n, e)},
+  cosaco: {nombre: 'Cosaco', cuerpo: 'ligero', silla: 'cosaca', arma: 'shashka', pal: 'caballeria', eras: ['A', 'B', 'C', 'D', 'E'], carabina: () => true, pica: e => e <= 'D', cherkeska: true,
+    toc: (e, n) => e === 'E' ? 'kubanka' : 'papaja'},
+  reserva: {nombre: 'Caballería de reserva (carabinero / guardia)', cuerpo: 'pesado', silla: 'dragon', arma: 'sable_recto', pal: 'guardia', eras: ['A', 'B', 'C'], coraza: e => e <= 'B', corazaLaton: true,
+    toc: () => 'casco_carab'},
+  oficial: {nombre: 'Oficial de caballería montado', cuerpo: 'medio', silla: 'dragon', arma: 'sable_recto', pal: 'linea', eras: ERAS.slice(), oficial: true,
+    toc: (e, n) => e <= 'B' ? 'chaco' : e === 'C' ? 'kepi' : e === 'D' ? 'gorra' : (n === 'GER' || n === 'PRU' ? 'gorra' : 'gorra')},
+  general: {nombre: 'General a caballo', cuerpo: 'pesado', silla: 'dragon', arma: 'sable_recto', pal: 'linea', eras: ERAS.slice(), oficial: true, general: true, catalejo: true,
+    toc: (e, n) => e === 'A' ? 'bicornio' : e <= 'C' ? (n === 'PRU' || n === 'GER' ? 'pickel' : 'kepi') : 'gorra'},
+  mensajero: {nombre: 'Mensajero a caballo', cuerpo: 'ligero', silla: 'hungara', arma: 'ninguna', pal: 'caballeria', eras: ERAS.slice(), cartera: true,
+    toc: (e, n) => e <= 'C' ? 'kepi' : e === 'D' ? 'gorra' : TOC_LINEA(n, e)}
+};
+const CUERPO = {ligero: {k: 0.93, kz: 0.97, pata: 0.9, crin: 'larga'}, medio: {k: 1.0, kz: 1.0, pata: 1.0, crin: 'corta'}, pesado: {k: 1.1, kz: 1.03, pata: 1.12, crin: 'corta'}};
+
+function crear(T3, INF) {
+const GB = T3._dev.GeoBuilder, xf = T3._dev.xf, P = {}; T3.RIGS.jinete.forEach((p, i) => { P[p[0]] = i; });
+
+/* ---------- caballo (cotas de troops3d: cruz 1,50 m, dorso 1,40, vientre 0,85, codo 1,0, rodilla 0,58, corvejón 0,62; mira hacia +z) ---------- */
+function caballo(g, o) {
+  const K = CUERPO[o.cuerpo || 'medio'], k = K.k, F = Z.FIX, hc = 0xffffff, hv = V.CAB, B = P.caballo;
+  const R = (z, rx, ry, cy) => [z * K.kz, rx * k, ry * (0.96 + 0.04 * k), 0, cy];
+  // tronco: grupa, costillar, cruz y pecho (sección superelíptica)
+  g.loft(B, F, hc, [R(-0.78, 0.06, 0.1, 0.06), R(-0.7, 0.18, 0.23, 0.06), R(-0.5, 0.24, 0.285, 0.05), R(-0.15, 0.252, 0.28, 0.015),
+    R(0.24, 0.262, 0.29, 0.02), R(0.47, 0.225, 0.3, 0.06), R(0.65, 0.15, 0.24, 0.05), R(0.74, 0.06, 0.12, 0.04)], 10, {axis: 'z', p: 2.2, capA: true, capB: true, vr: hv, a0: Math.PI / 10});
+  g.loft(B, F, hc, [[0.24 * K.kz, 0.12 * k, 0.1, 0, 0.27], [0.5 * K.kz, 0.11 * k, 0.1, 0, 0.29]], 5, {axis: 'z', vr: hv});                       // cruz
+  // cuello: sube 35°; en el pesado más grueso y arqueado
+  const nk = o.cuerpo === 'pesado' ? 1.12 : o.cuerpo === 'ligero' ? 0.92 : 1;
+  g.loft(P.cuello, F, hc, [[-0.12, 0.16 * nk, 0.25 * nk, 0, 0.0], [0.05, 0.14 * nk, 0.21 * nk, 0, -0.01], [0.3, 0.105 * nk, 0.155 * nk, 0, -0.005], [0.56, 0.08 * nk, 0.12 * nk, 0, 0.01], [0.66, 0.075, 0.11, 0, 0.02]], 8,
+    {rot: [35, 0, 0], capB: true, vr: hv});
+  // crin: mechones que caen a un lado (largos en el ligero, cortos/recortados en el medio y pesado; trenzada en el cosaco)
+  const crest = u => xf([[0, 0.05 + u * 0.6, -0.17 * nk + u * 0.08 - Math.sin(u * Math.PI) * 0.02]], [0, 0, 0], [35, 0, 0])[0], larga = (o.crin || K.crin) === 'larga', n = larga ? 6 : 4;
+  for (let i = 0; i < n; i++) { const a = crest(i / n), b = crest((i + 1) / n), dl = larga ? 0.16 : 0.08, s = i % 2 ? 1 : 1;
+    const q = [[0.012, a[1] + 0.03, a[2] - 0.02], [0.012, b[1] + 0.03, b[2] - 0.02], [0.012 + 0.05 * s, b[1] - dl, b[2] - 0.04], [0.012 + 0.05 * s, a[1] - dl, a[2] - 0.04]];
+    const v0 = V.CRIN, v1 = V.CRIN + 0.9;
+    g.tri(q[0], q[3], q[2], P.cuello, F, 0, v0); g.tri(q[0], q[2], q[1], P.cuello, F, 0, v0);
+    // la ondulación se pondera por vértice: se rehace el último par con peso
+    const L = g.vr.length; g.vr[L - 5] = v1; g.vr[L - 4] = v1; g.vr[L - 2] = v1;                                   // (q3, q2 del 1.er triángulo; q2 del 2.º)
+    g.quad([-0.012, a[1] + 0.03, a[2] - 0.02], [-0.012, b[1] + 0.03, b[2] - 0.02], [-0.04, b[1] - dl * 0.4, b[2] - 0.03], [-0.04, a[1] - dl * 0.4, a[2] - 0.03], P.cuello, F, 0, V.CRIN);
+  }
+  // cabeza (de la nuca al morro, 0,56 m, inclinada 50°); el ligero, más fina y de perfil cóncavo
+  const H = (x, y, z) => xf([[x, y, z]], [0, 0, 0], [50, 0, 0])[0], hk = o.cuerpo === 'ligero' ? 0.92 : o.cuerpo === 'pesado' ? 1.06 : 1, T = P.testa;
+  g.loft(T, F, hc, [[-0.06, 0.07 * hk, 0.1, 0, -0.04], [0.08, 0.1 * hk, 0.13, 0, -0.028], [0.3, 0.075 * hk, 0.098, 0, o.cuerpo === 'ligero' ? 0.006 : -0.004],
+    [0.5, 0.062 * hk, 0.075, 0, -0.005], [0.56, 0.05 * hk, 0.055, 0, -0.01]], 8, {axis: 'z', rot: [50, 0, 0], capB: true, domeB: 0.02, vr: hv, p: 2.2});
+  [1, -1].forEach(s => {
+    const b = H(0.05 * s, 0.11, -0.04);                                                                                                    // orejas
+    g.tri([b[0] - 0.025 * s, b[1], b[2] + 0.02], [b[0] + 0.02 * s, b[1], b[2] - 0.02], [b[0] + 0.015 * s, b[1] + 0.13, b[2] - 0.04], T, F, hc, hv);
+    g.tri([b[0] + 0.02 * s, b[1], b[2] - 0.02], [b[0] - 0.025 * s, b[1], b[2] + 0.02], [b[0] + 0.015 * s, b[1] + 0.13, b[2] - 0.04], T, F, hc, hv);
+    const e = H(0.094 * s * hk, 0.05, 0.12), e2 = H(0.089 * s * hk, 0.03, 0.15), e3 = [e[0], e[1] - 0.025, e[2] + 0.005];                // ojo
+    if (s > 0) g.tri(e, e2, e3, T, F, C.ojo); else g.tri(e, e3, e2, T, F, C.ojo);
+    const n0 = H(0.042 * s, 0.03, 0.53), n1 = H(0.047 * s, -0.01, 0.52), n2 = [n0[0], n0[1] - 0.02, n0[2] + 0.02];                        // ollar
+    if (s > 0) g.tri(n0, n1, n2, T, F, C.ojo); else g.tri(n0, n2, n1, T, F, C.ojo);
+  });
+  { const a = H(-0.03, 0.105, 0.1), b = H(0.03, 0.105, 0.1), c = H(0.022, 0.08, 0.44), d = H(-0.022, 0.08, 0.44);                         // lucero / cordón (se ve blanco si la instancia lo lleva)
+    g.quad([a[0], a[1] + 0.006, a[2] + 0.006], [b[0], b[1] + 0.006, b[2] + 0.006], [c[0], c[1] + 0.004, c[2] + 0.004], [d[0], d[1] + 0.004, d[2] + 0.004], T, F, hc, V.LUCERO); }
+  { const fl = H(0, 0.12, 0.02), fl2 = H(0, 0.1, 0.18);                                                                                    // tupé
+    g.quad([fl[0] - 0.04, fl[1], fl[2]], [fl[0] + 0.04, fl[1], fl[2]], [fl2[0] + 0.03, fl2[1] + 0.012, fl2[2]], [fl2[0] - 0.03, fl2[1] + 0.012, fl2[2]], T, F, 0, V.CRIN + 0.6); }
+  // patas: antebrazo/pierna con masa muscular; caña con tendón, menudillo, cuartilla (marca blanca por pata) y casco
+  const pk = K.pata, legs = [['manoIz', 'canaIz', 0, false, 1], ['manoDe', 'canaDe', 1, false, -1], ['pataIz', 'corvIz', 2, true, 1], ['pataDe', 'corvDe', 3, true, -1]];
+  legs.forEach(([up, low, idx, hind]) => {
+    if (!hind) g.loft(P[up], F, hc, [[-0.45, 0.043 * pk, 0.048 * pk], [-0.3, 0.054 * pk, 0.062 * pk, 0, -0.004], [-0.12, 0.068 * pk, 0.082 * pk, 0, -0.005], [0.05, 0.088 * pk, 0.115 * pk]], 6, {vr: hv});
+    else g.loft(P[up], F, hc, [[-0.48, 0.045 * pk, 0.064 * pk, 0, -0.03], [-0.3, 0.062 * pk, 0.095 * pk, 0, -0.01], [-0.1, 0.092 * pk, 0.16 * pk, 0, 0.02], [0.1, 0.12 * pk, 0.21 * pk, 0, 0.03]], 6, {vr: hv});
+    const y0 = hind ? -0.615 : -0.575, m = V.CALC + idx;
+    const ck = o.cuerpo === 'pesado' ? 1.25 : 1;                                                                                     // cernejas del pesado: menudillo más ancho
+    g.loft(P[low], F, hc, [[hind ? 0.03 : 0.0, 0.04 * pk, (hind ? 0.06 : 0.05) * pk, 0, hind ? -0.03 : 0], [y0 + 0.3, 0.034 * pk, 0.044 * pk, 0, -0.008], [y0 + 0.15, 0.041 * pk * ck, 0.052 * pk * ck, 0, -0.012],
+      [y0 + 0.075, 0.036 * pk * ck, 0.04 * pk * ck, 0, 0.022]], 5, {vr: m});                                                                  // caña, menudillo y cuartilla (con la marca blanca de la pata)
+    g.loft(P[low], F, C.casco, [[y0 + 0.075, 0.042 * pk, 0.046 * pk, 0, 0.03], [y0, 0.052 * pk, 0.062 * pk, 0, 0.042]], 5, {capA: true, vr: V.CASCO});                              // casco
+  });
+  // cola: maslo y cerdas (corta y alta en el ligero; larga en el pesado; anudada en la cosaca)
+  const largo = o.cuerpo === 'pesado' ? 0.82 : o.cuerpo === 'ligero' ? 0.74 : 0.78;
+  g.loft(P.cola, F, hc, [[0.02, 0.05, 0.05], [-0.18, 0.035, 0.04, 0, -0.06]], 6, {vr: hv});
+  const ring = (t, r, rz, dz) => [t, r, rz, 0, dz];
+  const rings = [ring(-0.12, 0.05, 0.05, -0.05), ring(-0.34, 0.085, 0.06, -0.12), ring(-0.58, 0.075, 0.05, -0.14), ring(-largo, 0.03, 0.03, -0.12)];
+  // anillos con peso creciente de ondulación: se hacen por tramos para que el sombreador sepa la distancia al maslo
+  for (let i = 0; i < rings.length - 1; i++) g.loft(P.cola, F, 0, [rings[i], rings[i + 1]], 5, {capB: i === rings.length - 2, p: 1.6, vr: V.CRIN + 0.3 * i});
+}
+
+/* ---------- montura y arreos (parte «silla», y = 0 en el asiento a 1,38 m; cabezada en «testa»; pretal en «caballo») ---------- */
+function arreos(g, o) {
+  const S = P.silla, F = Z.FIX, AB = o.era <= 'B', silla = o.silla || 'dragon', cos = silla === 'cosaca';
+  const kb = CUERPO[o.cuerpo || 'medio'].k;
+  if (silla === 'dragon') [1, -1].forEach(s => {                                                                                         // gualdrapa con galón (dos paños que siguen el costillar)
+    const L = AB ? 0.46 : 0.34, D = AB ? 0.38 : 0.27, x0 = 0.17 * s, x1 = (0.27 * kb + 0.035) * s, x2 = (0.27 * kb + 0.045) * s;
+    const q = [[x0, 0.01, -L], [x0, 0.01, L * 0.8], [x1, -D * 0.5, L * 0.78], [x1, -D * 0.5, -L * 0.97], [x2, -D, L * 0.72], [x2, -D, -L * 0.96]];
+    [[0, 1, 2, 3], [3, 2, 4, 5]].forEach(([a, b, c, d]) => { if (s < 0) g.quad(q[a], q[d], q[c], q[b], S, Z.TRIM, 0); else g.quad(q[a], q[b], q[c], q[d], S, Z.TRIM, 0); });
+    if (AB || o.oficial) g.strap(S, F, o.oficial ? C.oro : C.blanco, [q[5], q[4]].map(p => [p[0] + 0.004 * s, p[1] + 0.025, p[2]]), 0.035, [s, 0, 0]);
+  });
+  else if (silla === 'hungara') [1, -1].forEach(s => {                                                                                   // piel de oveja con dientes de lobo (borde de color)
+    const q = [[0.16 * s, 0.06, -0.36], [0.16 * s, 0.06, 0.34], [(0.27 * kb + 0.03) * s, -0.24, 0.3], [(0.27 * kb + 0.03) * s, -0.24, -0.38]];
+    if (s < 0) g.quad(q[0], q[3], q[2], q[1], S, F, C.pellejo); else g.quad(q[0], q[1], q[2], q[3], S, F, C.pellejo);
+    for (let i = 0; i < 4; i++) { const z0 = -0.36 + i * 0.17, z1 = z0 + 0.17, zm = (z0 + z1) / 2; const xx = 0.27 * kb + 0.032, a = [xx * s, -0.24, z0 * 0.98], b = [xx * s, -0.24, z1 * 0.98], c = [(xx - 0.012) * s, -0.17, zm];
+      if (s < 0) g.tri(a, b, c, S, Z.TRIM, 0); else g.tri(a, c, b, S, Z.TRIM, 0); } });
+  else [1, -1].forEach(s => {                                                                                                            // cosaca: faldones cortos y alforjas
+    g.quad([0.16 * s, 0.02, -0.26], [0.16 * s, 0.02, 0.22], [0.22 * s, -0.22, 0.18], [0.22 * s, -0.22, -0.22], S, F, C.cueroN); g.quad([0.16 * s, 0.02, 0.22], [0.16 * s, 0.02, -0.26], [0.22 * s, -0.22, -0.22], [0.22 * s, -0.22, 0.18], S, F, C.cueroN);
+    g.box(S, F, C.cuero, [0.25 * s, -0.12, -0.36], [0.06, 0.18, 0.16], {bottom: true}); });
+  // asiento, borrén y perilla (la cosaca, más alta y con cojín)
+  g.loft(S, F, cos ? C.cuero : C.cueroR, [[-0.27, 0.13, 0.04, 0, 0.09], [-0.2, 0.17, 0.05, 0, 0.04], [0.05, 0.16, 0.045, 0, 0.03], [0.2, 0.12, 0.05, 0, cos ? 0.1 : 0.06], [0.26, 0.06, 0.04, 0, cos ? 0.16 : 0.1]], 6,
+    {axis: 'z', capA: true, capB: true, p: 2.6});
+  if (cos) g.box(S, Z.TRIM, 0, [0, 0.1, -0.03], [0.26, 0.06, 0.36], {});                                                                 // cojín (podushka)
+  [1, -1].forEach(s => {
+    if (!cos) { g.quad([0.17 * s, 0.03, -0.12], [0.17 * s, 0.03, 0.2], [0.2 * s, -0.22, 0.17], [0.2 * s, -0.22, -0.06], S, F, C.cueroR); g.quad([0.17 * s, 0.03, 0.2], [0.17 * s, 0.03, -0.12], [0.2 * s, -0.22, -0.06], [0.2 * s, -0.22, 0.17], S, F, C.cueroR); }
+    g.strap(S, F, C.cueroN, [[0.17 * s, 0.0, 0.14], [0.255 * s, -0.4, 0.17], [0.24 * s, -0.62, 0.13]], 0.045, [s, 0, 0]);                  // cincha
+    g.strap(S, F, C.cueroN, [[0.17 * s, 0.0, 0.0], [0.285 * s, -0.42, 0.08]], 0.018, [s, 0, 0]);                                           // ación
+    g.box(S, F, C.hierro, [0.29 * s, -0.5, 0.1], [0.02, 0.1, 0.11], {noTop: true});                                                         // estribo
+    if (!cos && o.era <= 'C') g.cyl(S, F, C.cueroN, [0.13 * s, -0.08, 0.36], 0.045, 0.035, 0.24, 5, {rot: [18, 0, 0], bottom: true});    // funda de pistola
+  });
+  if (silla !== 'cosaca') g.loft(S, o.era <= 'C' ? Z.TRIM : F, o.era <= 'C' ? 0 : C.lona, [[-0.2, 0.06, 0.065], [0.2, 0.06, 0.065]], 6, {axis: 'x', at: [0, 0.08, -0.36], capA: true, capB: true});   // maleta
+  g.loft(S, F, o.era <= 'B' ? 0x5a5448 : C.manta, [[-0.17, 0.05, 0.05, 0, -0.04], [0, 0.055, 0.055, 0, 0.02], [0.17, 0.05, 0.05, 0, -0.04]], 5, {axis: 'x', at: [0, 0.1, 0.31], capA: true, capB: true});   // capote en la perilla
+  if (o.era >= 'C' && !cos) g.loft(S, F, C.lona, [[-0.05, 0.06, 0.09], [0.05, 0.06, 0.09]], 6, {axis: 'x', at: [-0.27, -0.06, -0.2], capA: true, capB: true});   // bolsa de pienso
+  // pretal (con media luna de latón en los oficiales y generales) y grupera
+  [1, -1].forEach(s => g.strap(P.caballo, F, C.cueroN, [[0.15 * s, 0.2, 0.5], [0.2 * s, 0.06, 0.6], [0.11 * s, -0.04, 0.71], [0.0, -0.06, 0.75]], 0.035, [s, 0, 0.6]));
+  if (o.oficial) g.octa(P.caballo, F, C.laton, [0, -0.05, 0.77], 0.035, {rz: 0.012});
+  [1, -1].forEach(s => g.strap(P.caballo, F, C.cueroN, [[0.08 * s, 0.31, -0.45], [0.2 * s, 0.24, -0.66], [0.17 * s, 0.07, -0.76]], 0.03, [s, 0.6, 0]));
+  // cabezada: carrillera, frontalera, muserola, bocado y filete; riendas al cuello
+  const H = (x, y, z) => xf([[x, y, z]], [0, 0, 0], [50, 0, 0])[0], T = P.testa, fr = o.era <= 'B' && o.oficial ? C.laton : C.cueroN;
+  [1, -1].forEach(s => { g.strap(T, F, C.cueroN, [H(0.08 * s, 0.11, -0.03), H(0.104 * s, 0.03, 0.12), H(0.075 * s, -0.04, 0.36), H(0.067 * s, -0.03, 0.45)], 0.025, [s, 0, 0]);
+    g.strap(T, F, fr, [H(0.0, 0.135, 0.06), H(0.1 * s, 0.11, 0.06)], 0.025, [0, 1, 0]); });
+  g.loft(T, F, C.cueroN, [[0.36, 0.074, 0.09], [0.4, 0.074, 0.09]], 8, {axis: 'z', rot: [50, 0, 0], p: 2.2});
+  g.loft(T, F, C.acero, [[-0.085, 0.008, 0.008], [0.085, 0.008, 0.008]], 4, {axis: 'x', at: H(0, -0.04, 0.46)});
+  [1, -1].forEach(s => g.strap(P.cuello, F, C.cueroN, [xf([[0.08 * s, 0.6, 0.12]], [0, 0, 0], [35, 0, 0])[0], [0.09 * s, 0.25, 0.28], [0.06 * s, 0.05, 0.3]], 0.02, [s, 0, 0]));
+}
+
+/* ---------- jinete: piernas fijas en la silla, torso con prendas por tipo, cabeza de infanteria3d, brazos ---------- */
+const TR = [[0.0, 0.16, 0.103], [0.18, 0.174, 0.115, 0, 0.01], [0.36, 0.18, 0.118, 0, 0.006], [0.42, 0.17, 0.102, 0, -0.006], [0.47, 0.105, 0.07, 0, -0.012], [0.5, 0.06, 0.055]];
+const fz = y => { const r = TR.reduce((a, b) => b[0] <= y ? b : a, TR[0]); return (r[4] || 0) + r[2]; };
+function jinete(g, o) {
+  const S = P.silla, T = P.torso, F = Z.FIX, coat = Z.MAIN, trim = Z.TRIM, pants = Z.ACC, AB = o.era <= 'B', t = o.tipo, J = JINETES[t];
+  // piernas (asiento militar de estribo largo): muslo, pierna, bota con espuela. Húsar: pantalón ceñido y botas húngaras; cosaco: bombachos con franja
+  const botaAlta = t === 'coracero' || t === 'reserva' || t === 'general' || t === 'dragon' || o.era >= 'C';
+  [1, -1].forEach(s => {
+    const hip = [0.1 * s, 0.1, -0.02], knee = [0.25 * s, -0.24, 0.2], ank = [0.275 * s, -0.6, 0.1];
+    g.tube(S, pants, 0, hip, knee, [[0, t === 'cosaco' ? 0.1 : 0.085], [0.5, t === 'cosaco' ? 0.09 : 0.075], [1, 0.058]], 5);
+    if (t === 'cosaco' || (AB && (t === 'husar' || t === 'cazador'))) g.strap(S, trim, 0, [[hip[0] + 0.07 * s, hip[1] - 0.02, hip[2]], [knee[0] + 0.055 * s, knee[1], knee[2]]], 0.022, [s, 0, 0]);   // franja / galón
+    g.tube(S, botaAlta ? F : pants, botaAlta ? C.bota : 0, knee, ank, [[-0.08, botaAlta ? 0.066 : 0.056], [0.35, 0.055], [1, 0.042]], 5);
+    if (t === 'husar' && AB) g.tri([knee[0] + 0.05 * s, knee[1] - 0.05, knee[2] + 0.06], [knee[0] + 0.01 * s, knee[1] - 0.02, knee[2] + 0.07], [knee[0] + 0.03 * s, knee[1] - 0.14, knee[2] + 0.05], S, F, C.oro);   // borla
+    g.loft(S, F, C.bota, [[-0.07, 0.037, 0.034, 0, -0.04], [0.0, 0.044, 0.05, 0, -0.03], [0.17, 0.035, 0.022, 0, -0.06]], 5, {axis: 'z', at: [0.288 * s, -0.55, 0.1], capB: true});
+    g.tube(S, F, C.acero, [0.288 * s, -0.59, 0.03], [0.288 * s, -0.59, -0.04], [[0, 0.008], [1, 0.004]], 3);                              // espuela
+  });
+  // torso
+  const cherk = J.cherkeska, lev = t === 'general' || (o.oficial && o.era >= 'C');
+  g.loft(T, coat, 0, TR, 8, {capB: true, p: 3});
+  g.loft(T, coat, 0, [[-0.14, cherk ? 0.24 : 0.2, cherk ? 0.19 : 0.15, 0, -0.03], [0.04, 0.17, 0.11]], 8, {p: 2.6});                         // faldones sobre la silla
+  if (cherk) g.loft(T, coat, 0, [[-0.42, 0.25, 0.18, 0, -0.06], [-0.14, 0.24, 0.19, 0, -0.03]], 8, {p: 2.4});                               // la cherkeska llega a la rodilla
+  g.loft(T, o.era < 'E' ? trim : coat, 0, [[0.485, 0.07, 0.068], [0.55, 0.066, 0.064, 0, 0.004]], 6, {});                                  // cuello
+  if (J.alamares && J.alamares(o.era)) {                                                                                                  // dolmán con alamares y cordones
+    for (let i = 0; i < 6; i++) { const y = 0.08 + i * 0.065; g.strap(T, F, o.oficial ? C.oro : C.blanco, [[-0.11, y, fz(y) + 0.008], [0.11, y, fz(y) + 0.008]], 0.014, [0, 0, 1]); }
+    [1, -1].forEach(s => g.tri([0.11 * s, 0.07, fz(0.07) + 0.006], [0.11 * s, 0.42, fz(0.42) + 0.006], [0.13 * s, 0.25, fz(0.25) + 0.002], T, F, C.oro));
+    g.loft(T, Z.FIX, C.oro, [[0.02, 0.172, 0.114], [0.07, 0.174, 0.116]], 8, {p: 3, flatN: true});                                           // faja de barril
+  } else if (J.coraza && J.coraza(o.era)) {
+    const cc = J.corazaLaton ? C.laton : C.acero;
+    g.loft(T, F, cc, [[0.04, 0.172, 0.126, 0, 0.01], [0.2, 0.187, 0.136, 0, 0.012], [0.38, 0.177, 0.122, 0, 0.0], [0.44, 0.142, 0.102]], 8, {p: 2.8});   // peto y espaldar
+    [1, -1].forEach(s => g.strap(T, F, C.laton, [[0.1 * s, 0.44, 0.06], [0.14 * s, 0.44, -0.06]], 0.035, [0, 1, 0]));                       // hombreras de escamas
+    g.loft(T, F, C.rojo, [[0.03, 0.175, 0.129], [0.05, 0.176, 0.13]], 8, {p: 2.8});                                                         // forro
+  } else if (cherk) {                                                                                                                      // cherkeska: pecho abierto en V y cartucheras (gazyri)
+    g.quad([-0.07, 0.42, fz(0.42) + 0.004], [0.0, 0.18, fz(0.18) + 0.006], [0.0, 0.18, fz(0.18) + 0.006], [0.07, 0.42, fz(0.42) + 0.004], T, F, 0x2a2420);
+    g.tri([-0.07, 0.42, fz(0.42) + 0.006], [0.0, 0.2, fz(0.2) + 0.008], [0.07, 0.42, fz(0.42) + 0.006], T, Z.TRIM, 0);                     // beshmet
+    [1, -1].forEach(s => { for (let i = 0; i < 5; i++) { const y = 0.25 + i * 0.035, x = 0.1 * s, z = fz(y) + 0.01; g.quad([x - 0.035 * s, y, z], [x + 0.035 * s, y, z], [x + 0.035 * s, y + 0.016, z], [x - 0.035 * s, y + 0.016, z], T, F, C.plata); } });
+    g.loft(T, F, C.negro, [[0.0, 0.168, 0.112], [0.035, 0.17, 0.114]], 8, {p: 3, flatN: true}); g.box(T, F, C.plata, [0, 0.0, fz(0) + 0.01], [0.02, 0.2, 0.012], {rot: [0, 0, 8]});   // cinturón y kinzhal
+  } else {
+    const nb = o.era === 'E' ? 4 : 6;
+    for (let i = 0; i < nb; i++) { const y = 0.07 + i * (0.36 / (nb - 1)), r = 0.012; g.tri([-r, y - r * 0.7, fz(y) + 0.006], [r, y - r * 0.7, fz(y) + 0.006], [0, y + r, fz(y) + 0.006], T, F, o.era >= 'D' ? 0x5a5440 : C.laton); }
+    if (J.plastron && J.plastron(o.era)) g.quad([-0.1, 0.18, fz(0.18) + 0.004], [0.1, 0.18, fz(0.18) + 0.004], [0.12, 0.44, fz(0.44) + 0.004], [-0.12, 0.44, fz(0.44) + 0.004], T, trim, 0);
+    if (t === 'dragon' || t === 'cazador' || t === 'mensajero' || o.era >= 'C') g.loft(T, F, o.oficial || o.era >= 'D' ? C.cuero : C.correaB, [[0.0, 0.165, 0.108], [0.045, 0.167, 0.11]], 8, {p: 3, flatN: true});
+  }
+  if (o.oficial) g.loft(T, o.general ? Z.FIX : trim, o.general ? C.oro : 0, [[0.05, 0.172, 0.115], [0.11, 0.174, 0.118]], 8, {p: 3, flatN: true});   // faja
+  if (J.pelliza && J.pelliza(o.era)) {                                                                                                     // pelliza colgada del hombro izquierdo
+    g.loft(T, trim, 0, [[0.02, 0.2, 0.08, 0.1, -0.05], [0.46, 0.13, 0.08, 0.08, -0.05]], 6, {rot: [0, 0, -6]});
+    g.loft(T, F, C.blanco, [[0.0, 0.205, 0.085, 0.1, -0.05], [0.06, 0.205, 0.085, 0.1, -0.05]], 6, {rot: [0, 0, -6]});
+  }
+  if (AB && !o.oficial && t !== 'cosaco') g.strap(T, F, C.correaB, [[0.165, 0.44, 0.0], [0.05, 0.3, 0.125], [-0.1, 0.1, 0.115], [-0.17, 0.0, 0.0]], 0.045, [0, 0, 1]);   // bandolera de la cartuchera
+  if (o.era >= 'D' && !o.oficial) [1, -1].forEach(s => g.box(T, F, C.cuero, [0.08 * s, 0.03, fz(0.03) + 0.02], [0.07, 0.08, 0.04], {bottom: true}));   // cartucheras de pecho
+  if (o.oficial && !AB) g.strap(T, F, C.cuero, [[0.17, 0.44, 0.05], [0.0, 0.25, fz(0.25) + 0.006], [-0.15, 0.03, 0.08]], 0.035, [0, 0, 1]);   // Sam Browne
+  // charreteras (oficiales A–C)
+  [1, -1].forEach(s => { if (o.oficial && o.era <= 'C') g.loft(T, F, C.oro, [[0.4, 0.07, 0.065], [0.46, 0.09, 0.08]], 6, {at: [0.17 * s, 0, 0], capB: true});
+    else g.box(T, o.era >= 'C' ? coat : trim, 0, [0.15 * s, 0.452, -0.004], [0.11, 0.012, 0.06], {rot: [0, 0, -28 * s]}); });
+  if (J.carabina && J.carabina(o.era)) g.tube(T, F, C.hierro, [0.22, -0.12, -0.15], [-0.12, 0.52, -0.16], [[0, 0.026], [0.28, 0.03], [1, 0.012]], 4);   // carabina a la espalda
+  if (J.cartera) g.box(T, F, C.cuero, [0.19, 0.04, 0.02], [0.05, 0.2, 0.24], {bottom: true});                                              // cartera de despachos
+  if (J.portapliegos && J.portapliegos(o.era)) g.box(S, trim, 0, [0.33, -0.3, -0.12], [0.02, 0.3, 0.24], {rot: [0, 0, 6]});                // sabretache
+  if (t === 'general') g.loft(P.antebrazoIz, F, C.laton, [[-0.04, 0.02, 0.02], [0.18, 0.016, 0.016]], 4, {axis: 'z', at: [0, -0.3, 0.03], capA: true, capB: true});   // catalejo
+  // cabeza (la de infanteria3d) y tocado
+  const propio = TOCADOS[o.toc];
+  INF.cabeza(g, P.cabeza, {toc: propio ? null : o.toc, oficial: o.oficial, barbaFija: t === 'cosaco'});
+  if (propio) propio(g, P.cabeza, o);
+  // brazos: izquierdo con las riendas, derecho con el arma
+  [['brazoIz', 'antebrazoIz', 1], ['brazoDe', 'antebrazoDe', -1]].forEach(([u, l, s]) => {
+    g.loft(P[u], coat, 0, [[-0.28, 0.045, 0.05], [-0.17, 0.052, 0.058, 0.004 * s, 0.0], [-0.05, 0.064, 0.066, 0.006 * s, 0], [0.03, 0.056, 0.06]], 6, {capB: true, domeB: 0.02});
+    g.loft(P[l], coat, 0, [[-0.215, 0.038, 0.04], [-0.12, 0.046, 0.05, 0, 0.004], [0.02, 0.046, 0.05]], 6, {});
+    g.loft(P[l], cherk ? coat : trim, 0, [[-0.235, 0.044, 0.046], [-0.17, 0.05, 0.052]], 6, {capA: true});                                   // bocamanga
+    const gu = o.oficial || t === 'coracero' || t === 'reserva' || AB;                                                                       // guantes de manopla blancos
+    g.loft(P[l], F, gu ? C.blanco : C.piel, [[-0.3, 0.03, 0.036, 0, 0.004], [-0.235, 0.036, 0.04]], 6, {capA: true, vr: gu ? 0 : V.SKIN});
+    g.tet(P[l], F, gu ? C.blanco : C.piel, [0.022 * s, -0.27, 0.025], 0.016, {vr: gu ? 0 : V.SKIN});
+  });
+  armaJinete(g, P.arma, J.arma === 'lanza' ? 'lanza' : J.arma, o);
+  if (J.pica && J.pica(o.era) && J.arma !== 'lanza') g.cyl(S, F, C.madera, [-0.3, 0.45, -0.3], 0.014, 0.012, 2.6, 4, {rot: [-24, 0, 10]});    // pica cosaca a la espalda en la silla
+  if (J.arma !== 'ninguna') {                                                                                                              // vaina (lado izquierdo)
+    const curvo = J.arma === 'sable_curvo' || J.arma === 'shashka';
+    g.tube(S, F, J.arma === 'shashka' ? C.cueroN : C.acero, [0.31, -0.08, 0.1], [0.34, -0.48, -0.62], [[0, 0.022], [1, 0.016]], 4);
+    if (curvo) g.tube(S, F, C.acero, [0.34, -0.48, -0.62], [0.345, -0.43, -0.74], [[0, 0.016], [1, 0.01]], 3);
+  }
+}
+
+/* ---------- tocados propios de la caballería (cabeza: frente a y 0,215, coronilla 0,29, radio 0,08 × 0,1) ---------- */
+const TOCADOS = {
+  // colback / busby: piel con bolsa de color (kolpak) y plumero
+  colback: (g, h, o) => { g.cyl(h, Z.FIX, C.pielO, [0, 0.33, -0.005], 0.1, 0.108, 0.22, 8, {top: true}); g.loft(h, Z.TRIM, 0, [[0.38, 0.03, 0.03, 0.04, 0.0], [0.3, 0.045, 0.02, -0.11, -0.02]], 5, {capB: true});
+    g.cyl(h, Z.FIX, o.oficial ? C.blanco : 0xd8d0c0, [-0.05, 0.47, 0.05], 0.02, 0.03, 0.12, 4, {top: true}); g.strap(h, Z.FIX, C.oro, [[-0.1, 0.36, 0.06], [0.0, 0.3, 0.11], [0.1, 0.36, 0.06]], 0.012, [0, 0, 1]); },
+  // coracero: calota de acero, cimera de latón con crin negra y plumero
+  casco_cor: (g, h, o) => { g.loft(h, Z.FIX, C.acero, [[0.21, 0.1, 0.12, 0, -0.01], [0.3, 0.096, 0.112, 0, -0.012], [0.36, 0.06, 0.075, 0, -0.01]], 8, {capB: true, domeB: 0.03});
+    g.box(h, Z.FIX, C.laton, [0, 0.39, -0.01], [0.03, 0.06, 0.2], {taper: 0.3}); g.quad([-0.09, 0.225, 0.1], [0.09, 0.225, 0.1], [0.08, 0.205, 0.15], [-0.08, 0.205, 0.15], h, Z.FIX, C.laton);
+    g.box(h, Z.FIX, C.pielO, [0, 0.27, 0.0], [0.205, 0.05, 0.24], {});                                                                    // turbante de piel
+    // crin del casco: mechón que cae por la nuca con ondulación
+    g.tri([-0.025, 0.41, -0.1], [0.025, 0.41, -0.1], [0.0, 0.16, -0.24], h, Z.FIX, C.crinN, V.CRIN); const L = g.vr.length; g.vr[L - 1] = V.CRIN + 0.9;
+    g.tri([0.025, 0.41, -0.1], [-0.025, 0.41, -0.1], [0.0, 0.16, -0.24], h, Z.FIX, C.crinN, V.CRIN); g.vr[L + 2] = V.CRIN + 0.9;
+    if (o.era <= 'B') g.cyl(h, Z.FIX, C.rojo, [0.08, 0.42, 0.02], 0.015, 0.03, 0.18, 4, {top: true}); },
+  casco_dragon: (g, h, o) => { g.loft(h, Z.FIX, C.laton, [[0.21, 0.1, 0.12, 0, -0.01], [0.3, 0.096, 0.112, 0, -0.012], [0.36, 0.06, 0.075, 0, -0.01]], 8, {capB: true, domeB: 0.03});
+    g.box(h, Z.FIX, C.laton, [0, 0.39, -0.01], [0.03, 0.06, 0.2], {taper: 0.3}); g.box(h, Z.FIX, 0x8a6a3a, [0, 0.27, 0.0], [0.205, 0.05, 0.24], {});   // turbante de piel de leopardo (aprox.)
+    g.quad([-0.09, 0.225, 0.1], [0.09, 0.225, 0.1], [0.08, 0.205, 0.15], [-0.08, 0.205, 0.15], h, Z.FIX, C.cueroN);
+    g.tri([-0.025, 0.41, -0.1], [0.025, 0.41, -0.1], [0.0, 0.14, -0.26], h, Z.FIX, C.crinN, V.CRIN); const L = g.vr.length; g.vr[L - 1] = V.CRIN + 0.9;
+    g.tri([0.025, 0.41, -0.1], [-0.025, 0.41, -0.1], [0.0, 0.14, -0.26], h, Z.FIX, C.crinN, V.CRIN); g.vr[L + 2] = V.CRIN + 0.9; },
+  // carabinero / guardia pesada: casco con cimera de oruga (chenille) roja
+  casco_carab: (g, h, o) => { g.loft(h, Z.FIX, C.laton, [[0.21, 0.1, 0.12, 0, -0.01], [0.3, 0.096, 0.112, 0, -0.012], [0.37, 0.06, 0.075, 0, -0.01]], 8, {capB: true, domeB: 0.03});
+    g.loft(h, Z.TRIM, 0, [[-0.13, 0.03, 0.04, 0.41, 0], [0.0, 0.035, 0.05, 0.43, 0], [0.13, 0.03, 0.04, 0.39, 0]], 5, {axis: 'z', capA: true, capB: true});
+    g.quad([-0.09, 0.225, 0.1], [0.09, 0.225, 0.1], [0.08, 0.205, 0.15], [-0.08, 0.205, 0.15], h, Z.FIX, C.cueroN); },
+  // czapka de lancero: casquete y tablero cuadrado de color, plumero
+  czapka: (g, h, o) => { g.cyl(h, Z.FIX, C.negro, [0, 0.27, 0], 0.096, 0.1, 0.08, 8); g.cyl(h, Z.HAT, 0, [0, 0.34, 0], 0.07, 0.04, 0.06, 4, {a0: Math.PI / 4});
+    g.box(h, Z.HAT, 0, [0, 0.42, 0], [0.17, 0.1, 0.17], {taper: -0.25, bottom: true, rot: [0, 45, 0]}); g.box(h, Z.FIX, C.oro, [0, 0.31, 0.1], [0.05, 0.05, 0.01], {});
+    g.quad([-0.09, 0.225, 0.1], [0.09, 0.225, 0.1], [0.08, 0.205, 0.15], [-0.08, 0.205, 0.15], h, Z.FIX, C.cueroN);
+    g.cyl(h, Z.FIX, o.oficial ? C.blanco : C.negro, [0.07, 0.52, 0.03], 0.012, 0.03, 0.16, 4, {top: true}); },
+  // papaja (gorro de piel cosaco) y kubanka (más baja)
+  papaja: (g, h, o) => { g.cyl(h, Z.FIX, C.pielG, [0, 0.31, -0.005], 0.104, 0.112, 0.17, 8, {top: false}); g.cyl(h, Z.TRIM, 0, [0, 0.396, -0.005], 0.1, 0.09, 0.012, 8, {top: true});
+    g.strap(h, Z.FIX, C.plata, [[-0.08, 0.41, 0.0], [0.08, 0.41, 0.0]], 0.01, [0, 1, 0]); },
+  kubanka: (g, h, o) => { g.cyl(h, Z.FIX, C.pielG, [0, 0.29, -0.005], 0.102, 0.106, 0.11, 8); g.cyl(h, Z.TRIM, 0, [0, 0.35, -0.005], 0.1, 0.09, 0.012, 8, {top: true}); }
+};
+
+/* ---------- armas del jinete (pivote en la empuñadura, +Y hacia la punta) ---------- */
+function armaJinete(g, a, w, o) {
+  const F = Z.FIX;
+  switch (w) {
+    case 'sable_curvo': case 'shashka':                                                                                                    // hoja curva de 0,85 m (húsar, cazador) o shashka sin guarda
+      if (w === 'sable_curvo') { g.strap(a, F, C.laton, [[0, -0.05, 0.035], [0, 0.0, 0.05], [0, 0.06, 0.035]], 0.016, [1, 0, 0]); g.box(a, F, C.laton, [0, 0.06, 0], [0.012, 0.012, 0.09], {}); }
+      g.box(a, F, w === 'shashka' ? C.cueroN : C.negro, [0, -0.02, 0], [0.026, 0.11, 0.032], {taper: 0.2});
+      for (let i = 0; i < 3; i++) { const y0 = 0.07 + i * 0.27, y1 = y0 + 0.27, c0 = 0.012 * i * i, c1 = 0.012 * (i + 1) * (i + 1);
+        g.quad([0.003, y0, c0], [0.003, y1, c1], [0.003, y1, c1 + (i === 2 ? 0.006 : 0.03)], [0.003, y0, c0 + 0.034], a, F, C.hoja); g.quad([-0.003, y0, c0], [-0.003, y0, c0 + 0.034], [-0.003, y1, c1 + (i === 2 ? 0.006 : 0.03)], [-0.003, y1, c1], a, F, C.hoja); }
+      break;
+    case 'sable_recto':                                                                                                                    // hoja recta de 0,97 m con guarda de cazoleta (coraceros, dragones, oficiales)
+      g.cyl(a, F, C.laton, [0, 0.03, 0.02], 0.055, 0.045, 0.04, 6, {top: true}); g.box(a, F, C.negro, [0, -0.04, 0], [0.026, 0.1, 0.032], {taper: 0.2});
+      g.box(a, F, C.hoja, [0, 0.55, 0.0], [0.007, 0.98, 0.034], {taper: 0.75, noTop: true}); break;
+    case 'lanza': {                                                                                                                        // asta de 2,9 m (empuñadura a 1,0 m de la contera), moharra y banderola de dos puntas
+      g.cyl(a, F, C.madera, [0, 0.45, 0], 0.016, 0.014, 2.9, 4); g.cyl(a, F, C.acero, [0, 1.95, 0], 0.016, 0, 0.2, 4); g.cyl(a, F, C.hierro, [0, -0.99, 0], 0.012, 0.016, 0.06, 4);
+      g.strap(a, F, C.cueroN, [[0, -0.05, 0.02], [0, 0.05, 0.02]], 0.03, [0, 0, 1]);                                                          // dragona
+      if (o.era <= 'C') { const y0 = 1.8, Wd = 0.34, Hh = 0.16; for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) {                    // banderola (ondula con el sombreador de troops3d)
+          const x0 = i / 2 * Wd, x1 = (i + 1) / 2 * Wd, yy0 = y0 - j * Hh / 2, yy1 = y0 - (j + 1) * Hh / 2, z = j === 0 ? Z.F1 : Z.F2, cut = i === 1 ? (j === 0 ? -0.03 : 0.03) : 0;
+          const A = [0, yy0, x0], Bp = [0, yy0 + (i === 1 && j === 0 ? 0 : 0), x1], Cp = [0, yy1 + cut, x1], Dp = [0, yy1, x0], W = x => [x / Wd, 0];
+          g.tri(A, Dp, Cp, a, z, C.blanco, 0, W(x0), W(x0), W(x1)); g.tri(A, Cp, Bp, a, z, C.blanco, 0, W(x0), W(x1), W(x1));
+          g.tri(A, Cp, Dp, a, z, C.blanco, 0, W(x0), W(x1), W(x0)); g.tri(A, Bp, Cp, a, z, C.blanco, 0, W(x0), W(x1), W(x1)); } }
+      break; }
+    case 'pica': g.cyl(a, F, C.madera, [0, 0.4, 0], 0.014, 0.012, 2.8, 4); g.cyl(a, F, C.acero, [0, 1.88, 0], 0.014, 0, 0.16, 4); break;
+    default: break;
+  }
+}
+
+/* ---------- niveles de detalle ---------- */
+function lod(o, nivel) {
+  const g = new GB(), F = Z.FIX, hc = 0xffffff, hv = V.CAB, K = CUERPO[o.cuerpo || 'medio'], jin = !!o.tipo, J = jin ? JINETES[o.tipo] : null;
+  if (nivel === 2) {                                                                                                                       // silueta: ≤ 24
+    g.box(P.caballo, F, hc, [0, -0.38, 0.05], [0.42 * K.k, 1.5, 1.55], {noTop: true, vr: hv});                                              // 8
+    g.box(P.cuello, F, hc, [0, 0.38, 0.24], [0.2, 0.86, 0.36], {rot: [36, 0, 0], taper: 0.2, noTop: true, vr: hv});                          // 8
+    if (jin) { g.box(P.torso, Z.MAIN, 0, [0, 0.34, 0], [0.34, 0.72, 0.22], {noTop: true, taper: 0.2}); }                                     // 8 (con el tocado arriba en el color del abrigo)
+    else g.box(P.silla, Z.TRIM, 0, [0, -0.1, 0], [0.62, 0.3, 0.7], {noTop: true});
+    return g;
+  }
+  // LOD1: ≤ 140
+  g.box(P.caballo, F, hc, [0, 0.02, 0], [0.5 * K.k, 0.52, 1.44 * K.kz], {vr: hv});                                                       // 10
+  g.box(P.cuello, F, hc, [0, 0.36, 0.2], [0.2 * K.k, 0.78, 0.32], {rot: [36, 0, 0], taper: 0.15, vr: hv});                                // 10
+  g.box(P.testa, F, hc, [0, -0.05, 0.25], [0.15, 0.17, 0.5], {rot: [50, 0, 0], taper: 0.35, noBack: true, vr: hv});                       // 8
+  g.tri([0.02, 0.56, 0.25], [0.015, 0.36, 0.38], [0.02, 0.36, 0.1], P.cuello, F, 0, V.CRIN); g.tri([-0.02, 0.56, 0.25], [-0.02, 0.36, 0.1], [-0.015, 0.36, 0.38], P.cuello, F, 0, V.CRIN);
+  [['manoIz', 'canaIz', 0], ['manoDe', 'canaDe', 1], ['pataIz', 'corvIz', 2], ['pataDe', 'corvDe', 3]].forEach(([u, l, i]) => {
+    const hind = i > 1; g.cyl(P[u], F, hc, [0, hind ? -0.18 : -0.2, 0], 0.05 * K.pata, hind ? 0.12 * K.pata : 0.08 * K.pata, hind ? 0.56 : 0.46, 3, {vr: hv});   // 6
+    g.cyl(P[l], F, hc, [0, hind ? -0.3 : -0.28, 0], 0, 0.045, hind ? 0.62 : 0.58, 3, {vr: V.CALC + i}); });                                // 3 (cono)
+  g.cyl(P.cola, F, 0, [0, -0.35, -0.1], 0.0, 0.06, 0.7, 3, {rot: [-14, 0, 0], vr: V.CRIN + 0.5});                                          // 3
+  g.box(P.silla, Z.TRIM, 0, [0, -0.12, 0], [0.6, 0.28, 0.7], {noTop: true});                                                              // 8
+  if (jin) {
+    [1, -1].forEach(s => g.tube(P.silla, Z.ACC, 0, [0.1 * s, 0.08, 0], [0.27 * s, -0.58, 0.12], [[0, 0.07], [1, 0.05]], 3));                     // 12
+    const alto = /colback|papaja|czapka|chaco|casco/.test(o.toc || ''), pielT = o.toc === 'colback' || o.toc === 'papaja';
+    g.box(P.torso, Z.MAIN, 0, [0, 0.24, 0], [0.32, 0.5, 0.22], {taper: 0.15, noTop: true});                                                // 8
+    g.box(P.cabeza, F, C.piel, [0, 0.12, 0.01], [0.15, 0.2, 0.18], {vr: V.SKIN, noTop: true, noBack: true});                                 // 6
+    g.box(P.cabeza, pielT ? F : Z.HAT, o.toc === 'colback' ? C.pielO : o.toc === 'papaja' ? C.pielG : 0, [0, alto ? 0.32 : 0.26, 0], [0.2, alto ? 0.17 : 0.08, 0.22], {taper: o.toc === 'czapka' ? -0.4 : 0.1});   // 10
+    ['brazoIz', 'brazoDe'].forEach(k => g.cyl(P[k], Z.MAIN, 0, [0, -0.14, 0], 0.05, 0.055, 0.3, 3));                                         // 12
+    ['antebrazoIz', 'antebrazoDe'].forEach(k => g.cyl(P[k], Z.MAIN, 0, [0, -0.13, 0], 0, 0.045, 0.3, 3, {}));                               // 6
+    if (J.arma === 'lanza') { g.cyl(P.arma, F, C.madera, [0, 0.45, 0], 0.02, 0.02, 2.9, 3); if (o.era <= 'C') g.quad([0, 1.8, 0], [0, 1.8, 0.34], [0, 1.66, 0.34], [0, 1.66, 0], P.arma, Z.F1, C.blanco); }
+    else if (J.arma !== 'ninguna') g.box(P.arma, F, C.hoja, [0, 0.45, 0.01], [0.01, 0.9, 0.035], {noTop: true});                            // 6–8
+  }
+  return g;
+}
+
+/* ---------- catálogo ---------- */
+function opciones(tipo, era, nat) {
+  const J = JINETES[tipo], e = J.eras.includes(era) ? era : J.eras.reduce((a, b) => Math.abs(ERAS.indexOf(b) - ERAS.indexOf(era)) < Math.abs(ERAS.indexOf(a) - ERAS.indexOf(era)) ? b : a);
+  return {tipo, era: e, nat, cuerpo: J.cuerpo, silla: J.silla, toc: J.toc(e, nat), oficial: !!J.oficial, general: !!J.general, crin: J.silla === 'cosaca' ? 'larga' : null,
+    flagLayout: (T3.NACIONES[nat] || T3.NACIONES.GEN).bandera, modelo: `cab_${tipo}_${nat}_${e}`};
+}
+const TIPOS = {};
+Object.keys(JINETES).forEach(t => { const J = JINETES[t];
+  TIPOS['cab_' + t] = {rig: 'jinete', clase: 'cav', pal: J.pal, nombre: J.nombre, eras: J.eras.slice(), dobleCara: !!J.dobleCara,
+    o: (era, nat) => opciones(t, era, nat || 'GEN'), build: o => { const g = new GB(); caballo(g, o); arreos(g, o); jinete(g, o); return g; }, lod: (o, l) => lod(o, l)}; });
+// caballo ensillado del mismo tipo, sin jinete (mismo paño y misma paleta: para el relevo del grupo al caer el jinete)
+Object.keys(JINETES).forEach(t => { const J = JINETES[t];
+  TIPOS['cab_' + t + '_sin_jinete'] = {rig: 'jinete', clase: 'cav', pal: J.pal, nombre: `Caballo de ${J.nombre.toLowerCase()} sin jinete`, eras: J.eras.slice(),
+    o: (era, nat) => Object.assign(opciones(t, era, nat || 'GEN'), {tipo: null, tipoSilla: t, modelo: `cabsj_${t}_${nat}_${era}`}),
+    build: o => { const g = new GB(); caballo(g, o); arreos(g, o); return g; }, lod: (o, l) => lod(o, l)}; });
+['ligero', 'medio', 'pesado'].forEach(c => {
+  TIPOS['cab_caballo_' + c] = {rig: 'jinete', clase: 'cav', pal: 'caballeria', nombre: `Caballo ${c} ensillado sin jinete`, eras: ERAS.slice(),
+    o: (era, nat) => ({era, nat: nat || 'GEN', cuerpo: c, silla: c === 'ligero' ? 'hungara' : 'dragon', modelo: `cab_caballo_${c}_${era}`}),
+    build: o => { const g = new GB(); caballo(g, o); arreos(g, o); return g; }, lod: (o, l) => lod(o, l)}; });
+// jinetes desmontados (rig soldado, con la variación de infanteria3d por el prefijo inf_)
+Object.keys(JINETES).forEach(t => { const J = JINETES[t];
+  TIPOS['inf_cab_' + t] = {rig: 'soldado', clase: 'inf', pal: J.pal, nombre: J.nombre + ' a pie', eras: J.eras.slice(),
+    o: (era, nat) => { nat = nat || 'GEN'; const c = opciones(t, era, nat), base = INF.opciones(J.oficial ? 'teniente' : 'soldado', c.era, nat);
+      const toc = TOCADOS[c.toc] ? null : c.toc;
+      return Object.assign(base, {toc, tocCab: TOCADOS[c.toc] ? c.toc : null, rango: 'cab_' + t, mod: Object.assign({}, base.mod, {pierna: 'botas', mochila: 'no', rollo: 'ninguno', abrigo: J.cherkeska ? 'capote' : base.mod.abrigo === 'capote' ? 'guerrera' : base.mod.abrigo, cor: null}),
+        arma: J.pie || J.carabina && J.carabina(c.era) ? 'carabina' : J.arma === 'lanza' ? 'sable' : J.arma === 'ninguna' ? 'ninguna' : 'sable', bayoneta: false, modelo: `infcab_${t}_${nat}_${c.era}`, oficial: !!J.oficial, nidos: false, galones: 0}); },
+    build: o => { const g = INF.soldado(o); if (o.tocCab) TOCADOS[o.tocCab](g, INF.P.cabeza, o); return g; }, lod: (o, l) => INF.lod(Object.assign({}, o, {toc: o.toc || 'kepi'}), l)}; });
+
+return {TIPOS, opciones, caballo, arreos, jinete, lod, TOCADOS, P};
+}
+
+/* ===================================================================================== */
+/* VARIACIÓN POR INSTANCIA DEL CABALLO Y DEL JINETE
+   iCab = (marcas: bits 0–3 calcetines MI·MD·PI·PD, bit 4 lucero · crin: 0 según el pelaje, 1 negra, 2 lavada, 3 gris ·
+           aire 0–1 (lo pone setClip según el clip; mueve crin y cola) · vello + 4·pelo del jinete)
+   El pelaje sigue siendo el de troops3d (iLook.z: 0 castaño, 1 alazán, 2 negro, 3 tordo); el tordo lleva moteado. */
+const CRINES = [0x141010, 0xd8c8a0, 0x9a948a];
+const PELOS = [0x2a1e14, 0x5a3e24, 0x8a6a3a, 0x8a8478];
+function prepararLote(lote) {
+  if (!lote || lote._iCab) return lote; const cap = lote.cap || lote.mesh.instanceMatrix.count, geo = lote.mesh.geometry;
+  lote._iCab = new THREE.InstancedBufferAttribute(new Float32Array(cap * 4), 4); lote._iCab.setUsage(THREE.DynamicDrawUsage); geo.setAttribute('iCab', lote._iCab);
+  const mat = lote.mesh.material, prev = mat.onBeforeCompile, key = mat.customProgramCacheKey ? mat.customProgramCacheKey() : '';
+  mat.onBeforeCompile = function (sh, r) {
+    if (prev) prev.call(this, sh, r);
+    sh.uniforms.uCrin = {value: CRINES.map(h => new THREE.Color(h))}; sh.uniforms.uPeloJ = {value: PELOS.map(h => new THREE.Color(h))};
+    sh.vertexShader = sh.vertexShader.replace('attribute vec4 iLook;', 'attribute vec4 iLook; attribute vec4 iCab; uniform vec3 uCrin[3]; uniform vec3 uPeloJ[4];\nfloat hc13(vec3 p){ p = fract(p * 0.3183 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }\nfloat bitC(float v, float b){ return mod(floor(v / exp2(b)), 2.0); }')
+      .replace('vec3 pos0 = position;', `vec3 pos0 = position;
+{ float vb = mod(iCab.w, 4.0);                                                // vello del jinete (como infanteria3d): 4 bigote, 5 patillas, 3 barba
+  bool oculto = (aVar > 3.5 && aVar < 4.5 && vb < 0.5) || (aVar > 4.5 && aVar < 5.5 && vb < 1.5) || (aVar > 2.5 && aVar < 3.5 && vb < 2.5);
+  if (oculto) pos0 = vec3(0.0, 0.2, 0.0);
+  if (aVar > 11.95 && aVar < 12.95) {                                          // crin, tupé y cola: ondulación según el aire
+    float w = clamp((aVar - 12.0) / 0.9, 0.0, 1.0), sp = iCab.z, ph = iAnimA.w * 6.2831 + iLook.x * 31.0;
+    pos0.x += sin(uTime * (3.0 + 9.0 * sp) + position.z * 9.0 + position.y * 6.0 + ph) * w * (0.012 + 0.05 * sp);
+    pos0.z -= w * sp * 0.04 * (1.0 + 0.5 * sin(uTime * 11.0 + ph)); } }`)
+      .replace('vColor = zc * (', `{ float co = iLook.z;
+  vec3 crin = iCab.y > 0.5 ? uCrin[int(clamp(iCab.y - 1.0, 0.0, 2.0))] : (co < 0.5 || co > 1.5 && co < 2.5 ? uCrin[0] : co < 1.5 ? zc * 0.82 : uCrin[2]);
+  if (aVar > 6.5 && aVar < 10.5 && bitC(iCab.x, floor(aVar - 7.0 + 0.5)) > 0.5) zc = vec3(0.86, 0.84, 0.8);   // calcetín
+  if (aVar > 10.5 && aVar < 11.5 && bitC(iCab.x, 4.0) > 0.5) zc = vec3(0.88, 0.86, 0.82);                    // lucero
+  if (aVar > 11.95 && aVar < 12.95) zc = crin;
+  if (aVar > 12.95 && aVar < 13.5) zc = vec3(0.17, 0.14, 0.12);                                                // casco
+  if (aVar > 1.5 && aVar < 2.5 && co > 2.5) zc *= 0.86 + 0.18 * step(0.55, hc13(floor(position * 11.0) + iLook.x));   // moteado del tordo
+  if (aVar > 2.5 && aVar < 6.5) zc = uPeloJ[int(clamp(floor(iCab.w / 4.0), 0.0, 3.0))]; }
+vColor = zc * (`);
+  };
+  mat.customProgramCacheKey = () => key + '|cab3d';
+  mat.needsUpdate = true; return lote;
+}
+function marcar(lote, i, v) { prepararLote(lote); v = v || {}; const a = lote._iCab; a.setXYZW(i, v.marcas || 0, v.crin || 0, a.getZ(i), (v.barba || 0) + 4 * (v.pelo || 0)); a.needsUpdate = true; }
+function aireDe(lote, i, sp) { prepararLote(lote); lote._iCab.setZ(i, sp); lote._iCab.needsUpdate = true; }
+// sorteo: la mitad sin marcas, un tercio con lucero, calcetines más frecuentes atrás (estadística orientativa de remontas)
+function marcasAleatorias(rnd) { rnd = rnd || Math.random; let m = 0; if (rnd() < 0.5) { [0.15, 0.15, 0.3, 0.3].forEach((p, b) => { if (rnd() < p) m |= 1 << b; }); if (rnd() < 0.6) m |= 16; }
+  return {marcas: m, crin: 0, barba: Math.floor(rnd() * 4), pelo: Math.floor(rnd() * 4)}; }
+
+/* ===================================================================================== */
+/* ANIMACIONES DEL JINETE (CLIPS.jinete; grados Euler XYZ; raíz en m).
+   Caballo: caballo rx > 0 = morro abajo, rz = inclinación lateral; cuello/testa rx > 0 = bajar; patas rx < 0 = adelante; caña delantera rx > 0 =
+   flexión de la rodilla (casco atrás); caña trasera rx < 0 = flexión del corvejón; cola rx > 0 = levantarla atrás.
+   Las patas se resuelven por cinemática inversa de dos segmentos en el plano sagital: el casco de apoyo queda clavado en el suelo mientras el
+   cuerpo avanza (con un deslizamiento controlado en los aires rápidos, porque el pivote del rig está en el codo y no en la escápula) y el de
+   vuelo sigue un arco. La altura de la raíz se calcula para que todas las patas de apoyo alcancen el suelo.
+   Jinete: torso rx > 0 = inclinarse; brazos como el soldado; el arma cuelga del antebrazo derecho: su giro se da como ángulo de la hoja en el
+   plano sagital del mundo (0 = arriba, 90 = al frente, 180 = abajo) y se convierte restando el giro acumulado de brazo y antebrazo. */
+const PATAS = {MI: {up: 'manoIz', low: 'canaIz', piv: [0.16, -0.12, 0.5], a: 0.42, b: 0.575, del: true}, MD: {up: 'manoDe', low: 'canaDe', piv: [-0.16, -0.12, 0.5], a: 0.42, b: 0.575, del: true},
+  PI: {up: 'pataIz', low: 'corvIz', piv: [0.17, -0.06, -0.52], a: 0.44, b: 0.615, del: false}, PD: {up: 'pataDe', low: 'corvDe', piv: [-0.17, -0.06, -0.52], a: 0.44, b: 0.615, del: false}};
+const CAB_Y = 1.12;
+// ik2(dz, dy, a, b, delantera) → [ángulo superior, inferior] (grados, convenio del rig)
+function ik2(dz, dy, a, b, del) {
+  let d = Math.hypot(dz, dy); d = Math.min(a + b - 1e-4, Math.max(Math.abs(a - b) + 1e-3, d));
+  const phi = Math.atan2(dz, -dy), al = Math.acos(Math.min(1, Math.max(-1, (a * a + d * d - b * b) / (2 * a * d)))), be = Math.acos(Math.min(1, Math.max(-1, (a * a + b * b - d * d) / (2 * a * b))));
+  return del ? [-(phi + al) / D2R, (Math.PI - be) / D2R] : [-(phi - al) / D2R, -(Math.PI - be) / D2R];
+}
+const rotX = (p, deg) => { const c = Math.cos(deg * D2R), s = Math.sin(deg * D2R); return [p[0], p[1] * c - p[2] * s, p[1] * s + p[2] * c]; };
+const rotZ = (p, deg) => { const c = Math.cos(deg * D2R), s = Math.sin(deg * D2R); return [p[0] * c - p[1] * s, p[0] * s + p[1] * c, p[2]]; };
+const cuerpoRot = (p, B) => rotX(rotZ(p, B.roll || 0), B.pitch || 0), cuerpoInv = (p, B) => rotZ(rotX(p, -(B.pitch || 0)), -(B.roll || 0));
+/* resolverPatas(clip, N, cuerpo, casco, op)
+   cuerpo(t) → {z: avance de la raíz, y: altura (null = automática), pitch: cabeceo (°), apoyo: {MI: bool…}, alto: margen sobre el suelo en vuelo}
+   casco(pata, t) → [z, y] del casco en el mundo (relativo al origen del clip) */
+function resolverPatas(clip, N, cuerpo, casco, op) {
+  op = op || {}; const tr = {}, root = []; Object.values(PATAS).forEach(L => { tr[L.up] = []; tr[L.low] = []; }); const pitchTr = [];
+  let yPrev = 0;
+  for (let i = 0; i <= N; i++) { const t = i / N, B = cuerpo(t); let y = B.y;
+    if (y == null) {                                                         // altura automática: la más alta que deja llegar a todas las patas de apoyo
+      y = op.base != null ? op.base : 0;
+      Object.entries(PATAS).forEach(([k, L]) => { if (!B.apoyo || !B.apoyo[k]) return; const c = casco(k, t), pv = cuerpoRot(L.piv, B), dz = (B.z + pv[2]) - c[0], R = (L.a + L.b) * (op.alcance || 0.985);
+        const ymax = c[1] + 0.02 + Math.sqrt(Math.max(0, R * R - dz * dz)) * Math.cos((B.roll || 0) * D2R) - (CAB_Y + pv[1]); y = Math.min(y, ymax); });
+      if (B.vuelo != null) y = Math.max(y, B.vuelo);
+    }
+    yPrev = y; root.push([t, 0, y, B.z]); pitchTr.push([t, B.pitch || 0, 0, B.roll || 0]);
+    Object.entries(PATAS).forEach(([k, L]) => { const c = casco(k, t), pv = cuerpoRot(L.piv, B), px = [pv[0], CAB_Y + y + pv[1], B.z + pv[2]], cx = L.piv[0];
+      // con inclinación lateral (giros) la pata se contrarrota (rz) para seguir vertical y la IK se hace en el plano vertical
+      let w = rotX([0, c[1] - px[1], c[0] - px[2]], -(B.pitch || 0)), ang = ik2(w[2], w[1], L.a, L.b, L.del);
+      const abs = (ang[0] + ang[1] + (B.pitch || 0)) * D2R, lev = 0.075 * Math.abs(Math.sin(abs));                   // casco inclinado: sube lo que baja la lumbre o el talón
+      if (lev > 1e-4) { w = rotX([0, c[1] + lev - px[1], c[0] - px[2]], -(B.pitch || 0)); ang = ik2(w[2], w[1], L.a, L.b, L.del); }
+      tr[L.up].push([t, ang[0], 0, -(B.roll || 0)]); tr[L.low].push([t, ang[1], 0, 0]); });
+  }
+  Object.assign(clip.tracks, tr); clip.tracks.caballo = pitchTr; clip.root = root; return clip;
+}
+// aires: fase de contacto de cada casco, apoyo (fracción del ciclo), velocidad (m/s), periodo (s), agarre (fracción del avance que hace el casco clavado),
+// altura del arco de vuelo delantero/trasero, elevación en la suspensión, cabeceo, cuello. Muybridge (1887) y Clayton (2004), redondeado.
+const AIRES = {
+  paso: {pf: 2, T: 1.1, v: 1.7, d: 0.62, f: {PI: 0, MI: 0.25, PD: 0.5, MD: 0.75}, ag: 1.0, hf: 0.13, hh: 0.1, sus: 0, pitch: 1.0, cuello: [5, 2], cola: 6},
+  trote: {pf: 2, T: 0.72, v: 3.6, d: 0.42, f: {MI: 0, PD: 0, MD: 0.5, PI: 0.5}, ag: 0.85, hf: 0.24, hh: 0.18, sus: 0.045, pitch: 1.2, cuello: [1.5, 2], cola: 18},
+  galope: {pf: 1, T: 0.62, v: 5.5, d: 0.36, f: {PI: 0, PD: 0.14, MI: 0.14, MD: 0.36}, ag: 0.72, hf: 0.3, hh: 0.22, sus: 0.07, pitch: 4.5, cuello: [7, 1], cola: 28},
+  galope_carga: {pf: 1, T: 0.5, v: 9.0, d: 0.27, f: {PI: 0, PD: 0.1, MI: 0.3, MD: 0.4}, ag: 0.6, hf: 0.36, hh: 0.26, sus: 0.13, pitch: 5.5, cuello: [9, 1], cola: 40},
+  atras: {pf: 2, T: 1.4, v: -0.75, d: 0.6, f: {MI: 0, PD: 0, MD: 0.5, PI: 0.5}, ag: 1.0, hf: 0.1, hh: 0.09, sus: 0, pitch: -1.5, cuello: [3, 2], cola: 4}
+};
+const enApoyo = (A, k, t) => { const s = (((t - A.f[k]) % 1) + 1) % 1; return s < A.d; };
+// casco de un aire en bucle (marco del cuerpo: el cuerpo no avanza; el casco de apoyo retrocede a v·agarre)
+function cascoAire(A, k, t, o) {
+  o = o || {}; const L = PATAS[k], s = (((t - A.f[k]) % 1) + 1) % 1, st = A.v * A.T * A.d * A.ag * (o.paso || 1), z0 = L.piv[2] + (L.del ? 0.03 : -0.03) + (o.dz || 0);
+  if (s < A.d) { const u = s / A.d; return [z0 + st / 2 - st * u, 0]; }
+  const u = (s - A.d) / (1 - A.d), e = u * u * (3 - 2 * u), h = (L.del ? A.hf : A.hh) * (o.alto || 1);
+  return [z0 - st / 2 + st * e + (L.del ? 0.06 : 0.02) * Math.sin(Math.PI * u) * Math.sign(A.v || 1), h * Math.pow(Math.sin(Math.PI * Math.min(1, u * 1.08)), 0.9)];
+}
+// ciclo de un aire: patas, cuerpo, cuello, cabeza y cola; el jinete se añade aparte
+function cicloAire(nombre, ciclos, o) {
+  o = o || {}; const A = AIRES[nombre], n = ciclos || 1, N = Math.round(40 * n), clip = {dur: A.T * n, loop: !o.unaVez, tracks: {}, ev: []};
+  const apoyo = t => { const r = {}; Object.keys(PATAS).forEach(k => { r[k] = enApoyo(A, k, t * n); }); return r; };
+  const ninguno = t => !Object.values(apoyo(t)).some(Boolean);
+  // suspensión: interpola entre la altura al despegar y al aterrizar con un arco
+  resolverPatas(clip, N, t => { const ap = apoyo(t), u = (t * n) % 1;
+      return {z: o.avanza ? A.v * A.T * n * t : 0, pitch: (o.pitch || 0) + A.pitch * Math.sin(2 * Math.PI * A.pf * (u - 0.15)), roll: o.roll || 0, apoyo: ap, vuelo: null}; },
+    (k, t) => { const c = cascoAire(A, k, t * n, o); return [c[0] + (o.avanza ? A.v * A.T * n * t : 0), c[1]]; }, {base: o.base || 0});
+  // la altura en suspensión: tramos sin apoyo interpolados con arco (el resolvedor deja y = base allí)
+  const R = clip.root, air = R.map(r => ninguno(r[0]));
+  for (let i = 0; i < R.length; i++) if (air[i]) { let a = i, b = i; while (a > 0 && air[a]) a--; while (b < R.length - 1 && air[b]) b++;
+    const u = (i - a) / Math.max(1, b - a); R[i][2] = R[a][2] + (R[b][2] - R[a][2]) * u + A.sus * 4 * u * (1 - u); }
+  // con la altura nueva, re-resolver las patas en el aire (siguen su arco)
+  const yAt = t => { const k = Math.min(R.length - 1, Math.round(t * N)); return R[k][2]; };
+  resolverPatas(clip, N, t => { const u = (t * n) % 1; return {z: o.avanza ? A.v * A.T * n * t : 0, y: yAt(t), roll: o.roll || 0, pitch: (o.pitch || 0) + A.pitch * Math.sin(2 * Math.PI * A.pf * (u - 0.15))}; },
+    (k, t) => { const c = cascoAire(A, k, t * n, o); return [c[0] + (o.avanza ? A.v * A.T * n * t : 0), c[1]]; });
+  // cuello y cabeza: cabeceo (2 veces por ciclo al paso; 1 al galope), cola con inercia
+  const [ca, fr] = A.cuello, cb = o.cuello || 0;
+  clip.tracks.cuello = curva(N, t => [cb + ca * Math.sin(2 * Math.PI * fr * t * n + 0.6), (o.giro || 0) * 0.4, 0]);
+  clip.tracks.testa = curva(N, t => [(o.testa || 0) - ca * 0.5 * Math.sin(2 * Math.PI * fr * t * n + 0.2), (o.giro || 0) * 0.3, 0]);
+  clip.tracks.cola = curva(N, t => [A.cola + (o.cola || 0) + 6 * Math.sin(2 * Math.PI * t * n - 1.2), 0, 5 * Math.sin(2 * Math.PI * t * n * 0.5)]);
+  Object.keys(PATAS).forEach(k => { const t0 = A.f[k]; for (let c = 0; c < n; c++) clip.ev.push([((t0 + c) / n) % 1, 'casco']); });
+  clip.ev.sort((a, b) => a[0] - b[0]);
+  clip.meta = {avance: o.avanza ? 0 : A.v * A.T * n, aire: nombre, ciclos: n, suspension: A.sus > 0, apoyo};
+  return clip;
+}
+function curva(N, fn) { const tr = []; for (let i = 0; i <= N; i++) { const t = i / N, v = fn(t); tr.push([t, v[0] || 0, v[1] || 0, v[2] || 0]); } return tr; }
+
+/* ---------- el jinete: riendas, asiento y armas ----------
+   hoja(brazo, antebrazo, ángulo de la hoja en el mundo) → giro rx del arma */
+const hoja = (b, a, th) => th - (b + a);
+const RIENDAS = {brazoIz: [-24, 0, 8], antebrazoIz: [-62, 0, -6]};
+const PORTE = {   // porte del arma derecha: [brazoDe, antebrazoDe, ángulo de la hoja]
+  sable_hombro: [[-18, 0, -8], [-96, 0, 0], -22],                         // sable desenvainado «al hombro» (marcha)
+  sable_alto: [[-150, 0, -30], [-45, 0, 0], -55],                         // alzado para el tajo (molinete)
+  sable_tajo: [[-40, 0, -58], [-12, 0, 0], 150],                          // final del tajo, hacia abajo y adelante
+  sable_frente: [[-82, 0, -6], [-8, 0, 0], 92],                           // «en avant»: brazo y punta al frente (carga a la francesa)
+  sable_bajo: [[-48, 0, -10], [-30, 0, 0], 112],                          // persecución: punta baja al frente
+  sable_parada: [[-120, 0, -30], [-60, 0, 0], -88],                       // parada alta (hoja horizontal sobre la cabeza, aprox.)
+  sable_saludo: [[-70, 0, -12], [-118, 0, 0], -4],                        // empuñadura a la barbilla, hoja vertical
+  lanza_alta: [[-10, 0, -10], [-60, 0, 0], 0],                            // lanza en la cuja, vertical
+  lanza_ristre: [[-8, 0, -14], [-82, 0, 0], 95],                          // en ristre bajo el brazo
+  lanza_baja: [[-20, 0, -12], [-70, 0, 0], 120],                          // punta baja tras el impacto
+  nada: [[-12, 0, -8], [-55, 0, 0], 70]                                   // mano en el muslo (mensajero)
+};
+function jineteTracks(clip, N, porte, o) {
+  o = o || {}; const T = clip.tracks, P0 = typeof porte === 'function' ? porte : () => PORTE[porte];
+  T.brazoIz = curva(N, t => RIENDAS.brazoIz.map((v, i) => v + (o.riendas ? o.riendas(t)[i] || 0 : 0)));
+  T.antebrazoIz = curva(N, t => RIENDAS.antebrazoIz.map((v, i) => v + (o.riendas2 ? o.riendas2(t)[i] || 0 : 0)));
+  T.brazoDe = curva(N, t => P0(t)[0]); T.antebrazoDe = curva(N, t => P0(t)[1]);
+  const cab = T.caballo || [[0, 0, 0, 0]];
+  T.torso = curva(N, t => { const pc = muestreo(cab, t, 1); return [(o.inc || 4) - pc * 0.7 + (o.torso ? o.torso(t)[0] || 0 : 0), o.torso ? o.torso(t)[1] || 0 : 0, -muestreo(cab, t, 3) * 0.6 + (o.torso ? o.torso(t)[2] || 0 : 0)]; });
+  // el ángulo de la hoja es en el mundo: se descuentan brazo, antebrazo, inclinación del torso y cabeceo del caballo
+  T.arma = curva(N, t => { const p = P0(t), tx = muestreo(T.torso, t, 1), pc = muestreo(cab, t, 1); return [hoja(p[0][0] + tx + pc, p[1][0], p[2]), 0, 0]; });
+  T.cabeza = curva(N, t => { const tt = T.torso[Math.min(T.torso.length - 1, Math.round(t * N))]; return [-(tt[1] - (o.inc || 4)) * 0.6 + (o.cabeza ? o.cabeza(t)[0] || 0 : 0), o.cabeza ? o.cabeza(t)[1] || 0 : 0, 0]; });
+  if (o.levantado) clip.pos = Object.assign(clip.pos || {}, {torso: curva(N, t => [0, 0.07 * Math.max(0, Math.sin(2 * Math.PI * (t * o.levantado) * 1)) , 0.03 * Math.max(0, Math.sin(2 * Math.PI * t * o.levantado))])});
+  else if (o.amortigua) clip.pos = Object.assign(clip.pos || {}, {torso: curva(N, t => [0, -o.amortigua * Math.max(0, Math.cos(2 * Math.PI * t * (o.ciclos || 1) * (o.frec || 2))), 0])});
+  return clip;
+}
+// interpolación de un porte a otro (para los clips de combate): claves [[t, 'porte']]
+function porteKeys(keys) { return t => { let a = keys[0], b = keys[keys.length - 1]; for (let i = 0; i < keys.length - 1; i++) if (t >= keys[i][0] && t <= keys[i + 1][0]) { a = keys[i]; b = keys[i + 1]; break; }
+  const u = b[0] > a[0] ? Math.min(1, Math.max(0, (t - a[0]) / (b[0] - a[0]))) : 0, e = u * u * (3 - 2 * u), A = PORTE[a[1]], B = PORTE[b[1]];
+  return [A[0].map((v, i) => v + (B[0][i] - v) * e), A[1].map((v, i) => v + (B[1][i] - v) * e), A[2] + (B[2] - A[2]) * e]; }; }
+function muestreo(tr, t, k) { if (!tr || !tr.length) return 0; if (tr.length === 1 || t <= tr[0][0]) return tr[0][k]; for (let i = 0; i < tr.length - 1; i++) if (t <= tr[i + 1][0]) { const a = tr[i], b = tr[i + 1], u = (t - a[0]) / Math.max(1e-6, b[0] - a[0]); return a[k] + (b[k] - a[k]) * u; } return tr[tr.length - 1][k]; }
+
+const CLIPS = {}, META = {}, CLIPS_S = {}, META_S = {};
+function defJ(n, c, m) { const meta = Object.assign({suelo: 'pie', avance: 0, desplazamiento: [0, 0, 0], armaCompatible: ['A', 'B', 'C', 'D', 'E'], transiciones: []}, c.meta || {}, m || {}); delete c.meta;
+  delete meta.apoyo; c.ev.sort((a, b) => a[0] - b[0]); meta.eventos = c.ev.map(e => e[1]); CLIPS[n] = c; META[n] = meta; }
+
+/* ---------- pisadas explícitas (rampa, salto, caída): cada pata con sus apoyos [t0, t1, z del casco]; entre apoyos, arco de altura h ---------- */
+function cascoPisadas(pl, h, t, tuck) {
+  for (let i = 0; i < pl.length; i++) { const [a, b, z] = pl[i]; if (t >= a && t <= b) return [z, 0]; }
+  let prev = null, next = null; pl.forEach(p => { if (p[1] < t && (!prev || p[1] > prev[1])) prev = p; if (p[0] > t && (!next || p[0] < next[0])) next = p; });
+  if (!prev) return [next[2], 0]; if (!next) return [prev[2], 0];
+  const u = (t - prev[1]) / Math.max(1e-6, next[0] - prev[1]), e = u * u * (3 - 2 * u), arc = [prev[2] + (next[2] - prev[2]) * e, h * Math.sin(Math.PI * u)];
+  if (tuck) { const w = tuck.w(t); if (w > 0) { const q = tuck.p(t); return [arc[0] + (q[0] - arc[0]) * w, arc[1] + (q[1] - arc[1]) * w]; } }
+  return arc;
+}
+const enPisada = (pl, t) => pl.some(p => t >= p[0] && t <= p[1]);
+const sstep = (a, b, t) => { const u = Math.min(1, Math.max(0, (t - a) / (b - a))); return u * u * (3 - 2 * u); };
+const lerpK = (keys, t) => { let a = keys[0], b = keys[keys.length - 1]; for (let i = 0; i < keys.length - 1; i++) if (t >= keys[i][0] && t <= keys[i + 1][0]) { a = keys[i]; b = keys[i + 1]; break; }
+  const u = b[0] > a[0] ? sstep(a[0], b[0], t) : 0; return a.slice(1).map((v, i) => v + (b[i + 1] - v) * u); };
+
+/* ===================================================================================== */
+/* CLIPS DEL JINETE */
+const PORTES = {'': {porte: 'sable_hombro', arma: ['sable_curvo', 'sable_recto', 'shashka', 'ninguna']}, _lanza: {porte: 'lanza_alta', arma: ['lanza']}};
+Object.entries(PORTES).forEach(([suf, P0]) => {
+  // parado: respiración, cabeceo, cola que espanta moscas y una pata trasera en descanso
+  { const N = 80, c = {dur: 6, loop: true, tracks: {}, ev: [[0.3, 'resopla'], [0.72, 'cola']]};
+    resolverPatas(c, N, t => ({z: 0, pitch: 0.4 * Math.sin(2 * Math.PI * t * 2), apoyo: {MI: true, MD: true, PI: t < 0.4 || t > 0.9, PD: true}}),
+      (k, t) => { const L = PATAS[k]; if (k === 'PI') { const w = sstep(0.4, 0.48, t) * (1 - sstep(0.82, 0.9, t)); return [L.piv[2] + 0.06 * w, 0.025 * w]; } return [L.piv[2] + (L.del ? 0.02 : -0.02), 0]; });
+    c.tracks.cuello = curva(N, t => [10 * sstep(0.2, 0.35, t) * (1 - sstep(0.55, 0.7, t)) + 2 * Math.sin(2 * Math.PI * t * 2), 12 * Math.sin(2 * Math.PI * t), 0]);
+    c.tracks.testa = curva(N, t => [4 * Math.sin(2 * Math.PI * t * 3), 6 * Math.sin(2 * Math.PI * (t + 0.2)), 8 * Math.sin(2 * Math.PI * t * 7) * sstep(0.28, 0.3, t) * (1 - sstep(0.33, 0.36, t))]);
+    c.tracks.cola = curva(N, t => [8, 0, 26 * Math.sin(2 * Math.PI * (t - 0.72) * 6) * sstep(0.68, 0.72, t) * (1 - sstep(0.82, 0.9, t))]);
+    jineteTracks(c, N, P0.porte, {inc: 2, cabeza: t => [0, 18 * Math.sin(2 * Math.PI * t), 0]});
+    defJ('cab_parado' + suf, c, {armaJinete: P0.arma, transiciones: ['cab_paso' + suf, 'cab_retroceso' + suf, suf ? 'cab_parado' : 'cab_oficial_senalar']}); }
+  // paso, trote (sentado y levantado), galope y galope de carga
+  { const c = cicloAire('paso', 2); jineteTracks(c, 80, P0.porte, {inc: 2, amortigua: 0.01, ciclos: 2, frec: 2}); defJ('cab_paso' + suf, c, {armaJinete: P0.arma, transiciones: ['cab_parado' + suf, 'cab_trote' + suf, 'cab_retroceso' + suf]}); }
+  { const c = cicloAire('trote', 2); jineteTracks(c, 80, P0.porte, {inc: 4, amortigua: 0.03, ciclos: 2, frec: 2}); defJ('cab_trote' + suf, c, {armaJinete: P0.arma, transiciones: ['cab_paso' + suf, 'cab_galope' + suf, 'cab_trote_levantado' + suf]}); }
+  { const c = cicloAire('trote', 2); jineteTracks(c, 80, P0.porte, {inc: 8, levantado: 2}); c.ev.push([0, 'levanta'], [0.5, 'levanta']); defJ('cab_trote_levantado' + suf, c, {armaJinete: P0.arma, transiciones: ['cab_trote' + suf, 'cab_paso' + suf]}); }
+  { const c = cicloAire('galope', 2); jineteTracks(c, 80, P0.porte, {inc: 10, amortigua: 0.025, ciclos: 2, frec: 1}); defJ('cab_galope' + suf, c, {armaJinete: P0.arma, suelo: 'carrera', transiciones: ['cab_trote' + suf, 'cab_galope_carga' + suf, 'cab_giro_izq' + suf, 'cab_giro_der' + suf, 'cab_rampa' + suf, 'cab_salto' + suf]}); }
+  { const c = cicloAire('galope_carga', 2, {cola: 8}); jineteTracks(c, 80, suf ? 'lanza_alta' : 'sable_frente', {inc: 20, amortigua: 0.03, ciclos: 2, frec: 1}); c.ev.push([0, 'grito']);
+    defJ('cab_galope_carga' + suf, c, {armaJinete: P0.arma, suelo: 'carrera', transiciones: ['cab_galope' + suf, suf ? 'cab_lanza_ataque' : 'cab_sable_ataque', suf ? 'cab_galope_carga' : 'cab_golpe_jinete_a']}); }
+  // giros cerrados al galope: el juego gira la instancia META.giro °/s; el clip inclina caballo y jinete hacia dentro y dobla el cuello
+  [['izq', 1], ['der', -1]].forEach(([n, s]) => { const c = cicloAire('galope', 2, {roll: 12 * s, giro: 22 * s}); jineteTracks(c, 80, P0.porte, {inc: 10, torso: () => [0, 10 * s, 6 * s], cabeza: () => [0, 25 * s, 0]});
+    defJ(`cab_giro_${n}${suf}`, c, {armaJinete: P0.arma, suelo: 'carrera', giro: 95 * s, transiciones: ['cab_galope' + suf]}); });
+  // paso atrás (diagonal, a dos tiempos)
+  { const c = cicloAire('atras', 1); jineteTracks(c, 40, P0.porte, {inc: -2, riendas: t => [10, 0, 0], riendas2: () => [-18, 0, 0]}); defJ('cab_retroceso' + suf, c, {armaJinete: P0.arma, transiciones: ['cab_parado' + suf]}); }
+  // rampa: frenada en seco (los posteriores se meten bajo la masa y resbalan) y se encabrita
+  { const N = 90, dur = 2.4, c = {dur, loop: false, tracks: {}, ev: [[0.14, 'frenazo'], [0.1, 'resbala'], [0.42, 'relincho'], [0.86, 'casco']]};
+    const bz = t => 2.2 * (1 - Math.pow(1 - Math.min(1, t / 0.42), 2)), pitch = t => lerpK([[0, 2], [0.14, -6], [0.4, -8], [0.55, -42], [0.7, -40], [0.86, 2], [1, 0]], t)[0];
+    const PL = {MI: [[0, 0.1, bz(0.05) + 0.62]], MD: [[0.04, 0.16, bz(0.1) + 0.6]], PI: [], PD: []}; PL.MI.push([0.86, 1, 2.2 + 0.52]); PL.MD.push([0.89, 1, 2.2 + 0.5]);
+    const tuck = k => ({w: t => PATAS[k].del ? sstep(0.4, 0.5, t) * (1 - sstep(0.76, 0.86, t)) : 0, p: t => { const pv = rotX(PATAS[k].piv, pitch(t)); return [bz(t) + pv[2] + 0.28, CAB_Y + 0.3 + pv[1]]; }});
+    const resbala = (k, t) => { const L = PATAS[k], z = bz(t) + L.piv[2] + 0.32 * sstep(0.08, 0.2, t) + (k === 'PD' ? 0.05 : 0); return t < 0.1 ? cascoAire(AIRES.galope, k, t * 4)[0] * 0 + [bz(t) + L.piv[2] - 0.05, 0][0] : z; };
+    resolverPatas(c, N, t => ({z: bz(t), pitch: pitch(t), apoyo: {MI: enPisada(PL.MI, t), MD: enPisada(PL.MD, t), PI: true, PD: true}}),
+      (k, t) => PATAS[k].del ? cascoPisadas(PL[k], 0.2, t, tuck(k)) : [resbala(k, t), 0], {base: 0.0});
+    // durante el encabritado la raíz sube lo que pidan los posteriores (resolverPatas ya la limita); las manos pedalean
+    c.tracks.cuello = curva(N, t => [lerpK([[0, 0], [0.14, -14], [0.5, 16], [0.7, 12], [0.86, -6], [1, 0]], t)[0], 8 * Math.sin(2 * Math.PI * t * 3) * sstep(0.45, 0.5, t) * (1 - sstep(0.75, 0.8, t)), 0]);
+    c.tracks.testa = curva(N, t => [lerpK([[0, 0], [0.14, -10], [0.5, -20], [0.86, 0], [1, 0]], t)[0], 0, 0]);
+    c.tracks.cola = curva(N, t => [lerpK([[0, 20], [0.4, 0], [0.55, -25], [0.86, 10], [1, 6]], t)[0], 0, 0]);
+    jineteTracks(c, N, suf ? 'lanza_alta' : t => (t > 0.45 && t < 0.8 ? PORTE.sable_alto : PORTE.sable_hombro), {inc: 0, torso: t => [lerpK([[0, 6], [0.14, -14], [0.5, 30], [0.7, 28], [0.86, 0], [1, 2]], t)[0], 0, 0],
+      riendas: t => [lerpK([[0, 0], [0.14, 14], [0.5, -10], [1, 0]], t)[0], 0, 0], riendas2: t => [lerpK([[0, 0], [0.14, -30], [0.5, -10], [1, 0]], t)[0], 0, 0]});
+    defJ('cab_rampa' + suf, c, {armaJinete: P0.arma, desplazamiento: [0, 0, 2.2], transiciones: ['cab_parado' + suf]}); }
+  // salto de un obstáculo de 1 m (seto o muro bajo) al galope: batida a 2,2 m, vuelo, recepción sobre la mano directora
+  { const N = 120, dur = 1.6, v = 6.0, c = {dur, loop: false, tracks: {}, ev: [[0.3, 'batida'], [0.66, 'recepcion'], [0.71, 'casco'], [0.8, 'casco']]};
+    const bz = t => v * dur * t, flight = t => sstep(0.36, 0.52, t) * (1 - sstep(0.52, 0.7, t)), pitch = t => lerpK([[0, 3], [0.26, 6], [0.36, -24], [0.5, -2], [0.62, 16], [0.72, 8], [0.85, 0], [1, 2]], t)[0];
+    const pz = (k, t) => bz(t) + PATAS[k].piv[2];
+    const PL = {MI: [[0, 0.09, pz('MI', 0.04)], [0.2, 0.29, pz('MI', 0.245)], [0.66, 0.78, pz('MI', 0.72)], [0.92, 1, pz('MI', 0.96)]], MD: [[0.04, 0.13, pz('MD', 0.08)], [0.23, 0.305, pz('MD', 0.265)], [0.7, 0.82, pz('MD', 0.76)], [0.95, 1, pz('MD', 0.98)]],
+      PI: [[0.0, 0.05, pz('PI', 0.02) + 0.3], [0.28, 0.38, pz('PI', 0.33) + 0.25], [0.77, 0.9, pz('PI', 0.84) + 0.25]], PD: [[0.02, 0.07, pz('PD', 0.04) + 0.3], [0.3, 0.4, pz('PD', 0.35) + 0.25], [0.8, 0.93, pz('PD', 0.87) + 0.25]]};
+    const tuck = k => ({w: t => PATAS[k].del ? sstep(0.32, 0.42, t) * (1 - sstep(0.56, 0.64, t)) : sstep(0.42, 0.5, t) * (1 - sstep(0.62, 0.74, t)),
+      p: t => { const pv = rotX(PATAS[k].piv, pitch(t)), y = c.root ? 0 : 0; return [bz(t) + pv[2] + (PATAS[k].del ? 0.3 : -0.2), CAB_Y + yS(t) + pv[1] - (PATAS[k].del ? 0.38 : 0.45)]; }});
+    const yS = t => 0.95 * Math.sin(Math.PI * sstep(0.34, 0.72, t)) * (t > 0.34 && t < 0.72 ? 1 : 0);
+    resolverPatas(c, N, t => ({z: bz(t), pitch: pitch(t), apoyo: Object.fromEntries(Object.keys(PATAS).map(k => [k, enPisada(PL[k], t)])), vuelo: t > 0.38 && t < 0.66 ? yS(t) : null}),
+      (k, t) => cascoPisadas(PL[k], PATAS[k].del ? 0.3 : 0.22, t, tuck(k)));
+    c.tracks.cuello = curva(N, t => [lerpK([[0, 4], [0.3, -6], [0.4, 14], [0.6, 6], [0.7, -10], [0.85, 4], [1, 4]], t)[0], 0, 0]);
+    c.tracks.testa = curva(N, t => [lerpK([[0, 0], [0.36, -8], [0.5, 10], [0.7, -6], [1, 0]], t)[0], 0, 0]);
+    c.tracks.cola = curva(N, t => [lerpK([[0, 28], [0.36, 10], [0.5, 45], [0.66, 60], [0.8, 30], [1, 28]], t)[0], 0, 0]);
+    jineteTracks(c, N, P0.porte, {inc: 0, torso: t => [lerpK([[0, 12], [0.3, 18], [0.4, 30], [0.55, 22], [0.66, 0], [0.75, 6], [1, 12]], t)[0], 0, 0], riendas: t => [lerpK([[0, 0], [0.36, -30], [0.6, -20], [0.7, 0], [1, 0]], t)[0], 0, 0]});
+    defJ('cab_salto' + suf, c, {armaJinete: P0.arma, suelo: 'salto', desplazamiento: [0, 0, v * dur], obstaculo: {z: v * dur * 0.52, altura: 1.0, batida: 2.2}, transiciones: ['cab_galope' + suf]}); }
+});
+
+/* ---------- combate a caballo (un solo pase al galope de carga; 4 tiempos de galope = 2 s, 18 m) ---------- */
+function cargaBase(n) { const c = cicloAire('galope_carga', n || 4, {unaVez: true, avanza: true, cola: 8}); return c; }
+// carga con lanza: alta → ristre → impacto → soltar (la punta cae y se recupera) → alta
+{ const c = cargaBase(4), N = 160, ti = 0.6; jineteTracks(c, N, porteKeys([[0, 'lanza_alta'], [0.22, 'lanza_alta'], [0.42, 'lanza_ristre'], [ti, 'lanza_ristre'], [ti + 0.06, 'lanza_baja'], [0.86, 'lanza_alta'], [1, 'lanza_alta']]),
+    {inc: 0, torso: t => [16 + 10 * sstep(0.42, ti, t) * (1 - sstep(ti + 0.04, 0.8, t)), -8 * sstep(0.42, ti, t) * (1 - sstep(ti + 0.1, 0.86, t)), 0]});
+  c.ev.push([0.42, 'ristre'], [ti, 'impacto'], [ti + 0.05, 'soltar'], [0, 'grito']);
+  defJ('cab_lanza_ataque', c, {armaJinete: ['lanza'], suelo: 'carrera', pareja: {clip: 'cab_lanzado_d', desfase: null}, transiciones: ['cab_galope_carga_lanza', 'cab_galope_lanza']}); }
+// carga con sable: alzar (molinete), tajo descendente al costado derecho, reponer al frente
+{ const c = cargaBase(4), N = 160, ti = 0.56; jineteTracks(c, N, porteKeys([[0, 'sable_frente'], [0.3, 'sable_frente'], [0.46, 'sable_alto'], [ti - 0.02, 'sable_alto'], [ti + 0.05, 'sable_tajo'], [0.76, 'sable_frente'], [1, 'sable_frente']]),
+    {inc: 0, torso: t => [20 + 10 * sstep(ti - 0.04, ti + 0.04, t) * (1 - sstep(ti + 0.06, 0.8, t)), -16 * sstep(0.4, ti, t) * (1 - sstep(ti + 0.08, 0.8, t)), -14 * sstep(ti - 0.04, ti + 0.02, t) * (1 - sstep(ti + 0.08, 0.8, t))]});
+  c.ev.push([0.46, 'alzar'], [ti + 0.02, 'impacto'], [0.76, 'reponer'], [0, 'grito']);
+  defJ('cab_sable_ataque', c, {armaJinete: ['sable_curvo', 'sable_recto', 'shashka'], suelo: 'carrera', pareja: {clip: 'cab_tajo_d', desfase: null}, transiciones: ['cab_galope_carga', 'cab_persecucion']}); }
+// jinete contra jinete al cruzarse (derecha con derecha): golpe que alcanza y golpe parado
+[['golpe', 'impacto'], ['parada', 'parada']].forEach(([n, ev]) => { const ti = 0.56;
+  const A = cargaBase(4); jineteTracks(A, 160, porteKeys([[0, 'sable_frente'], [0.34, 'sable_frente'], [0.48, 'sable_alto'], [ti - 0.01, 'sable_alto'], [ti + 0.04, 'sable_tajo'], [0.78, 'sable_frente'], [1, 'sable_frente']]),
+    {inc: 0, torso: t => [20, -18 * sstep(0.4, ti, t) * (1 - sstep(ti + 0.08, 0.8, t)), -12 * sstep(ti - 0.04, ti + 0.02, t) * (1 - sstep(ti + 0.08, 0.8, t))]});
+  A.ev.push([ti + 0.01, ev]);
+  const D = cargaBase(4);
+  if (n === 'parada') jineteTracks(D, 160, porteKeys([[0, 'sable_frente'], [0.4, 'sable_frente'], [ti - 0.04, 'sable_parada'], [ti + 0.06, 'sable_parada'], [0.8, 'sable_frente'], [1, 'sable_frente']]),
+    {inc: 0, torso: t => [18, -10 * sstep(0.4, ti, t) * (1 - sstep(ti + 0.08, 0.8, t)), 8 * sstep(ti, ti + 0.04, t) * (1 - sstep(ti + 0.1, 0.8, t))]});
+  else jineteTracks(D, 160, porteKeys([[0, 'sable_frente'], [0.4, 'sable_frente'], [ti, 'sable_parada'], [ti + 0.08, 'sable_bajo'], [1, 'sable_bajo']]),
+    {inc: 0, torso: t => [18 - 46 * sstep(ti, ti + 0.06, t) + 30 * sstep(ti + 0.1, 0.9, t), 0, 26 * sstep(ti, ti + 0.06, t) - 10 * sstep(ti + 0.2, 1, t)], cabeza: t => [-30 * sstep(ti, ti + 0.05, t), 20 * sstep(ti, ti + 0.05, t), 0],
+      riendas: t => [40 * sstep(ti, ti + 0.08, t), 0, 20 * sstep(ti, ti + 0.08, t)]});
+  D.ev.push([ti + 0.01, ev]); if (n === 'golpe') D.ev.push([0.9, 'cae']);
+  defJ(`cab_${n}_jinete_a`, A, {armaJinete: ['sable_curvo', 'sable_recto', 'shashka'], suelo: 'carrera', pareja: {clip: `cab_${n}_jinete_d`, desfase: null}, transiciones: ['cab_galope_carga']});
+  defJ(`cab_${n}_jinete_d`, D, {armaJinete: ['sable_curvo', 'sable_recto', 'shashka'], suelo: 'carrera', pareja: {clip: `cab_${n}_jinete_a`, desfase: null},
+    transiciones: n === 'golpe' ? [] : ['cab_galope_carga'], grupoTras: n === 'golpe' ? {caballo: 'cab_suelto_huida', jinete: 'cab_cae_de_lado'} : null}); });
+// persecución: galope tendido con el sable bajo y el cuerpo echado
+{ const c = cicloAire('galope_carga', 2, {cola: 6}); jineteTracks(c, 80, 'sable_bajo', {inc: 26, amortigua: 0.03, ciclos: 2, frec: 1, cabeza: () => [-14, 0, 0]}); defJ('cab_persecucion', c, {armaJinete: ['sable_curvo', 'sable_recto', 'shashka'], suelo: 'carrera', transiciones: ['cab_sable_ataque', 'cab_galope']}); }
+
+/* ---------- caballo herido y sin jinete ---------- */
+// cojera de la mano izquierda: apoyo corto y la cabeza se levanta cuando apoya la mano dolorida
+{ const A0 = AIRES.paso; AIRES.cojo = Object.assign({}, A0, {T: 1.3, v: 1.2, f: {PI: 0, MI: 0.3, PD: 0.5, MD: 0.75}});
+  const c = cicloAire('cojo', 2, {cuello: 2}); const N = c.tracks.cuello.length - 1, ap = t => enApoyo(AIRES.cojo, 'MI', t * 2);
+  c.tracks.cuello = c.tracks.cuello.map(k => [k[0], k[1] - 12 * (ap(k[0]) ? Math.sin(Math.PI * (((k[0] * 2 - 0.3) % 1 + 1) % 1) / AIRES.cojo.d) : 0), k[2], k[3]]);
+  jineteTracks(c, 80, 'sable_hombro', {inc: 2, cabeza: () => [10, 0, 0]}); defJ('cab_cojera', c, {transiciones: ['cab_parado', 'cab_caballo_cae'], herido: true}); }
+// caída del caballo herido: tropieza, dobla las manos, cae de costado (izquierdo) y queda tendido
+{ const N = 100, dur = 2.2, c = {dur, loop: false, tracks: {}, ev: [[0, 'impacto'], [0.18, 'tropiezo'], [0.42, 'rodillas'], [0.66, 'cae'], [0.7, 'polvo']]};
+  const K = (keys) => curva(N, t => lerpK(keys, t));
+  Object.assign(c.tracks, {caballo: K([[0, 0, 0, 0], [0.2, 10, 0, 0], [0.42, 22, 0, -6], [0.66, 6, 0, -84], [1, 2, 0, -88]]),
+    manoIz: K([[0, -10, 0, 0], [0.2, 10, 0, 0], [0.42, 30, 0, 0], [0.66, -30, 0, 0], [1, -40, 0, 0]]), canaIz: K([[0, 0, 0, 0], [0.2, 40, 0, 0], [0.42, 120, 0, 0], [0.66, 60, 0, 0], [1, 30, 0, 0]]),
+    manoDe: K([[0, -6, 0, 0], [0.2, 4, 0, 0], [0.42, 26, 0, 0], [0.66, -10, 0, 0], [1, -24, 0, 0]]), canaDe: K([[0, 0, 0, 0], [0.24, 50, 0, 0], [0.42, 115, 0, 0], [0.66, 40, 0, 0], [1, 20, 0, 0]]),
+    pataIz: K([[0, 10, 0, 0], [0.42, -20, 0, 0], [0.66, -40, 0, 0], [1, -30, 0, 0]]), corvIz: K([[0, -10, 0, 0], [0.42, -60, 0, 0], [0.66, -30, 0, 0], [1, -20, 0, 0]]),
+    pataDe: K([[0, 6, 0, 0], [0.42, -26, 0, 0], [0.66, -20, 0, 0], [1, -6, 0, 0]]), corvDe: K([[0, -8, 0, 0], [0.42, -70, 0, 0], [0.66, -20, 0, 0], [1, -10, 0, 0]]),
+    cuello: K([[0, 0, 0, 0], [0.2, 20, 0, 0], [0.42, 30, 10, 0], [0.66, 10, 0, 20], [0.85, -10, 0, 30], [1, 4, 0, 26]]), testa: K([[0, 0, 0, 0], [0.42, 10, 0, 0], [0.66, -10, 0, 0], [1, 6, 0, 0]]),
+    cola: K([[0, 10, 0, 0], [0.42, -10, 0, 0], [0.7, 20, 0, 20], [1, 10, 0, 30]])});
+  c.root = curva(N, t => [lerpK([[0, 0], [0.66, 0.2], [1, 0.25]], t)[0], 0, lerpK([[0, 0], [0.42, 1.3], [0.66, 1.9], [1, 2.0]], t)[0]]);
+  jineteTracks(c, N, t => PORTE.sable_hombro, {inc: 0, torso: t => [lerpK([[0, 4], [0.2, -20], [0.42, 30], [0.66, 10], [1, 0]], t)[0], 0, lerpK([[0, 0], [0.66, 30], [1, 40]], t)[0]]});
+  defJ('cab_caballo_cae', c, {suelo: 'tendido', desplazamiento: [0.25, 0, 2.0], grupo: {caballo: 'cab_caballo_*', jinete: {tipo: 'inf_cab_*', clip: 'cab_derribado', desfase: [0, 0, 0]}}, transiciones: []}); }
+// caballo sin jinete huyendo: galope con la cabeza alta y sacudidas de cabeza
+{ const c = cicloAire('galope', 2, {cuello: -12, testa: -10, cola: 15}); c.tracks.testa = c.tracks.testa.map(k => [k[0], k[1] + 8 * Math.sin(2 * Math.PI * k[0] * 3), 10 * Math.sin(2 * Math.PI * k[0]), k[3]]);
+  jineteTracks(c, 80, 'sable_hombro', {}); defJ('cab_suelto_huida', c, {suelo: 'carrera', sinJinete: true, transiciones: ['cab_parado']}); }
+
+/* ---------- oficial: señalar con el sable y saludo ---------- */
+{ const c = {dur: 3, loop: true, tracks: {}, ev: [[0.25, 'voz']]}, N = 60; resolverPatas(c, N, () => ({z: 0, pitch: 0, apoyo: {MI: true, MD: true, PI: true, PD: true}}), (k) => [PATAS[k].piv[2] + (PATAS[k].del ? 0.02 : -0.02), 0]);
+  c.tracks.cuello = curva(N, t => [-4 + 3 * Math.sin(2 * Math.PI * t), 4 * Math.sin(2 * Math.PI * t), 0]); c.tracks.cola = curva(N, t => [8, 0, 6 * Math.sin(2 * Math.PI * t)]);
+  jineteTracks(c, N, porteKeys([[0, 'sable_hombro'], [0.15, 'sable_frente'], [0.75, 'sable_frente'], [0.95, 'sable_hombro'], [1, 'sable_hombro']]), {inc: 0, torso: t => [-4, -12 * sstep(0.1, 0.25, t) * (1 - sstep(0.75, 0.95, t)), 0], cabeza: t => [-8, 10, 0]});
+  c.tracks.brazoDe = c.tracks.brazoDe.map(k => [k[0], k[1] - 40 * sstep(0.1, 0.25, k[0]) * (1 - sstep(0.75, 0.95, k[0])), k[2], k[3]]);
+  c.tracks.arma = c.tracks.arma.map(k => [k[0], k[1] + 40 * sstep(0.1, 0.25, k[0]) * (1 - sstep(0.75, 0.95, k[0])), k[2], k[3]]);
+  defJ('cab_oficial_senalar', c, {oficial: true, transiciones: ['cab_parado', 'cab_saludo_sable']}); }
+{ const c = {dur: 2.6, loop: false, tracks: {}, ev: [[0.35, 'saludo']]}, N = 60; resolverPatas(c, N, () => ({z: 0, pitch: 0, apoyo: {MI: true, MD: true, PI: true, PD: true}}), (k) => [PATAS[k].piv[2] + (PATAS[k].del ? 0.02 : -0.02), 0]);
+  c.tracks.cuello = curva(N, t => [2 * Math.sin(2 * Math.PI * t), 0, 0]); c.tracks.cola = curva(N, () => [8, 0, 0]);
+  jineteTracks(c, N, porteKeys([[0, 'sable_hombro'], [0.25, 'sable_saludo'], [0.55, 'sable_saludo'], [0.75, 'sable_bajo'], [0.9, 'sable_bajo'], [1, 'sable_hombro']]), {inc: -2, cabeza: () => [-4, 0, 0]});
+  defJ('cab_saludo_sable', c, {oficial: true, transiciones: ['cab_parado', 'cab_oficial_senalar']}); }
+
+/* ===================================================================================== */
+/* CLIPS DEL SOLDADO (jinete a pie y víctimas emparejadas). Montado: postura del jinete sobre la silla en el rig del soldado
+   (raíz a 0,5 m: los hombros coinciden con los del jinete; los muslos van algo más bajos, la diferencia se ve solo en el primer fotograma del relevo). */
+function soldadoClips(INF) {
+  const H = INF._herramientas, PS = INF.POSES, W = PS.W, {Clip, con, mas, mezcla} = H;
+  const MONT = {pelvis: [0, 0, 0], torso: [4, 0, 0], cabeza: [0, 0, 0], musloIz: [-58, 0, 16], piernaIz: [66, 0, 0], pieIz: [-6, 0, 0], musloDe: [-58, 0, -16], piernaDe: [66, 0, 0], pieDe: [-6, 0, 0],
+    brazoIz: [-24, 0, 8], antebrazoIz: [-62, 0, -6], brazoDe: [-18, 0, -8], antebrazoDe: [-70, 0, 0]};
+  const def = (n, C, m) => { CLIPS_S[n] = C.fin(); META_S[n] = Object.assign({suelo: 'pie', avance: 0, desplazamiento: [0, 0, 0], armaCompatible: ERAS.slice(), transiciones: []}, m || {}); META_S[n].eventos = CLIPS_S[n].ev.map(e => e[1]); };
+  // derribado: sale despedido por encima del cuello y cae de bruces; se queda tendido (grupo con cab_caballo_cae)
+  { const C = new Clip(2.2, false); C.k(0, MONT).k(0.2, con(MONT, {torso: [40, 0, 10], cabeza: [-20, 0, 0], brazoIz: [-120, 0, 30], brazoDe: [-120, 0, -30]}))
+      .k(0.42, con(PS.BOCA_ABAJO, {pelvis: [60, 0, 20], torso: [10, 0, 0], brazoIz: [-150, 0, 40], brazoDe: [-150, 0, -40], musloIz: [-20, 0, 10], piernaIz: [40, 0, 0]})).k(0.6, PS.BOCA_ABAJO).k(1, con(PS.BOCA_ABAJO, {cabeza: [-50, 20, 0]}));
+    C.a(0, W.SUELO, [-1, -1]).a(1, W.SUELO, [-1, -1]); C.oculta('arma', [[0, 0]]);
+    C.r(0, 0, 0.5, -0.06).r(0.2, 0.1, 0.62, 0.8).r(0.42, 0.25, 0.0, 2.2).r(0.6, 0.3, 0, 2.5).r(1, 0.3, 0, 2.5); C.e(0, 'impacto').e(0.42, 'cae').e(0.45, 'polvo');
+    def('cab_derribado', C, {suelo: 'libre', asentarDesde: 0.42, desplazamiento: [0.3, 0, 2.5], transiciones: ['cab_levantarse_derribado']}); }
+  // se levanta aturdido (de bruces → a gatas → de rodillas → en pie), se sacude y desenvaina
+  { const C = new Clip(3.2, false), GAT = con(PS.AGACHADO, {torso: [70, 0, 0], brazoIz: [-80, 0, 10], antebrazoIz: [-10, 0, 0], brazoDe: [-80, 0, -10], antebrazoDe: [-10, 0, 0], musloIz: [-80, 0, 8], musloDe: [-80, 0, -8], piernaIz: [100, 0, 0], piernaDe: [100, 0, 0]});
+    C.k(0, con(PS.BOCA_ABAJO, {cabeza: [-50, 20, 0]})).k(0.25, con(PS.BOCA_ABAJO, {brazoIz: [-20, 0, 40], antebrazoIz: [-90, 0, 0], brazoDe: [-20, 0, -40], antebrazoDe: [-90, 0, 0], torso: [-30, 0, 0]}))
+      .k(0.45, GAT).k(0.62, con(PS.RODILLA, {torso: [20, 0, 0], brazoDe: [-40, 0, -20], antebrazoDe: [-80, 0, 0]})).k(0.8, con(PS.FIRME, {torso: [12, 0, 6], cabeza: [10, 20, 0], brazoIz: [-30, 0, 30], antebrazoIz: [-110, 0, 0]})).k(1, PS.FIRME);
+    C.a(0, W.SUELO, [-1, -1]).a(0.85, W.SUELO, [-1, -1]).a(0.9, W.ESP_BAJA).a(1, W.ESP_BAJA); C.oculta('arma', [[0, 0], [0.86, 1]]); C.e(0.45, 'a_gatas').e(0.62, 'rodilla').e(0.8, 'en_pie').e(0.88, 'desenvaina');
+    def('cab_levantarse_derribado', C, {transiciones: ['idle', 'idle_oficial', 'huir']}); }
+  // desmontar por la izquierda (pierna derecha por encima de la grupa) y montar
+  { const C = new Clip(2.6, false); C.k(0, MONT).k(0.25, con(MONT, {torso: [20, 30, 0], musloDe: [-30, 0, -70], piernaDe: [20, 0, 0]})).k(0.45, con(PS.FIRME, {torso: [10, 60, 0], musloDe: [10, 0, -30], musloIz: [-30, 0, 0], piernaIz: [60, 0, 0], brazoIz: [-90, 0, 10]}))
+      .k(0.7, con(PS.FIRME, {torso: [4, 80, 0], brazoIz: [-60, 0, 10], antebrazoIz: [-40, 0, 0]})).k(1, con(PS.FIRME, {brazoIz: [-50, 0, 20], antebrazoIz: [-50, 0, 0]}));
+    C.a(0, W.SUELO, [-1, -1]).a(1, W.SUELO, [-1, -1]); C.oculta('arma', [[0, 0]]); C.r(0, 0, 0.5, -0.06).r(0.3, 0.25, 0.55, -0.1).r(0.5, 0.55, 0.05, -0.12).r(1, 0.6, 0, 0); C.e(0.48, 'pie_en_tierra');
+    def('cab_desmontar', C, {suelo: 'libre', asentarDesde: 0.5, desplazamiento: [0.6, 0, 0], grupo: {caballo: 'cab_parado'}, transiciones: ['idle', 'cab_montar']});
+    const M = new Clip(2.6, false); M.c.tracks = {}; const ks = Object.keys(C.c.tracks);
+    ks.forEach(k => { M.c.tracks[k] = CLIPS_S.cab_desmontar.tracks[k].map(q => [1 - q[0]].concat(q.slice(1))).reverse(); });
+    M.c.root = CLIPS_S.cab_desmontar.root.map(q => [1 - q[0]].concat(q.slice(1))).reverse(); M.c.hide = CLIPS_S.cab_desmontar.hide; M.c.ev = [[0.52, 'pie_en_estribo'], [1, 'montado']];
+    def('cab_montar', M, {suelo: 'libre', asentarHasta: 0.5, transiciones: []}); }
+  // cae de lado del caballo al galope (golpe recibido): se suelta por la izquierda y rueda
+  { const C = new Clip(1.8, false); C.k(0, MONT).k(0.12, con(MONT, {torso: [-20, 0, 40], brazoIz: [-60, 0, 60], brazoDe: [-120, 0, -40]})).k(0.35, con(PS.TUMBADO_ESP, {pelvis: [-70, 0, 70], torso: [20, 0, 0]}))
+      .k(0.6, con(PS.BOCA_ABAJO, {pelvis: [88, 0, -40]})).k(0.8, con(PS.TUMBADO_ESP, {pelvis: [10, 0, 88], torso: [10, 0, 0], musloIz: [-30, 0, 0], piernaIz: [40, 0, 0]})).k(1, con(PS.TUMBADO_ESP, {pelvis: [-88, 40, 0], cabeza: [20, 30, 0], brazoIz: [10, 0, 70]}));
+    C.a(0, W.SUELO, [-1, -1]).a(1, W.SUELO, [-1, -1]); C.oculta('arma', [[0, 0]]); C.r(0, 0, 0.5, -0.06).r(0.2, 0.5, 0.3, 1.2).r(0.35, 0.9, 0, 2.2).r(0.6, 1.2, 0, 3.0).r(1, 1.3, 0, 3.4); C.e(0, 'impacto').e(0.3, 'cae').e(0.6, 'rueda');
+    def('cab_cae_de_lado', C, {suelo: 'libre', asentarDesde: 0.33, desplazamiento: [1.3, 0, 3.4], transiciones: ['cab_levantarse_derribado']}); }
+  // infante alanceado: aguanta con la bayoneta, la lanza le alcanza el pecho y sale despedido de espaldas
+  { const C = new Clip(2.0, false), ti = 0.6, G = con(PS.TIRADOR, {musloIz: [-22, 0, 6], piernaIz: [18, 0, 0], musloDe: [12, 0, -6], torso: [10, -10, 0]});
+    C.k(0, G).k(ti - 0.1, mas(G, {torso: [-6, 0, 0], cabeza: [-10, 0, 0]})).k(ti, G).k(ti + 0.04, mas(G, {torso: [-30, 0, 0], cabeza: [-30, 0, 0], brazoIz: [-40, 0, 40]}))
+      .k(ti + 0.18, con(PS.TUMBADO_ESP, {pelvis: [-50, 0, 0], torso: [10, 0, 0]})).k(1, con(PS.TUMBADO_ESP, {cabeza: [30, 20, 0], brazoIz: [10, 0, 60], brazoDe: [10, 0, -50]}));
+    C.a(0, W.BAYO_ALTA).a(ti, W.BAYO_ALTA).a(ti + 0.06, W.SUELO).a(1, W.SUELO); C.g(ti + 0.02, -1, -1); C.r(0, 0, 0, 0).r(ti, 0, 0, 0).r(ti + 0.18, 0, 0, -1.1).r(1, 0, 0, -1.3);
+    C.e(ti, 'impacto').e(ti + 0.02, 'suelta_arma').e(ti + 0.18, 'cae');
+    def('cab_lanzado_d', C, {pareja: {clip: 'cab_lanza_ataque', desfase: null}, desplazamiento: [0, 0, -1.3], transiciones: []}); }
+  // infante acuchillado al paso del jinete: se cubre, recibe el tajo en el hombro, gira y cae de rodillas y de bruces
+  { const C = new Clip(2.0, false), ti = 0.58, G = con(PS.TIRADOR, {torso: [8, -10, 0]});
+    C.k(0, G).k(ti - 0.1, con(G, {torso: [6, 20, 0], cabeza: [-10, 20, 0], brazoIz: [-110, 0, 40], antebrazoIz: [-60, 0, 0]})).k(ti, con(G, {torso: [6, 20, 0], cabeza: [-10, 20, 0]}))
+      .k(ti + 0.05, mas(G, {torso: [20, 60, 20], cabeza: [20, 20, 0]})).k(ti + 0.2, con(PS.RODILLA, {torso: [40, 40, 0]})).k(ti + 0.32, con(PS.BOCA_ABAJO, {pelvis: [80, 30, 0]})).k(1, PS.BOCA_ABAJO);
+    C.a(0, W.PORTA).a(ti, AW(W.PORTA, {P: [0, 0.2, 0]})).a(ti + 0.08, W.SUELO).a(1, W.SUELO); C.g(ti + 0.03, -1, -1); C.r(0, 0, 0, 0).r(ti, 0, 0, 0).r(ti + 0.2, 0.2, 0, -0.3).r(ti + 0.32, 0.3, 0, 0.3).r(1, 0.3, 0, 0.4);
+    C.e(ti, 'impacto').e(ti + 0.04, 'suelta_arma').e(ti + 0.32, 'cae');
+    def('cab_tajo_d', C, {pareja: {clip: 'cab_sable_ataque', desfase: null}, desplazamiento: [0.3, 0, 0.4], transiciones: []}); }
+}
+const AW = (a, m) => ({P: a.P.map((v, i) => v + (m.P ? m.P[i] : 0)), R: a.R.map((v, i) => v + (m.R ? m.R[i] : 0)), g: m.g || a.g});
+
+/* ---------- transiciones ---------- */
+const TRANSICIONES = {};
+function grafo() { Object.entries(Object.assign({}, META, META_S)).forEach(([n, m]) => { TRANSICIONES[n] = TRANSICIONES[n] || {}; (m.transiciones || []).forEach(t => { TRANSICIONES[n][t] = /galope|carga|persecucion|giro/.test(n + t) ? 0.15 : 0.3; }); });
+  TRANSICIONES.cab_galope_carga = Object.assign(TRANSICIONES.cab_galope_carga || {}, {cab_persecucion: 0.2, cab_parada_jinete_a: 0.12, cab_parada_jinete_d: 0.12, cab_golpe_jinete_d: 0.12});
+  TRANSICIONES.cab_galope = Object.assign(TRANSICIONES.cab_galope || {}, {cab_cojera: 0.4, cab_caballo_cae: 0.15});
+  TRANSICIONES.cab_paso = Object.assign(TRANSICIONES.cab_paso || {}, {cab_cojera: 0.4}); }
+function rutaTransicion(desde, hasta) { const cola = [[desde]], vis = new Set([desde]); while (cola.length) { const r = cola.shift(), u = r[r.length - 1]; if (u === hasta) return r.slice(1).map((c, i) => ({clip: c, mezcla: (TRANSICIONES[r[i]] || {})[c]}));
+  Object.keys(TRANSICIONES[u] || {}).forEach(v => { if (!vis.has(v)) { vis.add(v); cola.push(r.concat([v])); } }); } return null; }
+
+/* ---------- escuadrones: posiciones relativas (x a la derecha del escuadrón, z al frente; metros) ----------
+   «Cavalry Drill» (1896): en línea, dos filas rodilla con rodilla (0,9–1 m por caballo) y 1 largo de caballo (2,4 m) entre filas más 0,9 m;
+   oficiales 1 largo al frente, trompeta junto al jefe, guion en el centro de la primera fila. Columna de a cuatro para marchar; columna de
+   escuadrones con la distancia de un frente de escuadrón (abierta) o de 12 m (cerrada). */
+const GRUPOS = {
+  escuadron_linea: (n, op) => { op = op || {}; const fil = Math.ceil(n / 2), dx = op.intervalo || 0.95, dz = op.distancia || 3.3, out = [];
+    for (let f = 0; f < 2; f++) for (let i = 0; i < fil && out.length < n; i++) out.push({x: (i - (fil - 1) / 2) * dx, z: -f * dz, fila: f + 1, papel: f === 0 && i === Math.floor(fil / 2) ? 'guion' : 'jinete'});
+    out.push({x: 0, z: 2.6, papel: 'jefe', tipo: 'cab_oficial'}, {x: -1.4, z: 2.2, papel: 'trompeta'}, {x: -fil * dx / 2 - 1.2, z: 1.2, papel: 'oficial', tipo: 'cab_oficial'}, {x: fil * dx / 2 + 1.2, z: -dz - 2.4, papel: 'oficial_cierre', tipo: 'cab_oficial'});
+    return out; },
+  columna_de_a_cuatro: (n, op) => { op = op || {}; const dx = op.intervalo || 0.95, dz = op.distancia || 3.0, out = [];
+    for (let i = 0; i < n; i++) out.push({x: (i % 4 - 1.5) * dx, z: -Math.floor(i / 4) * dz, papel: 'jinete'}); out.unshift({x: 0, z: 3.0, papel: 'jefe', tipo: 'cab_oficial'}); return out; },
+  columna_de_escuadrones: (n, op) => { op = op || {}; const esc = op.escuadrones || 4, por = Math.ceil(n / esc), frente = Math.ceil(por / 2) * (op.intervalo || 0.95), dist = op.cerrada ? 12 : frente + 6.6, out = [];
+    for (let e = 0; e < esc; e++) GRUPOS.escuadron_linea(por, op).forEach(p => out.push(Object.assign({}, p, {z: p.z - e * dist, escuadron: e + 1}))); return out; }
+};
+function formacion(tipo, n, op) { const f = GRUPOS[tipo]; if (!f) throw new Error('formación desconocida: ' + tipo); return f(n, op); }
+
+/* ===================================================================================== */
+/* REGISTRO */
+// puntos de contacto del caballo (para los clips en que se tiende) y del soldado
+const PTS_CAB = [['canaIz', [0, -0.575, 0.05]], ['canaDe', [0, -0.575, 0.05]], ['corvIz', [0, -0.615, 0.04]], ['corvDe', [0, -0.615, 0.04]], ['canaIz', [0, -0.575, -0.06]], ['canaDe', [0, -0.575, -0.06]], ['corvIz', [0, -0.615, -0.07]], ['corvDe', [0, -0.615, -0.07]], ['canaIz', [0, -0.3, 0]], ['canaDe', [0, -0.3, 0]], ['corvIz', [0, -0.3, 0]], ['corvDe', [0, -0.3, 0]],
+  ['caballo', [0.26, 0.0, -0.4]], ['caballo', [0.26, 0.0, 0.3]], ['caballo', [-0.26, 0.0, -0.4]], ['caballo', [-0.26, 0.0, 0.3]], ['caballo', [0, -0.27, -0.2]], ['caballo', [0, -0.27, 0.35]], ['caballo', [0, 0.28, -0.4]], ['caballo', [0, 0.28, 0.3]],
+  ['caballo', [0.15, 0.2, -0.6]], ['caballo', [-0.15, 0.2, -0.6]], ['cuello', [0.1, 0.35, 0.15]], ['cuello', [-0.1, 0.35, 0.15]], ['testa', [0.08, -0.05, 0.1]], ['testa', [-0.08, -0.05, 0.1]], ['testa', [0, -0.35, 0.35]]];
+const PTS_SOL = [['cabeza', [0, 0.29, 0]], ['cabeza', [0, 0.16, 0.11]], ['torso', [0.17, 0.42, 0.1]], ['torso', [-0.17, 0.42, 0.1]], ['torso', [0.17, 0.42, -0.12]], ['torso', [-0.17, 0.42, -0.12]], ['torso', [0, 0.15, 0.13]], ['torso', [0, 0.25, -0.2]],
+  ['pelvis', [0.16, -0.08, -0.12]], ['pelvis', [-0.16, -0.08, -0.12]], ['pelvis', [0, -0.1, 0.12]], ['antebrazoIz', [0, -0.33, 0]], ['antebrazoDe', [0, -0.33, 0]], ['brazoIz', [0, -0.29, 0]], ['brazoDe', [0, -0.29, 0]], ['piernaIz', [0, 0, 0.07]], ['piernaDe', [0, 0, 0.07]],
+  ['pieIz', [0, -0.081, -0.065]], ['pieIz', [0, -0.081, 0.175]], ['pieDe', [0, -0.081, -0.065]], ['pieDe', [0, -0.081, 0.175]]];
+function minY(T3, rig, M, pts) { const IX = {}; T3.RIGS[rig].forEach((p, i) => { IX[p[0]] = i; }); let low = Infinity; pts.forEach(([p, v]) => { const o = IX[p] * 16, y = M[o + 1] * v[0] + M[o + 5] * v[1] + M[o + 9] * v[2] + M[o + 13]; if (y < low) low = y; }); return low; }
+// apoya la raíz: entre t0 y t1 (con 0,04 de fundido) y = y propia − punto más bajo
+function apoyar(T3, rig, clip, pts, t0, t1, N) {
+  N = N || 96; const S = T3.CLIPS[rig], tmp = '__cab3d_tmp', base = clip.root && clip.root.length ? clip.root : [[0, 0, 0, 0]], out = [];
+  for (let i = 0; i <= N; i++) { const t = i / N, rx = muestreo(base, t, 1), ry = muestreo(base, t, 2), rz = muestreo(base, t, 3); S[tmp] = Object.assign({}, clip, {root: [[0, rx, ry, rz]]});
+    const low = minY(T3, rig, T3.poseTroop(rig, tmp, t), pts), w = Math.min(sstep(t0 - 0.04, t0, t), 1 - sstep(t1, t1 + 0.04, t));
+    out.push([+t.toFixed(4), +rx.toFixed(4), +(ry - low * w).toFixed(4), +rz.toFixed(4)]); }
+  delete S[tmp]; clip.root = out; return clip;
+}
+// posición de un punto de una parte en el instante t (marco del clip)
+function punto(T3, rig, clip, parte, local, t) { const M = T3.poseTroop(rig, clip, t), i = T3.RIGS[rig].findIndex(p => p[0] === parte), o = i * 16;
+  return [0, 1, 2].map(k => M[o + k] * local[0] + M[o + 4 + k] * local[1] + M[o + 8 + k] * local[2] + M[o + 12 + k]); }
+let _I = null, _reg = null;
+function registrar(T3, op) {
+  op = op || {}; const INFm = root.infanteria3d; if (!INFm) throw new Error('caballeria3d necesita infanteria3d.js cargado antes');
+  INFm.registrar(T3, op); const INF = INFm.instancia(T3); _I = _I || crear(T3, INF);
+  if (!Object.keys(CLIPS_S).length) { soldadoClips(INFm); grafo(); }
+  const tipos = [], clips = [], saltados = [];
+  Object.entries(_I.TIPOS).forEach(([k, K]) => { if (T3.KINDS[k] && !op.reemplazar) return; T3.KINDS[k] = K; if (!T3.TROOP_KINDS.includes(k)) T3.TROOP_KINDS.push(k); tipos.push(k); });
+  const SJ = T3.CLIPS.jinete, SS = T3.CLIPS.soldado;
+  Object.entries(CLIPS).forEach(([n, c]) => { if (SJ[n] && !op.reemplazar) { saltados.push(n); return; } const k = JSON.parse(JSON.stringify(c)); SJ[n] = k;
+    if (META[n].suelo === 'tendido') apoyar(T3, 'jinete', k, PTS_CAB, 0, 1.1); clips.push(n); });
+  Object.entries(CLIPS_S).forEach(([n, c]) => { if (SS[n] && !op.reemplazar) { saltados.push(n); return; } const k = JSON.parse(JSON.stringify(c)), m = META_S[n]; INFm._herramientas.alcanzar(T3, k);
+    if (m.suelo !== 'libre') INFm._herramientas.asentar(T3, n, k, {suelo: 'pie'});
+    else if (m.asentarDesde != null) apoyar(T3, 'soldado', k, PTS_SOL, m.asentarDesde, 1.1); else if (m.asentarHasta != null) apoyar(T3, 'soldado', k, PTS_SOL, -0.1, m.asentarHasta);
+    SS[n] = k; clips.push(n); });
+  // desfases de las parejas calculados con la cinemática: la víctima se coloca donde llega la punta del arma en el impacto
+  const tImp = c => (c.ev.find(e => e[0] && (e[1] === 'impacto' || e[1] === 'parada')) || [0.5])[0];
+  [['cab_lanza_ataque', 'cab_lanzado_d', [0, 2.05, 0], [0, 1.25, 0.12]], ['cab_sable_ataque', 'cab_tajo_d', [0, 0.85, 0], [0, 1.45, 0.05]]].forEach(([a, d, tip, blanco]) => {
+    const ti = tImp(SJ[a]), P = punto(T3, 'jinete', a, 'arma', tip, ti), dD = SS[d].root ? muestreo(SS[d].root, tImp(SS[d]), 3) : 0;
+    META[a].pareja.desfase = [+(P[0] - blanco[0]).toFixed(3), +(P[2] + blanco[2] + dD).toFixed(3), 180]; META_S[d].pareja.desfase = META[a].pareja.desfase.slice(); META_S[d].pareja.relativoA = a; });
+  ['golpe', 'parada'].forEach(n => { const a = `cab_${n}_jinete_a`, d = `cab_${n}_jinete_d`, ti = tImp(SJ[a]), P = punto(T3, 'jinete', a, 'arma', [0, 0.8, 0], ti), zA = muestreo(SJ[a].root, ti, 3), zD = muestreo(SJ[d].root, ti, 3);
+    const des = [+Math.min(P[0] - 0.32, -1.15).toFixed(3), +(zA + zD + 0.1).toFixed(3), 180]; META[a].pareja.desfase = des; META[d].pareja.desfase = des.slice(); META[d].pareja.relativoA = a; });
+  // lotes de los tipos cab_*: se preparan solos (marcas, crin, vello del jinete) y setClip pone el aire para la crin
+  const TB = T3.TroopBatch.prototype;
+  if (!TB._cab3d) { const add0 = TB.add, set0 = TB.setClip;
+    TB.add = function (x, y, z, yaw, scale, nation, clip, o) { const cab = /^cab_/.test(this.kind); if (cab && !this._iCab) prepararLote(this);
+      const i = add0.call(this, x, y, z, yaw, scale, nation, clip, o); if (cab && i >= 0) { marcar(this, i, (o && o.marcas) || (op.sortear !== false ? marcasAleatorias() : {})); aireDe(this, i, velocidadClip(clip)); } return i; };
+    TB.setClip = function (i, clip, ph, blend) { const r = set0.call(this, i, clip, ph, blend); if (r && this._iCab) aireDe(this, i, velocidadClip(clip)); return r; };
+    TB._cab3d = true; }
+  _reg = {tipos, clips, saltados}; return _reg;
+}
+// 0 (parado) … 1 (galope de carga), para la ondulación de crin y cola
+function velocidadClip(n) { const m = META[n]; if (m) { const A = m.aire && AIRES[m.aire]; return A ? Math.min(1, Math.abs(A.v) / 9) : /carga|ataque|jinete_|persecucion|huida|salto/.test(n) ? 1 : 0; }
+  return /galope|carga|huida/.test(n) ? 0.8 : /trote/.test(n) ? 0.4 : /paso/.test(n) ? 0.15 : 0; }
+
+
+/* ===================================================================================== */
+/* DEMOSTRACIÓN: demoCaballeria(contenedor, {vista: 'clips' | 'tipos' | 'escuadron', clip, tipo, nat, era, t, formacion})
+   Requiere Troops3D e infanteria3d. En «clips» aparecen solos el compañero (META.pareja) y el grupo del relevo (META.grupo). */
+function demoCaballeria(cont, op) {
+  op = op || {}; const T3 = root.Troops3D; if (!T3) throw new Error('demoCaballeria necesita Troops3D (troops3d.js)');
+  registrar(T3); const q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new Map(), arg = k => op[k] != null ? op[k] : q.get(k);
+  const NAT = ['PRU', 'AUT', 'FRA', 'GBR', 'RUS', 'USA', 'CSA', 'ESP', 'ITA', 'JPN'], TJ = Object.keys(JINETES);
+  const R = new THREE.WebGLRenderer({antialias: true}); R.setPixelRatio(Math.min(2, root.devicePixelRatio || 1)); R.domElement.style.cssText = 'display:block;width:100%;height:100%'; cont.appendChild(R.domElement);
+  const S = new THREE.Scene(); S.background = new THREE.Color(0xc9d2d4); S.fog = new THREE.Fog(0xc9d2d4, 40, 140);
+  S.add(new THREE.HemisphereLight(0xffffff, 0x5d6b48, 0.85)); const L = new THREE.DirectionalLight(0xfff1dc, 1.25); L.position.set(-4, 8, 6); S.add(L);
+  // suelo con marcas cada 2 m para ver el avance
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64; const cx = cv.getContext('2d'); cx.fillStyle = '#86965f'; cx.fillRect(0, 0, 64, 64); cx.fillStyle = '#7a8a55'; cx.fillRect(0, 0, 64, 3); cx.fillRect(0, 0, 3, 64);
+  const tx = new THREE.CanvasTexture(cv); tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.repeat.set(200, 200); tx.colorSpace = THREE.SRGBColorSpace;
+  const suelo = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshLambertMaterial({map: tx})); suelo.rotation.x = -Math.PI / 2; S.add(suelo);
+  const cam = new THREE.PerspectiveCamera(32, 1, 0.1, 400); let az = 1.2, el = 0.16, dist = 8, mira = new THREE.Vector3(0, 1.1, 0);
+  const sh = new T3.TroopShared(NAT.concat(['TUR', 'GEN'])); let lotes = [], moviles = [];
+  const panel = document.createElement('div'); panel.style.cssText = 'position:absolute;right:8px;top:8px;z-index:6;background:#2a1d12e8;color:#f0dfb4;padding:8px 10px;font:13px Georgia,serif;border:1px solid #b08a3e;max-width:320px';
+  if (getComputedStyle(cont).position === 'static') cont.style.position = 'relative'; cont.appendChild(panel);
+  const sel = (id, ops, v) => `<label style="display:block;margin:3px 0">${id} <select id="c3d_${id}" style="max-width:210px">${ops.map(o => `<option ${o === v ? 'selected' : ''}>${o}</option>`).join('')}</select></label>`;
+  const clips = Object.keys(CLIPS), est = {vista: arg('vista') || 'clips', clip: arg('clip') || 'cab_galope_carga', tipo: arg('tipo') || 'auto', nat: arg('nat') || 'FRA', era: arg('era') || 'A',
+    formacion: arg('formacion') || 'escuadron_linea', t: arg('t') != null ? +arg('t') : null};
+  panel.innerHTML = sel('vista', ['clips', 'tipos', 'escuadron'], est.vista) + sel('clip', clips, est.clip) + sel('tipo', ['auto'].concat(TJ), est.tipo) + sel('nat', NAT, est.nat) + sel('era', ERAS, est.era)
+    + sel('formacion', Object.keys(GRUPOS), est.formacion)
+    + `<label style="display:block;margin:3px 0">t <input id="c3d_t" type="range" min="0" max="1" step="0.005" value="${est.t == null ? 0 : est.t}" style="width:150px"> <input id="c3d_play" type="checkbox" ${est.t == null ? 'checked' : ''}> en marcha</label><div id="c3d_info" style="font-size:12px;opacity:.85;margin-top:4px"></div>`;
+  const $ = id => panel.querySelector('#c3d_' + id);
+  const tipoDe = cl => { if (est.tipo !== 'auto') return est.tipo; const m = META[cl] || {}; return /lanza/.test(cl) ? 'lancero' : m.oficial ? 'oficial' : /jinete_|persecucion/.test(cl) ? 'coracero' : /sable/.test(cl) ? 'husar' : 'dragon'; };
+  const lote = (k, e, n, cap, lod) => { const b = new T3.TroopBatch(sh, k, e, n, cap || 8, {lod: lod || 0}); S.add(b.mesh); lotes.push(b); return b; };
+  let reloj = 0, tAct = 0;
+  function montar() {
+    lotes.forEach(b => { S.remove(b.mesh); b.mesh.geometry.dispose(); }); lotes = []; moviles = []; const info = []; reloj = 0;
+    if (est.vista === 'clips') { const c = est.clip, m = META[c], C = T3.CLIPS.jinete[c], tp = tipoDe(c), J = JINETES[tp], nat = est.nat, e = J.eras.includes(est.era) ? est.era : J.eras[J.eras.length - 1];
+      const prin = m.grupo ? lote('cab_' + tp + '_sin_jinete', e, nat) : lote('cab_' + tp, e, nat); prin.add(0, 0, 0, 0, 1, nat, c, {phase: 0, h: 0, bright: 0.5, skin: 1, horse: 0});
+      if (m.grupo) { const g = m.grupo.jinete; lote('inf_cab_' + tp, e, nat).add(g.desfase[0], 0, g.desfase[1], 0, 1, nat, g.clip, {phase: 0, h: 0, bright: 0.5, skin: 1}); }
+      if (m.pareja && m.pareja.clip) { const d = m.pareja.desfase, o = m.pareja.clip, nat2 = NAT[(NAT.indexOf(nat) + 1) % NAT.length], jin = !!T3.CLIPS.jinete[o];
+        lote(jin ? 'cab_' + (tp === 'lancero' ? 'husar' : 'dragon') : 'inf_soldado', jin ? 'B' : e, nat2).add(d[0], 0, d[1], d[2] * Math.PI / 180, 1, nat2, o, {phase: 0, h: 0, bright: 0.5, skin: 2, horse: 2}); }
+      info.push(`<b>${c}</b> · ${C.dur.toFixed(2)} s ${C.loop ? '(bucle)' : ''} · ${tp}`, `eventos: ${(C.ev || []).map(x => x[1] + '@' + x[0].toFixed(2)).join(', ') || '—'}`,
+        `suelo: ${m.suelo} · avance: ${(m.avance || 0).toFixed(2)} m/ciclo · desplazamiento: ${m.desplazamiento.map(v => v.toFixed(1)).join(', ')}`, m.pareja ? `pareja: ${m.pareja.clip} en [${m.pareja.desfase.join(', ')}]` : '',
+        m.grupo ? `grupo: caballo sin jinete + ${m.grupo.jinete.clip}` : '', `transiciones: ${(m.transiciones || []).join(', ') || '—'}`);
+      dist = m.pareja ? 13 : 8; az = 1.25; }
+    else if (est.vista === 'tipos') { TJ.forEach((tp, i) => { const J = JINETES[tp], e = J.eras.includes(est.era) ? est.era : J.eras[J.eras.length - 1];
+        lote('cab_' + tp, e, est.nat, 2).add((i - (TJ.length - 1) / 2) * 2.2, 0, 0, Math.PI / 2, 1, est.nat, 'cab_parado' + (J.arma === 'lanza' ? '_lanza' : ''), {phase: i / TJ.length, h: 0, bright: 0.5, skin: i % 4, horse: i % 4}); });
+      info.push(`tipos · ${est.nat} · era ${est.era} (si el tipo no existe en esa era, la más cercana)`); mira.set(0, 1.2, 0); dist = 22; az = 0; el = 0.12; }
+    else { const tp = est.tipo === 'auto' ? 'husar' : est.tipo, J = JINETES[tp], e = J.eras.includes(est.era) ? est.era : J.eras[J.eras.length - 1], P = formacion(est.formacion, 32), c = META[est.clip] && META[est.clip].aire && !CLIPS[est.clip].loop === false ? est.clip : est.clip;
+      const L0 = lote('cab_' + tp, e, est.nat, 64, 0), L1 = lote('cab_' + tp, e, est.nat, 64, 1), LO = lote('cab_oficial', e, est.nat, 8, 0), m = META[c], C = T3.CLIPS.jinete[c];
+      P.forEach((p, i) => { const b = p.tipo ? LO : (Math.hypot(p.x, p.z) < 12 ? L0 : L1), k = b.add(p.x, 0, p.z, 0, 1, est.nat, C.loop ? c : 'cab_galope' + (J.arma === 'lanza' ? '_lanza' : ''), {phase: (i * 0.137) % 1, bright: Math.random()}); moviles.push([b, k, p]); });
+      info.push(`${est.formacion}: ${P.length} puestos · ${tp} · ${c}${C.loop ? '' : ' (clip de un pase: se muestra galope)'}`, 'LOD0 cerca y LOD1 en el resto; avanzan a la velocidad del clip'); dist = 30; az = 0.7; el = 0.35; }
+    $('info').innerHTML = info.filter(Boolean).join('<br>');
+  }
+  ['vista', 'clip', 'tipo', 'nat', 'era', 'formacion'].forEach(k => $(k).onchange = () => { est[k] = $(k).value; montar(); });
+  let arr = null; R.domElement.onpointerdown = e => { arr = [e.clientX, e.clientY]; }; root.addEventListener('pointerup', () => { arr = null; });
+  R.domElement.onpointermove = e => { if (!arr) return; az -= (e.clientX - arr[0]) * 0.008; el = Math.max(0.02, Math.min(1.3, el + (e.clientY - arr[1]) * 0.006)); arr = [e.clientX, e.clientY]; };
+  R.domElement.onwheel = e => { dist = Math.max(3, Math.min(80, dist * (1 + Math.sign(e.deltaY) * 0.1))); e.preventDefault(); };
+  montar(); let prev = performance.now(), vivo = true; const m4 = new THREE.Matrix4();
+  (function paso() { if (!vivo) return; const now = performance.now(), dt = Math.min(0.1, (now - prev) / 1000); prev = now; const w = cont.clientWidth || innerWidth, h = cont.clientHeight || innerHeight;
+    if (R.domElement.width !== Math.round(w * R.getPixelRatio()) || R.domElement.height !== Math.round(h * R.getPixelRatio())) R.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix();
+    const C = T3.CLIPS.jinete[est.clip], m = META[est.clip];
+    if (est.vista === 'clips') { if ($('play').checked) { reloj += dt; tAct = C.loop ? (reloj / C.dur) % 1 : Math.min(1, (reloj % (C.dur + 1.2)) / C.dur); $('t').value = tAct; } else tAct = +$('t').value;
+      sh.timeU.value = tAct * C.dur; const z = C.root ? muestreo(C.root, tAct, 3) : 0; mira.set(0, 1.1, z + (m.pareja ? (m.pareja.desfase[1] - z) * 0.3 : 0)); }
+    else if (est.vista === 'escuadron') { reloj += dt; sh.timeU.value = reloj; const v = m && m.avance && C.loop ? m.avance / C.dur : 6;
+      moviles.forEach(([b, k, p]) => { m4.makeTranslation(p.x, 0, p.z + v * reloj); b.mesh.setMatrixAt(k, m4); b.mesh.instanceMatrix.needsUpdate = true; }); mira.set(0, 1.0, v * reloj - 6); }
+    else { reloj += dt; sh.timeU.value = reloj; }
+    cam.position.set(mira.x + Math.sin(az) * Math.cos(el) * dist, mira.y + Math.sin(el) * dist, mira.z + Math.cos(az) * Math.cos(el) * dist); cam.lookAt(mira); R.render(S, cam); requestAnimationFrame(paso); })();
+  return {renderer: R, escena: S, camara: cam, montar, estado: est, parar() { vivo = false; R.dispose(); }};
+}
+
+const API = {JINETES, CUERPO, AIRES, PORTE, CLIPS, META, CLIPS_S, META_S, TRANSICIONES, rutaTransicion, GRUPOS, formacion, registrar, demoCaballeria, prepararLote, marcar, marcasAleatorias, CRINES, _crear: crear, _ik2: ik2,
+  _aux: {resolverPatas, cicloAire, jineteTracks, porteKeys, PATAS, CAB_Y, curva, PTS_CAB, PTS_SOL, apoyar, punto, velocidadClip}};
+root.caballeria3d = API;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ===== artilleria3d.js — artillería 1836–1945 para el modo «Batalla» de Victoria (three.js r152, sin archivos externos) =====
+   Amplía troops3d.js sin reemplazar nada (usa infanteria3d.js para los servidores y caballeria3d.js para el tiro). registrar(Troops3D, op) añade:
+   · PIEZAS (rigs propios «p_*», ≤ 9 partes: cureña, cuna, tubo, cierre, ruedas, haz de cañones, manivela, proyectil; LOD0 ≤ 1 500):
+     cañón de bronce de 6 y de 12 libras, obús de campaña, cañón rayado de retrocarga (B sin freno; C con freno de muelles/hidráulico y arado),
+     cañón de 75 con freno hidroneumático y escudo, obús pesado, cañón de campaña de la SGM, cañón de montaña, antitanque de 37–50 mm,
+     cañón de asedio de 24 libras con cureña de asedio, mortero de bronce y mortero de trinchera, cohete Congreve con su caballete,
+     ametralladoras Gatling, Maxim, Vickers y MG 34/42.
+   · PIEZA ENGANCHADA (rig «armon»): avantrén con lanza y cofre, pieza a remolque con la contera en el pinzote; carro de municiones;
+     avantrén solo. Tiro de 4–6 caballos (caballos de varas, de en medio y de guía) con conductores montados en los de la izquierda.
+   · SERVICIO DE PIEZA: secuencias sincronizadas de 3 a 7 servidores + jefe (mismos eventos en los mismos instantes que el clip de la pieza):
+     avancarga (escobillar, cargar el saquete, atacar, tapar y pinchar el oído, cebar, apuntar con el tornillo, dar fuego con el tirafrictor,
+     retroceso y devolver la pieza a batería), retrocarga (abrir el cierre, cargar el proyectil y la carga, cerrar, apuntar, fuego con cordón;
+     retroceso del tubo sobre la cuna), tiro rápido (75), antitanque, morteros, cohetes, ametralladoras (tirador, proveedor; manivela).
+   · MOVIMIENTO: rodar al paso, al trote y al galope de batería (ruedas que giran sin resbalar), desenganchar y enganchar (la pieza gira
+     sobre su eje y los servidores llevan la contera), servidores sentados en los cofres; grupos de tiro y de batería con posiciones relativas.
+   · REACCIONES: rueda rota, pieza desmontada (cureña partida), servidores muertos y heridos junto a la pieza, explosión del cofre de
+     municiones, tiro de metralla («bote») con META.metralla. Eventos y puntos (boca, oído, cofre) para el módulo de efectos.
+   Fuentes: «Instruction for Field Artillery» (EE. UU., 1864); «Aide-mémoire à l'usage des officiers d'artillerie» (1844, 1856); «Manual of Field
+   Artillery» (Reino Unido, 1871); «Règlement sur le service des bouches à feu de campagne» (Francia, 1905, para el 75); «Field Artillery
+   Training» (1914, 1939); H. Müller, «Die Entwickelung der Feldartillerie» (1893); dimensiones de piezas de los aide-mémoire y de museos (aprox.).
+   API: registrar(Troops3D, op) · TIPOS · PIEZAS · META · DOTACIONES · dotacion(pieza, ciclo) · formacion(tipo, n, op) · boca(T3, tipo, clip, t)
+        TRANSICIONES · rutaTransicion · demoArtilleria(cont) */
+(function (root) {
+'use strict';
+const THREE = root.THREE;
+const Z = {MAIN: 0, TRIM: 1, ACC: 2, HAT: 3, F1: 4, VEH: 7, FIX: 12};
+const C = {bronce: 0xb08a48, bronceO: 0x8a6a34, hierro: 0x34363a, acero: 0x5a5e62, aceroC: 0x8a9096, madera: 0x7a5232, maderaO: 0x4e3420, cuero: 0x5a3a22, cueroN: 0x26201c,
+  laton: 0xc8a048, negro: 0x1c1a1a, goma: 0x222220, lona: 0x8a8460, lana: 0xd8d0b8, cuerda: 0xb8a070, rojo: 0xa82020, saco: 0xc8b890, humo: 0x2a2a2a, blanco: 0xece6d6, verdeO: 0x4a5236};
+const ERAS = ['A', 'B', 'C', 'D', 'E'];
+const D2R = Math.PI / 180;
+
+/* ===================================================================================== */
+/* RIGS DE PIEZA: misma lista de partes, pivotes según la familia.
+   cureña (raíz en el suelo bajo el eje) · cuna (muñones: elevación; en avancarga sin cuna lleva el tubo) · tubo (retrocede sobre la cuna) ·
+   cierre (bloque de cierre / palanca de montar) · ruedaIz / ruedaDe · giro (haz de cañones de la Gatling) · manivela · proyectil (cohete) */
+const FAM = {
+  p_campana: {R: 0.65, ruedaX: 0.72, cuna: [0, 1.0, 0.1], cierre: [0, 0, -0.55], manivela: [-0.3, -0.04, -0.2], proyectil: [0, 0, 1.6]},
+  p_asedio: {R: 0.78, ruedaX: 0.84, cuna: [0, 1.32, 0.15], cierre: [0, 0, -0.9], manivela: [-0.3, -0.05, -0.3], proyectil: [0, 0, 2.6]},
+  p_montana: {R: 0.45, ruedaX: 0.52, cuna: [0, 0.72, 0.08], cierre: [0, 0, -0.42], manivela: [-0.22, -0.04, -0.15], proyectil: [0, 0, 1.0]},
+  p_mortero: {R: 0.3, ruedaX: 0.4, cuna: [0, 0.34, 0.0], cierre: [0, 0, -0.2], manivela: [-0.2, 0, 0], proyectil: [0, 0, 0.6]},
+  p_mortero_ligero: {R: 0.2, ruedaX: 0.3, cuna: [0, 0.06, -0.3], cierre: [0, 0, 0], manivela: [-0.15, 0.5, 0.2], proyectil: [0, 0, 1.2]},
+  p_cohete: {R: 0.2, ruedaX: 0.3, cuna: [0, 1.25, 0.1], cierre: [0, 0, -0.3], manivela: [0, 0, 0], proyectil: [0, 0.06, 0.4]},
+  p_mg: {R: 0.24, ruedaX: 0.34, cuna: [0, 0.42, 0.0], cierre: [0, 0.04, -0.36], manivela: [-0.12, 0, -0.3], proyectil: [0, 0, 0.75]}
+};
+function rigPieza(f) { const F = FAM[f];
+  return [['cureña', -1, [0, 0, 0]], ['cuna', 0, F.cuna], ['tubo', 1, [0, 0, 0]], ['cierre', 2, F.cierre], ['ruedaIz', 0, [F.ruedaX, F.R, 0]], ['ruedaDe', 0, [-F.ruedaX, F.R, 0]],
+    ['giro', 2, [0, 0, 0.3]], ['manivela', 1, F.manivela], ['proyectil', 1, F.proyectil]]; }
+// pieza enganchada: avantrén (raíz bajo su eje), ruedas, lanza, la pieza (o el carro) colgada del pinzote y sus ruedas
+const ARMON = {R: 0.65, ruedaX: 0.76, pinzote: [0, 0.68, -0.78], ejeP: [0, -0.03, -2.6], ruedaPX: 0.72};
+const RIG_ARMON = [['avantren', -1, [0, 0, 0]], ['ruedaAI', 0, [ARMON.ruedaX, ARMON.R, 0]], ['ruedaAD', 0, [-ARMON.ruedaX, ARMON.R, 0]], ['lanza', 0, [0, 0.62, 0.55]],
+  ['arrastre', 0, ARMON.pinzote], ['ruedaPI', 4, [ARMON.ruedaPX, ARMON.ejeP[1], ARMON.ejeP[2]]], ['ruedaPD', 4, [-ARMON.ruedaPX, ARMON.ejeP[1], ARMON.ejeP[2]]]];
+
+/* ---------- piezas (marco de la cureña; boca hacia +z; el tubo se dibuja en el marco de la cuna o del tubo) ---------- */
+const PIEZAS = {
+  canon_6: {nombre: 'Cañón de bronce de 6 libras (sistema An XI / 1841, aprox.)', fam: 'p_campana', eras: ['A'], ciclo: 'A', calibre: 0.095, L: 1.55, Lc: 2.3, elev: 2, metralla: {balas: 41, cono: 8, alcance: 350}},
+  canon_12: {nombre: 'Cañón de bronce de 12 libras («Napoleón» 1857 / Gribeauval, aprox.)', fam: 'p_campana', eras: ['A', 'B'], ciclo: 'A', calibre: 0.117, L: 1.66, Lc: 2.45, elev: 2, metralla: {balas: 27, cono: 9, alcance: 400}},
+  obus_campana: {nombre: 'Obús de campaña de bronce (24 libras / 15 cm, aprox.)', fam: 'p_campana', eras: ['A', 'B'], ciclo: 'A', calibre: 0.15, L: 1.05, Lc: 2.3, elev: 10, metralla: {balas: 48, cono: 12, alcance: 300}},
+  rayado_rc: {nombre: 'Cañón rayado de retrocarga (Krupp C/64 en B; con freno y arado en C)', fam: 'p_campana', eras: ['B', 'C'], ciclo: 'B', calibre: 0.08, L: 2.0, Lc: 2.6, elev: 3},
+  canon_75: {nombre: 'Cañón de 75 mm de tiro rápido (mle 1897; freno hidroneumático, escudo)', fam: 'p_campana', eras: ['D', 'E'], ciclo: 'R', calibre: 0.075, L: 2.7, Lc: 2.7, elev: 4},
+  obus_pesado: {nombre: 'Obús pesado de 15 cm (sFH 13 / 6 pulgadas 26 cwt, aprox.)', fam: 'p_campana', eras: ['D', 'E'], ciclo: 'C', calibre: 0.15, L: 2.1, Lc: 3.1, elev: 22},
+  campana_E: {nombre: 'Cañón-obús de campaña de la SGM (leFH 18 / 25 libras, aprox.)', fam: 'p_campana', eras: ['E'], ciclo: 'E', calibre: 0.105, L: 2.6, Lc: 3.2, elev: 10},
+  gatling: {nombre: 'Ametralladora Gatling (1865–1890) en cureña de campaña', fam: 'p_campana', eras: ['B', 'C'], ciclo: 'G', calibre: 0.011, L: 1.1, Lc: 2.1, elev: 1},
+  asedio_24: {nombre: 'Cañón de asedio de 24 libras con cureña de asedio', fam: 'p_asedio', eras: ['A', 'B'], ciclo: 'A', calibre: 0.15, L: 2.9, Lc: 3.3, elev: 3, metralla: {balas: 48, cono: 7, alcance: 450}},
+  montana: {nombre: 'Cañón de montaña (obús de 12 libras 1841 en A–B; 7,5 cm con escudo en C–D)', fam: 'p_montana', eras: ['A', 'B', 'C', 'D'], ciclo: 'M', calibre: 0.075, L: 0.95, Lc: 1.5, elev: 6, metralla: {balas: 24, cono: 12, alcance: 250}},
+  antitanque: {nombre: 'Cañón antitanque de 37–50 mm (Pak 36/38, aprox.)', fam: 'p_montana', eras: ['E'], ciclo: 'T', calibre: 0.05, L: 2.2, Lc: 2.1, elev: 1},
+  mortero: {nombre: 'Mortero de bronce en afuste de madera (tipo Coehorn / 8 pulgadas)', fam: 'p_mortero', eras: ['A', 'B'], ciclo: 'MA', calibre: 0.2, L: 0.6, Lc: 0.8, elev: 45},
+  mortero_ligero: {nombre: 'Mortero de trinchera de avancarga por gravedad (Stokes / 81 mm)', fam: 'p_mortero_ligero', eras: ['D', 'E'], ciclo: 'MD', calibre: 0.081, L: 1.2, Lc: 0.6, elev: 0},
+  congreve: {nombre: 'Cohete Congreve con caballete de lanzamiento', fam: 'p_cohete', eras: ['A'], ciclo: 'K', calibre: 0.08, L: 0.6, Lc: 1.2, elev: 12},
+  maxim: {nombre: 'Ametralladora Maxim en afuste de ruedas con escudo (Sokolov / MG 08 en trineo, aprox.)', fam: 'p_mg', eras: ['C', 'D'], ciclo: 'MG', calibre: 0.008, L: 1.1, Lc: 0.9, elev: 0},
+  vickers: {nombre: 'Ametralladora Vickers en trípode', fam: 'p_mg', eras: ['D', 'E'], ciclo: 'MG', calibre: 0.0077, L: 1.1, Lc: 0.9, elev: 0},
+  mg34: {nombre: 'Ametralladora MG 34/42 en afuste Lafette', fam: 'p_mg', eras: ['E'], ciclo: 'MG', calibre: 0.0079, L: 1.2, Lc: 0.9, elev: 0}
+};
+// transformación de la pieza (marco de su cureña) al marco del «arrastre» (pinzote): girada 180°, contera levantada hasta el pinzote
+function marcoRemolque(tipo) { const D = PIEZAS[tipo], Fm = FAM[D.fam], L = D.Lc, eje = new THREE.Vector3(0, Fm.R, 0);
+  const ejeP = new THREE.Vector3(...ARMON.ejeP), ang = Math.atan2(ARMON.pinzote[1] - 0.1 - (Fm.R - ARMON.R), L);   // eleva la contera
+  const M = new THREE.Matrix4().makeRotationY(Math.PI).premultiply(new THREE.Matrix4().makeRotationX(-ang));
+  // la rueda de la pieza (en eje) queda en ejeP del arrastre
+  const e2 = eje.clone().applyMatrix4(M); M.premultiply(new THREE.Matrix4().makeTranslation(ejeP.x - e2.x, ejeP.y + ARMON.R - Fm.R * 0 - e2.y + (Fm.R - ARMON.R), ejeP.z - e2.z)); return M; }
+
+/* ===================================================================================== */
+/* GEOMETRÍA */
+function crear(T3, INF, CAB, CAB_J) {
+const GB = T3._dev.GeoBuilder, xf = T3._dev.xf;
+const IDX = r => { const m = {}; (T3.RIGS[r] || (r === 'armon' ? RIG_ARMON : rigPieza(r))).forEach((p, i) => { m[p[0]] = i; }); return m; };
+
+// rueda de radios (eje X): llanta de hierro, pinas, radios en cruz y cubo. o.disco: rueda de chapa con neumático (SGM). ~150 triángulos
+function rueda(g, part, R, o) {
+  o = o || {}; const F = Z.FIX, w = o.w || 0.075, h = w / 2, n = o.n || 12, rim = o.rim || 0.07, ri = R - rim, P = (r, a, x) => [x, Math.cos(a) * r, Math.sin(a) * r];
+  if (o.disco) {
+    g.loft(part, F, C.goma, [[-h * 1.6, R * 0.82, R * 0.82], [-h * 1.6, R, R], [h * 1.6, R, R], [h * 1.6, R * 0.82, R * 0.82]], 12, {axis: 'x'});
+    [1, -1].forEach(s => g.disc(part, Z.VEH, 0, [s * h * 1.2, 0, 0], R * 0.82, 10, {rot: s > 0 ? null : [0, 180, 0]}));
+    g.loft(part, F, C.acero, [[-0.08, 0.07, 0.07], [0.1, 0.06, 0.06]], 6, {axis: 'x', capA: true, capB: true}); return g;
+  }
+  for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2, b = (i + 1) / n * Math.PI * 2;
+    g.quad(P(R, a, h), P(R, a, -h), P(R, b, -h), P(R, b, h), part, F, C.hierro);                                                        // llanta
+    g.quad(P(ri, a, h), P(R, a, h), P(R, b, h), P(ri, b, h), part, Z.VEH, 0); g.quad(P(R, a, -h), P(ri, a, -h), P(ri, b, -h), P(R, b, -h), part, Z.VEH, 0);   // pinas
+    if (!o.ligera) g.quad(P(ri, b, h), P(ri, b, -h), P(ri, a, -h), P(ri, a, h), part, Z.VEH, 0); }
+  const ns = o.radios || 12;
+  for (let i = 0; i < ns; i++) { const a = (i + 0.5) / ns * Math.PI * 2, d = 0.02, A = [0.03, 0, 0], B = P(ri, a, 0), t = [0, -Math.sin(a), Math.cos(a)];
+    g.quad([A[0], A[1] + t[1] * d, A[2] + t[2] * d], [B[0], B[1] + t[1] * d * 0.7, B[2] + t[2] * d * 0.7], [B[0], B[1] - t[1] * d * 0.7, B[2] - t[2] * d * 0.7], [A[0], A[1] - t[1] * d, A[2] - t[2] * d], part, Z.VEH, 0);
+    g.quad([A[0], A[1] - t[1] * d, A[2] - t[2] * d], [B[0], B[1] - t[1] * d * 0.7, B[2] - t[2] * d * 0.7], [B[0], B[1] + t[1] * d * 0.7, B[2] + t[2] * d * 0.7], [A[0], A[1] + t[1] * d, A[2] + t[2] * d], part, Z.VEH, 0); }
+  g.loft(part, Z.VEH, 0, [[-0.12, 0.07, 0.07], [-0.03, 0.1, 0.1], [0.06, 0.1, 0.1], [0.13, 0.06, 0.06]], 6, {axis: 'x', capA: true, capB: true});
+  g.loft(part, F, C.hierro, [[0.12, 0.06, 0.06], [0.18, 0.04, 0.04]], 6, {axis: 'x', capB: true});
+  return g;
+}
+// tubo a lo largo de z: perfil [[z, r]], boca con ánima oscura; o.y, o.at, o.rot, o.n
+function tubo(g, part, prof, col, o) {
+  o = o || {}; const n = o.n || 10, F = Z.FIX;
+  g.loft(part, F, col, prof.map(([z, r]) => [z, r, r, 0, o.y || 0]), n, {axis: 'z', capA: true, at: o.at, rot: o.rot});
+  const [zm, rm] = prof[prof.length - 1], bore = o.anima || rm * 0.5;
+  g.loft(part, F, C.negro, [[zm + 0.001, bore, bore, 0, o.y || 0], [zm - 0.06, bore, bore, 0, o.y || 0]], n, {axis: 'z', at: o.at, rot: o.rot, inside: true, capB: true});
+  g.loft(part, F, col, [[zm, rm, rm, 0, o.y || 0], [zm + 0.0005, bore, bore, 0, o.y || 0]], n, {axis: 'z', at: o.at, rot: o.rot, flatN: true});
+  return g;
+}
+const munones = (g, part, r, x, col) => g.loft(part, Z.FIX, col, [[-x, r, r], [x, r, r]], 6, {axis: 'x', capA: true, capB: true});
+// gualderas (flasco) de una cureña de madera: dos tablones desde el eje hasta la contera, que se juntan atrás
+function flasco(g, part, o) {
+  const F = Z.FIX, ye = o.yEje, L = o.L, sep = o.sep, sepC = o.sepC || 0.12, h = o.h || 0.32, t = o.t || 0.08, zf = o.zf || 0.35, yC = o.yC || 0.12, V = Z.VEH;
+  [1, -1].forEach(s => { const a = [s * sep, ye + 0.2, zf], b = [s * sepC, yC + h * 0.6, -L], d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], len = Math.hypot(...d), rx = Math.atan2(-d[1], -d[2]) / D2R, ry = Math.atan2(d[0], -d[2]) / D2R;
+    g.box(part, V, 0, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2], [t, h, len], {rot: [rx, -ry, 0], bottom: true}); });
+  g.box(part, V, 0, [0, yC + 0.05, -L + 0.15], [sepC * 2 + 0.08, 0.16, 0.32], {bottom: true});                                       // contera
+  g.box(part, F, C.hierro, [0, yC - 0.02, -L], [0.1, 0.05, 0.08], {});                                                               // argolla de la contera (luneta)
+  g.box(part, V, 0, [0, ye, 0], [sep * 2 + 0.3, 0.14, 0.14], {bottom: true});                                                        // eje (gualdera del eje)
+  g.loft(part, F, C.hierro, [[-(o.ejeX || 0.8), 0.045, 0.045], [o.ejeX || 0.8, 0.045, 0.045]], 6, {axis: 'x', at: [0, ye, 0]});
+  for (let i = 1; i <= 2; i++) { const z = -L * i / 3, x = sep + (sepC - sep) * i / 3; g.box(part, V, 0, [0, ye + 0.2 - (ye + 0.2 - yC - h * 0.6) * i / 3, z], [x * 2, 0.08, 0.1], {}); }   // telera
+}
+// tornillo de puntería bajo la culata
+const tornillo = (g, part, at) => { g.cyl(part, Z.FIX, C.hierro, at, 0.018, 0.018, 0.3, 4, {}); g.box(part, Z.FIX, C.hierro, [at[0], at[1] - 0.1, at[2]], [0.18, 0.02, 0.02], {}); };
+// accesorios en la cureña: cubo de la lanada, espeque en la contera, cofres de eje
+const cubo = (g, part, at) => g.cyl(part, Z.FIX, C.maderaO, at, 0.08, 0.1, 0.22, 6, {top: true, bottom: true});
+const espeque = (g, part, at, rot) => g.cyl(part, Z.FIX, C.madera, at, 0.02, 0.025, 1.2, 4, {rot});
+
+function pieza(g, tipo, o, P) {
+  const D = PIEZAS[tipo], F = Z.FIX, V = Z.VEH, Fm = FAM[D.fam], cu = Fm.cuna, era = o.era, br = era <= 'B' && /canon_|obus_c|asedio|montana|mortero$/.test(tipo) && !(tipo === 'montana' && era >= 'C');
+  const colT = br ? C.bronce : C.acero, ye = Fm.R;
+  // ruedas
+  if (!/mortero|congreve|vickers|mg34/.test(tipo)) { const R = Fm.R, disco = tipo === 'antitanque' || tipo === 'campana_E';
+    [P.ruedaIz, P.ruedaDe].forEach((p, i) => rueda(g, p, R, {disco, w: tipo === 'asedio_24' ? 0.1 : 0.075, radios: tipo === 'maxim' ? 8 : R > 0.6 ? 12 : 10, ligera: R < 0.5, n: R < 0.4 ? 10 : 12})); }
+  const T = P.tubo, Cu = P.cuna, Cr = P.cureña;
+  switch (tipo) {
+    case 'canon_6': case 'canon_12': case 'obus_campana': case 'asedio_24': {
+      // tubo de bronce (o hierro en el de asedio): cascabel, culata, refuerzos, caña y brocal; los muñones en la cuna
+      const L = D.L, r0 = D.calibre * 0.95 + (tipo === 'asedio_24' ? 0.08 : 0.055), rb = r0 * 0.78, zb = -L * 0.38, zf = L * 0.62, obus = tipo === 'obus_campana';
+      const prof = obus ? [[zb - 0.08, 0.05], [zb - 0.02, r0 * 0.9], [zb, r0], [zb + 0.25, r0 * 0.96], [zb + 0.32, r0 * 1.04], [zf - 0.12, r0 * 0.98], [zf - 0.06, r0 * 1.08], [zf, r0 * 1.05]]
+        : [[zb - 0.1, 0.045], [zb - 0.03, r0 * 0.72], [zb, r0], [zb + L * 0.33, r0 * 0.94], [zb + L * 0.35, r0 * 0.86], [zf - 0.16, rb * 0.82], [zf - 0.07, rb * 0.95], [zf, rb * 0.9]];
+      tubo(g, T, prof, tipo === 'asedio_24' && era === 'B' ? C.hierro : C.bronce, {n: 10, anima: D.calibre / 2});
+      g.octa(T, F, C.bronce, [0, 0, zb - 0.13], 0.05);                                                                                       // botón del cascabel
+      munones(g, T, 0.045, r0 + 0.07, tipo === 'asedio_24' && era === 'B' ? C.hierro : C.bronce);
+      if (!obus) [1, -1].forEach(s => g.box(T, F, C.bronce, [s * 0.05, r0 * 0.92, 0.02], [0.03, 0.05, 0.1], {}));                           // asas (delfines)
+      g.box(T, F, C.bronceO, [0, r0 * 0.98, zb + 0.1], [0.04, 0.03, 0.04], {});                                                              // oído
+      const L2 = D.Lc, sep = tipo === 'asedio_24' ? 0.3 : 0.22;
+      flasco(g, Cr, {yEje: ye, L: L2, sep, sepC: 0.12, h: tipo === 'asedio_24' ? 0.42 : 0.3, t: 0.085, zf: 0.3, yC: 0.1, ejeX: Fm.ruedaX + 0.06});
+      tornillo(g, Cr, [0, ye + 0.22, -0.5]);
+      cubo(g, Cr, [0, 0.4, -L2 * 0.55]); espeque(g, Cr, [0.18, ye * 0.5, -L2 * 0.7], [80, 0, 0]);
+      if (era === 'A' && tipo !== 'asedio_24') [1, -1].forEach(s => g.box(Cr, V, 0, [s * 0.42, ye + 0.12, 0], [0.34, 0.24, 0.3], {bottom: true}));   // cofres de eje
+      if (tipo === 'asedio_24') g.box(Cr, F, C.maderaO, [0, 0.02, 0], [2.6, 0.04, 3.6], {});                                               // explanada de tablones
+      break; }
+    case 'rayado_rc': {
+      const L = D.L, zb = -0.62, zf = L - 0.62;
+      tubo(g, T, [[zb, 0.11], [zb + 0.55, 0.11], [zb + 0.62, 0.095], [zf - 0.05, 0.065], [zf, 0.07]], C.acero, {n: 10, anima: 0.04});
+      g.box(P.cierre, F, C.aceroC, [0, 0, 0.02], [0.26, 0.17, 0.12], {});                                                               // cierre de cuña (Krupp)
+      g.box(P.cierre, F, C.hierro, [-0.15, 0.0, 0.02], [0.05, 0.05, 0.05], {});
+      munones(g, T, 0.04, 0.16, C.acero);
+      if (era === 'C') { g.box(Cu, F, C.acero, [0, -0.12, 0.25], [0.12, 0.1, 1.1], {}); g.cyl(Cu, F, C.aceroC, [0, -0.12, 0.25], 0.04, 0.04, 1.0, 6, {rot: [90, 0, 0]}); }   // cuna con freno
+      const L2 = D.Lc; g.box(Cr, V, 0, [0, ye - 0.02, -L2 * 0.45], [0.24, 0.22, L2 * 1.0], {rot: [-15, 0, 0], bottom: true});              // contera de cajón
+      [1, -1].forEach(s => g.box(Cr, V, 0, [s * 0.16, ye + 0.18, -0.05], [0.06, 0.34, 0.7], {bottom: true}));
+      g.loft(Cr, F, C.hierro, [[-0.82, 0.045, 0.045], [0.82, 0.045, 0.045]], 6, {axis: 'x', at: [0, ye, 0]});
+      if (era === 'C') g.box(Cr, F, C.hierro, [0, 0.12, -L2 + 0.05], [0.36, 0.26, 0.04], {rot: [30, 0, 0]});                               // arado
+      tornillo(g, Cr, [0, ye + 0.2, -0.45]); [1, -1].forEach(s => g.box(Cr, V, 0, [s * 0.35, ye + 0.15, 0.02], [0.3, 0.22, 0.26], {bottom: true}));   // asientos-cofre
+      break; }
+    case 'canon_75': case 'obus_pesado': case 'campana_E': {
+      const L = D.L, pesado = tipo === 'obus_pesado', e = tipo === 'campana_E', rT = pesado ? 0.12 : e ? 0.075 : 0.06, zb = pesado ? -0.75 : -0.6, zf = L + zb;
+      tubo(g, T, [[zb, rT * 1.6], [zb + 0.35, rT * 1.6], [zb + 0.4, rT * 1.25], [zf - (e ? 0.25 : 0.05), rT], [zf - (e ? 0.25 : 0), rT * 1.05]].concat(e ? [[zf - 0.24, rT * 1.4], [zf, rT * 1.4]] : []), C.acero, {n: 10, anima: D.calibre / 2});   // e: freno de boca
+      g.box(P.cierre, F, C.aceroC, [0, 0, 0.03], [rT * 3.2, rT * 3.2, 0.1], {});                                                         // cierre (excéntrico Nordenfelt / de tornillo)
+      g.cyl(P.cierre, F, C.hierro, [-rT * 1.7, 0, 0.03], 0.02, 0.02, 0.18, 4, {rot: [0, 0, 90]});                                           // palanca
+      // cuna con los cilindros del freno y del recuperador (no retroceden)
+      g.box(Cu, F, C.acero, [0, -rT * 1.9, 0.15], [rT * 2.4, rT * 2.2, L * 0.62], {});
+      g.cyl(Cu, F, C.aceroC, [0, -rT * 1.9, 0.15 + L * 0.32], rT * 0.8, rT * 0.8, 0.08, 6, {rot: [90, 0, 0]});
+      munones(g, Cu, 0.05, rT * 1.5 + 0.08, C.acero);
+      g.box(Cu, F, C.negro, [-rT * 2.2, 0.1, -0.15], [0.06, 0.08, 0.22], {});                                                              // alza panorámica / goniómetro
+      // escudo, eje, contera y arado
+      if (!pesado) { const W = e ? 1.7 : 1.6; [1, -1].forEach(s => g.box(Cr, V, 0, [s * (W / 4 + 0.08), ye + 0.45, 0.35], [W / 2 - 0.1, 0.95, 0.03], {rot: [-8, 0, 0], bottom: true}));
+        g.box(Cr, V, 0, [0, ye + 0.08, 0.36], [0.2, 0.25, 0.03], {rot: [-8, 0, 0]}); }
+      g.loft(Cr, F, C.hierro, [[-0.84, 0.05, 0.05], [0.84, 0.05, 0.05]], 6, {axis: 'x', at: [0, ye, 0]});
+      g.box(Cr, V, 0, [0, ye + 0.12, -0.05], [0.4, 0.24, 0.5], {bottom: true});
+      if (e) [1, -1].forEach(s => g.box(Cr, V, 0, [s * 0.25, ye * 0.5, -D.Lc * 0.5], [0.12, 0.16, D.Lc], {rot: [-11, -s * 9, 0], bottom: true}));   // contera abierta (mástiles)
+      else g.box(Cr, V, 0, [0, ye * 0.5, -D.Lc * 0.5], [pesado ? 0.34 : 0.2, 0.2, D.Lc], {rot: [-12, 0, 0], bottom: true});
+      g.box(Cr, F, C.hierro, [0, 0.12, -D.Lc + 0.05], [pesado ? 0.5 : 0.4, 0.3, 0.04], {rot: [30, 0, 0]});                                // arado
+      if (tipo === 'canon_75') [1, -1].forEach(s => { g.box(Cr, F, C.hierro, [s * 0.32, ye - 0.05, 0.1], [0.24, 0.04, 0.24], {}); g.box(Cr, F, C.hierro, [s * 0.75, 0.05, 0.05], [0.08, 0.1, 0.3], {}); });   // asientos y zapatas de freno
+      if (pesado) [1, -1].forEach(s => g.box(Cr, V, 0, [s * 0.18, ye + 0.15, 0.1], [0.05, 0.36, 0.9], {bottom: true}));
+      break; }
+    case 'gatling': {
+      for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2, x = Math.cos(a) * 0.05, y = Math.sin(a) * 0.05; g.cyl(P.giro, F, C.acero, [x, y, 0.25], 0.011, 0.011, 1.0, 4, {rot: [90, 0, 0]}); }
+      [0.05, 0.55].forEach(z => g.cyl(P.giro, F, C.bronce, [0, 0, z], 0.075, 0.075, 0.05, 8, {rot: [90, 0, 0]}));
+      g.loft(T, F, C.bronce, [[-0.55, 0.11, 0.11], [-0.25, 0.11, 0.11], [-0.2, 0.08, 0.08]], 8, {axis: 'z', capA: true});                     // cárter
+      g.box(T, F, C.bronce, [0, 0.13, -0.38], [0.06, 0.12, 0.14], {}); g.box(T, F, C.laton, [0, 0.26, -0.38], [0.08, 0.16, 0.08], {});   // tolva
+      g.cyl(P.manivela, F, C.hierro, [0, 0, 0], 0.012, 0.012, 0.08, 4, {rot: [0, 0, 90]}); g.box(P.manivela, F, C.hierro, [-0.04, -0.08, 0], [0.02, 0.16, 0.02], {}); g.cyl(P.manivela, F, C.madera, [-0.07, -0.15, 0], 0.015, 0.015, 0.06, 4, {rot: [0, 0, 90]});
+      munones(g, Cu, 0.035, 0.16, C.bronce); g.box(Cu, F, C.bronce, [0, -0.06, -0.2], [0.2, 0.08, 0.5], {});
+      flasco(g, Cr, {yEje: ye, L: D.Lc, sep: 0.16, sepC: 0.1, h: 0.26, t: 0.07, zf: 0.25, yC: 0.1, ejeX: 0.78}); tornillo(g, Cr, [0, ye + 0.15, -0.3]);
+      break; }
+    case 'montana': case 'antitanque': {
+      const at = tipo === 'antitanque', L = D.L, zb = at ? -0.55 : -0.32, zf = L + zb, bronce = !at && era <= 'B', r = at ? 0.04 : 0.075;
+      tubo(g, T, at ? [[zb, 0.075], [zb + 0.3, 0.075], [zb + 0.35, 0.05], [zf - 0.2, 0.04], [zf - 0.2, 0.065], [zf, 0.065]] : [[zb - 0.06, 0.04], [zb, r + 0.03], [zb + 0.3, r + 0.025], [zf - 0.06, r], [zf, r + 0.012]], bronce ? C.bronce : C.acero, {n: 8, anima: D.calibre / 2});
+      munones(g, at ? Cu : T, 0.03, 0.12, bronce ? C.bronce : C.acero);
+      if (at || era >= 'C') { g.box(P.cierre, F, C.aceroC, [0, 0, 0.02], [0.12, 0.12, 0.08], {}); g.box(Cu, F, C.acero, [0, -0.1, 0.05], [0.12, 0.1, 0.8], {}); }
+      if (at || era >= 'C') { [1, -1].forEach(s => g.box(Cr, V, 0, [s * 0.42, ye + 0.38, 0.25], [0.68, at ? 0.62 : 0.7, 0.02], {rot: [-10, 0, 0], bottom: true})); }   // escudo (doble en el antitanque)
+      if (at) [1, -1].forEach(s => g.box(Cr, V, 0, [s * 0.24, ye * 0.45, -D.Lc * 0.5], [0.07, 0.09, D.Lc], {rot: [-8, -s * 12, 0], bottom: true}));
+      else flasco(g, Cr, {yEje: ye, L: D.Lc, sep: 0.14, sepC: 0.09, h: 0.2, t: 0.05, zf: 0.2, yC: 0.07, ejeX: 0.58});
+      if (at) g.loft(Cr, F, C.hierro, [[-0.6, 0.035, 0.035], [0.6, 0.035, 0.035]], 6, {axis: 'x', at: [0, ye, 0]});
+      tornillo(g, Cr, [0, ye + 0.14, -0.25]);
+      break; }
+    case 'mortero': {
+      tubo(g, T, [[-0.25, 0.14], [-0.18, 0.2], [0.05, 0.19], [0.28, 0.16], [0.35, 0.18]], C.bronce, {n: 10, anima: D.calibre / 2});
+      munones(g, T, 0.045, 0.24, C.bronce);
+      g.box(Cr, V, 0, [0, 0.17, 0], [0.7, 0.3, 1.0], {bottom: true}); [1, -1].forEach(s => g.box(Cr, V, 0, [s * 0.27, 0.36, 0], [0.12, 0.14, 0.5], {}));
+      g.box(Cr, F, C.madera, [0, 0.36, 0.38], [0.24, 0.1, 0.16], {rot: [20, 0, 0]});                                                     // cuña de puntería
+      break; }
+    case 'mortero_ligero': {
+      // el tubo sale de la placa: la cuna pivota en la base; el tubo se dibuja a lo largo de +z y la cuna lo inclina
+      tubo(g, T, [[0.0, 0.055], [0.06, 0.05], [D.L, 0.048]], era === 'E' ? C.verdeO : C.acero, {n: 8, anima: D.calibre / 2});
+      g.octa(T, F, C.acero, [0, 0, -0.01], 0.06);
+      g.box(Cr, F, C.acero, [0, 0.02, -0.3], [0.5, 0.04, 0.4], {});                                                                      // placa base
+      [1, -1].forEach(s => g.tube(Cr, F, C.acero, [s * 0.28, 0, 0.45], [0, 0.72, 0.42], [[0, 0.018], [1, 0.016]], 4));                    // bípode
+      g.box(Cr, F, C.acero, [0, 0.74, 0.42], [0.12, 0.06, 0.06], {}); g.cyl(Cr, F, C.hierro, [0.02, 0.6, 0.42], 0.012, 0.012, 0.3, 4, {});
+      break; }
+    case 'congreve': {
+      [[0.5, -0.5], [-0.5, -0.5], [0, 0.75]].forEach(([x, z]) => g.tube(Cr, F, C.madera, [x, 0, z], [0, 1.25, 0.05], [[0, 0.03], [1, 0.022]], 4));   // caballete (trípode)
+      g.box(Cu, F, C.hierro, [0, 0.0, 0.4], [0.12, 0.05, 2.4], {rot: [0, 0, 0]}); [1, -1].forEach(s => g.box(Cu, F, C.hierro, [s * 0.065, 0.05, 0.4], [0.015, 0.08, 2.4], {}));   // canal
+      tubo(g, P.proyectil, [[-0.2, 0.05], [0.25, 0.05], [0.4, 0.0]], C.hierro, {n: 6});                                                  // cohete de 12 libras
+      g.cyl(P.proyectil, F, C.madera, [0, 0.0, -1.7], 0.012, 0.012, 3.0, 4, {rot: [90, 0, 0]});                                          // vara de guía
+      break; }
+    case 'maxim': case 'vickers': case 'mg34': {
+      const mg = tipo === 'mg34';
+      if (mg) { g.box(T, F, C.negro, [0, 0, 0], [0.06, 0.08, 0.7], {}); g.cyl(T, F, C.negro, [0, 0, 0.6], 0.022, 0.018, 0.5, 6, {rot: [90, 0, 0]}); g.box(T, F, C.maderaO, [0, -0.03, -0.45], [0.05, 0.12, 0.3], {taper: 0.2});
+        g.box(T, F, C.negro, [0.06, -0.02, 0.05], [0.04, 0.1, 0.14], {}); }                                                                // cinta / tambor
+      else { g.box(T, F, C.bronce, [0, 0, -0.18], [0.11, 0.14, 0.4], {}); tubo(g, T, [[0.0, 0.055], [0.62, 0.055], [0.65, 0.03], [0.75, 0.022]], tipo === 'vickers' ? C.acero : C.bronce, {n: 8, anima: 0.006});   // cajón y camisa de agua
+        [1, -1].forEach(s => g.box(T, F, C.madera, [s * 0.05, 0, -0.42], [0.025, 0.06, 0.06], {})); }                                      // empuñaduras de pala
+      g.box(P.cierre, F, C.hierro, [0, 0, 0], [0.03, 0.03, 0.08], {});
+      if (tipo === 'maxim') { g.box(Cr, F, C.verdeO, [0, 0.18, 0.05], [0.28, 0.08, 0.7], {}); g.box(Cr, Z.VEH, 0, [0, 0.62, 0.32], [0.5, 0.42, 0.02], {rot: [-8, 0, 0]});   // afuste de ruedas y escudo
+        g.box(Cr, F, C.verdeO, [0, 0.08, -0.6], [0.08, 0.06, 0.7], {rot: [-6, 0, 0]}); g.cyl(Cr, F, C.hierro, [0, 0.3, 0], 0.03, 0.03, 0.22, 6, {}); }
+      else { [[0.32, 0.25], [-0.32, 0.25], [0, -0.55]].forEach(([x, z]) => g.tube(Cr, F, mg ? C.verdeO : C.acero, [x * (mg ? 1.2 : 1), 0, z * (mg ? 1.3 : 1)], [0, 0.36, 0], [[0, 0.016], [1, 0.022]], 4));
+        g.cyl(Cr, F, mg ? C.verdeO : C.acero, [0, 0.38, 0], 0.04, 0.035, 0.08, 6, {}); }
+      if (tipo === 'vickers') { g.cyl(Cr, F, C.verdeO, [0.35, 0.12, 0.1], 0.08, 0.08, 0.28, 6, {top: true}); }                              // bidón del condensador
+      g.box(Cr, F, tipo === 'mg34' ? C.verdeO : C.madera, [-0.35, 0.08, 0.05], [0.12, 0.16, 0.28], {bottom: true});                    // caja de munición
+      break; }
+  }
+  return g;
+}
+// LOD de pieza: LOD1 ≤ 150, LOD2 ≤ 30
+function piezaLod(tipo, o, nivel, P) {
+  const g = new GB(), D = PIEZAS[tipo], Fm = FAM[D.fam], F = Z.FIX, V = Z.VEH, R = Fm.R, col = o.era <= 'B' && /canon_|obus_c|asedio|montana|mortero$/.test(tipo) ? C.bronce : C.acero, rueda_ = !/mortero|congreve|vickers|mg34/.test(tipo);
+  const Lt = D.L, zb = -Lt * 0.35;
+  if (nivel === 2) {
+    g.box(P.tubo, F, col, [0, 0, zb + Lt / 2], [D.calibre + 0.12, D.calibre + 0.12, Lt], {noTop: false, noBack: true});                  // 8
+    if (rueda_) [P.ruedaIz, P.ruedaDe].forEach(p => g.disc(p, V, 0, [0, 0, 0], R, 5, {two: true}));                                          // 20
+    else g.box(P.cureña, V, 0, [0, 0.15, 0], [0.5, 0.3, 0.8], {noTop: true});
+    return g;
+  }
+  g.cyl(P.tubo, F, col, [0, 0, zb + Lt / 2], (D.calibre + 0.14) / 2, (D.calibre + 0.1) / 2, Lt, 6, {rot: [90, 0, 0]});                       // 12
+  if (rueda_) { [P.ruedaIz, P.ruedaDe].forEach(p => { g.disc(p, V, 0, [0.03, 0, 0], R, 10, {}); g.disc(p, V, 0, [-0.03, 0, 0], R, 10, {rot: [0, 180, 0]});
+      g.loft(p, F, C.hierro, [[-0.04, R, R], [0.04, R, R]], 10, {axis: 'x'}); });                                                             // 40 × 2
+    g.box(P.cureña, V, 0, [0, R * 0.6, -D.Lc * 0.45], [0.3, 0.18, D.Lc], {rot: [-10, 0, 0], bottom: true});                                // 12
+    g.box(P.cureña, F, C.hierro, [0, R, 0], [Fm.ruedaX * 2, 0.06, 0.06], {});                                                               // 10
+    if (/75|campana_E|antitanque|maxim/.test(tipo) || (tipo === 'montana' && o.era >= 'C')) g.box(P.cureña, V, 0, [0, R + 0.4, 0.3], [1.4, 0.8, 0.03], {noBack: true});   // escudo 8
+  } else g.box(P.cureña, tipo === 'congreve' ? F : V, tipo === 'congreve' ? C.madera : 0, [0, 0.2, 0], [0.6, 0.4, 0.9], {});
+  return g;
+}
+
+/* ---------- avantrén, pieza enganchada y carro de municiones (rig «armon») ---------- */
+const PA = IDX('armon');
+function avantren(g, o) {
+  const A = PA.avantren, V = Z.VEH, F = Z.FIX;
+  [PA.ruedaAI, PA.ruedaAD].forEach(p => rueda(g, p, ARMON.R, {}));
+  g.loft(A, F, C.hierro, [[-0.84, 0.045, 0.045], [0.84, 0.045, 0.045]], 6, {axis: 'x', at: [0, ARMON.R, 0]});
+  g.box(A, V, 0, [0, ARMON.R + 0.1, 0], [1.2, 0.12, 0.14], {bottom: true});                                                                // gualdera del eje
+  g.box(A, V, 0, [0, ARMON.R + 0.4, -0.05], [1.05, 0.44, 0.56], {bottom: true});                                                           // cofre de municiones
+  g.box(A, V, 0, [0, ARMON.R + 0.64, -0.05], [1.1, 0.05, 0.62], {});                                                                       // tapa (asiento de tres sirvientes)
+  [1, -1].forEach(s => { g.box(A, V, 0, [s * 0.35, ARMON.R + 0.08, -0.35], [0.08, 0.1, 0.9], {}); g.box(A, F, C.hierro, [s * 0.5, ARMON.R + 0.68, 0.22], [0.12, 0.02, 0.12], {}); });   // tijeras y estribos
+  g.box(A, V, 0, [0, ARMON.R + 0.08, 0.5], [1.1, 0.08, 0.08], {});                                                                         // balancín (volea)
+  g.box(A, F, C.hierro, [0, 0.66, -0.78], [0.06, 0.06, 0.12], {});                                                                         // pinzote
+  if (o.era <= 'B') g.box(A, F, C.lona, [0, ARMON.R + 0.7, -0.3], [0.9, 0.08, 0.14], {});                                                // capotes enrollados
+  g.box(PA.lanza, V, 0, [0, 0, 1.35], [0.08, 0.09, 2.7], {rot: [3, 0, 0]}); g.box(PA.lanza, F, C.hierro, [0, -0.05, 2.7], [0.36, 0.03, 0.04], {});   // lanza y cadenas de las varas
+}
+// copia la geometría de una pieza en otro GeoBuilder cambiando la parte y aplicando una transformación rígida
+function copiar(src, dst, mapa) {
+  const v = new THREE.Vector3(), n = new THREE.Vector3(), nm = new THREE.Matrix3();
+  for (let t = 0; t < src.p.length / 9; t++) { const pa = src.part[t * 3], m = mapa[pa]; if (!m) continue; nm.getNormalMatrix(m.M);
+    for (let k = 0; k < 3; k++) { const i = t * 9 + k * 3; v.set(src.p[i], src.p[i + 1], src.p[i + 2]).applyMatrix4(m.M); n.set(src.n[i], src.n[i + 1], src.n[i + 2]).applyMatrix3(nm).normalize();
+      dst.p.push(v.x, v.y, v.z); dst.n.push(n.x, n.y, n.z); dst.part.push(m.a); dst.zone.push(src.zone[t * 3 + k]); dst.col.push(src.col[i], src.col[i + 1], src.col[i + 2]); dst.vr.push(src.vr[t * 3 + k]); dst.fx.push(src.fx[t * 6 + k * 2], src.fx[t * 6 + k * 2 + 1]); } }
+}
+function enganchado(g, tipo, o) {
+  avantren(g, o); const fam = PIEZAS[tipo].fam, src = new GB(), Pp = IDX(fam); pieza(src, tipo, o, Pp);
+  const M = marcoRemolque(tipo), id = new THREE.Matrix4(), cuna = new THREE.Matrix4().makeTranslation(...FAM[fam].cuna).premultiply(M);
+  const cierre = new THREE.Matrix4().makeTranslation(...FAM[fam].cierre).premultiply(cuna), man = new THREE.Matrix4().makeTranslation(...FAM[fam].manivela).premultiply(cuna), giro = new THREE.Matrix4().makeTranslation(0, 0, 0.3).premultiply(cuna);
+  const mapa = {}; mapa[Pp.cureña] = {a: PA.arrastre, M}; mapa[Pp.cuna] = {a: PA.arrastre, M: cuna}; mapa[Pp.tubo] = {a: PA.arrastre, M: cuna}; mapa[Pp.cierre] = {a: PA.arrastre, M: cierre};
+  mapa[Pp.giro] = {a: PA.arrastre, M: giro}; mapa[Pp.manivela] = {a: PA.arrastre, M: man}; mapa[Pp.ruedaIz] = {a: PA.ruedaPD, M: id}; mapa[Pp.ruedaDe] = {a: PA.ruedaPI, M: id};
+  copiar(src, g, mapa); return g;
+}
+// carro de municiones (cajón de dos cofres sobre su propio eje, colgado del avantrén)
+function carro(g, o) {
+  avantren(g, o); const Ar = PA.arrastre, V = Z.VEH, F = Z.FIX, ez = ARMON.ejeP[2], ye = ARMON.ejeP[1] + ARMON.R;
+  [PA.ruedaPI, PA.ruedaPD].forEach(p => rueda(g, p, ARMON.R, {}));
+  g.loft(Ar, F, C.hierro, [[-0.82, 0.045, 0.045], [0.82, 0.045, 0.045]], 6, {axis: 'x', at: [0, ARMON.ejeP[1], ez]});
+  g.box(Ar, V, 0, [0, -0.05, -1.1], [0.14, 0.12, 2.2], {bottom: true});                                                                     // vara (lanza de cola)
+  [-0.35, 0.3].forEach(dz => { g.box(Ar, V, 0, [0, ye - 0.25 + 0.0, ez + dz - 0.0], [1.05, 0.44, 0.56], {bottom: true}); g.box(Ar, V, 0, [0, ye, ez + dz], [1.1, 0.05, 0.62], {}); });   // dos cofres
+  g.box(Ar, F, C.madera, [0, ye - 0.35, ez - 0.95], [0.12, 0.1, 0.5], {}); g.cyl(Ar, F, C.negro, [0, ye - 0.35, ez - 1.25], 0.2, 0.2, 0.12, 8, {rot: [0, 0, 90]});   // rueda de repuesto (aprox.)
+}
+function armonLod(o, nivel, que) {
+  const g = new GB(), V = Z.VEH, F = Z.FIX;
+  if (nivel === 2) { g.box(PA.avantren, V, 0, [0, 0.6, 0], [1.4, 0.9, 0.7], {noTop: false, noBack: true}); if (que !== 'avantren') g.box(PA.arrastre, que === 'carro' ? V : F, que === 'carro' ? 0 : C.acero, [0, 0.0, -2.2], [1.3, 0.9, 1.6], {noTop: true}); return g; }
+  g.box(PA.avantren, V, 0, [0, ARMON.R + 0.35, -0.05], [1.05, 0.6, 0.56], {bottom: true}); g.box(PA.lanza, V, 0, [0, 0, 1.35], [0.08, 0.09, 2.7], {noBack: true});
+  [PA.ruedaAI, PA.ruedaAD].concat(que !== 'avantren' ? [PA.ruedaPI, PA.ruedaPD] : []).forEach(p => { g.disc(p, V, 0, [0.03, 0, 0], ARMON.R, 8, {}); g.disc(p, V, 0, [-0.03, 0, 0], ARMON.R, 8, {rot: [0, 180, 0]}); });
+  if (que === 'carro') g.box(PA.arrastre, V, 0, [0, ARMON.ejeP[1] + ARMON.R - 0.2, ARMON.ejeP[2]], [1.05, 0.5, 1.2], {bottom: true});
+  else if (que !== 'avantren') { g.box(PA.arrastre, V, 0, [0, -0.1, -1.4], [0.3, 0.16, 2.6], {rot: [-12, 0, 0]}); g.cyl(PA.arrastre, F, C.acero, [0, 0.3, -3.2], 0.09, 0.07, 1.8, 6, {rot: [-80, 0, 0]}); }
+  return g;
+}
+
+/* ---------- servidores: herramientas en la parte «arma» del soldado (pivote en un extremo, +Y hacia el otro) ---------- */
+const PS = INF.P;
+const HERR = {
+  escobillon: (g, a) => { g.cyl(a, Z.FIX, C.madera, [0, 1.05, 0], 0.018, 0.018, 2.1, 4); g.cyl(a, Z.FIX, C.lana, [0, 2.12, 0], 0.06, 0.06, 0.24, 6, {top: true});   // lanada y atacador
+    g.cyl(a, Z.FIX, C.madera, [0, 0.0, 0], 0.055, 0.055, 0.08, 6, {bottom: true}); },
+  saquete: (g, a) => { g.cyl(a, Z.FIX, C.saco, [0, 0.0, 0], 0.055, 0.055, 0.22, 6, {top: true, bottom: true}); g.octa(a, Z.FIX, C.hierro, [0, 0.15, 0], 0.055); },   // saquete y bala sobre el salero
+  espeque: (g, a) => g.cyl(a, Z.FIX, C.madera, [0, 0.6, 0], 0.022, 0.028, 1.2, 4),
+  cordon: (g, a) => { g.cyl(a, Z.FIX, C.madera, [0, 0, 0], 0.014, 0.014, 0.12, 4, {rot: [0, 0, 90]}); g.cyl(a, Z.FIX, C.cuerda, [0, 0.55, 0], 0.005, 0.005, 1.1, 3); },   // tirafrictor
+  proyectil: (g, a, o) => { const r = o.era === 'B' || o.era === 'C' ? 0.045 : o.era === 'E' ? 0.055 : 0.04; g.cyl(a, Z.FIX, o.era >= 'D' ? C.laton : C.hierro, [0, 0.0, 0], r, r, 0.3, 6, {bottom: true}); g.cyl(a, Z.FIX, C.verdeO, [0, 0.25, 0], r, 0.012, 0.2, 6, {}); },
+  bomba: (g, a, o) => { if (o.era >= 'D') { g.cyl(a, Z.FIX, C.verdeO, [0, 0.1, 0], 0.04, 0.04, 0.3, 6, {top: true, bottom: true}); g.cyl(a, Z.FIX, C.verdeO, [0, -0.1, 0], 0.02, 0.02, 0.12, 4, {}); }
+    else g.octa(a, Z.FIX, C.hierro, [0, 0, 0], 0.1); },
+  cohete: (g, a) => { g.cyl(a, Z.FIX, C.hierro, [0, 0.25, 0], 0.05, 0.05, 0.5, 6, {}); g.cyl(a, Z.FIX, C.madera, [0, -1.0, 0], 0.012, 0.012, 2.0, 4); },
+  caja: (g, a) => g.box(a, Z.FIX, C.verdeO, [0, -0.06, 0], [0.1, 0.16, 0.28], {bottom: true}),
+  botafuego: (g, a) => { g.cyl(a, Z.FIX, C.madera, [0, 0.45, 0], 0.012, 0.012, 0.9, 4); g.cyl(a, Z.FIX, C.rojo, [0, 0.95, 0], 0.012, 0.004, 0.1, 4); }
+};
+// papeles: herramienta, nombre, si es jefe
+const ROLES = {
+  jefe: {nombre: 'Jefe de pieza', herr: null, jefe: true}, escobillon: {nombre: 'Sirviente n.º 1 (escobillón y atacador)', herr: 'escobillon'},
+  cargador: {nombre: 'Sirviente n.º 2 (cargador)', herr: 'saquete'}, cebador: {nombre: 'Sirviente n.º 3 (oído y espeque)', herr: 'espeque'},
+  tirador: {nombre: 'Sirviente n.º 4 (cebo y tirafrictor)', herr: 'cordon'}, municionero: {nombre: 'Municionero', herr: 'saquete'},
+  apuntador: {nombre: 'Apuntador', herr: null}, cierre: {nombre: 'Sirviente del cierre', herr: 'cordon'}, cargador_rc: {nombre: 'Cargador (retrocarga)', herr: 'proyectil'},
+  municionero_rc: {nombre: 'Municionero (retrocarga)', herr: 'proyectil'}, bombero: {nombre: 'Cargador de mortero', herr: 'bomba'}, cohetero: {nombre: 'Cohetero', herr: 'cohete'},
+  botafuego: {nombre: 'Tirador con botafuego', herr: 'botafuego'}, mg_tirador: {nombre: 'Tirador de ametralladora', herr: null}, mg_proveedor: {nombre: 'Proveedor de ametralladora', herr: 'caja'}
+};
+function servidor(rol, era, nat) {
+  const R = ROLES[rol], base = INF.opciones(R.jefe ? 'sargento' : 'soldado', era, nat);
+  return Object.assign(base, {rango: 'art_' + rol, arma: R.jefe ? (era === 'E' ? 'ninguna' : 'sable') : 'ninguna', bayoneta: false, herr: R.herr,
+    mod: Object.assign({}, base.mod, {mochila: 'no', rollo: era <= 'B' ? 'manta' : 'ninguno'}), modelo: `art_${rol}_${nat}_${era}`, galones: R.jefe ? base.galones : 0});
+}
+
+/* ---------- conductor del tiro (tipo de jinete de caballeria3d) y arneses de tiro ---------- */
+function arneses(g, o, conductor) {
+  const P = CAB.P, F = Z.FIX, N = xf([[0, 0.06, 0.02]], [0, 0, 0], [35, 0, 0])[0];
+  // collera y horcate (latón en las puntas) en la base del cuello
+  g.loft(P.cuello, F, C.cuero, [[-0.02, 0.19, 0.27, 0, -0.02], [0.08, 0.17, 0.24, 0, -0.02]], 8, {rot: [35, 0, 0], at: [0, 0, 0]});
+  [1, -1].forEach(s => { g.tube(P.cuello, F, C.madera, [s * 0.19, 0.0, 0.05], [s * 0.15, 0.32, -0.05], [[0, 0.02], [1, 0.016]], 4); g.octa(P.cuello, F, C.laton, [s * 0.15, 0.34, -0.06], 0.025); });
+  // tirantes: de la collera por los costados hasta el balancín del par de atrás (1,9 m detrás del pecho)
+  [1, -1].forEach(s => { g.strap(P.caballo, F, C.cueroN, [[s * 0.25, 0.02, 0.62], [s * 0.29, -0.02, 0.0], [s * 0.28, -0.04, -0.7], [s * 0.3, -0.12, -1.9]], 0.04, [s, 0, 0]);
+    g.strap(P.caballo, F, C.cueroN, [[s * 0.18, 0.24, 0.1], [s * 0.27, -0.05, 0.08], [s * 0.15, -0.28, 0.08]], 0.05, [s, 0, 0]);       // sotabarba / ventrera
+    g.strap(P.caballo, F, C.cueroN, [[s * 0.1, 0.3, -0.58], [s * 0.26, 0.05, -0.7], [s * 0.24, -0.1, -0.62]], 0.05, [s, 0, 0.3]); });  // retranca
+  if (!conductor) g.box(P.caballo, F, C.cuero, [0, 0.3, 0.06], [0.22, 0.06, 0.3], {});                                                    // sillín de tiro
+  const H = (x, y, z) => xf([[x, y, z]], [0, 0, 0], [50, 0, 0])[0], T = P.testa;                                                          // cabezada con anteojeras
+  [1, -1].forEach(s => { g.strap(T, F, C.cueroN, [H(0.08 * s, 0.11, -0.03), H(0.104 * s, 0.03, 0.12), H(0.075 * s, -0.04, 0.36)], 0.025, [s, 0, 0]); g.box(T, F, C.cueroN, H(0.105 * s, 0.06, 0.13), [0.01, 0.07, 0.07], {}); });
+  g.loft(T, F, C.cueroN, [[0.36, 0.074, 0.09], [0.4, 0.074, 0.09]], 6, {axis: 'z', rot: [50, 0, 0], p: 2.2});
+  void N;
+}
+// silla sencilla del conductor (sin gualdrapa: el arnés ya lleva la cabezada)
+function sillaTiro(g) { const S = CAB.P.silla, F = Z.FIX;
+  g.loft(S, F, C.cuero, [[-0.26, 0.13, 0.04, 0, 0.08], [-0.18, 0.16, 0.05, 0, 0.03], [0.12, 0.15, 0.045, 0, 0.03], [0.25, 0.08, 0.04, 0, 0.09]], 6, {axis: 'z', capA: true, capB: true, p: 2.6});
+  [1, -1].forEach(s => { g.strap(S, F, C.cueroN, [[0.17 * s, 0.0, 0.0], [0.285 * s, -0.42, 0.08]], 0.018, [s, 0, 0]); g.box(S, F, C.hierro, [0.29 * s, -0.5, 0.1], [0.02, 0.1, 0.11], {noTop: true});
+    g.box(S, F, C.lona, [0.2 * s, -0.08, -0.25], [0.06, 0.2, 0.22], {}); }); }
+const latigo = (g, a) => { g.cyl(a, Z.FIX, C.cueroN, [0, 0.4, 0], 0.01, 0.006, 0.8, 3); g.tube(a, Z.FIX, C.cuero, [0, 0.8, 0], [0, 1.1, -0.35], [[0, 0.004], [1, 0.002]], 3); };
+
+/* ---------- catálogo ---------- */
+const TIPOS = {};
+const veh = (n, f) => ({rig: f, clase: 'art', pal: 'artilleria', ...n});
+Object.entries(PIEZAS).forEach(([k, D]) => { const P = IDX(D.fam);
+  TIPOS['art_' + k] = veh({nombre: D.nombre, eras: D.eras.slice(), o: (era, nat) => ({era, nat: nat || 'GEN', tipo: k, modelo: `art_${k}_${era}`}), build: o => pieza(new GB(), k, o, P), lod: (o, l) => piezaLod(k, o, l, P)}, D.fam);
+  if (D.fam === 'p_campana') TIPOS[`art_${k}_enganchado`] = veh({nombre: D.nombre + ' enganchado al avantrén', eras: D.eras.slice(), o: (era, nat) => ({era, nat: nat || 'GEN', tipo: k, modelo: `arme_${k}_${era}`}),
+    build: o => enganchado(new GB(), k, o), lod: (o, l) => armonLod(o, l, 'pieza')}, 'armon'); });
+TIPOS.art_avantren = veh({nombre: 'Avantrén suelto', eras: ['A', 'B', 'C', 'D', 'E'], o: (era, nat) => ({era, nat: nat || 'GEN', modelo: `armav_${era}`}), build: o => { const g = new GB(); avantren(g, o); return g; }, lod: (o, l) => armonLod(o, l, 'avantren')}, 'armon');
+TIPOS.art_carro_municion = veh({nombre: 'Carro de municiones (avantrén y cajón)', eras: ['A', 'B', 'C', 'D', 'E'], o: (era, nat) => ({era, nat: nat || 'GEN', modelo: `armca_${era}`}), build: o => { const g = new GB(); carro(g, o); return g; }, lod: (o, l) => armonLod(o, l, 'carro')}, 'armon');
+// servidores (rig soldado; prefijo inf_ → variación de infanteria3d)
+Object.entries(ROLES).forEach(([r, R]) => { TIPOS['inf_art_' + r] = {rig: 'soldado', clase: 'art', pal: 'artilleria', nombre: R.nombre, eras: ERAS.slice(),
+  o: (era, nat) => servidor(r, era, nat || 'GEN'), build: o => { const g = INF.soldado(o); if (o.herr) HERR[o.herr](g, PS.arma, o); return g; }, lod: (o, l) => INF.lod(o, l)}; });
+// tiro: caballo de tiro con conductor (caballo de la izquierda) y caballo de mano (derecha); prefijo cab_ → marcas de caballeria3d
+CAB_J.conductor = {nombre: 'Conductor de artillería', cuerpo: 'pesado', silla: 'dragon', arma: 'ninguna', pal: 'artilleria', eras: ERAS.slice(), carabina: () => false,
+  toc: (e, n) => e <= 'B' ? 'kepi' : e === 'C' ? (n === 'PRU' || n === 'GER' ? 'pickel' : 'kepi') : e === 'D' ? (n === 'GBR' ? 'brodie' : n === 'PRU' || n === 'GER' ? 'stahl' : 'adrian') : (n === 'USA' ? 'm1' : n === 'URS' || n === 'RUS' ? 'ssh40' : n === 'GBR' ? 'brodie' : 'stahl')};
+TIPOS.cab_tiro_conductor = {rig: 'jinete', clase: 'cav', pal: 'artilleria', nombre: 'Caballo de tiro con conductor', eras: ERAS.slice(),
+  o: (era, nat) => Object.assign(CAB.opciones('conductor', era, nat || 'GEN'), {cuerpo: 'pesado', modelo: `tiroc_${nat}_${era}`}),
+  build: o => { const g = new GB(); CAB.caballo(g, o); sillaTiro(g); arneses(g, o, true); CAB.jinete(g, o); latigo(g, CAB.P.arma); return g; }, lod: (o, l) => CAB.lod(o, l)};
+TIPOS.cab_tiro_mano = {rig: 'jinete', clase: 'cav', pal: 'artilleria', nombre: 'Caballo de tiro de mano (sin jinete)', eras: ERAS.slice(),
+  o: (era, nat) => ({era, nat: nat || 'GEN', cuerpo: 'pesado', modelo: `tirom_${era}`}), build: o => { const g = new GB(); CAB.caballo(g, o); arneses(g, o, false); return g; }, lod: (o, l) => CAB.lod(o, l)};
+
+return {TIPOS, pieza, piezaLod, enganchado, carro, avantren, IDX, PA, marcoRemolque, rueda, tubo, arneses, sillaTiro, latigo, HERR};
+}
+
+/* ===================================================================================== */
+/* PUNTOS DE CADA PIEZA (marco de la cuna o de la cureña) para colocar herramientas, servidores, humo y fogonazo */
+function puntos(tipo) {
+  const D = PIEZAS[tipo], L = D.L, F = FAM[D.fam];
+  let boca, culata, oido = null;
+  if (/^(canon_6|canon_12|obus_campana|asedio_24)$/.test(tipo)) { const r0 = D.calibre * 0.95 + (tipo === 'asedio_24' ? 0.08 : 0.055); boca = [0, 0, L * 0.62]; culata = [0, 0, -L * 0.38]; oido = [0, r0 * 0.98 + 0.015, -L * 0.38 + 0.1]; }
+  else if (tipo === 'rayado_rc') { boca = [0, 0, L - 0.62]; culata = [0, 0, -0.62]; }
+  else if (/75|pesado|campana_E/.test(tipo)) { const zb = tipo === 'obus_pesado' ? -0.75 : -0.6; boca = [0, 0, L + zb]; culata = [0, 0, zb]; }
+  else if (tipo === 'gatling') { boca = [0, 0, 1.05]; culata = [0, 0.26, -0.38]; }
+  else if (tipo === 'montana' || tipo === 'antitanque') { const zb = tipo === 'antitanque' ? -0.55 : -0.32; boca = [0, 0, L + zb]; culata = [0, 0, zb]; oido = tipo === 'montana' ? [0, 0.1, zb + 0.08] : null; }
+  else if (tipo === 'mortero') { boca = [0, 0, 0.35]; culata = [0, 0, -0.25]; oido = [0, 0.2, -0.18]; }
+  else if (tipo === 'mortero_ligero') { boca = [0, 0, L]; culata = [0, 0, 0]; }
+  else if (tipo === 'congreve') { boca = [0, 0.06, 1.6]; culata = [0, 0.06, -0.8]; }
+  else { boca = [0, 0, tipo === 'mg34' ? 0.85 : 0.75]; culata = [0, 0, -0.42]; }
+  return {boca, culata, oido, contera: [0, 0.1, -D.Lc], cuna: F.cuna};
+}
+// al marco de la pieza (con la elevación de reposo y sin retroceso)
+function enPieza(tipo, local, elev) { const F = FAM[PIEZAS[tipo].fam], e = (elev != null ? elev : PIEZAS[tipo].elev) * D2R, c = Math.cos(e), s = Math.sin(e);
+  return [F.cuna[0] + local[0], F.cuna[1] + local[1] * c + local[2] * s, F.cuna[2] - local[1] * s + local[2] * c]; }
+const ELEV_REPOSO = {mortero: 45, mortero_ligero: 60, congreve: 15};
+const elevDe = k => ELEV_REPOSO[k] != null ? ELEV_REPOSO[k] : PIEZAS[k].elev;
+
+/* ===================================================================================== */
+/* ANIMACIONES */
+const CLIPS = {}, META = {};               // CLIPS[rig][nombre]
+const sstep = (a, b, t) => { const u = Math.min(1, Math.max(0, (t - a) / (b - a))); return u * u * (3 - 2 * u); };
+const lerpK = (keys, t) => { let a = keys[0], b = keys[keys.length - 1]; if (t <= a[0]) return a.slice(1); if (t >= b[0]) return b.slice(1);
+  for (let i = 0; i < keys.length - 1; i++) if (t >= keys[i][0] && t <= keys[i + 1][0]) { a = keys[i]; b = keys[i + 1]; break; }
+  const u = sstep(a[0], b[0], t); return a.slice(1).map((v, i) => v + (b[i + 1] - v) * u); };
+const curva = (N, fn) => { const tr = []; for (let i = 0; i <= N; i++) { const t = i / N, v = fn(t); tr.push([+t.toFixed(5), v[0] || 0, v[1] || 0, v[2] || 0]); } return tr; };
+function defC(rig, n, c, m) { (CLIPS[rig] = CLIPS[rig] || {})[n] = c; c.ev = (c.ev || []).sort((a, b) => a[0] - b[0]);
+  META[n] = Object.assign({rig, suelo: 'pie', avance: 0, desplazamiento: [0, 0, 0], armaCompatible: ERAS.slice(), transiciones: []}, m || {}); META[n].eventos = c.ev.map(e => e[1]); }
+
+/* ---------- duraciones de los ciclos (s) y eventos comunes a la pieza y a la dotación ----------
+   A avancarga: 2,5 disparos/min apuntados («Instruction for Field Artillery», 1864: 2 por minuto con puntería, 4 sin ella)
+   B retrocarga sin freno: 5/min · C pesado: 4/min · E SGM: 6–8/min · R 75 mle 1897: 12–15/min · T antitanque: 12/min
+   MA mortero de bronce: 1 cada 30 s · MD mortero de trinchera: 15–20/min · K cohete: 4/min · G Gatling, MG: ráfagas */
+const CICLOS = {
+  A: {dur: 24, ev: [[0, 'disparo'], [0.07, 'devolver'], [0.18, 'tapar_oido'], [0.19, 'escobillar'], [0.28, 'entrega'], [0.33, 'cargar'], [0.36, 'atacar'], [0.46, 'pinchar'], [0.5, 'apuntar'], [0.72, 'cebar'], [0.8, 'listo'], [0.96, 'fuego']]},
+  M: {dur: 18, ev: [[0, 'disparo'], [0.07, 'devolver'], [0.18, 'tapar_oido'], [0.19, 'escobillar'], [0.28, 'entrega'], [0.33, 'cargar'], [0.36, 'atacar'], [0.46, 'pinchar'], [0.5, 'apuntar'], [0.72, 'cebar'], [0.8, 'listo'], [0.96, 'fuego']]},
+  B: {dur: 12, ev: [[0, 'disparo'], [0.08, 'devolver'], [0.24, 'abrir_cierre'], [0.3, 'entrega'], [0.4, 'cargar'], [0.5, 'cerrar'], [0.55, 'apuntar'], [0.85, 'listo'], [0.96, 'fuego']]},
+  C: {dur: 15, ev: [[0, 'disparo'], [0.02, 'retroceso'], [0.2, 'abrir_cierre'], [0.24, 'extraer'], [0.3, 'entrega'], [0.4, 'cargar'], [0.5, 'cerrar'], [0.55, 'apuntar'], [0.85, 'listo'], [0.96, 'fuego']]},
+  E: {dur: 8, ev: [[0, 'disparo'], [0.02, 'retroceso'], [0.2, 'abrir_cierre'], [0.24, 'extraer'], [0.3, 'entrega'], [0.4, 'cargar'], [0.5, 'cerrar'], [0.55, 'apuntar'], [0.85, 'listo'], [0.96, 'fuego']]},
+  R: {dur: 4.5, ev: [[0, 'disparo'], [0.02, 'retroceso'], [0.2, 'abrir_cierre'], [0.24, 'extraer'], [0.3, 'entrega'], [0.4, 'cargar'], [0.5, 'cerrar'], [0.55, 'apuntar'], [0.85, 'listo'], [0.96, 'fuego']]},
+  T: {dur: 4.5, ev: [[0, 'disparo'], [0.02, 'retroceso'], [0.2, 'abrir_cierre'], [0.24, 'extraer'], [0.3, 'entrega'], [0.4, 'cargar'], [0.5, 'cerrar'], [0.55, 'apuntar'], [0.85, 'listo'], [0.96, 'fuego']]},
+  MA: {dur: 30, ev: [[0, 'disparo'], [0.1, 'escobillar'], [0.3, 'entrega'], [0.38, 'cargar'], [0.5, 'apuntar'], [0.72, 'cebar'], [0.84, 'listo'], [0.97, 'fuego']]},
+  MD: {dur: 3.6, ev: [[0, 'cargar'], [0.07, 'disparo'], [0.45, 'entrega'], [0.8, 'listo']]},
+  K: {dur: 15, ev: [[0, 'disparo'], [0.3, 'entrega'], [0.38, 'cargar'], [0.55, 'apuntar'], [0.8, 'cebar'], [0.84, 'listo']]},
+  G: {dur: 3, ev: [[0, 'rafaga'], [0.5, 'cargar'], [0.5, 'rafaga']]},
+  MG: {dur: 3, ev: [[0, 'rafaga'], [0.7, 'cinta']]}
+};
+const RETROCESO = {canon_6: 1.2, canon_12: 1.5, obus_campana: 1.0, asedio_24: 1.8, montana: 0.8, rayado_rc: 1.3, mortero: 0.25, gatling: 0.0, maxim: 0.0, vickers: 0, mg34: 0};
+const RET_TUBO = {canon_75: 1.15, obus_pesado: 1.0, campana_E: 0.9, antitanque: 0.55, rayado_rc: 0.4};
+
+/* ---------- clips de pieza ---------- */
+function clipsPieza(k) {
+  const D = PIEZAS[k], F = FAM[D.fam], rig = D.fam, el = elevDe(k), R = F.R, ruedas = !/mortero|congreve|vickers|mg34/.test(k), ciclo = CICLOS[D.ciclo], N = 160;
+  const reposo = {dur: 4, loop: true, tracks: {cuna: [[0, -el, 0, 0]]}, ev: []};
+  if (k === 'congreve') reposo.tracks.proyectil = [[0, 0, 0, 0]];
+  defC(rig, `art_${k}_reposo`, reposo, {pieza: k, transiciones: [`art_${k}_servicio`]});
+  // servicio: retroceso de la cureña (sin freno) y vuelta a batería, o retroceso del tubo sobre la cuna (con freno), cierre, puntería
+  const c = {dur: ciclo.dur, loop: true, tracks: {}, ev: ciclo.ev.map(e => e.slice())}, ret = RETROCESO[k] || 0, rt = RET_TUBO[k] && !(k === 'rayado_rc') ? RET_TUBO[k] : 0;
+  const zR = t => ret ? -ret * (t < 0.04 ? 1 - Math.pow(1 - t / 0.04, 2) : 1 - sstep(D.ciclo === 'B' ? 0.08 : 0.07, D.ciclo === 'B' ? 0.2 : 0.17, t)) : 0;
+  c.root = curva(N, t => [0, k === 'mortero' && t < 0.05 ? 0.02 * Math.sin(Math.PI * t / 0.05) : 0, zR(t)]);
+  if (ruedas) { const rr = t => zR(t) / R / D2R; c.tracks.ruedaIz = curva(N, t => [rr(t), 0, 0]); c.tracks.ruedaDe = curva(N, t => [rr(t), 0, 0]); }
+  // puntería: elevación (tornillo) y dirección (espeque en la contera o volantes)
+  const apA = D.ciclo === 'A' || D.ciclo === 'M' ? [0.5, 0.7] : [0.55, 0.82];
+  c.tracks.cuna = curva(N, t => [-el - (t > apA[0] && t < apA[1] ? 0.8 * Math.sin(Math.PI * (t - apA[0]) / (apA[1] - apA[0])) : 0) + (t < 0.03 && !ret && !rt && /mg|maxim|vickers|gatling/.test(k) === false ? 1.5 * Math.sin(Math.PI * t / 0.03) : 0), 0, 0]);
+  c.tracks['cureña'] = curva(N, t => [t < 0.03 && (rt || k === 'mortero_ligero') ? -1.2 * Math.sin(Math.PI * t / 0.03) : 0, t > apA[0] && t < apA[1] ? 1.2 * Math.sin(2 * Math.PI * (t - apA[0]) / (apA[1] - apA[0])) : 0, 0]);
+  if (rt) { c.pos = {tubo: curva(N, t => [0, 0, t < 0.02 ? -rt * Math.sin(Math.PI / 2 * t / 0.02) : -rt * (1 - sstep(0.02, D.ciclo === 'R' || D.ciclo === 'T' ? 0.12 : 0.16, t))])}; }
+  if (k === 'rayado_rc') c.pos = {tubo: curva(N, () => [0, 0, 0])};
+  if (/[BCERT]/.test(D.ciclo) && D.ciclo.length === 1) c.tracks.cierre = curva(N, t => [0, 0, 0]), c.pos = Object.assign(c.pos || {}, {cierre: curva(N, t => [-0.18 * sstep(0.2, 0.24, t) * (1 - sstep(0.48, 0.52, t)), 0, 0])});
+  if (k === 'mortero_ligero') { c.tracks.cuna = curva(N, t => [-el + (t > 0.07 && t < 0.1 ? 1.5 : 0), 0, 0]); c.pos = {tubo: curva(N, t => [0, 0, t > 0.07 && t < 0.12 ? -0.03 * Math.sin(Math.PI * (t - 0.07) / 0.05) : 0])}; }
+  if (k === 'congreve') { c.pos = {proyectil: curva(N, t => [0, 0, t < 0.05 ? 40 * t * t / 0.0025 * 0.05 : 0])}; c.hide = {proyectil: [[0, 1], [0.04, 0], [0.38, 1]]}; c.tracks.proyectil = [[0, 0, 0, 0]]; }
+  if (D.ciclo === 'G') { c.tracks.giro = curva(N, t => [0, 0, 720 * t]); c.tracks.manivela = curva(N, t => [-720 * t, 0, 0]); c.tracks.cuna = curva(N, t => [-el + 0.3 * Math.sin(2 * Math.PI * t * 8), 2 * Math.sin(2 * Math.PI * t), 0]); }
+  if (D.ciclo === 'MG') { c.pos = {tubo: curva(N, t => [0, 0, t < 0.6 ? -0.012 * Math.abs(Math.sin(Math.PI * t * 40)) : 0])}; c.tracks.cuna = curva(N, t => [-el + (t < 0.6 ? 0.6 * Math.sin(2 * Math.PI * t * 12) : 0), t < 0.6 ? 4 * Math.sin(2 * Math.PI * t / 0.6 - 1.2) : 0, 0]);
+    c.ev = [[0, 'rafaga'], [0.1, 'rafaga'], [0.2, 'rafaga'], [0.3, 'rafaga'], [0.4, 'rafaga'], [0.5, 'rafaga'], [0.7, 'cinta']]; }
+  if (D.ciclo === 'G') c.ev = [[0, 'rafaga'], [0.125, 'rafaga'], [0.25, 'rafaga'], [0.375, 'rafaga'], [0.5, 'cargar'], [0.5, 'rafaga'], [0.625, 'rafaga'], [0.75, 'rafaga'], [0.875, 'rafaga']];
+  defC(rig, `art_${k}_servicio`, c, {pieza: k, ciclo: D.ciclo, sincronizar: true, retroceso: ret, retrocesoTubo: rt, transiciones: [`art_${k}_reposo`]});
+  // metralla («bote»): un disparo con retroceso; el juego dispara el cono con META.metralla
+  if (D.metralla) { const m = {dur: 3, loop: false, tracks: {cuna: [[0, -el, 0, 0]]}, ev: [[0, 'disparo'], [0, 'metralla']]}, zr = t => -ret * Math.min(1, 1 - Math.pow(1 - Math.min(1, t / 0.12), 2));
+    m.root = curva(60, t => [0, 0, zr(t)]); if (ruedas) { m.tracks.ruedaIz = curva(60, t => [zr(t) / R / D2R, 0, 0]); m.tracks.ruedaDe = m.tracks.ruedaIz; }
+    defC(rig, `art_${k}_metralla`, m, {pieza: k, metralla: D.metralla, desplazamiento: [0, 0, -ret], transiciones: [`art_${k}_servicio`]}); }
+  // daños: rueda rota (la cureña se vence sobre el eje roto) y pieza desmontada (cureña partida, el tubo cae)
+  if (ruedas) {
+    const rr = {dur: 2.2, loop: false, tracks: {cuna: [[0, -el, 0, 0]]}, ev: [[0, 'impacto'], [0.1, 'rueda_rota'], [0.45, 'cae']]};
+    rr.tracks.ruedaDe = curva(60, t => [30 * sstep(0.05, 0.5, t), 20 * sstep(0.05, 0.4, t), -75 * sstep(0.08, 0.45, t)]);
+    rr.pos = {ruedaDe: curva(60, t => [-0.25 * sstep(0.05, 0.45, t), -(R * 0.9) * sstep(0.08, 0.45, t), -0.2 * sstep(0.05, 0.45, t)])};
+    rr.tracks['cureña'] = curva(60, t => [3 * sstep(0.1, 0.45, t), -6 * sstep(0.1, 0.5, t), -lerpK([[0, 0], [0.12, 0], [0.42, 21], [0.5, 18], [1, 19]], t)[0] * (R / 0.65 * 0.9 + 0.1)]);
+    defC(rig, `art_${k}_rueda_rota`, rr, {pieza: k, suelo: 'apoyado', dano: 'rueda', transiciones: []});
+    const dm = {dur: 2.6, loop: false, tracks: {}, ev: [[0, 'impacto'], [0.08, 'astillas'], [0.4, 'cae_tubo'], [0.55, 'cae']]};
+    dm.tracks.cuna = curva(70, t => [lerpK([[0, -el], [0.1, -el - 25], [0.4, 30], [0.55, 14], [1, 16]], t)[0], 12 * sstep(0.1, 0.5, t), 20 * sstep(0.1, 0.45, t)]);
+    dm.pos = {cuna: curva(70, t => { const u = sstep(0.08, 0.42, t); return [0.3 * u, -(F.cuna[1] - 0.15) * u + 0.3 * Math.sin(Math.PI * Math.min(1, t / 0.3)) * (1 - u), 0.6 * u]; })};
+    dm.tracks['cureña'] = curva(70, t => [lerpK([[0, 0], [0.1, 0], [0.5, -10], [1, -9]], t)[0], 0, -12 * sstep(0.2, 0.55, t)]);
+    dm.tracks.ruedaIz = curva(70, t => [0, 0, 25 * sstep(0.15, 0.55, t)]);
+    defC(rig, `art_${k}_desmontada`, dm, {pieza: k, suelo: 'apoyado', dano: 'desmontada', transiciones: []});
+  }
+}
+Object.keys(PIEZAS).forEach(clipsPieza);
+
+/* ---------- pieza enganchada (rig armon): rodar sin resbalar, giros, desenganchar/enganchar y explosión del cofre ----------
+   Avantrén y pieza con ruedas de 0,65 m de radio (intercambiables, como en el material de campaña): un ciclo = una vuelta = 4,08 m. */
+const VUELTA = 2 * Math.PI * ARMON.R;
+[['paso', 1.7], ['trote', 3.6], ['galope', 5.5]].forEach(([n, v]) => { const dur = VUELTA / v, N = 48, bote = n === 'paso' ? 0.004 : n === 'trote' ? 0.012 : 0.02;
+  const c = {dur, loop: true, tracks: {}, ev: [[0, 'vuelta']]};
+  ['ruedaAI', 'ruedaAD', 'ruedaPI', 'ruedaPD'].forEach(r => { c.tracks[r] = curva(N, t => [360 * t, 0, 0]); });
+  c.root = curva(N, t => [0, bote * Math.abs(Math.sin(2 * Math.PI * t * 3)), 0]);
+  c.tracks.avantren = curva(N, t => [0.15 * Math.sin(2 * Math.PI * t * 3 + 0.4) * (bote / 0.01), 0, 0]);
+  c.tracks.arrastre = curva(N, t => [0, 0.6 * Math.sin(2 * Math.PI * t) * (bote / 0.01), 0]);
+  c.tracks.lanza = curva(N, t => [1.2 * Math.sin(2 * Math.PI * t * 3) * (bote / 0.01), 0, 0]);
+  defC('armon', 'art_rodar_' + n, c, {avance: VUELTA, velocidad: v, ruedaR: ARMON.R, transiciones: ['art_rodar_paso', 'art_rodar_trote', 'art_rodar_galope', 'art_rodar_parado', 'art_rodar_giro_izq', 'art_rodar_giro_der'].filter(x => x !== 'art_rodar_' + n)}); });
+defC('armon', 'art_rodar_parado', {dur: 4, loop: true, tracks: {lanza: [[0, 1, 0, 0], [0.5, 1.5, 0, 0], [1, 1, 0, 0]]}, ev: []}, {transiciones: ['art_rodar_paso', 'art_explota']});
+// giro al trote: el juego gira el avantrén META.giro °/s; la pieza remolcada abre ángulo en el pinzote y la rueda interior gira menos
+[['izq', 1], ['der', -1]].forEach(([n, s]) => { const v = 3.6, dur = VUELTA / v, N = 48, c = {dur, loop: true, tracks: {}, ev: [[0, 'vuelta']]}, w = 30 * D2R, rad = v / w, di = 1 - ARMON.ruedaX / rad, de = 1 + ARMON.ruedaX / rad;
+  c.tracks[s > 0 ? 'ruedaAI' : 'ruedaAD'] = curva(N, t => [360 * t * di, 0, 0]); c.tracks[s > 0 ? 'ruedaAD' : 'ruedaAI'] = curva(N, t => [360 * t * de, 0, 0]);
+  c.tracks.ruedaPI = curva(N, t => [360 * t * (s > 0 ? di : de), 0, 0]); c.tracks.ruedaPD = curva(N, t => [360 * t * (s > 0 ? de : di), 0, 0]);
+  c.tracks.arrastre = curva(N, () => [0, -s * 16, 0]); c.tracks.lanza = curva(N, () => [1, s * 8, 0]);
+  defC('armon', 'art_rodar_giro_' + n, c, {avance: VUELTA, giro: 30 * s, transiciones: ['art_rodar_trote']}); });
+/* desenganchar (8 s): dos servidores levantan la contera del pinzote, la pieza gira 180° sobre su eje y la contera baja al suelo; al acabar,
+   relevo: la pieza queda como figura propia (art_<pieza>, rumbo igual al del avantrén, en META.relevo.pieza) y el avantrén sigue solo */
+function desenganche(k) {
+  const N = 120, dur = 8, c = {dur, loop: false, tracks: {}, ev: [[0.08, 'agarrar_contera'], [0.18, 'sacar_del_pinzote'], [0.3, 'girar_pieza'], [0.78, 'contera_al_suelo'], [0.9, 'en_bateria']]};
+  // la pieza (arrastre) gira alrededor de su eje (no del pinzote): pos = eje − R·eje; y al final se baja la contera (pieza horizontal)
+  const D = PIEZAS[k], Fm = FAM[D.fam], eje = new THREE.Vector3(...ARMON.ejeP), q = new THREE.Quaternion(), e = new THREE.Euler(), M0 = marcoRemolque(k);
+  const lev = Math.atan2(ARMON.pinzote[1] - 0.1 - (Fm.R - ARMON.R), D.Lc) / D2R;
+  const ang = t => ({yaw: 180 * sstep(0.3, 0.75, t), pitch: lerpK([[0, 0], [0.18, 3], [0.3, 4], [0.75, 4], [0.9, -lev], [1, -lev]], t)[0], dz: -0.35 * sstep(0.18, 0.3, t)});
+  const tr = [], ps = [];
+  for (let i = 0; i <= N; i++) { const t = i / N, a = ang(t); e.set(-a.pitch * D2R, a.yaw * D2R, 0, 'YXZ'); q.setFromEuler(e); e.setFromQuaternion(q, 'XYZ');
+    const p = eje.clone().sub(eje.clone().applyQuaternion(q)); tr.push([+t.toFixed(4), e.x / D2R, e.y / D2R, e.z / D2R]); ps.push([+t.toFixed(4), p.x, p.y, p.z + a.dz]); }
+  c.tracks.arrastre = tr; c.pos = {arrastre: ps}; c.tracks.lanza = [[0, 1, 0, 0]];
+  // las ruedas de la pieza ruedan lo que gira (giro sobre el eje: una adelante y otra atrás)
+  const arco = Math.PI * ARMON.ruedaPX / ARMON.R / D2R; c.tracks.ruedaPI = curva(60, t => [arco * sstep(0.3, 0.75, t), 0, 0]); c.tracks.ruedaPD = curva(60, t => [-arco * sstep(0.3, 0.75, t), 0, 0]);
+  // posición final de la pieza en el marco del avantrén: su eje en ejeP + dz, rumbo 0 (boca hacia +z)
+  const ejeFin = [0, 0, ARMON.ejeP[2] - 0.35];
+  defC('armon', `art_${k}_desenganchar`, c, {pieza: k, relevo: {pieza: `art_${k}`, desfase: [0, ejeFin[2], 0], clip: `art_${k}_reposo`, avantren: 'art_avantren'}, transiciones: [], dotacion: [`art_contera_iz_${k}`, `art_contera_de_${k}`]});
+  // enganchar: el mismo movimiento al revés
+  const r = {dur, loop: false, tracks: {}, ev: [[0.1, 'agarrar_contera'], [0.22, 'girar_pieza'], [0.82, 'al_pinzote'], [0.92, 'enganchada']]};
+  Object.entries(c.tracks).forEach(([kk, v]) => { r.tracks[kk] = v.map(q2 => [+(1 - q2[0]).toFixed(4)].concat(q2.slice(1))).reverse(); });
+  r.pos = {arrastre: c.pos.arrastre.map(q2 => [+(1 - q2[0]).toFixed(4)].concat(q2.slice(1))).reverse()};
+  defC('armon', `art_${k}_enganchar`, r, {pieza: k, previo: {pieza: `art_${k}`, desfase: [0, ejeFin[2], 0]}, transiciones: ['art_rodar_paso', 'art_rodar_trote'], dotacion: [`art_contera_iz_${k}_eng`, `art_contera_de_${k}_eng`]});
+  void M0;
+}
+Object.entries(PIEZAS).forEach(([k, D]) => { if (D.fam === 'p_campana') desenganche(k); });
+// explosión del cofre (avantrén, carro de municiones o pieza enganchada): la tapa y el cajón saltan, las ruedas se sueltan
+{ const N = 80, c = {dur: 3, loop: false, tracks: {}, ev: [[0, 'impacto'], [0.04, 'explosion'], [0.06, 'onda'], [0.5, 'restos'], [0.7, 'fuego']]};
+  c.tracks.arrastre = curva(N, t => [lerpK([[0, 0], [0.04, 0], [0.3, -70], [0.6, -170], [1, -175]], t)[0], 30 * sstep(0.04, 0.6, t), 40 * sstep(0.04, 0.6, t)]);
+  c.pos = {arrastre: curva(N, t => { const u = Math.min(1, Math.max(0, (t - 0.04) / 0.5)); return [0.6 * u, 3.2 * u - 3.4 * u * u + (u >= 1 ? -0.2 : 0), -1.2 * u]; }),
+    ruedaAI: curva(N, t => { const u = Math.min(1, Math.max(0, (t - 0.04) / 0.45)); return [1.5 * u, 1.6 * u - 2.0 * u * u, 0.3 * u]; }), ruedaPD: curva(N, t => { const u = Math.min(1, Math.max(0, (t - 0.04) / 0.5)); return [-1.8 * u, 1.2 * u - 1.6 * u * u, -0.5 * u]; })};
+  c.tracks.ruedaAI = curva(N, t => [0, 0, 85 * sstep(0.04, 0.45, t)]); c.tracks.ruedaPD = curva(N, t => [0, 0, -85 * sstep(0.04, 0.5, t)]);
+  c.tracks.avantren = curva(N, t => [-8 * sstep(0.04, 0.2, t), 0, 12 * sstep(0.04, 0.3, t)]); c.tracks.lanza = curva(N, t => [12 * sstep(0.05, 0.3, t), 0, 0]);
+  defC('armon', 'art_explota', c, {suelo: 'apoyado', dano: 'explosion', radio: 12, transiciones: []}); }
+
+/* ===================================================================================== */
+/* DOTACIONES: clips del soldado en el MARCO DE LA PIEZA (cada servidor se coloca en el origen de la pieza, con su rumbo; el clip lleva la
+   posición y la orientación). Las herramientas se colocan en el mundo (boca, oído, cierre, rueda, contera, avantrén) y se convierten al
+   espacio del torso con la cinemática de troops3d; las manos van por IK. Los eventos comunes con la pieza caen en los mismos instantes. */
+const CLIPS_S = {}, META_S = {}, DOTACIONES = {};
+function servidores(T3, INFm) {
+  const H = INFm._herramientas, PS = INFm.POSES, W = PS.W, con = H.con;
+  const IXS = {}; T3.RIGS.soldado.forEach((p, i) => { IXS[p[0]] = i; });
+  const eul = new THREE.Euler(), q1 = new THREE.Quaternion(), q2 = new THREE.Quaternion(), Y = new THREE.Vector3(0, 1, 0);
+  // orientar: la pelvis (raíz) lleva el rumbo; la postura propia de la pelvis se compone después
+  const orientar = (pose, yaw) => { const p = pose.pelvis || [0, 0, 0]; q1.setFromEuler(eul.set(p[0] * D2R, p[1] * D2R, p[2] * D2R, 'XYZ')); q2.setFromAxisAngle(Y, yaw * D2R).multiply(q1);
+    if (!p[0] && !p[1] && !p[2]) return Object.assign({}, pose, {pelvis: [0, yaw, 0]});
+    // de las dos soluciones XYZ, la que conserva el rumbo (evita que el cuerpo se «tumbe» al interpolar rumbos de más de 90°)
+    eul.setFromQuaternion(q2, 'XYZ'); const a = [eul.x / D2R, eul.y / D2R, eul.z / D2R], b = [a[0] + 180, 180 - a[1], a[2] + 180], dist = v => Math.abs((((v - yaw) % 360) + 540) % 360 - 180);
+    const sel = dist(b[1]) < dist(a[1]) ? b : a; sel[1] = yaw + ((((sel[1] - yaw) % 360) + 540) % 360 - 180); return Object.assign({}, pose, {pelvis: sel}); };
+  // posturas sin inclinación de la pelvis (la inclinación va en el torso para que el rumbo no la tuerza)
+  const PIE = con(PS.FIRME, {brazoIz: [-6, 0, 8], antebrazoIz: [-14, 0, 0], brazoDe: [-6, 0, -8], antebrazoDe: [-14, 0, 0]});
+  const INCL = (a, b) => con(PIE, Object.assign({torso: [a, 0, 0], cabeza: [-a * 0.5, 0, 0]}, b || {}));
+  const AGACH = (b) => con(PIE, Object.assign({musloIz: [-72, 0, 10], piernaIz: [108, 0, 0], pieIz: [-30, 0, 0], musloDe: [-58, 0, -10], piernaDe: [100, 0, 0], pieDe: [-36, 0, 0], torso: [30, 0, 0], cabeza: [-20, 0, 0]}, b || {}));
+  const RODI = (b) => con(PS.RODILLA, Object.assign({brazoIz: [-20, 0, 10], antebrazoIz: [-40, 0, 0], brazoDe: [-20, 0, -10], antebrazoDe: [-40, 0, 0]}, b || {}));
+  const EMPUJA = con(PIE, {torso: [38, 0, 0], cabeza: [-25, 0, 0], musloIz: [-34, 0, 4], piernaIz: [40, 0, 0], musloDe: [26, 0, -4], piernaDe: [6, 0, 0], pieDe: [14, 0, 0], brazoIz: [-75, 0, 8], antebrazoIz: [-20, 0, 0], brazoDe: [-75, 0, -8], antebrazoDe: [-20, 0, 0]});
+  const SENT = (b) => con(PIE, Object.assign({pelvis: [-70, 0, 0], torso: [52, 0, 0], musloIz: [-20, 0, 10], musloDe: [-20, 0, -10], piernaIz: [20, 0, 0], piernaDe: [20, 0, 0], pieIz: [-30, 0, 0], pieDe: [-30, 0, 0]}, b || {}));
+  const PANZA = (b) => con(PS.BOCA_ABAJO, Object.assign({torso: [-26, 0, 0], cabeza: [-50, 0, 0]}, b || {}));
+  const zancada = (f, run) => { const a = run ? 30 : 22, s = Math.cos(f * Math.PI); return {musloIz: [-a * s - (run ? 8 : 0), 0, 3], piernaIz: [(run ? 30 : 8) + (s < 0 ? (run ? 60 : 30) : 0), 0, 0], pieIz: [0, 0, 0],
+    musloDe: [a * s - (run ? 8 : 0), 0, -3], piernaDe: [(run ? 30 : 8) + (s > 0 ? (run ? 60 : 30) : 0), 0, 0], pieDe: [0, 0, 0], torso: [run ? 12 : 3, 0, 0], brazoIz: [a * 0.8 * s, 0, 8], antebrazoIz: [run ? -80 : -20, 0, 0], brazoDe: [-a * 0.8 * s, 0, -8], antebrazoDe: [run ? -80 : -20, 0, 0]}; };
+
+  function Serv(dur, loop) { this.C = new H.Clip(dur, loop !== false); this.herr = []; this.vis = []; this.dur = dur; }
+  Serv.prototype.en = function (t, x, z, yaw, pose) { if (this.yaw0 != null) { while (yaw - this.yaw0 > 180) yaw -= 360; while (yaw - this.yaw0 < -180) yaw += 360; } this.yaw0 = yaw;
+    const o = orientar(pose, yaw); if (this.pv) o.pelvis = o.pelvis.map((v, i) => { while (v - this.pv[i] > 180) v -= 360; while (v - this.pv[i] < -180) v += 360; return v; }); this.pv = o.pelvis;
+    this.C.k(t, o); this.C.r(t, x, 0, z); return this; };
+  Serv.prototype.camina = function (t0, t1, a, b, o) { o = o || {}; const d = Math.hypot(b[0] - a[0], b[1] - a[1]), v = d / ((t1 - t0) * this.dur), run = v > 1.8, n = Math.max(2, Math.round(d / (run ? 0.9 : 0.65)));
+    const yaw = Math.atan2(b[0] - a[0], b[1] - a[1]) / D2R;
+    for (let i = 0; i <= n; i++) { const u = i / n, t = t0 + (t1 - t0) * u, p = Object.assign(zancada(i, run), o.pose || {}); if (i === 0 || i === n) Object.assign(p, {musloIz: [-4, 0, 3], piernaIz: [6, 0, 0], musloDe: [4, 0, -3], piernaDe: [6, 0, 0]});
+      this.en(t, a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, o.yaw != null ? o.yaw : yaw, p); }
+    return this; };
+  // herramienta: p (pivote) y dir (+Y de la herramienta) en el marco de la pieza; g = [mano derecha, mano izquierda] a lo largo de la herramienta
+  Serv.prototype.h = function (t, p, dir, g) { this.herr.push([t, p, dir, g]); return this; };
+  Serv.prototype.ver = function (t, v) { this.vis.push([t, v ? 1 : 0]); return this; };
+  Serv.prototype.e = function (t, n) { this.C.e(t, n); return this; };
+  Serv.prototype.fin = function (T3, nombre, meta) {
+    const c = this.C.fin(), NA = Math.max(120, Math.round(this.dur * 40)), suelo = {suelo: meta && meta.suelo || 'pie'}; H.asentar(T3, nombre, c, suelo, NA);
+    const S = T3.CLIPS.soldado, tmp = '__art3d_tmp';
+    if (this.herr.length) {   // si las manos no llegan a la herramienta, el servidor se acerca (se desplaza la raíz), no la herramienta
+      S[tmp] = c; const Mt = new THREE.Matrix4(), shoulder = new THREE.Vector3(), add = [];
+      this.herr.forEach(([t, p, dir, g]) => { const m = T3.poseTroop('soldado', tmp, t); Mt.fromArray(m, IXS.torso * 16); let dx = 0, dz = 0, peor = 0;
+        [[g[0], -0.205], [g[1], 0.205]].forEach(([y, sx]) => { if (y < 0) return; shoulder.set(sx, 0.435, 0).applyMatrix4(Mt); const G = p.map((v, i) => v + dir[i] / Math.hypot(...dir) * y), d = [G[0] - shoulder.x, G[1] - shoulder.y, G[2] - shoulder.z], L = Math.hypot(...d), ex = L - 0.5;
+          if (ex > peor) { const h = Math.hypot(d[0], d[2]) || 1; peor = ex; dx = d[0] / h * ex; dz = d[2] / h * ex; } });
+        if (peor > 0.005) add.push([t, dx, dz]); });
+      delete S[tmp];
+      if (add.length) { const base = c.root.slice(), at = t => { const tr = base; for (let j = 0; j < tr.length - 1; j++) if (t <= tr[j + 1][0]) { const a = tr[j], b = tr[j + 1], u = (t - a[0]) / Math.max(1e-6, b[0] - a[0]); return [a[1] + (b[1] - a[1]) * u, a[3] + (b[3] - a[3]) * u]; } return [tr[tr.length - 1][1], tr[tr.length - 1][3]]; };
+        // desplazamiento suave: se interpola entre las claves de herramienta (y vuelve a 0 lejos de ellas)
+        const off = t => { let w = 0, x = 0, z = 0; add.forEach(([ta, ax, az]) => { const k = Math.max(0, 1 - Math.abs(t - ta) * this.dur / 0.6); if (k > 0) { w += k; x += ax * k; z += az * k; } }); return w > 0 ? [x / Math.max(1, w), z / Math.max(1, w)] : [0, 0]; };
+        c.root = base.map(([t, x, y, z]) => { const o = off(t); return [t, x + o[0], y, z + o[1]]; }); H.asentar(T3, nombre, c, suelo, NA); }
+    }
+    if (this.herr.length) {   // herramienta al espacio del torso (FK de troops3d con la raíz ya asentada)
+      S[tmp] = c; const M = new THREE.Matrix4(), Tw = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), sc = new THREE.Vector3(1, 1, 1);
+      const P = [], R = [], G = []; let prev = null;
+      this.herr.sort((a, b) => a[0] - b[0]).forEach(([t, p, dir, g]) => { const m = T3.poseTroop('soldado', tmp, t); M.fromArray(m, IXS.torso * 16).invert();
+        q.setFromUnitVectors(Y, new THREE.Vector3(...dir).normalize()); Tw.compose(new THREE.Vector3(...p), q, sc).premultiply(M);
+        const pos = new THREE.Vector3(), qq = new THREE.Quaternion(); Tw.decompose(pos, qq, new THREE.Vector3()); e.setFromQuaternion(qq, 'XYZ'); let r = [e.x / D2R, e.y / D2R, e.z / D2R];
+        if (prev) r = r.map((v, i) => { while (v - prev[i] > 180) v -= 360; while (v - prev[i] < -180) v += 360; return v; }); prev = r;
+        P.push([t, pos.x, pos.y, pos.z]); R.push([t].concat(r)); G.push([t].concat(g)); });
+      delete S[tmp]; c.tracks.armaP = P; c.tracks.armaR = R; c.tracks.agarre = G; H.alcanzar(T3, c, 0.56);
+    }
+    if (this.vis.length) c.hide = Object.assign(c.hide || {}, {arma: this.vis.sort((a, b) => a[0] - b[0])});
+    c.ev.sort((a, b) => a[0] - b[0]); CLIPS_S[nombre] = c;
+    META_S[nombre] = Object.assign({suelo: 'pie', avance: 0, desplazamiento: [0, 0, 0], armaCompatible: ERAS.slice(), transiciones: [], marcoPieza: true}, meta || {}); META_S[nombre].eventos = c.ev.map(x => x[1]);
+    return c; };
+
+  /* ---------- avancarga (A, M): jefe, n.º 1 a 6 ---------- */
+  function avancarga(k) {
+    const D = PIEZAS[k], ci = CICLOS[D.ciclo], dur = ci.dur, pt = puntos(k), el = elevDe(k), B = enPieza(k, pt.boca, el), Cu = enPieza(k, pt.culata, el), O = enPieza(k, pt.oido || pt.culata, el);
+    const ax = [0, Math.sin(el * D2R), Math.cos(el * D2R)], dentro = ax.map(v => -v), ret = RETROCESO[k] || 0, Lc = D.Lc, F = FAM[D.fam], xr = F.ruedaX + 0.3, hB = B[1];
+    const zR = t => ret ? -ret * (t < 0.04 ? 1 - Math.pow(1 - t / 0.04, 2) : 1 - sstep(0.07, 0.17, t)) : 0;
+    const xb = Math.max(0, (1.02 - hB) * 95), INCLb = (a, b) => INCL(a + xb, b), prof = Math.min(D.L * 0.85, 1.55), add = (a, b, k2) => a.map((v, i) => v + b[i] * (k2 == null ? 1 : k2)), sfx = '_' + k, dot = [];
+    const ev = n => ci.ev.find(e => e[1] === n)[0];
+    // n.º 1 — escobillón: lanada (punta dentro, +Y hacia dentro) y atacador (pivote dentro, +Y hacia fuera)
+    { const s = new Serv(dur), P1 = [-0.55, B[2] + 0.25], Pc = [-1.25, B[2] - 0.3], up = (x, z, yaw) => [add([x, 0.04, z], [Math.cos(yaw * D2R) * -0.22 * -1, 0, 0]), [0, 1, 0], [1.15, -1]];
+      const reposo = (t, x, z, yaw) => { const [p, d, g] = up(x, z, yaw); s.h(t, [x + (yaw > 0 ? 0 : 0) - 0.0, 0.04, z - 0.25 * Math.sin(yaw * D2R) + 0.0].map((v, i) => i === 0 ? x - 0.25 * Math.cos(yaw * D2R) * 0 + (yaw === 90 ? 0 : 0) : v), d, g); };
+      const descanso = (t, x, z) => s.h(t, [x, 0.05, z + 0.28], [0, 1, 0], [1.15, -1]);
+      s.en(0, Pc[0], Pc[1], 90, INCL(2)).en(0.17, Pc[0], Pc[1], 90, INCL(2)); descanso(0, Pc[0], Pc[1]); descanso(0.17, Pc[0], Pc[1]);
+      s.camina(0.17, 0.185, Pc, P1, {yaw: 90}); descanso(0.185, P1[0], P1[1]);
+      // escobillar
+      const lan = (t, d) => s.h(t, add(B, dentro, d - 2.3), dentro, [Math.max(0.1, 2.3 - d - 0.75), 2.3 - d - 0.2]);
+      s.en(0.19, P1[0], P1[1], 90, INCLb(12)); lan(0.19, 0.05); lan(0.215, prof * 0.7); lan(0.23, prof);
+      for (let i = 0; i < 3; i++) { lan(0.24 + i * 0.012, prof - 0.08 * (i % 2)); }
+      s.en(0.25, P1[0], P1[1], 90, INCLb(16)); lan(0.275, prof); s.e(0.22, 'giro').e(0.26, 'giro');
+      s.h(0.3, add(B, dentro, 0.1 - 2.3), dentro, [0.7, 1.3]); s.en(0.3, P1[0], P1[1], 90, INCLb(8));
+      // volteo del escobillón (vertical) y atacar
+      s.h(0.32, [P1[0] + 0.25, 0.25, P1[1] + 0.1], [0, 1, 0], [0.9, 1.4]); s.h(0.335, [P1[0] + 0.3, 1.6, P1[1] + 0.1], [0, -1, 0], [0.5, 1.0]);
+      const ata = (t, d) => s.h(t, add(B, dentro, d), ax, [d + 0.45, d + 0.95]);
+      ata(0.35, 0.05); ata(0.38, prof * 0.8); ata(0.4, prof); ata(0.41, prof - 0.25); ata(0.42, prof); ata(0.44, prof * 0.4); ata(0.46, 0.0);
+      s.en(0.38, P1[0], P1[1], 90, INCLb(18)).en(0.42, P1[0], P1[1], 90, INCLb(14)).e(0.36, 'atacar').e(0.4, 'golpe').e(0.42, 'golpe');
+      s.h(0.48, [P1[0] + 0.3, 1.4, P1[1] + 0.1], [0, -1, 0], [0.4, 0.9]); descanso(0.5, P1[0], P1[1]); s.en(0.5, P1[0], P1[1], 90, INCL(2));
+      s.en(0.8, P1[0], P1[1], 90, INCL(2)); descanso(0.8, P1[0], P1[1]); s.camina(0.8, 0.84, P1, Pc, {yaw: 90}); descanso(0.84, Pc[0], Pc[1]); s.en(1, Pc[0], Pc[1], 90, INCL(2)); descanso(1, Pc[0], Pc[1]);
+      s.e(0, 'disparo').e(ev('escobillar'), 'escobillar').e(0.8, 'listo');
+      s.fin(T3, 'art_A_escobillon' + sfx, {pieza: k, ciclo: D.ciclo, rol: 'escobillon', tipo: 'inf_art_escobillon', sincronizar: true, contactos: [[0.23, 'punta', 'boca_dentro'], [0.4, 'pivote', 'boca_dentro']]});
+      dot.push({rol: 'escobillon', tipo: 'inf_art_escobillon', clip: 'art_A_escobillon' + sfx}); }
+    // n.º 2 — cargador: recibe el saquete del n.º 5 y lo introduce por la boca
+    { const s = new Serv(dur), P2 = [0.55, B[2] + 0.25], Pc = [1.25, B[2] - 0.3];
+      s.en(0, Pc[0], Pc[1], -90, INCL(2)).en(0.17, Pc[0], Pc[1], -90, INCL(2)); s.camina(0.17, 0.19, Pc, P2, {yaw: -90}); s.en(0.26, P2[0], P2[1], -90, PIE);
+      s.en(0.28, P2[0], P2[1], -150, INCLb(6, {brazoIz: [-60, 0, 0], brazoDe: [-60, 0, 0]})); s.en(0.31, P2[0], P2[1], -90, INCLb(10)); s.en(0.335, P2[0], P2[1], -90, INCLb(16)).en(0.36, P2[0], P2[1], -90, PIE);
+      const sq = (t, p, d) => s.h(t, p, d, [0.02, 0.12]);
+      sq(0.28, [0.85, 1.05, B[2] - 0.25], [0, 0, 1]); sq(0.3, [0.4, 1.1, B[2] + 0.25], [-1, 0, 0]); sq(0.32, add(B, ax, 0.12), dentro); sq(0.335, add(B, dentro, 0.12), dentro);
+      s.ver(0, 0).ver(0.28, 1).ver(0.345, 0); s.en(0.8, P2[0], P2[1], -90, PIE); s.camina(0.8, 0.84, P2, Pc, {yaw: -90}); s.en(1, Pc[0], Pc[1], -90, INCL(2));
+      s.e(0, 'disparo').e(ev('entrega'), 'entrega').e(ev('cargar'), 'cargar').e(0.8, 'listo');
+      s.fin(T3, 'art_A_cargador' + sfx, {pieza: k, ciclo: D.ciclo, rol: 'cargador', tipo: 'inf_art_cargador', sincronizar: true, contactos: [[0.335, 'centro', 'boca_dentro']]});
+      dot.push({rol: 'cargador', tipo: 'inf_art_cargador', clip: 'art_A_cargador' + sfx}); }
+    // n.º 3 — tapa el oído, pincha el cartucho y dirige la contera con el espeque; ayuda a devolver la pieza con el espeque en los rayos
+    { const s = new Serv(dur), P3 = [-0.4, Cu[2] - 0.5], Pc = [-xr - 0.15, Cu[2] - 0.6], Ctz = -Lc;
+      s.en(0, Pc[0], Pc[1], 20, PIE); s.h(0, [Pc[0] - 0.15, 0.02, Pc[1] + 0.05], [0, 1, 0], [0.9, -1]);
+      // devolver: el espeque entre los rayos de la rueda derecha, empujando con la pieza
+      const rueda = t => [-F.ruedaX, F.R, zR(t)];
+      [0.07, 0.12, 0.17].forEach((t, i) => { const w = rueda(t); s.en(t, -xr - 0.1, w[2] - 0.75, 0, i === 0 ? INCL(20) : EMPUJA); s.h(t, [-xr + 0.05, 0.95, w[2] - 0.5], [0.2, -0.45, 0.6], [0.05, 0.4]); });
+      s.camina(0.17, 0.18, [-xr - 0.1, -0.75], P3, {yaw: 0}); s.h(0.18, [P3[0] - 0.2, 0.02, P3[1]], [0, 1, 0], [-1, 0.9]);
+      // tapar el oído con el pulgar (mano derecha libre sobre el oído)
+      const tapa = INCL(28, {brazoDe: [-62, 0, 18], antebrazoDe: [-30, 0, 0], cabeza: [-6, 0, 0]});
+      s.en(0.19, P3[0], P3[1], 8, tapa).en(0.45, P3[0], P3[1], 8, tapa).en(0.46, P3[0], P3[1], 8, INCL(30, {brazoDe: [-70, 0, 18], antebrazoDe: [-40, 0, 0]})).en(0.48, P3[0], P3[1], 8, INCL(4));
+      s.h(0.45, [P3[0] - 0.2, 0.02, P3[1]], [0, 1, 0], [-1, 0.9]);
+      // contera: el espeque en la argolla para dar dirección (señales del jefe)
+      const Pt = [-0.42, Ctz - 0.45]; s.camina(0.48, 0.52, P3, Pt, {}); s.en(0.53, Pt[0], Pt[1], 10, INCL(30));
+      const palanca = (t, dx) => s.h(t, [-0.32 + dx, 0.95, Ctz - 0.2], [0.25 - dx, -0.75, 0.45], [0.05, 0.42]);
+      palanca(0.53, 0); s.en(0.57, Pt[0] + 0.05, Pt[1], 10, INCL(36)); palanca(0.57, 0.1); s.en(0.62, Pt[0] - 0.05, Pt[1], 10, INCL(30)); palanca(0.62, -0.08); palanca(0.68, 0); s.en(0.68, Pt[0], Pt[1], 10, INCL(20));
+      s.e(0.57, 'palanca').e(0.62, 'palanca');
+      s.camina(0.7, 0.76, Pt, P3, {}); s.h(0.76, [P3[0] - 0.2, 0.02, P3[1]], [0, 1, 0], [-1, 0.9]); s.camina(0.8, 0.84, P3, Pc, {}); s.en(1, Pc[0], Pc[1], 20, PIE); s.h(1, [Pc[0] - 0.15, 0.02, Pc[1] + 0.05], [0, 1, 0], [0.9, -1]);
+      s.e(0, 'disparo').e(ev('devolver'), 'devolver').e(ev('tapar_oido'), 'tapar_oido').e(ev('pinchar'), 'pinchar').e(ev('apuntar'), 'apuntar').e(0.8, 'listo');
+      s.fin(T3, 'art_A_cebador' + sfx, {pieza: k, ciclo: D.ciclo, rol: 'cebador', tipo: 'inf_art_cebador', sincronizar: true});
+      dot.push({rol: 'cebador', tipo: 'inf_art_cebador', clip: 'art_A_cebador' + sfx}); }
+    // n.º 4 — empuja la rueda izquierda, ceba con el estopín y da fuego con el tirafrictor desde un lado
+    { const s = new Serv(dur), P4 = [0.4, Cu[2] - 0.5], Pf = [xr + 0.7, Cu[2] - 1.1], cord = (t, mano) => { const u = [mano[0] - O[0], mano[1] - O[1], mano[2] - O[2]], l = Math.hypot(...u), d = u.map(v => -v / l); s.h(t, add(O, u, Math.min(1, 1.1 / l)), d, [0.0, -1]); };
+      s.en(0, Pf[0], Pf[1], -55, INCL(4, {brazoDe: [-40, 0, -30], antebrazoDe: [-10, 0, 0]})); cord(0, [Pf[0] - 0.35, 1.0, Pf[1] + 0.25]); s.en(0.02, Pf[0], Pf[1], -55, INCL(-4)); cord(0.02, [Pf[0] - 0.2, 1.0, Pf[1]]);
+      s.ver(0, 1).ver(0.05, 0);
+      [0.07, 0.12, 0.17].forEach((t, i) => { const z = zR(t); s.en(t, xr + 0.1, z - 0.75, 0, i === 0 ? INCL(20) : EMPUJA); });
+      s.camina(0.17, 0.19, [xr + 0.1, -0.75], P4, {}); s.en(0.7, P4[0], P4[1], -5, PIE);
+      s.en(0.72, P4[0] - 0.15, P4[1] + 0.2, -10, INCL(26, {brazoDe: [-65, 0, -10], antebrazoDe: [-35, 0, 0]})).ver(0.71, 1); cord(0.72, add(O, [0.0, 0.08, -0.02])); s.h(0.721, add(O, [0, 0.05, -0.02]), [0.3, 0.5, -0.7], [0.0, -1]);
+      s.camina(0.74, 0.8, [P4[0] - 0.15, P4[1] + 0.2], Pf, {}); cord(0.8, [Pf[0] - 0.3, 1.0, Pf[1] + 0.25]); s.en(0.84, Pf[0], Pf[1], -55, INCL(4, {brazoDe: [-40, 0, -30], antebrazoDe: [-10, 0, 0]}));
+      cord(0.99, [Pf[0] - 0.35, 1.0, Pf[1] + 0.25]); s.en(1, Pf[0], Pf[1], -55, INCL(4, {brazoDe: [-40, 0, -30], antebrazoDe: [-10, 0, 0]})); cord(1, [Pf[0] - 0.35, 1.0, Pf[1] + 0.25]);
+      s.e(0, 'disparo').e(0, 'tirar').e(ev('devolver'), 'devolver').e(ev('cebar'), 'cebar').e(0.8, 'listo');
+      s.fin(T3, 'art_A_tirador' + sfx, {pieza: k, ciclo: D.ciclo, rol: 'tirador', tipo: 'inf_art_tirador', sincronizar: true});
+      dot.push({rol: 'tirador', tipo: 'inf_art_tirador', clip: 'art_A_tirador' + sfx}); }
+    // n.º 5 — municionero: corre al avantrén (5 m detrás de la contera), recoge el saquete del n.º 6 y lo entrega al n.º 2
+    const AV = [0.9, -Lc - 5.2];
+    { const s = new Serv(dur), P5 = [1.2, B[2] - 0.5], H5 = [0.85, 1.05, B[2] - 0.25];
+      s.en(0, P5[0], P5[1], -160, PIE); s.camina(0.02, 0.12, P5, [AV[0] + 0.2, AV[1] + 0.6]); s.en(0.135, AV[0] + 0.2, AV[1] + 0.6, 180, INCL(10, {brazoIz: [-60, 0, 0], brazoDe: [-60, 0, 0]}));
+      s.camina(0.14, 0.26, [AV[0] + 0.2, AV[1] + 0.6], P5); s.en(0.28, P5[0], P5[1], -90, INCL(8)); s.en(0.3, P5[0], P5[1], -160, PIE); s.en(1, P5[0], P5[1], -160, PIE);
+      s.h(0.13, [AV[0] + 0.2, 1.0, AV[1] + 0.95], [0, 0, 1], [0.02, 0.12]); s.h(0.26, [P5[0] - 0.1, 1.0, P5[1] + 0.3], [0, 0, 1], [0.02, 0.12]); s.h(0.28, H5, [0, 0, 1], [0.02, 0.12]);
+      s.ver(0, 0).ver(0.13, 1).ver(0.285, 0); s.e(0, 'disparo').e(ev('entrega'), 'entrega');
+      s.fin(T3, 'art_A_municionero' + sfx, {pieza: k, ciclo: D.ciclo, rol: 'municionero', tipo: 'inf_art_municionero', sincronizar: true});
+      dot.push({rol: 'municionero', tipo: 'inf_art_municionero', clip: 'art_A_municionero' + sfx}); }
+    // n.º 6 — en el cofre del avantrén: saca el saquete, le pone la espoleta (granada) y lo da al n.º 5
+    { const s = new Serv(dur), P6 = [AV[0] - 0.35, AV[1] + 1.1];
+      s.en(0, P6[0], P6[1], 180, INCL(30, {brazoIz: [-60, 0, 10], brazoDe: [-60, 0, -10]})).en(0.06, P6[0], P6[1], 180, INCL(40, {brazoIz: [-70, 0, 10], brazoDe: [-70, 0, -10]})).en(0.1, P6[0], P6[1], 120, INCL(8));
+      s.en(0.13, P6[0], P6[1], 100, INCL(10, {brazoIz: [-60, 0, 0]})).en(0.16, P6[0], P6[1], 180, INCL(30)).en(1, P6[0], P6[1], 180, INCL(30, {brazoIz: [-60, 0, 10], brazoDe: [-60, 0, -10]}));
+      s.h(0.08, [P6[0] + 0.05, 1.0, P6[1] - 0.4], [1, 0, 0], [0.02, 0.12]); s.h(0.13, [AV[0] + 0.2, 1.0, AV[1] + 0.95], [0, 0, 1], [0.02, 0.12]); s.ver(0, 0).ver(0.07, 1).ver(0.135, 0);
+      s.e(0, 'disparo').e(0.13, 'entrega_avantren');
+      s.fin(T3, 'art_A_avantren' + sfx, {pieza: k, ciclo: D.ciclo, rol: 'municionero_avantren', tipo: 'inf_art_municionero', sincronizar: true});
+      dot.push({rol: 'municionero_avantren', tipo: 'inf_art_municionero', clip: 'art_A_avantren' + sfx}); }
+    // jefe de pieza: apunta por encima de la culata, mueve el tornillo de puntería y manda «¡fuego!»
+    { const s = new Serv(dur), PJ = [xr + 0.2, -Lc + 0.7], PA = [0.0, Cu[2] - 0.8], esp = W.ESP_BAJA;
+      s.en(0, PJ[0], PJ[1], -20, PIE).en(0.48, PJ[0], PJ[1], -20, PIE); s.camina(0.48, 0.52, PJ, PA, {}); s.en(0.53, PA[0], PA[1], 0, AGACH({torso: [22, 0, 0], cabeza: [-30, 0, 0]}));
+      s.en(0.58, PA[0], PA[1], 0, AGACH({torso: [30, 0, 0], brazoDe: [-50, 0, -6], antebrazoDe: [-30, 0, 0]})).en(0.6, PA[0], PA[1], 0, AGACH({torso: [30, 0, 0], brazoDe: [-50, 0, -6], antebrazoDe: [-60, 0, 0]}));
+      s.en(0.63, PA[0], PA[1], 0, AGACH({torso: [22, 0, 0], brazoIz: [-80, 0, 50], antebrazoIz: [-10, 0, 0]})).en(0.66, PA[0], PA[1], 0, AGACH({torso: [22, 0, 0], brazoIz: [-80, 0, -10], antebrazoIz: [-10, 0, 0]}));
+      s.en(0.68, PA[0], PA[1], 0, PIE); s.camina(0.69, 0.74, PA, PJ, {}); s.en(0.8, PJ[0], PJ[1], -20, PIE);
+      s.en(0.88, PJ[0], PJ[1], -20, con(PIE, {brazoDe: [-150, 0, -10], antebrazoDe: [-20, 0, 0]})).en(0.96, PJ[0], PJ[1], -20, con(PIE, {brazoDe: [-40, 0, -10], antebrazoDe: [-20, 0, 0], torso: [6, 0, 0]})).en(1, PJ[0], PJ[1], -20, PIE);
+      s.e(0, 'disparo').e(ev('apuntar'), 'apuntar').e(0.63, 'derecha').e(0.66, 'izquierda').e(ev('listo'), 'listo').e(ev('fuego'), 'fuego');
+      s.fin(T3, 'art_A_jefe' + sfx, {pieza: k, ciclo: D.ciclo, rol: 'jefe', tipo: 'inf_art_jefe', sincronizar: true});
+      dot.push({rol: 'jefe', tipo: 'inf_art_jefe', clip: 'art_A_jefe' + sfx}); }
+    DOTACIONES[k] = {pieza: 'art_' + k, clipPieza: `art_${k}_servicio`, ciclo: D.ciclo, servidores: dot, avantren: {tipo: 'art_avantren', desfase: [0, AV[1] - 0.8, 180]}};
+  }
+  ['canon_6', 'canon_12', 'obus_campana', 'asedio_24', 'montana'].forEach(avancarga);
+
+  /* ---------- retrocarga (B sin freno; C, E, R, T con retroceso del tubo): jefe, apuntador, cierre, cargador, municionero(s) ---------- */
+  function retrocarga(k) {
+    const D = PIEZAS[k], ci = CICLOS[D.ciclo], dur = ci.dur, pt = puntos(k), el = elevDe(k), Cu = enPieza(k, pt.culata, el), ax = [0, Math.sin(el * D2R), Math.cos(el * D2R)], Lc = D.Lc, F = FAM[D.fam], xr = F.ruedaX + 0.3;
+    const B = D.ciclo === 'B', ret = B ? RETROCESO[k] : 0, zR = t => ret ? -ret * (t < 0.04 ? 1 - Math.pow(1 - t / 0.04, 2) : 1 - sstep(0.08, 0.2, t)) : 0, ev = n => (ci.ev.find(e => e[1] === n) || [null])[0];
+    const sfx = '_' + k, dot = [], bajo = k === 'antitanque' || F.R < 0.5, add = (a, b, s2) => a.map((v, i) => v + b[i] * (s2 == null ? 1 : s2)), AV = [-1.6, -Lc - 2.2];
+    const postura = bajo ? RODI : (b) => INCL(10, b);
+    // apuntador (izquierda de la culata): volantes de elevación y dirección, ojo en el alza
+    { const s = new Serv(dur), PA = [0.48, Cu[2] - 0.15], Pc = [xr + 0.2, Cu[2] - 0.5];
+      if (B) { s.en(0, Pc[0], Pc[1], -10, PIE); [0.08, 0.14, 0.2].forEach((t, i) => s.en(t, xr + 0.1, zR(t) - 0.75, 0, i ? EMPUJA : INCL(20))); s.camina(0.2, 0.24, [xr + 0.1, -0.75], PA, {}); }
+      else s.en(0, PA[0], PA[1], 0, postura({cabeza: [-8, 0, 0]})).en(0.06, PA[0], PA[1], 0, postura({torso: [0, 0, 0]}));
+      const vol = (t, a) => s.en(t, PA[0], PA[1], -5, (bajo ? RODI : AGACH)({torso: [26, 0, 0], cabeza: [-24, 0, 0], brazoDe: [-70 + a, 0, -20], antebrazoDe: [-50 - a, 0, 0], brazoIz: [-60 - a, 0, 10], antebrazoIz: [-60 + a, 0, 0]}));
+      vol(0.55, 0); vol(0.62, 10); vol(0.68, -10); vol(0.75, 10); vol(0.82, 0); s.en(0.86, PA[0], PA[1], 0, postura()); s.en(B ? 0.92 : 1, B ? Pc[0] : PA[0], B ? Pc[1] : PA[1], 0, postura());
+      if (B) { s.camina(0.88, 0.92, PA, Pc, {}); s.en(1, Pc[0], Pc[1], -10, PIE); }
+      s.e(0, 'disparo').e(ev('apuntar'), 'apuntar').e(ev('listo'), 'listo'); if (B) s.e(ev('devolver'), 'devolver');
+      s.fin(T3, 'art_RC_apuntador' + sfx, {pieza: k, ciclo: D.ciclo, rol: 'apuntador', tipo: 'inf_art_apuntador', sincronizar: true}); dot.push({rol: 'apuntador', tipo: 'inf_art_apuntador', clip: 'art_RC_apuntador' + sfx}); }
+    // cierre (derecha): abre y cierra el cierre, y da fuego con el cordón
+    { const s = new Serv(dur), PC = [-0.5, Cu[2] - 0.25], Pf = [-0.95, Cu[2] - 0.95], Pin = add(Cu, [-0.05, 0.0, -0.06]), cord = (t, mano) => { const u = [mano[0] - Pin[0], mano[1] - Pin[1], mano[2] - Pin[2]], l = Math.hypot(...u); s.h(t, add(Pin, u, Math.min(1, 0.9 / l)), u.map(v => -v / l), [0.0, -1]); };
+      const brazoCierre = a => (bajo ? RODI : INCL)(bajo ? {brazoIz: [-70, 0, 20 + a], antebrazoIz: [-30, 0, 0]} : 16, bajo ? undefined : {brazoIz: [-70, 0, 20 + a], antebrazoIz: [-30, 0, 0]});
+      if (B) { s.en(0, -xr - 0.2, Cu[2] - 0.5, 10, PIE); [0.08, 0.14, 0.2].forEach((t, i) => s.en(t, -xr - 0.1, zR(t) - 0.75, 0, i ? EMPUJA : INCL(20))); s.camina(0.2, 0.23, [-xr - 0.1, -0.75], PC, {}); s.ver(0, 0); }
+      else { s.en(0, Pf[0], Pf[1], 20, PIE); cord(0, [Pf[0] + 0.15, 0.95, Pf[1] + 0.3]); s.en(0.03, Pf[0], Pf[1], 20, INCL(-4)); s.ver(0.08, 0); s.camina(0.08, 0.18, Pf, PC, {}); }
+      s.en(0.21, PC[0], PC[1], 10, brazoCierre(0)).en(0.24, PC[0], PC[1], 10, brazoCierre(-40)).en(0.3, PC[0], PC[1], 10, brazoCierre(-40)).en(0.48, PC[0], PC[1], 10, brazoCierre(-40)).en(0.51, PC[0], PC[1], 10, brazoCierre(0));
+      s.en(0.86, PC[0], PC[1], 10, PIE).ver(0.86, 1); cord(0.86, add(Pin, [-0.1, 0.05, -0.1])); s.camina(0.87, 0.93, PC, Pf, {}); cord(0.93, [Pf[0] + 0.15, 0.95, Pf[1] + 0.3]); s.en(1, Pf[0], Pf[1], 20, PIE); cord(1, [Pf[0] + 0.15, 0.95, Pf[1] + 0.3]);
+      if (B) s.ver(1, 1); s.e(0, 'disparo').e(0, 'tirar').e(ev('abrir_cierre'), 'abrir_cierre').e(ev('cerrar'), 'cerrar').e(ev('listo'), 'listo'); if (B) s.e(ev('devolver'), 'devolver');
+      s.fin(T3, 'art_RC_cierre' + sfx, {pieza: k, ciclo: D.ciclo, rol: 'cierre', tipo: 'inf_art_cierre', sincronizar: true}); dot.push({rol: 'cierre', tipo: 'inf_art_cierre', clip: 'art_RC_cierre' + sfx}); }
+    // cargador: recibe el proyectil y lo introduce en la recámara
+    { const s = new Serv(dur), PG = [-0.95, Cu[2] - 0.85], PL = [Cu[1] < 0.85 ? -0.24 : -0.32, Cu[2] - 0.75], pr = (t, p, d) => s.h(t, p, d, [0.06, 0.2]);
+      s.en(0, PG[0], PG[1], 20, postura()).en(0.26, PG[0], PG[1], -60, postura()).en(0.3, PG[0], PG[1], -60, postura({brazoIz: [-60, 0, 0], brazoDe: [-60, 0, 0]}));
+      const xc = Math.max(0, (1.0 - Cu[1]) * 95); s.camina(0.32, 0.36, PG, PL, {yaw: 10}); s.en(0.38, PL[0], PL[1], 10, INCL(24 + xc)).en(0.41, PL[0], PL[1] + 0.12, 10, INCL(32 + xc)).en(0.44, PL[0], PL[1], 10, PIE); s.camina(0.45, 0.5, PL, PG, {yaw: 20}); s.en(1, PG[0], PG[1], 20, postura());
+      pr(0.3, [-1.15, 0.95, Cu[2] - 1.05], [0, 0, 1]); pr(0.36, add(Cu, ax, -0.55), ax); pr(0.4, add(Cu, ax, -0.05), ax); pr(0.41, add(Cu, ax, 0.12), ax); s.ver(0, 0).ver(0.3, 1).ver(0.415, 0);
+      s.e(0, 'disparo').e(ev('entrega'), 'entrega').e(ev('cargar'), 'cargar');
+      s.fin(T3, 'art_RC_cargador' + sfx, {pieza: k, ciclo: D.ciclo, rol: 'cargador', tipo: 'inf_art_cargador_rc', sincronizar: true, contactos: [[0.41, 'centro', 'culata_dentro']]}); dot.push({rol: 'cargador', tipo: 'inf_art_cargador_rc', clip: 'art_RC_cargador' + sfx}); }
+    // municionero: del carro (o de los nichos) al cargador
+    { const s = new Serv(dur), PM = [-1.35, Cu[2] - 1.2], H = [-1.15, 0.95, Cu[2] - 1.05];
+      s.en(0, AV[0], AV[1], 160, INCL(30)).en(0.08, AV[0], AV[1], 160, INCL(40, {brazoIz: [-70, 0, 0], brazoDe: [-70, 0, 0]})); s.camina(0.12, 0.27, AV, PM, {}); s.en(0.29, PM[0], PM[1], 60, INCL(8)); s.camina(0.33, 0.48, PM, AV, {}); s.en(1, AV[0], AV[1], 160, INCL(30));
+      s.h(0.1, [AV[0] + 0.1, 0.95, AV[1] - 0.3], [1, 0, 0], [0.06, 0.2]); s.h(0.27, [PM[0] + 0.15, 0.95, PM[1] + 0.2], [0, 0, 1], [0.06, 0.2]); s.h(0.3, H, [0, 0, 1], [0.06, 0.2]); s.ver(0, 0).ver(0.09, 1).ver(0.305, 0);
+      s.e(0, 'disparo').e(ev('entrega'), 'entrega');
+      s.fin(T3, 'art_RC_municionero' + sfx, {pieza: k, ciclo: D.ciclo, rol: 'municionero', tipo: 'inf_art_municionero_rc', sincronizar: true}); dot.push({rol: 'municionero', tipo: 'inf_art_municionero_rc', clip: 'art_RC_municionero' + sfx}); }
+    // jefe: observa con prismáticos (D–E) o con el sable (B–C) y manda el fuego
+    { const s = new Serv(dur), PJ = [xr + 0.5, -Lc + 0.6], pris = D.eras[0] >= 'D';
+      const obs = pris ? PIE => con(PIE, {brazoIz: [-120, 0, 30], antebrazoIz: [-120, 0, 0], brazoDe: [-120, 0, -30], antebrazoDe: [-120, 0, 0], cabeza: [-4, 0, 0]}) : x => x;
+      s.en(0, PJ[0], PJ[1], -10, obs(PIE)).en(0.5, PJ[0], PJ[1], -10, obs(PIE)).en(0.6, PJ[0], PJ[1], -30, PIE).en(0.86, PJ[0], PJ[1], -20, con(PIE, {brazoDe: [-150, 0, -10], antebrazoDe: [-20, 0, 0]}));
+      s.en(0.96, PJ[0], PJ[1], -20, con(PIE, {brazoDe: [-40, 0, -10], antebrazoDe: [-20, 0, 0], torso: [6, 0, 0]})).en(1, PJ[0], PJ[1], -10, obs(PIE));
+      s.e(0, 'disparo').e(ev('listo'), 'listo').e(ev('fuego'), 'fuego');
+      s.fin(T3, 'art_RC_jefe' + sfx, {pieza: k, ciclo: D.ciclo, rol: 'jefe', tipo: 'inf_art_jefe', sincronizar: true}); dot.push({rol: 'jefe', tipo: 'inf_art_jefe', clip: 'art_RC_jefe' + sfx}); }
+    DOTACIONES[k] = {pieza: 'art_' + k, clipPieza: `art_${k}_servicio`, ciclo: D.ciclo, servidores: dot, avantren: {tipo: k === 'antitanque' ? null : 'art_carro_municion', desfase: [AV[0] - 1.2, AV[1] - 0.6, 180]}};
+  }
+  ['rayado_rc', 'canon_75', 'obus_pesado', 'campana_E', 'antitanque'].forEach(retrocarga);
+
+  /* ---------- morteros, cohetes y ametralladoras ---------- */
+  { // mortero de bronce (MA): el bombero mete la bomba, el botafuego enciende espoleta y oído
+    const k = 'mortero', D = PIEZAS[k], dur = CICLOS.MA.dur, el = elevDe(k), pt = puntos(k), Bq = enPieza(k, pt.boca, el), O = enPieza(k, pt.oido, el), dot = [], dn = [0, -Math.sin(el * D2R), -Math.cos(el * D2R)];
+    { const s = new Serv(dur), P = [0.75, 0.6], Rv = [1.6, -2.5];
+      s.en(0, P[0], P[1], -120, PIE); s.camina(0.05, 0.18, P, Rv); s.en(0.2, Rv[0], Rv[1], 160, INCL(40)); s.camina(0.22, 0.34, Rv, P); s.en(0.36, P[0], P[1], -120, INCL(30)).en(0.4, P[0] - 0.2, P[1], -120, INCL(40)).en(0.45, P[0], P[1], -120, PIE).en(1, P[0], P[1], -120, PIE);
+      s.h(0.21, [Rv[0] - 0.1, 0.6, Rv[1] - 0.3], [0, 1, 0], [0.0, 0.0]); s.h(0.34, [P[0] - 0.2, 0.95, P[1] - 0.2], [0, 1, 0], [0, 0]); s.h(0.38, [Bq[0], Bq[1] + 0.12, Bq[2] + 0.1], [0, 1, 0], [0, 0]); s.h(0.395, Bq.map((v, i) => v + dn[i] * 0.2), [0, 1, 0], [0, 0]);
+      s.ver(0, 0).ver(0.2, 1).ver(0.4, 0); s.e(0, 'disparo').e(0.3, 'entrega').e(0.38, 'cargar');
+      s.fin(T3, 'art_MA_bombero', {pieza: k, ciclo: 'MA', rol: 'bombero', tipo: 'inf_art_bombero', sincronizar: true}); dot.push({rol: 'bombero', tipo: 'inf_art_bombero', clip: 'art_MA_bombero'}); }
+    { const s = new Serv(dur), P = [-0.7, -0.5], botaf = (t, a) => s.h(t, a, [O[0] - a[0], O[1] - a[1], O[2] - a[2]], [0.0, -1]);
+      s.en(0, -1.8, -1.8, 30, INCL(4)); s.camina(0.6, 0.68, [-1.8, -1.8], P); s.en(0.72, P[0], P[1], 45, INCL(34)); botaf(0.72, [P[0] + 0.3, 1.0, P[1] + 0.2]); botaf(0.74, [O[0] - 0.4, O[1] + 0.35, O[2] - 0.35]);
+      s.en(0.78, P[0], P[1], 45, INCL(30)); botaf(0.78, [O[0] - 0.4, O[1] + 0.35, O[2] - 0.35]); s.camina(0.8, 0.9, P, [-1.8, -1.8]); s.en(1, -1.8, -1.8, 30, INCL(4)); botaf(0.9, [-1.6, 1.0, -1.6]); botaf(1, [-1.6, 1.0, -1.6]);
+      s.e(0, 'disparo').e(0.72, 'cebar').e(0.74, 'encender').e(0.84, 'listo');
+      s.fin(T3, 'art_MA_botafuego', {pieza: k, ciclo: 'MA', rol: 'botafuego', tipo: 'inf_art_botafuego', sincronizar: true}); dot.push({rol: 'botafuego', tipo: 'inf_art_botafuego', clip: 'art_MA_botafuego'}); }
+    { const s = new Serv(dur), P = [0.0, -1.3];
+      s.en(0, P[0], P[1], 0, PIE).en(0.48, P[0], P[1], 0, PIE).en(0.52, P[0], P[1] + 0.3, 0, AGACH({torso: [36, 0, 0]})).en(0.6, P[0], P[1] + 0.3, 0, AGACH({torso: [36, 0, 0], brazoDe: [-70, 0, 0], antebrazoDe: [-30, 0, 0]}));
+      s.en(0.66, P[0], P[1] + 0.3, 0, AGACH({torso: [36, 0, 0], brazoDe: [-70, 0, 0], antebrazoDe: [-60, 0, 0]})).en(0.7, P[0], P[1], 0, PIE).en(0.97, P[0], P[1], 0, con(PIE, {brazoDe: [-150, 0, -10]})).en(1, P[0], P[1], 0, PIE);
+      s.e(0, 'disparo').e(0.5, 'apuntar').e(0.84, 'listo').e(0.97, 'fuego');
+      s.fin(T3, 'art_MA_jefe', {pieza: k, ciclo: 'MA', rol: 'jefe', tipo: 'inf_art_jefe', sincronizar: true}); dot.push({rol: 'jefe', tipo: 'inf_art_jefe', clip: 'art_MA_jefe'}); }
+    DOTACIONES[k] = {pieza: 'art_' + k, clipPieza: `art_${k}_servicio`, ciclo: 'MA', servidores: dot};
+  }
+  { // mortero de trinchera (MD): suelta la bomba por la boca y se agacha; el municionero le pasa la siguiente
+    const k = 'mortero_ligero', dur = CICLOS.MD.dur, el = elevDe(k), pt = puntos(k), Bq = enPieza(k, pt.boca, el), dot = [], dn = [0, -Math.sin(el * D2R), -Math.cos(el * D2R)];
+    { const s = new Serv(dur), P = [-0.45, 0.4], bo = (t, p) => s.h(t, p, [0, 1, 0], [0, 0]);
+      s.en(0, P[0], P[1], 80, RODI({torso: [20, 0, 0], brazoIz: [-120, 0, 10], brazoDe: [-120, 0, -10]})).en(0.03, P[0], P[1], 80, RODI({torso: [40, 0, 0], cabeza: [20, 0, 0], brazoIz: [-150, 0, 40], antebrazoIz: [-140, 0, 0], brazoDe: [-150, 0, -40], antebrazoDe: [-140, 0, 0]}));
+      s.en(0.25, P[0], P[1], 80, RODI({torso: [40, 0, 0], cabeza: [20, 0, 0], brazoIz: [-150, 0, 40], antebrazoIz: [-140, 0, 0], brazoDe: [-150, 0, -40], antebrazoDe: [-140, 0, 0]})).en(0.35, P[0], P[1], 120, RODI({torso: [10, 0, 0]}));
+      s.en(0.45, P[0], P[1], 150, RODI({torso: [16, 0, 0]})).en(0.6, P[0], P[1], 90, RODI({torso: [16, 0, 0]})).en(0.85, P[0], P[1], 80, RODI({torso: [20, 0, 0]})).en(1, P[0], P[1], 80, RODI({torso: [20, 0, 0], brazoIz: [-120, 0, 10], brazoDe: [-120, 0, -10]}));
+      bo(0, [Bq[0], Bq[1] + 0.18, Bq[2]]); bo(0.015, Bq.map((v, i) => v + dn[i] * 0.15)); bo(0.45, [P[0] - 0.05, 0.8, P[1] - 0.45]); bo(0.6, [P[0] + 0.3, 0.75, P[1] + 0.1]); bo(0.9, [Bq[0], Bq[1] + 0.25, Bq[2]]); bo(1, [Bq[0], Bq[1] + 0.18, Bq[2]]);
+      s.ver(0, 1).ver(0.02, 0).ver(0.45, 1); s.e(0, 'cargar').e(0.07, 'disparo').e(0.45, 'entrega').e(0.8, 'listo');
+      s.fin(T3, 'art_MD_cargador', {pieza: k, ciclo: 'MD', rol: 'bombero', tipo: 'inf_art_bombero', sincronizar: true}); dot.push({rol: 'bombero', tipo: 'inf_art_bombero', clip: 'art_MD_cargador'}); }
+    { const s = new Serv(dur), P = [-0.55, -0.6];
+      s.en(0, P[0], P[1], -160, RODI({torso: [40, 0, 0], brazoIz: [-60, 0, 0], brazoDe: [-60, 0, 0]})).en(0.3, P[0], P[1], 20, RODI({torso: [10, 0, 0]})).en(0.45, P[0], P[1], 20, RODI({torso: [14, 0, 0]})).en(0.55, P[0], P[1], -160, RODI({torso: [30, 0, 0]})).en(1, P[0], P[1], -160, RODI({torso: [40, 0, 0], brazoIz: [-60, 0, 0], brazoDe: [-60, 0, 0]}));
+      s.h(0.2, [P[0] - 0.1, 0.4, P[1] - 0.4], [0, 1, 0], [0, 0]); s.h(0.32, [P[0] + 0.05, 0.75, P[1] + 0.35], [0, 1, 0], [0, 0]); s.h(0.45, [-0.5, 0.8, -0.05], [0, 1, 0], [0, 0]); s.ver(0, 0).ver(0.18, 1).ver(0.455, 0);
+      s.e(0.07, 'disparo').e(0.45, 'entrega');
+      s.fin(T3, 'art_MD_municionero', {pieza: k, ciclo: 'MD', rol: 'municionero', tipo: 'inf_art_bombero', sincronizar: true}); dot.push({rol: 'municionero', tipo: 'inf_art_bombero', clip: 'art_MD_municionero'}); }
+    { const s = new Serv(dur), P = [0.45, 0.55];
+      s.en(0, P[0], P[1], -100, RODI({torso: [12, 0, 0]})).en(0.07, P[0], P[1], -100, RODI({torso: [12, 0, 0], cabeza: [10, 30, 0]})).en(0.6, P[0], P[1], -100, RODI({torso: [30, 0, 0], brazoDe: [-60, 0, 0], antebrazoDe: [-40, 0, 0]}))
+        .en(0.7, P[0], P[1], -100, RODI({torso: [30, 0, 0], brazoDe: [-60, 0, 0], antebrazoDe: [-70, 0, 0]})).en(0.8, P[0], P[1], -100, RODI({torso: [12, 0, 0]})).en(1, P[0], P[1], -100, RODI({torso: [12, 0, 0]}));
+      s.e(0.07, 'disparo').e(0.8, 'listo');
+      s.fin(T3, 'art_MD_apuntador', {pieza: k, ciclo: 'MD', rol: 'apuntador', tipo: 'inf_art_apuntador', sincronizar: true}); dot.push({rol: 'apuntador', tipo: 'inf_art_apuntador', clip: 'art_MD_apuntador'}); }
+    DOTACIONES[k] = {pieza: 'art_' + k, clipPieza: `art_${k}_servicio`, ciclo: 'MD', servidores: dot};
+  }
+  { // cohete Congreve (K): el cohetero coloca el cohete en el canal; el botafuego lo enciende y se retira
+    const k = 'congreve', dur = CICLOS.K.dur, el = elevDe(k), F = FAM.p_cohete, dot = [], rq = enPieza(k, [0, 0.06, 0.25], el), ax = [0, Math.sin(el * D2R), Math.cos(el * D2R)], cola = enPieza(k, [0, 0.06, -0.2], el);
+    { const s = new Serv(dur), P = [0.7, -0.6], Rv = [2.0, -3.5];
+      s.en(0, Rv[0], Rv[1], 0, PIE).en(0.06, Rv[0], Rv[1], 160, INCL(40)); s.camina(0.12, 0.3, Rv, P); s.en(0.34, P[0], P[1], -60, INCL(20)).en(0.39, P[0], P[1], -60, INCL(26)); s.camina(0.42, 0.55, P, Rv); s.en(1, Rv[0], Rv[1], 0, PIE);
+      s.h(0.1, [Rv[0] + 0.1, 1.0, Rv[1] + 0.25], [0, 0.3, 1], [0.0, 0.3]); s.h(0.3, [P[0] - 0.1, 1.1, P[1] + 0.3], [-0.5, 0.2, 1], [0.0, 0.3]); s.h(0.38, rq, ax, [0.0, 0.3]); s.ver(0, 0).ver(0.08, 1).ver(0.385, 0);
+      s.e(0, 'disparo').e(0.3, 'entrega').e(0.38, 'cargar');
+      s.fin(T3, 'art_K_cohetero', {pieza: k, ciclo: 'K', rol: 'cohetero', tipo: 'inf_art_cohetero', sincronizar: true}); dot.push({rol: 'cohetero', tipo: 'inf_art_cohetero', clip: 'art_K_cohetero'}); }
+    { const s = new Serv(dur), P = [-0.5, -0.9], Sg = [-3.0, -4.0], bf = (t, a) => s.h(t, a, [cola[0] - a[0], cola[1] - a[1], cola[2] - a[2]], [0, -1]);
+      s.en(0, Sg[0], Sg[1], 30, INCL(4)); bf(0, [Sg[0] + 0.3, 1.0, Sg[1] + 0.2]); s.en(0.55, Sg[0], Sg[1], 30, INCL(4)); bf(0.55, [Sg[0] + 0.3, 1.0, Sg[1] + 0.2]); s.camina(0.6, 0.76, Sg, P);
+      s.en(0.8, P[0], P[1], 20, INCL(30)); bf(0.8, [cola[0] - 0.3, cola[1] + 0.2, cola[2] - 0.5]); bf(0.76, [P[0] + 0.3, 1.0, P[1] + 0.2]); s.camina(0.84, 0.97, P, Sg); s.en(1, Sg[0], Sg[1], 30, INCL(4)); bf(0.97, [Sg[0] + 0.3, 1.0, Sg[1] + 0.2]); bf(1, [Sg[0] + 0.3, 1.0, Sg[1] + 0.2]);
+      s.e(0, 'disparo').e(0.8, 'cebar').e(0.84, 'listo');
+      s.fin(T3, 'art_K_botafuego', {pieza: k, ciclo: 'K', rol: 'botafuego', tipo: 'inf_art_botafuego', sincronizar: true}); dot.push({rol: 'botafuego', tipo: 'inf_art_botafuego', clip: 'art_K_botafuego'}); }
+    DOTACIONES[k] = {pieza: 'art_' + k, clipPieza: `art_${k}_servicio`, ciclo: 'K', servidores: dot};
+  }
+  // ametralladoras (MG): tirador con las manos en las empuñaduras, proveedor que guía la cinta, jefe con prismáticos; Gatling: manivela y cargador
+  ['maxim', 'vickers', 'mg34'].forEach(k => {
+    const dur = CICLOS.MG.dur, dot = [], tumb = k === 'mg34', pt = puntos(k), Cu = enPieza(k, pt.culata, 0);
+    { const s = new Serv(dur), P = tumb ? [0.05, Cu[2] - 1.15] : [0.0, Cu[2] - 0.62];
+      const base = tumb ? PANZA({brazoIz: [-150, 0, 18], antebrazoIz: [-20, 0, 0], brazoDe: [-150, 0, -18], antebrazoDe: [-20, 0, 0], cabeza: [-54, 0, 0]}) : SENT({torso: [62, 0, 0], cabeza: [-30, 0, 0], brazoIz: [-80, 0, 14], antebrazoIz: [-30, 0, 0], brazoDe: [-80, 0, -14], antebrazoDe: [-30, 0, 0]});
+      for (let i = 0; i <= 12; i++) { const t = i / 12 * 0.6, j = i % 2 ? 1.5 : -1.5; s.en(t, P[0], P[1] - (i % 2 ? 0.008 : 0), 0, Object.assign({}, base, {torso: [base.torso[0] + j * 0.6, 4 * Math.sin(2 * Math.PI * t / 0.6 - 1.2), 0]})); }
+      s.en(0.7, P[0], P[1], 0, base).en(1, P[0], P[1], 0, base); s.e(0, 'rafaga').e(0.3, 'rafaga');
+      s.fin(T3, 'art_MG_tirador_' + k, {pieza: k, ciclo: 'MG', rol: 'tirador', tipo: 'inf_art_mg_tirador', sincronizar: true}); dot.push({rol: 'tirador', tipo: 'inf_art_mg_tirador', clip: 'art_MG_tirador_' + k}); }
+    { const s = new Serv(dur), P = tumb ? [0.6, Cu[2] - 0.95] : [0.5, Cu[2] + 0.05];
+      const b = (a) => tumb ? PANZA({brazoDe: [-130, 0, -30 + a], antebrazoDe: [-40, 0, 0], brazoIz: [-120, 0, 30], antebrazoIz: [-30, 0, 0]}) : RODI({torso: [20, -30, 0], brazoDe: [-60, 0, -30 + a], antebrazoDe: [-50, 0, 0], brazoIz: [-50, 0, 10], antebrazoIz: [-70, 0, 0]});
+      const yw = tumb ? -12 : -80; s.en(0, P[0], P[1], yw, b(0)).en(0.3, P[0], P[1], yw, b(10)).en(0.6, P[0], P[1], yw, b(0)).en(0.7, P[0], P[1], yw, b(-15)).en(1, P[0], P[1], yw, b(0)); s.h(0, [P[0] - 0.15, 0.25, P[1] + 0.1], [0, 1, 0], [-1, -1]); s.ver(0, 0); s.e(0.7, 'cinta');
+      s.fin(T3, 'art_MG_proveedor_' + k, {pieza: k, ciclo: 'MG', rol: 'proveedor', tipo: 'inf_art_mg_proveedor', sincronizar: true}); dot.push({rol: 'proveedor', tipo: 'inf_art_mg_proveedor', clip: 'art_MG_proveedor_' + k}); }
+    { const s = new Serv(dur), P = tumb ? [-0.75, Cu[2] - 1.5] : [-0.9, Cu[2] - 1.0], ob = tumb ? PANZA({brazoIz: [-150, 0, 30], antebrazoIz: [-130, 0, 0], brazoDe: [-150, 0, -30], antebrazoDe: [-130, 0, 0]}) : RODI({brazoIz: [-120, 0, 30], antebrazoIz: [-125, 0, 0], brazoDe: [-120, 0, -30], antebrazoDe: [-125, 0, 0], cabeza: [-6, 0, 0]});
+      s.en(0, P[0], P[1], 10, ob).en(0.5, P[0], P[1], 16, ob).en(1, P[0], P[1], 10, ob);
+      s.fin(T3, 'art_MG_jefe_' + k, {pieza: k, ciclo: 'MG', rol: 'jefe', tipo: 'inf_art_jefe', sincronizar: true}); dot.push({rol: 'jefe', tipo: 'inf_art_jefe', clip: 'art_MG_jefe_' + k}); }
+    DOTACIONES[k] = {pieza: 'art_' + k, clipPieza: `art_${k}_servicio`, ciclo: 'MG', servidores: dot};
+  });
+  { const k = 'gatling', dur = CICLOS.G.dur, dot = [], pt = puntos(k), Cu = enPieza(k, pt.culata, PIEZAS[k].elev), F = FAM.p_campana;
+    { const s = new Serv(dur), P = [-0.62, -0.45];
+      for (let i = 0; i <= 8; i++) { const a = i / 8 * 2 * Math.PI * 2; s.en(i / 8, P[0], P[1], 70, INCL(12, {brazoDe: [-60 - 22 * Math.sin(a), 0, -10], antebrazoDe: [-50 - 30 * Math.cos(a), 0, 0]})); }
+      s.e(0, 'rafaga').e(0.5, 'rafaga'); s.fin(T3, 'art_G_manivela', {pieza: k, ciclo: 'G', rol: 'manivela', tipo: 'inf_art_apuntador', sincronizar: true}); dot.push({rol: 'manivela', tipo: 'inf_art_apuntador', clip: 'art_G_manivela'}); }
+    { const s = new Serv(dur), P = [0.5, -0.65], top = [Cu[0], Cu[1] + 0.2, Cu[2]];
+      s.en(0, P[0], P[1], -40, INCL(6)).en(0.35, P[0], P[1], -40, INCL(14)).en(0.5, P[0], P[1], -40, INCL(24)).en(0.6, P[0], P[1], -120, INCL(30)).en(0.85, P[0], P[1], -40, INCL(10)).en(1, P[0], P[1], -40, INCL(6));
+      s.h(0, [P[0] - 0.1, 1.05, P[1] + 0.25], [0, 1, 0], [0, 0.08]); s.h(0.35, [top[0] + 0.15, top[1] + 0.25, top[2]], [0, 1, 0], [0, 0.08]); s.h(0.5, [top[0], top[1] + 0.1, top[2]], [0, 1, 0], [0, 0.08]);
+      s.h(0.7, [P[0] + 0.3, 1.0, P[1] - 0.3], [0, 1, 0], [0, 0.08]); s.h(0.9, [P[0] - 0.1, 1.05, P[1] + 0.25], [0, 1, 0], [0, 0.08]); s.ver(0, 1).ver(0.5, 0).ver(0.72, 1);
+      s.e(0.5, 'cargar'); s.fin(T3, 'art_G_cargador', {pieza: k, ciclo: 'G', rol: 'cargador', tipo: 'inf_art_mg_proveedor', sincronizar: true}); dot.push({rol: 'cargador', tipo: 'inf_art_mg_proveedor', clip: 'art_G_cargador'}); }
+    { const s = new Serv(dur), P = [0.0, -PIEZAS[k].Lc - 0.5];
+      s.en(0, P[0], P[1], 0, AGACH({torso: [20, 0, 0]})).en(0.5, P[0], P[1], 3, AGACH({torso: [20, 0, 0]})).en(1, P[0], P[1], 0, AGACH({torso: [20, 0, 0]}));
+      s.fin(T3, 'art_G_apuntador', {pieza: k, ciclo: 'G', rol: 'apuntador', tipo: 'inf_art_jefe', sincronizar: true}); dot.push({rol: 'apuntador', tipo: 'inf_art_jefe', clip: 'art_G_apuntador'}); }
+    DOTACIONES[k] = {pieza: 'art_' + k, clipPieza: `art_${k}_servicio`, ciclo: 'G', servidores: dot, avantren: {tipo: 'art_avantren', desfase: [0, -PIEZAS[k].Lc - 5, 180]}};
+  }
+
+  /* ---------- enganchar y desenganchar: dos servidores llevan la contera (siguen su trayectoria real) ---------- */
+  Object.entries(PIEZAS).forEach(([k, D]) => { if (D.fam !== 'p_campana') return; const clip = `art_${k}_desenganchar`, A = T3.CLIPS.armon[clip], IXA = {}; T3.RIGS.armon.forEach((p, i) => { IXA[p[0]] = i; });
+    const M = new THREE.Matrix4(), v = new THREE.Vector3(), lun = (t, rev) => { const m = T3.poseTroop('armon', clip, rev ? 1 - t : t); M.fromArray(m, IXA.arrastre * 16);
+      // la luneta de la contera en el marco del arrastre: marcoRemolque lleva el punto [0, 0.1, −Lc] de la pieza
+      v.set(0, 0.1, -D.Lc).applyMatrix4(marcoRemolque(k)).applyMatrix4(M); return [v.x, v.y, v.z]; };
+    [['iz', 1], ['de', -1]].forEach(([n, sg]) => [false, true].forEach(rev => { const s = new Serv(8, false), N = 16;
+      for (let i = 0; i <= N; i++) { const t = i / N, L = lun(t, rev), fase = rev ? 1 - t : t, sujeta = fase > 0.08 && fase < 0.86, x = L[0] + sg * 0.42, z = L[2] - 0.1;
+        const yawL = Math.atan2(-L[0], -L[2] + ARMON.ejeP[2]) / D2R;
+        s.en(t, x, z, sujeta ? -sg * 90 + yawL * 0 : -sg * 70, sujeta ? (L[1] > 0.4 ? INCL(14, {brazoIz: [-50, 0, -sg * 10], antebrazoIz: [-20, 0, 0], brazoDe: [-50, 0, sg * 10], antebrazoDe: [-20, 0, 0]}) : INCL(46, {brazoIz: [-70, 0, 0], brazoDe: [-70, 0, 0]})) : PIE); }
+      s.e(rev ? 0.1 : 0.08, 'agarrar_contera');
+      s.fin(T3, `art_contera_${n}_${k}${rev ? '_eng' : ''}`, {pieza: k, rol: 'contera_' + n, tipo: 'inf_art_cebador', marcoArmon: true, sincronizar: true}); })); });
+  /* ---------- sentado en el cofre del avantrén (bote del rodar), heridos y muertos junto a la pieza ---------- */
+  { const s = new Serv(1.13), base = SENT({pelvis: [-80, 0, 0], torso: [66, 0, 0], brazoIz: [-40, 0, 20], antebrazoIz: [-60, 0, 0], brazoDe: [-40, 0, -20], antebrazoDe: [-60, 0, 0], piernaIz: [85, 0, 0], piernaDe: [85, 0, 0], musloIz: [-8, 0, 10], musloDe: [-8, 0, -10], pieIz: [-10, 0, 0], pieDe: [-10, 0, 0]});
+    [0, 0.33, 0.66, 1].forEach((t, i) => { s.C.k(t, orientar(Object.assign({}, base, {torso: [66 + (i % 2) * 3, 0, 0]}), 0)); s.C.r(t, 0, (i % 2) * 0.012, -0.05); });
+    const c = s.C.fin(), Sx = T3.CLIPS.soldado; Sx.__art3d_s = c; const Mz = T3.poseTroop('soldado', '__art3d_s', 0), o = IXS.pelvis * 16;
+    let low = Infinity; [[0.12, -0.1, -0.1], [-0.12, -0.1, -0.1], [0, -0.12, 0.05]].forEach(v => { low = Math.min(low, Mz[o + 1] * v[0] + Mz[o + 5] * v[1] + Mz[o + 9] * v[2] + Mz[o + 13]); }); delete Sx.__art3d_s;
+    const asiento = ARMON.R + 0.665; c.root = c.root.map(k => [k[0], k[1], k[2] + asiento - low, k[3]]);   /* las nalgas sobre la tapa del cofre */
+    CLIPS_S.art_sentado_cofre = c; META_S.art_sentado_cofre = {suelo: 'libre', avance: 0, desplazamiento: [0, 0, 0], armaCompatible: ERAS.slice(), transiciones: [], marcoArmon: true, puestos: [[0.38, 0, -0.05], [0, 0, -0.05], [-0.38, 0, -0.05]], eventos: []}; }
+  { const s = new Serv(2.6, false), P = [-1.15, 0.25]; s.en(0, P[0], P[1], 90, PIE).en(0.08, P[0], P[1] - 0.1, 90, INCL(-20, {brazoIz: [-60, 0, 40], brazoDe: [-60, 0, -40]})).en(0.35, P[0] - 0.05, P[1] - 0.2, 90, AGACH({torso: [-10, 0, 0], cabeza: [20, 0, 0]}))
+      .en(0.6, P[0] - 0.2, P[1] - 0.2, 90, SENT({torso: [20, 0, 10], cabeza: [40, 30, 0], brazoIz: [10, 0, 30], antebrazoIz: [-10, 0, 0], brazoDe: [10, 0, -30], antebrazoDe: [-10, 0, 0], musloIz: [-60, 0, 20], piernaIz: [60, 0, 0]})).en(1, P[0] - 0.2, P[1] - 0.2, 90, SENT({torso: [10, 0, 16], cabeza: [50, 40, 0], brazoIz: [16, 0, 30], antebrazoIz: [-6, 0, 0], brazoDe: [16, 0, -30], antebrazoDe: [-6, 0, 0], musloIz: [-50, 0, 22], piernaIz: [50, 0, 0], musloDe: [-30, 0, -10], piernaDe: [30, 0, 0]}));
+    s.e(0, 'impacto').e(0.6, 'cae'); s.fin(T3, 'art_srv_muerto_rueda', {rol: 'cualquiera', marcoPieza: true, junto: 'rueda derecha (pieza de campaña)', transiciones: []}); }
+  { const s = new Serv(4); const b = a => SENT({torso: [40 + a, 0, 0], cabeza: [20, 0, 0], musloIz: [-40, 0, 14], piernaIz: [70, 0, 0], musloDe: [-10, 0, -10], piernaDe: [10, 0, 0], brazoIz: [-20, 0, 10], antebrazoIz: [-70, 0, 0], brazoDe: [-30, 0, -10], antebrazoDe: [-60 - a, 0, 0]});
+    s.en(0, -1.6, -1.6, 60, b(0)).en(0.5, -1.6, -1.6, 60, b(6)).en(1, -1.6, -1.6, 60, b(0)); s.e(0.5, 'queja');
+    s.fin(T3, 'art_srv_herido_sentado', {rol: 'cualquiera', marcoPieza: true, junto: 'detrás de la rueda derecha', transiciones: []}); }
+}
+
+/* ---------- grupos: tiro de 4 o 6 caballos, batería en línea y columna de batería (marco del avantrén / de la batería) ----------
+   «Instruction for Field Artillery» (1864): parejas de varas, de en medio y de guía, conductor en el caballo de la izquierda; 14 yardas (≈ 13 m)
+   de intervalo entre piezas en batería; el avantrén a 6 yardas detrás de la contera y el carro 11 yardas detrás del avantrén. */
+const GRUPOS = {
+  tiro: (n, op) => { op = op || {}; const pares = Math.max(2, Math.min(3, Math.round((n || 6) / 2))), out = [], zs = [2.95, 6.15, 9.35], x = 0.62;
+    for (let i = 0; i < pares; i++) { const nombre = ['varas', 'medio', 'guia'][i === 0 ? 0 : pares === 2 ? 2 : i]; out.push({x, z: zs[i], tipo: 'cab_tiro_conductor', papel: 'conductor_' + nombre}, {x: -x, z: zs[i], tipo: 'cab_tiro_mano', papel: 'mano_' + nombre}); }
+    return out; },
+  bateria: (n, op) => { op = op || {}; const piezas = n || 6, iv = op.intervalo || 13, out = [];
+    for (let i = 0; i < piezas; i++) { const x = (i - (piezas - 1) / 2) * iv; out.push({x, z: 0, papel: 'pieza', n: i + 1}, {x, z: -(op.avantren || 8.0), papel: 'avantren', n: i + 1, rumbo: 180}, {x, z: -(op.avantren || 8.0) - 10, papel: 'carro', n: i + 1, rumbo: 180}); }
+    out.push({x: 0, z: -4, papel: 'capitan'}); return out; },
+  columna_bateria: (n, op) => { const piezas = n || 6, out = []; for (let i = 0; i < piezas; i++) out.push({x: 0, z: -i * 22, papel: 'pieza_enganchada', n: i + 1}, {x: 0, z: -i * 22 - 11, papel: 'carro', n: i + 1}); return out; }
+};
+function formacion(tipo, n, op) { const f = GRUPOS[tipo]; if (!f) throw new Error('formación desconocida: ' + tipo); return f(n, op); }
+const TRANSICIONES = {};
+function grafo() { Object.entries(Object.assign({}, META, META_S)).forEach(([n, m]) => { TRANSICIONES[n] = TRANSICIONES[n] || {}; (m.transiciones || []).forEach(t => { TRANSICIONES[n][t] = 0.3; }); }); }
+function rutaTransicion(desde, hasta) { const cola = [[desde]], vis = new Set([desde]); while (cola.length) { const r = cola.shift(), u = r[r.length - 1]; if (u === hasta) return r.slice(1).map((c, i) => ({clip: c, mezcla: (TRANSICIONES[r[i]] || {})[c]}));
+  Object.keys(TRANSICIONES[u] || {}).forEach(v => { if (!vis.has(v)) { vis.add(v); cola.push(r.concat([v])); } }); } return null; }
+// boca de fuego de la pieza en el instante t de un clip (marco de la figura): para humo, fogonazo y metralla
+function boca(T3, tipo, clip, t) { const k = tipo.replace(/^art_/, '').replace(/_enganchado$/, ''), D = PIEZAS[k], rig = D.fam, M = T3.poseTroop(rig, clip, t), i = T3.RIGS[rig].findIndex(p => p[0] === 'tubo'), o = i * 16, pb = puntos(k).boca;
+  const dirL = [0, 0, 1]; return {p: [0, 1, 2].map(j => M[o + j] * pb[0] + M[o + 4 + j] * pb[1] + M[o + 8 + j] * pb[2] + M[o + 12 + j]), dir: [0, 1, 2].map(j => M[o + 8 + j] * dirL[2])}; }
+
+/* ===================================================================================== */
+/* REGISTRO */
+let _I = null;
+function registrar(T3, op) {
+  op = op || {}; const CABm = root.caballeria3d, INFm = root.infanteria3d; if (!CABm || !INFm) throw new Error('artilleria3d necesita infanteria3d.js y caballeria3d.js cargados antes');
+  CABm.registrar(T3, op);
+  Object.keys(FAM).forEach(f => { if (!T3.RIGS[f]) T3.RIGS[f] = rigPieza(f); T3.CLIPS[f] = T3.CLIPS[f] || {}; }); if (!T3.RIGS.armon) T3.RIGS.armon = RIG_ARMON; T3.CLIPS.armon = T3.CLIPS.armon || {};
+  _I = _I || crear(T3, INFm.instancia(T3), CABm._crear(T3, INFm.instancia(T3)), CABm.JINETES); const tipos = [], clips = [], saltados = [];
+  Object.entries(_I.TIPOS).forEach(([k, K]) => { if (T3.KINDS[k] && !op.reemplazar) return; T3.KINDS[k] = K; if (!T3.TROOP_KINDS.includes(k)) T3.TROOP_KINDS.push(k); tipos.push(k); });
+  Object.entries(CLIPS).forEach(([rig, set]) => Object.entries(set).forEach(([n, c]) => { if (T3.CLIPS[rig][n] && !op.reemplazar) { saltados.push(n); return; } T3.CLIPS[rig][n] = JSON.parse(JSON.stringify(c));
+    if (META[n].suelo === 'apoyado') apoyarPieza(T3, rig, T3.CLIPS[rig][n]); clips.push(n); }));
+  if (!Object.keys(CLIPS_S).length) { servidores(T3, INFm); grafo(); }
+  Object.entries(CLIPS_S).forEach(([n, c]) => { if (T3.CLIPS.soldado[n] === c) return; if (T3.CLIPS.soldado[n] && !op.reemplazar) { saltados.push(n); return; } T3.CLIPS.soldado[n] = c; clips.push(n); });
+  return {tipos, clips, saltados};
+}
+// apoya en el suelo las piezas que se vencen o vuelcan (ruedas, ejes, contera, tubo)
+function apoyarPieza(T3, rig, clip) {
+  const R = T3.RIGS[rig], IX = {}; R.forEach((p, i) => { IX[p[0]] = i; }); const tmp = '__art3d_ap', S = T3.CLIPS[rig], base = clip.root && clip.root.length ? clip.root : [[0, 0, 0, 0]], out = [], N = 200;
+  const pts = rig === 'armon' ? [['avantren', [0.5, 0.7, 0.3]], ['avantren', [-0.5, 0.7, 0.3]], ['avantren', [0, 0.25, -0.3]], ...['ruedaAI', 'ruedaAD', 'ruedaPI', 'ruedaPD'].flatMap(w => Array.from({length: 24}, (_, i) => [w, [0, 0.65 * Math.cos(i / 24 * 2 * Math.PI), 0.65 * Math.sin(i / 24 * 2 * Math.PI)]])), ['arrastre', [0.5, 0.3, -1.5]], ['arrastre', [-0.5, 0.3, -1.5]], ['arrastre', [0, -0.2, -2.5]], ['lanza', [0, 0, 2.7]]]
+    : [['ruedaIz', [0, -1, 0]], ['ruedaDe', [0, -1, 0]], ['ruedaIz', [0, 0, -1]], ['ruedaDe', [0, 0, -1]], ['ruedaIz', [0, 0, 1]], ['ruedaDe', [0, 0, 1]], ['cureña', [0, 0.1, -2.4]], ['cureña', [0.3, 0.3, 0]], ['cureña', [-0.3, 0.3, 0]], ['cureña', [0, 0.1, -1.4]], ['cuna', [0, 0, 1.2]], ['cuna', [0, 0, -0.6]], ['cuna', [0, 0.15, 0.3]]];
+  const rr = FAMr(rig);
+  for (let i = 0; i <= N; i++) { const t = i / N, sx = muestreoR(base, t, 1), sy = muestreoR(base, t, 2), sz = muestreoR(base, t, 3); S[tmp] = Object.assign({}, clip, {root: [[0, sx, sy, sz]]}); const M = T3.poseTroop(rig, tmp, t); let low = Infinity;
+    pts.forEach(([p, v]) => { const vv = /rueda/.test(p) && rig !== 'armon' ? v.map(x => x * rr) : v, o = IX[p] * 16, y = M[o + 1] * vv[0] + M[o + 5] * vv[1] + M[o + 9] * vv[2] + M[o + 13]; if (y < low) low = y; });
+    out.push([+t.toFixed(4), +sx.toFixed(4), +(sy - low).toFixed(4), +sz.toFixed(4)]); }
+  delete S[tmp]; clip.root = out; return clip;
+}
+const FAMr = rig => FAM[rig] ? FAM[rig].R : 0.65;
+function muestreoR(tr, t, k) { if (tr.length === 1 || t <= tr[0][0]) return tr[0][k]; for (let i = 0; i < tr.length - 1; i++) if (t <= tr[i + 1][0]) { const a = tr[i], b = tr[i + 1], u = (t - a[0]) / Math.max(1e-6, b[0] - a[0]); return a[k] + (b[k] - a[k]) * u; } return tr[tr.length - 1][k]; }
+/* ===================================================================================== */
+/* DEMOSTRACIÓN: demoArtilleria(contenedor, {vista: 'servicio' | 'marcha' | 'desenganchar' | 'piezas' | 'danos', pieza, era, nat, aire, t}) */
+function demoArtilleria(cont, op) {
+  op = op || {}; const T3 = root.Troops3D; if (!T3) throw new Error('demoArtilleria necesita Troops3D (troops3d.js)');
+  registrar(T3); const q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new Map(), arg = k => op[k] != null ? op[k] : q.get(k);
+  const NAT = ['PRU', 'AUT', 'FRA', 'GBR', 'RUS', 'USA', 'CSA', 'ESP', 'ITA', 'JPN'], PZ = Object.keys(PIEZAS);
+  const R = new THREE.WebGLRenderer({antialias: true}); R.setPixelRatio(Math.min(2, root.devicePixelRatio || 1)); R.domElement.style.cssText = 'display:block;width:100%;height:100%'; cont.appendChild(R.domElement);
+  const S = new THREE.Scene(); S.background = new THREE.Color(0xc9d2d4); S.fog = new THREE.Fog(0xc9d2d4, 40, 160);
+  S.add(new THREE.HemisphereLight(0xffffff, 0x5d6b48, 0.85)); const L = new THREE.DirectionalLight(0xfff1dc, 1.25); L.position.set(-4, 8, 6); S.add(L);
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64; const cx = cv.getContext('2d'); cx.fillStyle = '#86965f'; cx.fillRect(0, 0, 64, 64); cx.fillStyle = '#7a8a55'; cx.fillRect(0, 0, 64, 3); cx.fillRect(0, 0, 3, 64);
+  const tx = new THREE.CanvasTexture(cv); tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.repeat.set(200, 200); tx.colorSpace = THREE.SRGBColorSpace;
+  const suelo = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshLambertMaterial({map: tx})); suelo.rotation.x = -Math.PI / 2; S.add(suelo);
+  const cam = new THREE.PerspectiveCamera(32, 1, 0.1, 400); let az = 0.9, el = 0.32, dist = 12, mira = new THREE.Vector3(0, 0.8, -1.5);
+  const sh = new T3.TroopShared(NAT.concat(['TUR', 'GEN'])); let lotes = [], moviles = [];
+  const panel = document.createElement('div'); panel.style.cssText = 'position:absolute;right:8px;top:8px;z-index:6;background:#2a1d12e8;color:#f0dfb4;padding:8px 10px;font:13px Georgia,serif;border:1px solid #b08a3e;max-width:330px';
+  if (getComputedStyle(cont).position === 'static') cont.style.position = 'relative'; cont.appendChild(panel);
+  const sel = (id, ops, v) => `<label style="display:block;margin:3px 0">${id} <select id="a3d_${id}" style="max-width:220px">${ops.map(o => `<option ${o === v ? 'selected' : ''}>${o}</option>`).join('')}</select></label>`;
+  const est = {vista: arg('vista') || 'servicio', pieza: arg('pieza') || 'canon_12', era: arg('era') || '', nat: arg('nat') || 'FRA', aire: arg('aire') || 'trote', t: arg('t') != null ? +arg('t') : null};
+  panel.innerHTML = sel('vista', ['servicio', 'marcha', 'desenganchar', 'piezas', 'danos'], est.vista) + sel('pieza', PZ, est.pieza) + sel('era', ['', 'A', 'B', 'C', 'D', 'E'], est.era) + sel('nat', NAT, est.nat) + sel('aire', ['paso', 'trote', 'galope'], est.aire)
+    + `<label style="display:block;margin:3px 0">t <input id="a3d_t" type="range" min="0" max="1" step="0.002" value="${est.t == null ? 0 : est.t}" style="width:160px"> <input id="a3d_play" type="checkbox" ${est.t == null ? 'checked' : ''}> en marcha</label><div id="a3d_info" style="font-size:12px;opacity:.85;margin-top:4px"></div>`;
+  const $ = id => panel.querySelector('#a3d_' + id);
+  const lote = (k, e, n, cap) => { const b = new T3.TroopBatch(sh, k, e, n, cap || 4, {lod: 0}); S.add(b.mesh); lotes.push(b); return b; };
+  let reloj = 0, actual = null; const ag = (b, cl, i) => b.add(0, 0, 0, 0, 1, est.nat, cl, {phase: 0, skin: (i || 0) % 4});   // actual = clip que manda el tiempo (para el deslizador)
+  function eraDe(k) { const E = PIEZAS[k].eras; return E.includes(est.era) ? est.era : E[0]; }
+  function montar() {
+    lotes.forEach(b => { S.remove(b.mesh); b.mesh.geometry.dispose(); }); lotes = []; moviles = []; const info = []; reloj = 0; actual = null;
+    const k = est.pieza, D = PIEZAS[k], e = eraDe(k), n = est.nat, Dt = DOTACIONES[k];
+    if (est.vista === 'servicio') { const cl = `art_${k}_servicio`, C = T3.CLIPS[D.fam][cl]; actual = C; ag(lote('art_' + k, e, n), cl);
+      (Dt ? Dt.servidores : []).forEach((sv, i) => ag(lote(sv.tipo, e, n), sv.clip, i));
+      if (Dt && Dt.avantren && Dt.avantren.tipo) { const d = Dt.avantren.desfase; lote(Dt.avantren.tipo, e, n).add(d[0], 0, d[1], d[2] * D2R, 1, n, 'art_rodar_parado', {phase: 0}); }
+      info.push(`<b>${D.nombre}</b> · era ${e} · ciclo ${D.ciclo} de ${C.dur} s`, `dotación: ${(Dt ? Dt.servidores : []).map(s => s.rol).join(', ')}`, `eventos: ${C.ev.map(x => x[1] + '@' + x[0].toFixed(2)).join(', ')}`);
+      mira.set(0, 0.8, -1.5); dist = /mortero|mg34|vickers|maxim/.test(k) ? 7 : 13; }
+    else if (est.vista === 'marcha') { const cf = D.fam === 'p_campana', kind = cf ? `art_${k}_enganchado` : 'art_carro_municion', cl = 'art_rodar_' + est.aire, C = T3.CLIPS.armon[cl], ca = 'cab_' + est.aire, M = META[cl];
+      actual = C; const bv = lote(kind, e, n); bv.add(0, 0, 0, 0, 1, n, cl, {phase: 0}); moviles.push([bv, cl, C]);
+      formacion('tiro', 6).forEach((p, i) => { const b = lote(p.tipo, e, n); b.add(p.x, 0, p.z, 0, 1, n, ca, {phase: (i * 0.13) % 1, horse: i % 4}); moviles.push([b, null, null, i, p]); });
+      META_S.art_sentado_cofre.puestos.forEach(p => { const b = lote('inf_art_apuntador', e, n); b.add(p[0], 0, p[2], 0, 1, n, 'art_sentado_cofre', {phase: Math.random()}); moviles.push([b, null, null, 0, {x: p[0], z: p[2]}]); });
+      info.push(`${cf ? D.nombre : 'carro de municiones (esta pieza no va en avantrén de campaña)'} · tiro de 6 al ${est.aire}`, `${M.velocidad} m/s; una vuelta de rueda (4,08 m) por ciclo; los cascos de caballeria3d`); dist = 18; az = 1.3; el = 0.2; }
+    else if (est.vista === 'desenganchar') { const kk = D.fam === 'p_campana' ? k : 'canon_12', cl = `art_${kk}_desenganchar`, C = T3.CLIPS.armon[cl]; actual = C; ag(lote(`art_${kk}_enganchado`, eraDe(kk), n), cl);
+      ['iz', 'de'].forEach(s => ag(lote('inf_art_cebador', eraDe(kk), n), `art_contera_${s}_${kk}`));
+      info.push(`desenganchar ${PIEZAS[kk].nombre}: la contera sale del pinzote, la pieza gira 180° sobre su eje y queda en batería`, `relevo al acabar: ${META[cl].relevo.pieza} en [${META[cl].relevo.desfase.join(', ')}]`); mira.set(0, 0.6, -2.5); dist = 11; }
+    else if (est.vista === 'piezas') { const lista = PZ.filter(x => !est.era || PIEZAS[x].eras.includes(est.era)); lista.forEach((x, i) => { const C = T3.CLIPS[PIEZAS[x].fam][`art_${x}_reposo`]; lote('art_' + x, eraDe(x), n).add((i - (lista.length - 1) / 2) * 3.4, 0, 0, 0.6, 1, n, `art_${x}_reposo`, {phase: 0}); });
+      info.push(`${lista.length} piezas${est.era ? ' de la era ' + est.era : ''}`); mira.set(0, 0.6, 0); dist = 4 + lista.length * 2.2; az = 0; el = 0.25; }
+    else { const kk = D.fam === 'p_campana' ? k : 'canon_12', ee = eraDe(kk);
+      [[`art_${kk}_rueda_rota`, -4.5], [`art_${kk}_desmontada`, 0], ['art_explota', 6]].forEach(([cl, x]) => { const rig = cl === 'art_explota' ? 'armon' : PIEZAS[kk].fam, C = T3.CLIPS[rig][cl], kind = rig === 'armon' ? 'art_carro_municion' : 'art_' + kk;
+        lote(kind, ee, n).add(x, 0, 0, 0, 1, n, cl, {phase: 0}); });
+      lote('inf_art_escobillon', ee, n).add(0, 0, 0, 0, 1, n, 'art_srv_muerto_rueda', {phase: 0}); actual = T3.CLIPS[PIEZAS[kk].fam][`art_${kk}_desmontada`];
+      const b2 = lote('inf_art_cargador', ee, n); b2.add(0, 0, 0, 0, 1, n, 'art_srv_herido_sentado', {phase: 0});
+      info.push('rueda rota · pieza desmontada (cureña partida) · explosión del cofre (carro) · muerto junto a la rueda · herido'); mira.set(0, 0.6, 0); dist = 16; az = 0.3; }
+    $('info').innerHTML = info.filter(Boolean).join('<br>');
+  }
+  ['vista', 'pieza', 'era', 'nat', 'aire'].forEach(k => $(k).onchange = () => { est[k] = $(k).value; montar(); });
+  let arr = null; R.domElement.onpointerdown = e => { arr = [e.clientX, e.clientY]; }; root.addEventListener('pointerup', () => { arr = null; });
+  R.domElement.onpointermove = e => { if (!arr) return; az -= (e.clientX - arr[0]) * 0.008; el = Math.max(0.02, Math.min(1.4, el + (e.clientY - arr[1]) * 0.006)); arr = [e.clientX, e.clientY]; };
+  R.domElement.onwheel = e => { dist = Math.max(3, Math.min(120, dist * (1 + Math.sign(e.deltaY) * 0.1))); e.preventDefault(); };
+  montar(); let prev = performance.now(), vivo = true; const m4 = new THREE.Matrix4();
+  (function paso() { if (!vivo) return; const now = performance.now(), dt = Math.min(0.1, (now - prev) / 1000); prev = now; const w = cont.clientWidth || innerWidth, h = cont.clientHeight || innerHeight;
+    if (R.domElement.width !== Math.round(w * R.getPixelRatio()) || R.domElement.height !== Math.round(h * R.getPixelRatio())) R.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix();
+    reloj += dt; const C = actual; let tt;
+    if (C) { if ($('play').checked) { tt = C.loop !== false ? (reloj / C.dur) % 1 : Math.min(1, (reloj % (C.dur + 1.5)) / C.dur); $('t').value = tt; } else tt = +$('t').value;
+      // en «servicio» y «desenganchar» todos los clips comparten el tiempo del clip principal (misma duración): fase fija y reloj común
+      sh.timeU.value = tt * C.dur;   // todas las figuras empiezan con fase / inicio 0: comparten el tiempo del clip principal (misma duración)
+    } else sh.timeU.value = reloj;
+    if (est.vista === 'marcha') { sh.timeU.value = reloj; const v = META['art_rodar_' + est.aire].velocidad, z = v * reloj; moviles.forEach(([b, cl, CC, i, p]) => { m4.makeTranslation(p ? p.x : 0, 0, (p ? p.z : 0) + z); b.mesh.setMatrixAt(0, m4); b.mesh.instanceMatrix.needsUpdate = true; });
+      mira.set(0, 1.0, z + 3); }
+    cam.position.set(mira.x + Math.sin(az) * Math.cos(el) * dist, mira.y + Math.sin(el) * dist, mira.z + Math.cos(az) * Math.cos(el) * dist); cam.lookAt(mira); R.render(S, cam); requestAnimationFrame(paso); })();
+  return {renderer: R, escena: S, camara: cam, montar, estado: est, parar() { vivo = false; R.dispose(); }};
+}
+
+const API = {PIEZAS, FAM, CICLOS, CLIPS, META, CLIPS_S, META_S, DOTACIONES, TRANSICIONES, rutaTransicion, GRUPOS, formacion, boca, puntos, enPieza, elevDe, registrar, demoArtilleria, _crear: crear, instancia: () => _I, ARMON};
+root.artilleria3d = API;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ===== apoyo3d.js — servicios y apoyo 1836–1945 para el modo «Batalla» de Victoria (three.js r152, sin archivos externos) =====
+   Amplía troops3d.js sin reemplazar nada; necesita infanteria3d.js, caballeria3d.js y artilleria3d.js cargados antes. registrar(Troops3D, op) añade:
+   · SANIDAD: cirujano (mandil, sierra; brazalete de la Cruz Roja desde 1864), practicante, camilleros y camilla con herido (rig propio
+     «apo_camilla», a pie entre dos camilleros), mesa de operaciones, herido en la mesa y en el suelo; ambulancia de tracción animal
+     (toldo con la cruz desde la era B); camilla a lomo: mula con cacolets (heridos sentados) y con literas (heridos tendidos).
+   · INTENDENCIA: carro de suministro con toldo de arcos, carro de bagajes descubierto (baúles, sacos, barriles), conductor en el pescante,
+     mulas de carga (munición, víveres, cañón de montaña en dos cargas), mulas de tiro con y sin conductor, arriero que lleva la recua.
+   · HERRADORES: fragua de campaña con fuelle de palanca (rig «apo_fragua»), herrero que martillea en el yunque, ayudante al fuelle y herrar
+     el casco: el caballo levanta la mano y el herrador la sujeta entre las rodillas (clips emparejados, mismos eventos).
+   · PAGADURÍA: mesa del pagador (cofre, libro, monedas), pagador y soldado que cobra (la entrega cae en el mismo instante).
+   · PRISIONEROS: sin armas ni equipo, maniatados, con las manos en la cabeza, cojeando y sostenido por un compañero; columna con escoltas a pie
+     en los flancos y a caballo en cabeza y cola (formacion('columna_prisioneros', n)) al paso del clip «escoltar_prisionero» (1,15 m/s).
+   · BANDERAS: estandartes de regimiento con asta, moharra o remate (águila, corona, punta), corbatas, cordones y borlas, flecos; bandera
+     clavada (nacional, de regimiento, banderín y bandera de hospital); portaestandarte a caballo. Todas ondean con el VIENTO del mundo
+     (dirección y fuerza en apoyo3d.viento; sin viento cuelgan junto al asta) y se ROMPEN por impactos (agujeros, batiente deshilachado,
+     chamuscado: apoyo3d.danarBandera(lote, i, daño)). El sombreador se parchea por lote, como iVar e iCab.
+   · MÚSICA: tambor mayor con la maza, bombo, trompeta a caballo; formacion('banda', n) con los tambores, cornetas y gaiteros de infanteria3d.
+   · PERROS (opcional): rig «perro» (13 partes): terrier, mastín y perro sanitario (era D), al paso, al trote, al galope, sentado, tumbado, ladrando.
+   Fuentes: J. Letterman, «Medical Recollections of the Army of the Potomac» (1866); «Manual for the Medical Department» (EE. UU., 1861/1898);
+   Larrey, «Mémoires de chirurgie militaire» (1812–1817); «Regulations for the Army Medical Department» (Reino Unido, 1859); Convenio de Ginebra
+   (1864); «Quartermaster's Manual» y «Manual for Army Teamsters» (EE. UU., 1862–1916); «Manual of Horseshoeing» (EE. UU., 1890); «Queen's
+   Regulations» (colores de 1858: 4 pies × 3 pies 9 pulgadas, aprox.); «Règlement sur les drapeaux» (Francia, 1880, aprox.); medidas de museo.
+   API: registrar(Troops3D, op) · TIPOS · CLIPS · META · CLIPS_S · META_S · ESCENAS · formacion(tipo, n, op) · viento · danarBandera
+        TRANSICIONES · rutaTransicion · demoApoyo(cont) */
+(function (root) {
+'use strict';
+const THREE = root.THREE;
+const Z = {MAIN: 0, TRIM: 1, ACC: 2, HAT: 3, F1: 4, F2: 5, F3: 6, VEH: 7, FIX: 12};
+const C = {madera: 0x7a5232, maderaO: 0x4e3420, maderaC: 0x9a7448, hierro: 0x34363a, acero: 0x8a9096, cuero: 0x5a3a22, cueroN: 0x26201c, lona: 0xd8d0b4, lonaO: 0x9a9272,
+  saco: 0xc8b890, rojo: 0xb01818, blanco: 0xece6d6, oro: 0xd8b04a, laton: 0xc8a048, bronce: 0xb08a48, negro: 0x1c1a1a, carbon: 0x1a1816, brasa: 0xe8641c, ascua: 0xffb040,
+  piel: 0xe0b48c, venda: 0xe8e2d4, sangre: 0x5a0c0c, verdeO: 0x4a5236, cuerda: 0xb8a070, paja: 0xc8b070, moneda: 0xe0c050, papel: 0xe8e0c8, pano: 0x2e4a32,
+  manta: 0x6a6458, mantaR: 0x7a3a2a, agua: 0x4a5a60, amarillo: 0xe0c020, piedra: 0x8a8678, plata: 0xd8dade, gris: 0x6e6e66, perroB: 0xe8e0d0, perroN: 0x2a2420};
+const V = {SKIN: 1, PELAJE: 2};
+const ERAS = ['A', 'B', 'C', 'D', 'E'];
+const D2R = Math.PI / 180;
+const sstep = (a, b, t) => { const u = Math.min(1, Math.max(0, (t - a) / (b - a))); return u * u * (3 - 2 * u); };
+const lerpK = (keys, t) => { let a = keys[0], b = keys[keys.length - 1]; if (t <= a[0]) return a.slice(1); if (t >= b[0]) return b.slice(1);
+  for (let i = 0; i < keys.length - 1; i++) if (t >= keys[i][0] && t <= keys[i + 1][0]) { a = keys[i]; b = keys[i + 1]; break; }
+  const u = sstep(a[0], b[0], t); return a.slice(1).map((v, i) => v + (b[i + 1] - v) * u); };
+const curva = (N, fn) => { const tr = []; for (let i = 0; i <= N; i++) { const t = i / N, v = fn(t); tr.push([+t.toFixed(5), v[0] || 0, v[1] || 0, v[2] || 0]); } return tr; };
+function muestreo(tr, t, k) { if (!tr || !tr.length) return 0; if (tr.length === 1 || t <= tr[0][0]) return tr[0][k]; for (let i = 0; i < tr.length - 1; i++) if (t <= tr[i + 1][0]) { const a = tr[i], b = tr[i + 1], u = (t - a[0]) / Math.max(1e-6, b[0] - a[0]); return a[k] + (b[k] - a[k]) * u; } return tr[tr.length - 1][k]; }
+const cruzRoja = e => e >= 'B';                       // Convenio de Ginebra (1864): brazalete y bandera blanca con cruz roja
+
+/* ===================================================================================== */
+/* RIGS PROPIOS (≤ 13 partes). Los vehículos usan el rig «armon» de artilleria3d (mismas ruedas de 0,65 m y mismos clips de rodar). */
+const RIGS_APO = {
+  apo_asta: [['base', -1, [0, 0, 0]], ['asta', 0, [0, 0, 0]]],                                                   // bandera clavada: el asta gira sobre su pie
+  apo_fragua: [['base', -1, [0, 0, 0]], ['palanca', 0, [0, 1.02, -0.72]], ['fuelle', 0, [0, 0.66, -0.92]]],        // fragua: palanca del fuelle y tapa del fuelle
+  apo_mesa: [['base', -1, [0, 0, 0]], ['objeto', 0, [0, 0.8, 0]]],                                               // mesa de operaciones / del pagador
+  apo_camilla: [['camilla', -1, [0, 0, 0]], ['herido', 0, [0, 0.04, 0]]],                                        // camilla (raíz a la altura de las varas) y herido
+  perro: [['cuerpo', -1, [0, 0.42, 0]], ['cuello', 0, [0, 0.05, 0.22]], ['cabeza', 1, [0, 0.13, 0.06]], ['mandibula', 2, [0, -0.03, 0.05]], ['cola', 0, [0, 0.05, -0.24]],
+    ['manoIz', 0, [0.075, -0.04, 0.18]], ['canaIz', 5, [0, -0.2, 0]], ['manoDe', 0, [-0.075, -0.04, 0.18]], ['canaDe', 7, [0, -0.2, 0]],
+    ['pataIz', 0, [0.075, -0.02, -0.2]], ['corvIz', 9, [0, -0.2, 0]], ['pataDe', 0, [-0.075, -0.02, -0.2]], ['corvDe', 11, [0, -0.2, 0]]]
+};
+// patas del perro (mismo convenio que el caballo de caballeria3d: rx < 0 adelante; caña delantera rx > 0 flexiona; trasera rx < 0)
+const PATAS_P = {MI: {up: 'manoIz', low: 'canaIz', piv: [0.075, -0.04, 0.18], a: 0.2, b: 0.2, del: true}, MD: {up: 'manoDe', low: 'canaDe', piv: [-0.075, -0.04, 0.18], a: 0.2, b: 0.2, del: true},
+  PI: {up: 'pataIz', low: 'corvIz', piv: [0.075, -0.02, -0.2], a: 0.2, b: 0.22, del: false}, PD: {up: 'pataDe', low: 'corvDe', piv: [-0.075, -0.02, -0.2], a: 0.2, b: 0.22, del: false}};
+const PERRO_Y = 0.42;
+// cotas de la escena de la camilla (marco de la camilla: centro entre las varas, +z hacia los pies, que van delante)
+const CAM = {L: 2.3, X: 0.28, Y: 0.9, delZ: 1.15 + 0.13, trasZ: -1.15 - 0.22};
+// cotas de la fragua (marco de la fragua)
+const FRA = {yunque: [1.05, 0.76, 0.2], palanca: [0, 1.02, -0.72], mango: -0.85, fuelle: [0, 0.66, -0.92]};
+
+/* ===================================================================================== */
+/* GEOMETRÍA */
+function crear(T3, INF, CAB, ART) {
+const GB = T3._dev.GeoBuilder, xf = T3._dev.xf;
+const IDX = r => { const m = {}; (T3.RIGS[r] || RIGS_APO[r]).forEach((p, i) => { m[p[0]] = i; }); return m; };
+const PS = INF.P, PJ = CAB.P, PA = IDX('armon'), PF = IDX('apo_fragua'), PM = IDX('apo_mesa'), PC = IDX('apo_camilla'), PT = IDX('apo_asta'), PP = IDX('perro');
+// copia una geometría en otra, en otra parte y con una transformación (rotación XYZ en grados, traslado y escala)
+function fundir(g, src, part, at, rot, k) {
+  k = k || 1; const r0 = rot || null;
+  for (let t = 0; t < src.p.length / 9; t++) for (let j = 0; j < 3; j++) { const i = t * 9 + j * 3, v = xf([[src.p[i] * k, src.p[i + 1] * k, src.p[i + 2] * k]], at || [0, 0, 0], r0)[0], n = r0 ? xf([[src.n[i], src.n[i + 1], src.n[i + 2]]], [0, 0, 0], r0)[0] : [src.n[i], src.n[i + 1], src.n[i + 2]];
+    g.p.push(v[0], v[1], v[2]); g.n.push(n[0], n[1], n[2]); g.part.push(part); g.zone.push(src.zone[t * 3 + j]); g.col.push(src.col[i], src.col[i + 1], src.col[i + 2]); g.vr.push(src.vr[t * 3 + j]); g.fx.push(src.fx[t * 6 + j * 2], src.fx[t * 6 + j * 2 + 1]); }
+  return g;
+}
+const con = (fn) => { const g = new GB(); fn(g); return g; };
+const rueda = (g, part, R, o) => ART.rueda(g, part, R, o || {});
+
+/* ---------- banderas: lámina de dos caras con zonas por disposición (u desde el asta, v desde arriba), flecos que ondulan con ella ---------- */
+function zonaB(lay, u, v) {
+  switch (lay) {
+    case 'vert': return Z.F1 + Math.min(2, Math.floor(u * 3));
+    case 'mono': return Z.F1;
+    case 'cruz': return Math.abs(u - 0.38) < 0.09 || Math.abs(v - 0.5) < 0.11 ? Z.F2 : Z.F1;
+    case 'aspa': return Math.abs(u - v) < 0.13 || Math.abs(u + v - 1) < 0.13 ? Z.F2 : Z.F1;
+    case 'disco': return Math.hypot(u - 0.5, (v - 0.5) * 0.66) < 0.21 ? Z.F2 : Z.F1;
+    case 'usa': return u < 0.42 && v < 0.54 ? Z.F3 : (Math.floor(v * 7) % 2 ? Z.F2 : Z.F1);
+    case 'union': return Math.abs(u - 0.5) < 0.08 || Math.abs(v - 0.5) < 0.1 ? Z.F1 : Math.abs(u - v) < 0.12 || Math.abs(u + v - 1) < 0.12 ? Z.F3 : Z.F2;   // cruz roja, aspas blancas, campo azul (a 7 × 5)
+    default: return Z.F1 + Math.min(2, Math.floor(v * 3));
+  }
+}
+// bandera(g, parte, [x, y, z] del ángulo superior junto al asta, ancho, alto, nx, ny, disposición, {fleco, color(u, v) → color FIX, zona(u, v), dosCaras})
+// Una sola cara: los tipos con bandera son «dobleCara» (material de dos caras, como el abanderado de troops3d)
+function bandera(g, part, at, w, h, nx, ny, lay, o) {
+  o = o || {}; const P = (x, y) => [at[0] + x, at[1] + y, at[2]], W = x => [Math.max(0, x) / w, 0];
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) { const x0 = i / nx * w, x1 = (i + 1) / nx * w, y0 = -j / ny * h, y1 = -(j + 1) / ny * h, u = (i + 0.5) / nx, v = (j + 0.5) / ny;
+    const zn = o.zona ? o.zona(u, v) : o.color ? Z.FIX : zonaB(lay, u, v), col = o.color ? o.color(u, v) : C.blanco, a = P(x0, y0), b = P(x1, y0), c = P(x1, y1), d = P(x0, y1);
+    g.tri(a, d, c, part, zn, col, 0, W(x0), W(x0), W(x1)); g.tri(a, c, b, part, zn, col, 0, W(x0), W(x1), W(x1));
+    if (o.dosCaras) { g.tri(a, c, d, part, zn, col, 0, W(x0), W(x1), W(x0)); g.tri(a, b, c, part, zn, col, 0, W(x0), W(x1), W(x1)); } }
+  if (o.fleco) { const f = o.fleco, e = 0.045;                                                               // flecos: en el batiente y abajo (y arriba si o.flecoArriba)
+    const tira = (A, B, Ae, Be) => { const wa = W(A[0] - at[0]), wb = W(B[0] - at[0]); g.tri(A, Be, B, part, Z.FIX, f, 0, wa, wb, wb); g.tri(A, Ae, Be, part, Z.FIX, f, 0, wa, wa, wb); if (o.dosCaras) { g.tri(A, B, Be, part, Z.FIX, f, 0, wa, wb, wb); g.tri(A, Be, Ae, part, Z.FIX, f, 0, wa, wb, wa); } };
+    for (let j = 0; j < ny; j++) { const y0 = -j / ny * h, y1 = -(j + 1) / ny * h; tira(P(w, y0), P(w, y1), P(w + e, y0), P(w + e, y1)); }
+    for (let i = 0; i < nx; i++) { const x0 = i / nx * w, x1 = (i + 1) / nx * w; tira(P(x0, -h), P(x1, -h), P(x0, -h - e), P(x1 + (i === nx - 1 ? e : 0), -h - e)); if (o.flecoArriba) tira(P(x1, 0), P(x0, 0), P(x1, e), P(x0, e)); } }
+  return g;
+}
+// cordones con borlas que cuelgan del remate (fijos al asta)
+function borlas(g, part, y, col, largo) { [1, -1].forEach(s => { const L = largo || 0.42; g.strap(part, Z.FIX, col, [[0.02 * s, y, 0.0], [0.05 * s, y - L * 0.5, 0.03], [0.06 * s, y - L, 0.02]], 0.012, [0, 0, 1]);
+  g.cyl(part, Z.FIX, col, [0.06 * s, y - L - 0.05, 0.02], 0.028, 0.012, 0.1, 4, {top: true}); }); }
+/* estandartes (asta con +Y hacia arriba; pivote en la contera, como el «astil» de infanteria3d: manos en 0,55 y 0,95)
+   aguila: Francia 1804–1815 y 1852–1870 (águila dorada sobre zócalo, paño de 0,8 m con flecos y corbata) · colores: Reino Unido (corona y
+   león, 1,15 × 0,95 m desde 1858; cordones carmesí y oro) · fahne: Prusia/Austria (moharra con el monograma, paño cuadrado de 1,3 m, cintas)
+   · generico: moharra dorada, cordones y borlas · guion: estandarte de caballería (0,6 × 0,55 m) para el asta de jinete (contera en y = −0,9) */
+const ESTANDARTES = {
+  aguila: {L: 2.42, w: 0.82, h: 0.8, nx: 6, ny: 5, fleco: C.oro},
+  colores: {L: 2.8, w: 1.15, h: 0.95, nx: 7, ny: 5, fleco: C.oro},
+  fahne: {L: 3.0, w: 1.25, h: 1.2, nx: 7, ny: 5, fleco: C.plata},
+  generico: {L: 2.7, w: 1.05, h: 0.9, nx: 7, ny: 5, fleco: C.oro, cordon: C.oro},
+  guion: {L: 1.95, y0: -0.9, w: 0.6, h: 0.52, nx: 4, ny: 3, fleco: C.oro, cordon: C.oro},
+  nacional: {L: 3.6, w: 1.5, h: 1.0, nx: 8, ny: 6},
+  regimiento: {L: 2.9, w: 1.1, h: 0.95, nx: 7, ny: 5, fleco: C.oro, cordon: C.oro},
+  banderin: {L: 2.1, w: 0.55, h: 0.4, nx: 4, ny: 2},
+  hospital: {L: 3.4, w: 1.2, h: 0.85, nx: 8, ny: 6}
+};
+function estandarte(g, part, estilo, o) {
+  const E = ESTANDARTES[estilo], y0 = E.y0 || 0, top = y0 + E.L, F = Z.FIX, lay = o.flagLayout || 'horiz';
+  g.cyl(part, F, estilo === 'fahne' ? C.negro : C.maderaO, [0, (y0 + top) / 2, 0], 0.019, 0.017, E.L, 5);                                  // asta
+  g.cyl(part, F, C.laton, [0, y0 + 0.02, 0], 0.022, 0.019, 0.05, 5, {bottom: true});                                                        // regatón
+  let yb = top - 0.04;                                                                                                                       // ángulo superior del paño
+  if (estilo === 'aguila') { g.box(part, F, C.oro, [0, top + 0.04, 0], [0.09, 0.08, 0.09], {}); g.octa(part, F, C.oro, [0, top + 0.16, 0.01], 0.05, {ry: 0.07});   // zócalo y cuerpo del águila
+    [1, -1].forEach(s => g.quad([0.02 * s, top + 0.14, 0.0], [0.13 * s, top + 0.26, -0.02], [0.12 * s, top + 0.12, -0.03], [0.03 * s, top + 0.08, 0.0], part, F, C.oro));   // alas
+    g.octa(part, F, C.oro, [0, top + 0.25, 0.04], 0.025); yb = top - 0.02;
+    g.strap(part, F, C.blanco, [[0.02, top - 0.03, 0.02], [0.08, top - 0.25, 0.04], [0.06, top - 0.5, 0.03]], 0.06, [0, 0, 1]); g.strap(part, F, C.rojo, [[-0.02, top - 0.03, 0.02], [-0.06, top - 0.3, 0.04], [-0.03, top - 0.52, 0.03]], 0.06, [0, 0, 1]); }   // corbata
+  else if (estilo === 'colores') { g.cyl(part, F, C.oro, [0, top + 0.05, 0], 0.035, 0.05, 0.08, 6, {top: true}); g.octa(part, F, C.oro, [0, top + 0.15, 0], 0.045, {ry: 0.06}); g.octa(part, F, C.rojo, [0, top + 0.11, 0], 0.04); }   // corona y león
+  else if (estilo === 'fahne') { g.cyl(part, F, C.laton, [0, top + 0.12, 0], 0.035, 0.0, 0.26, 4, {}); g.box(part, F, C.laton, [0, top + 0.02, 0], [0.06, 0.05, 0.03], {});        // moharra
+    [[0.03, C.negro], [-0.03, C.blanco]].forEach(([x, c]) => g.strap(part, F, c, [[x, top - 0.02, 0.02], [x * 2, top - 0.45, 0.05], [x * 2.4, top - 0.85, 0.03]], 0.05, [0, 0, 1])); }   // cintas
+  else if (estilo === 'hospital' || estilo === 'nacional') g.octa(part, F, C.oro, [0, top + 0.04, 0], 0.045, {ry: 0.05});                    // perilla
+  else g.cyl(part, F, C.oro, [0, top + 0.1, 0], 0.03, 0.0, 0.22, 4, {});                                                                      // moharra
+  if (E.cordon) borlas(g, part, top - 0.03, E.cordon, estilo === 'guion' ? 0.25 : 0.45);
+  const op = {fleco: E.fleco};
+  if (estilo === 'hospital') op.color = o.era >= 'B' ? (u, v) => (Math.abs(u - 0.5) < 0.1 && Math.abs(v - 0.5) < 0.32) || (Math.abs(v - 0.5) < 0.13 && Math.abs(u - 0.5) < 0.24) ? C.rojo : C.blanco : () => C.amarillo;
+  else if (estilo === 'banderin') op.zona = (u, v) => v < 0.5 ? Z.F1 : Z.F2;
+  bandera(g, part, [0.02, yb, 0], E.w, E.h, E.nx, E.ny, estilo === 'colores' && lay === 'union' ? 'union' : lay, op);
+  return g;
+}
+
+/* ---------- vehículos (rig armon): tren delantero con lanza; caja sobre el «arrastre» (marco del pinzote), ruedas traseras en su eje ---------- */
+const AR = ART.ARMON, Wz = (x, y, z) => [x, y - AR.pinzote[1], z - AR.pinzote[2]];          // de cotas de la figura (raíz bajo el eje delantero) al marco del arrastre
+function trenDelantero(g, o) {
+  const A = PA.avantren, F = Z.FIX, V = Z.VEH;
+  [PA.ruedaAI, PA.ruedaAD].forEach(p => rueda(g, p, AR.R, {}));
+  g.loft(A, F, C.hierro, [[-0.84, 0.045, 0.045], [0.84, 0.045, 0.045]], 6, {axis: 'x', at: [0, AR.R, 0]});                                  // eje
+  g.box(A, V, 0, [0, AR.R + 0.11, 0], [1.25, 0.12, 0.14], {bottom: true});                                                                   // telera
+  [1, -1].forEach(s => g.box(A, V, 0, [s * 0.3, AR.R + 0.02, 0.25], [0.07, 0.08, 0.9], {rot: [0, s * 8, 0]}));                                 // tijeras
+  g.box(A, V, 0, [0, AR.R + 0.0, 0.55], [1.0, 0.07, 0.07], {});                                                                              // balancín
+  g.box(PA.lanza, V, 0, [0, 0, 1.35], [0.08, 0.09, 2.7], {rot: [3, 0, 0]}); g.box(PA.lanza, F, C.hierro, [0, -0.05, 2.7], [0.36, 0.03, 0.04], {});
+}
+function ruedasTraseras(g) { [PA.ruedaPI, PA.ruedaPD].forEach(p => rueda(g, p, AR.R, {})); g.loft(PA.arrastre, Z.FIX, C.hierro, [[-0.82, 0.045, 0.045], [0.82, 0.045, 0.045]], 6, {axis: 'x', at: [0, AR.ejeP[1], AR.ejeP[2]]}); }
+// caja del carro (cotas de la figura): de z1 (delante) a z0 (detrás), suelo a y0, costados de altura hc; o.pescante: asiento delantero
+function caja(g, o, z1, z0, y0, hc, ancho) {
+  const A = PA.arrastre, V = Z.VEH, F = Z.FIX, L = z1 - z0, zc = (z1 + z0) / 2, w = ancho || 1.1;
+  g.box(A, V, 0, Wz(0, y0 + 0.03, zc), [w, 0.06, L], {bottom: true});                                                                        // suelo
+  [1, -1].forEach(s => { g.box(A, V, 0, Wz(s * w / 2, y0 + hc / 2, zc), [0.04, hc, L], {}); g.box(A, F, C.hierro, Wz(s * (w / 2 + 0.025), y0 + hc - 0.04, zc), [0.012, 0.04, L], {}); });   // costados y fleje
+  g.box(A, V, 0, Wz(0, y0 + hc / 2, z1), [w, hc, 0.04], {}); g.box(A, V, 0, Wz(0, y0 + hc / 2, z0), [w, hc, 0.04], {});                    // testeros
+  g.box(A, V, 0, Wz(0, y0 - 0.1, (zc + 0.78 - 0.78) - 0.0), [0.14, 0.14, L * 0.9], {});                                                     // larguero (pértiga)
+  [1, -1].forEach(s => g.box(A, F, C.hierro, Wz(s * 0.42, y0 - 0.12, z0 + 0.55), [0.03, 0.3, 0.05], {}));                                     // soportes sobre el eje trasero
+  if (o.pescante) { g.box(A, V, 0, Wz(0, y0 + hc + 0.12, z1 - 0.22), [w * 0.95, 0.06, 0.32], {}); g.box(A, V, 0, Wz(0, y0 + hc + 0.32, z1 - 0.38), [w * 0.95, 0.36, 0.04], {});   // asiento y respaldo
+    g.box(A, V, 0, Wz(0, y0 + 0.25, z1 + 0.25), [w * 0.9, 0.04, 0.4], {rot: [-35, 0, 0]}); }                                                  // reposapiés
+}
+// toldo de arcos (sección semielíptica sobre los costados, frunce en los extremos)
+function toldo(g, z1, z0, y0, rx, ry, col, cruz) {
+  const A = PA.arrastre, F = Z.FIX, n = 8, segs = 3, P = (a, z, k) => Wz(Math.cos(a) * rx * k, y0 + Math.sin(a) * ry * k, z);
+  for (let s = 0; s < segs; s++) { const za = z1 - (z1 - z0) * s / segs, zb = z1 - (z1 - z0) * (s + 1) / segs;
+    for (let i = 0; i < n; i++) { const a = i / n * Math.PI, b = (i + 1) / n * Math.PI; g.quad(P(a, zb, 1), P(b, zb, 1), P(b, za, 1), P(a, za, 1), A, F, col); g.quad(P(a, za, 0.98), P(b, za, 0.98), P(b, zb, 0.98), P(a, zb, 0.98), A, F, C.lonaO); } }
+  [[z1, 0.25], [z0, -0.25]].forEach(([z, d]) => { for (let i = 0; i < n; i++) { const a = i / n * Math.PI, b = (i + 1) / n * Math.PI;              // frunces (boca abierta)
+    g.quad(P(a, z, 1), P(a, z + d, 0.62), P(b, z + d, 0.62), P(b, z, 1), A, F, col); g.quad(P(a, z, 1), P(b, z, 1), P(b, z + d, 0.62), P(a, z + d, 0.62), A, F, col); } });
+  for (let s = 0; s <= segs; s++) { const z = z1 - (z1 - z0) * s / segs; for (let i = 0; i < n; i++) { const a = i / n * Math.PI, b = (i + 1) / n * Math.PI, e = 0.03;   // arcos
+    g.quad(P(a, z - e, 1.012), P(b, z - e, 1.012), P(b, z + e, 1.012), P(a, z + e, 1.012), A, F, C.lonaO); } }
+  if (cruz) [1, -1].forEach(s => { const x = s * (rx + 0.012), zc = (z1 + z0) / 2, yc = y0 + ry * 0.35, a = 0.09, b = 0.3;                     // cruz roja en los dos costados
+    const Q = (dz0, dy0, dz1, dy1) => { const p = [Wz(x, yc + dy0, zc + dz0), Wz(x, yc + dy0, zc + dz1), Wz(x, yc + dy1, zc + dz1), Wz(x, yc + dy1, zc + dz0)]; g.quad(p[0], p[3], p[2], p[1], A, F, C.rojo); g.quad(p[0], p[1], p[2], p[3], A, F, C.rojo); };
+    Q(-a, -b, a, b); Q(-b, -a, -a, a); Q(a, -a, b, a); });
+}
+function ambulancia(g, o) {
+  trenDelantero(g, o); ruedasTraseras(g); const y0 = 1.02, hc = 0.42;
+  caja(g, {pescante: true}, 0.05, -3.55, y0, hc, 1.15);
+  toldo(g, -0.35, -3.55, y0 + hc, 0.6, 0.62, C.lona, cruzRoja(o.era));
+  g.box(PA.arrastre, Z.VEH, 0, Wz(0, y0 + 0.35, -3.6), [1.0, 0.6, 0.04], {});                                                               // portón trasero
+  [1, -1].forEach(s => g.box(PA.arrastre, Z.FIX, C.hierro, Wz(s * 0.4, y0 - 0.25, -3.62), [0.05, 0.05, 0.12], {}));                          // estribo
+  g.cyl(PA.arrastre, Z.FIX, C.agua, Wz(0.62, y0 + 0.1, -1.0), 0.13, 0.13, 0.4, 6, {top: true, bottom: true});                                 // barril de agua
+  g.box(PA.arrastre, Z.FIX, C.maderaO, Wz(-0.66, y0 + 0.1, -1.6), [0.14, 0.24, 0.6], {});                                                    // caja de botiquín
+}
+function carroSuministro(g, o) {
+  trenDelantero(g, o); ruedasTraseras(g); const y0 = 1.02, hc = 0.6;
+  caja(g, {pescante: false}, 0.15, -3.45, y0, hc, 1.1); toldo(g, 0.25, -3.55, y0 + hc - 0.05, 0.62, 0.66, o.era >= 'D' ? C.lonaO : C.lona, false);
+  g.cyl(PA.arrastre, Z.FIX, C.madera, Wz(0.0, y0 + 0.05, -3.75), 0.12, 0.12, 0.6, 6, {rot: [0, 0, 90], top: true, bottom: true});          // cubo de grasa y pienso atrás
+  g.box(PA.arrastre, Z.FIX, C.madera, Wz(0, y0 - 0.15, 0.3), [0.9, 0.3, 0.3], {});                                                           // caja de herramientas (delante)
+}
+function carroBagaje(g, o) {
+  trenDelantero(g, o); ruedasTraseras(g); const y0 = 1.02, hc = 0.5, A = PA.arrastre, F = Z.FIX;
+  caja(g, {pescante: true}, 0.15, -3.45, y0, hc, 1.15);
+  [[-0.3, -0.75, [0.5, 0.42, 0.7], C.cueroN], [0.28, -0.7, [0.5, 0.36, 0.6], C.maderaO], [0.0, -1.55, [0.9, 0.3, 0.55], C.verdeO], [-0.25, -2.35, [0.55, 0.45, 0.5], C.madera]].forEach(([x, z, s, c]) => g.box(A, F, c, Wz(x, y0 + 0.06 + s[1] / 2, z), s, {}));   // baúles y cajas
+  [[0.25, -2.4], [0.3, -2.95], [-0.25, -3.0]].forEach(([x, z]) => g.loft(A, F, C.saco, [[-0.28, 0.15, 0.13], [0, 0.2, 0.16], [0.28, 0.14, 0.12]], 6, {axis: 'z', at: Wz(x, y0 + 0.2, z), capA: true, capB: true}));   // sacos
+  g.cyl(A, F, C.madera, Wz(0.25, y0 + 0.62, -1.45), 0.18, 0.18, 0.5, 7, {top: true, bottom: true, rot: [0, 0, 90]});                          // barril
+  g.loft(A, F, C.lonaO, [[-0.5, 0.12, 0.12], [0.5, 0.12, 0.12]], 6, {axis: 'x', at: Wz(0, y0 + 0.7, -2.0), capA: true, capB: true});        // tiendas enrolladas
+  g.strap(A, F, C.cuerda, [Wz(-0.58, y0 + 0.5, -1.0), Wz(0, y0 + 0.9, -1.4), Wz(0.58, y0 + 0.5, -1.8)], 0.02, [0, 1, 0]);                    // cuerda de amarre
+}
+// LOD de los vehículos: 1 ≤ 150 triángulos, 2 ≤ 30
+function carroLod(o, nivel, toldoSi) {
+  const g = new GB(), V = Z.VEH, F = Z.FIX, A = PA.arrastre;
+  if (nivel === 2) { g.box(A, V, 0, Wz(0, 1.0, -1.7), [1.15, 0.9, 3.6], {noTop: !!toldoSi, bottom: false}); if (toldoSi) g.box(A, F, C.lona, Wz(0, 1.7, -1.75), [1.2, 0.6, 3.4], {taper: 0.4, noBack: false}); return g; }
+  g.box(A, V, 0, Wz(0, 1.25, -1.7), [1.12, 0.5, 3.6], {bottom: true}); g.box(PA.lanza, V, 0, [0, 0, 1.35], [0.08, 0.09, 2.7], {noBack: true});
+  if (toldoSi) g.box(A, F, C.lona, Wz(0, 1.85, -1.75), [1.2, 0.7, 3.3], {taper: 0.35});
+  [PA.ruedaAI, PA.ruedaAD, PA.ruedaPI, PA.ruedaPD].forEach(p => { g.disc(p, V, 0, [0.04, 0, 0], AR.R, 8, {}); g.disc(p, V, 0, [-0.04, 0, 0], AR.R, 8, {rot: [0, 180, 0]}); });
+  return g;
+}
+
+/* ---------- fragua de campaña (rig apo_fragua): fogón con brasas, fuelle de palanca, yunque sobre tajo, cubo y caja de herraduras ---------- */
+function fragua(g, o) {
+  const B = PF.base, F = Z.FIX, V = Z.VEH;
+  [[0.62, 0.0], [-0.62, 0.0]].forEach(([x, z]) => fundir(g, con(q => rueda(q, 0, 0.6, {})), B, [x, 0.6, z], x < 0 ? [0, 180, 0] : null));                               // ruedas (quietas)
+  g.loft(B, F, C.hierro, [[-0.7, 0.04, 0.04], [0.7, 0.04, 0.04]], 6, {axis: 'x', at: [0, 0.6, 0]});
+  g.box(B, V, 0, [0, 0.66, 0.15], [0.95, 0.34, 0.95], {bottom: true});                                                                       // caja (carbón)
+  g.box(B, F, C.hierro, [0, 0.89, 0.2], [0.9, 0.12, 0.75], {});                                                                              // fogón de chapa
+  g.quad([-0.3, 0.955, 0.42], [0.3, 0.955, 0.42], [0.3, 0.955, -0.02], [-0.3, 0.955, -0.02], B, F, C.brasa);                                 // brasas
+  [[-0.12, 0.08], [0.1, 0.25], [0.18, 0.05], [-0.05, 0.32]].forEach(([x, z]) => g.octa(B, F, C.carbon, [x, 0.97, z], 0.04, {ry: 0.02}));
+  g.octa(B, F, C.ascua, [0.02, 0.965, 0.18], 0.05, {ry: 0.012});
+  g.box(B, F, C.hierro, [0, 1.25, 0.45], [0.06, 0.6, 0.06], {}); g.box(B, F, C.hierro, [0, 1.55, 0.3], [0.5, 0.04, 0.45], {taper: 0.4});     // campana (paraviento)
+  g.box(B, V, 0, [0, 0.5, -0.62], [0.7, 0.12, 0.7], {bottom: true});                                                                         // base del fuelle
+  [1, -1].forEach(s => g.quad([s * 0.33, 0.56, -0.92], [s * 0.33, 0.56, -0.32], [s * 0.33, 0.68, -0.32], [s * 0.33, 0.68, -0.92], B, F, C.cuero));   // cuero del fuelle (costados)
+  g.quad([0.33, 0.56, -0.32], [-0.33, 0.56, -0.32], [-0.33, 0.66, -0.32], [0.33, 0.66, -0.32], B, F, C.cuero);
+  g.box(B, V, 0, [0, 0.84, -0.72], [0.08, 0.36, 0.08], {});                                                                                  // poste de la palanca
+  g.box(PF.fuelle, V, 0, [0, 0.015, 0.3], [0.68, 0.03, 0.62], {});                                                                           // tapa del fuelle (bisagra atrás)
+  g.box(PF.palanca, V, 0, [0, 0.0, -0.3], [0.06, 0.06, 1.15], {}); g.box(PF.palanca, V, 0, [0, 0, FRA.mango], [0.5, 0.045, 0.045], {});     // palanca y travesaño (mango)
+  g.box(PF.palanca, F, C.hierro, [0, -0.17, 0.2], [0.03, 0.36, 0.03], {});                                                                   // biela a la tapa
+  // yunque sobre tajo, cubo de agua, caja de herraduras
+  const Y = FRA.yunque; g.cyl(B, F, C.maderaC, [Y[0], 0.27, Y[2]], 0.2, 0.19, 0.54, 7, {top: true});
+  g.box(B, F, C.hierro, [Y[0], Y[1] - 0.1, Y[2]], [0.13, 0.12, 0.2], {}); g.box(B, F, C.hierro, [Y[0], Y[1] - 0.02, Y[2]], [0.16, 0.06, 0.34], {}); g.cyl(B, F, C.hierro, [Y[0], Y[1] - 0.02, Y[2] + 0.26], 0.03, 0.0, 0.18, 4, {rot: [90, 0, 0]});
+  g.cyl(B, F, C.madera, [-0.95, 0.2, 0.45], 0.22, 0.24, 0.4, 7, {bottom: true}); g.disc(B, F, C.agua, [-0.95, 0.36, 0.45], 0.2, 7, {rot: [0, 0, 90]});
+  g.box(B, F, C.maderaO, [1.0, 0.12, -0.45], [0.4, 0.24, 0.3], {}); [[0.92, -0.45], [1.08, -0.42]].forEach(([x, z]) => g.cyl(B, F, C.hierro, [x, 0.25, z], 0.06, 0.06, 0.015, 6, {top: true}));
+  g.box(B, V, 0, [0, 0.25, 0.75], [0.08, 0.5, 0.08], {});                                                                                    // pie delantero (la lanza quitada)
+}
+function fraguaLod(o, nivel) { const g = new GB(), B = PF.base, V = Z.VEH, F = Z.FIX;
+  if (nivel === 2) { g.box(B, V, 0, [0, 0.5, 0], [1.3, 1.0, 1.7], {}); return g; }
+  g.box(B, V, 0, [0, 0.6, -0.1], [1.0, 0.7, 1.4], {}); g.quad([-0.3, 0.955, 0.42], [0.3, 0.955, 0.42], [0.3, 0.955, -0.02], [-0.3, 0.955, -0.02], B, F, C.brasa);
+  [0.62, -0.62].forEach(x => { g.disc(B, V, 0, [x + 0.04 * Math.sign(x), 0.6, 0], 0.6, 8, {rot: x > 0 ? null : [0, 180, 0]}); });
+  g.box(B, F, C.hierro, [FRA.yunque[0], 0.5, FRA.yunque[2]], [0.3, 0.75, 0.35], {}); g.box(PF.palanca, V, 0, [0, 0, -0.3], [0.06, 0.06, 1.15], {noBack: true}); return g; }
+
+/* ---------- mesas (rig apo_mesa) ---------- */
+function mesa(g, w, d, hgt, col) { const B = PM.base, F = Z.FIX; g.box(B, F, col || C.maderaC, [0, hgt - 0.03, 0], [w, 0.06, d], {bottom: true});
+  [[1, 1], [1, -1], [-1, 1], [-1, -1]].forEach(([a, b]) => g.box(B, F, C.madera, [a * (w / 2 - 0.06), (hgt - 0.06) / 2, b * (d / 2 - 0.06)], [0.06, hgt - 0.06, 0.06], {noTop: true})); }
+function mesaCirujano(g, o) {
+  const B = PM.base, Ob = PM.objeto, F = Z.FIX; mesa(g, 2.0, 0.75, 0.8);
+  g.quad([0.2, 0.802, 0.2], [0.75, 0.802, 0.24], [0.8, 0.802, -0.18], [0.3, 0.802, -0.22], B, F, C.sangre);                                 // mancha
+  g.box(Ob, F, C.cueroN, [-0.75, 0.04, 0.42], [0.36, 0.08, 0.2], {}); g.box(Ob, F, C.rojo, [-0.75, 0.082, 0.42], [0.3, 0.004, 0.14], {});   // estuche de instrumentos
+  g.cyl(Ob, F, C.plata, [0.7, 0.04, 0.45], 0.13, 0.16, 0.07, 8, {bottom: true}); g.disc(Ob, F, C.sangre, [0.7, 0.07, 0.45], 0.14, 8, {rot: [0, 0, 90]});   // jofaina
+  g.cyl(B, F, C.madera, [0.55, 0.17, -0.0], 0.17, 0.2, 0.34, 7, {bottom: true});                                                              // cubo bajo la mesa
+  g.cyl(B, F, C.maderaO, [-1.3, 0.22, 0.5], 0.16, 0.16, 0.44, 6, {top: true});                                                                 // tajo / taburete
+  g.box(B, F, C.verdeO, [-1.2, 0.12, -0.7], [0.5, 0.24, 0.35], {}); g.box(B, F, C.blanco, [-1.2, 0.245, -0.7], [0.3, 0.01, 0.2], {});        // arcón de sanidad
+  [[1.35, 0.6], [1.5, 0.3]].forEach(([x, z]) => g.loft(B, F, C.venda, [[-0.04, 0.05, 0.05], [0.04, 0.05, 0.05]], 6, {axis: 'x', at: [x, 0.05, z], capA: true, capB: true}));   // vendas por el suelo
+  if (o.era <= 'C') { g.cyl(B, F, C.madera, [1.05, 1.0, -0.42], 0.02, 0.02, 2.0, 4); g.box(B, F, C.laton, [1.05, 1.85, -0.42], [0.12, 0.18, 0.12], {}); }   // farol en un palo
+}
+function mesaPagador(g, o) {
+  const B = PM.base, Ob = PM.objeto, F = Z.FIX; mesa(g, 1.4, 0.7, 0.76); g.box(B, F, C.pano, [0, 0.765, 0], [1.42, 0.012, 0.72], {}); [1, -1].forEach(s => g.quad([s * 0.71, 0.76, 0.36], [s * 0.71, 0.76, -0.36], [s * 0.71, 0.55, -0.36], [s * 0.71, 0.55, 0.36], B, F, C.pano));   // tapete
+  g.box(Ob, F, C.maderaO, [-0.4, 0.1, -0.12], [0.42, 0.2, 0.3], {}); [-0.55, -0.25].forEach(x => g.box(Ob, F, C.hierro, [x, 0.1, -0.12], [0.03, 0.205, 0.305], {}));   // cofre herrado
+  g.box(Ob, F, C.papel, [0.15, -0.025, -0.05], [0.42, 0.012, 0.3], {rot: [0, -8, 0]}); g.box(Ob, F, C.negro, [0.15, -0.02, -0.05], [0.01, 0.016, 0.3], {rot: [0, -8, 0]});   // libro abierto
+  [[-0.02, 0.04], [0.05, 0.07], [0.42, 0.15]].forEach(([x, z], i) => g.cyl(Ob, F, C.moneda, [x, -0.01 + i * 0.0, z], 0.022, 0.022, 0.04 + 0.02 * i, 6, {top: true}));   // montones de monedas
+  g.cyl(Ob, F, C.negro, [0.45, -0.005, -0.15], 0.025, 0.03, 0.05, 5, {top: true});                                                            // tintero
+  g.cyl(B, F, C.maderaO, [0, 0.2, -0.62], 0.16, 0.16, 0.4, 6, {top: true});                                                                  // taburete
+}
+function mesaLod(o, nivel, w, d, h) { const g = new GB(), B = PM.base; g.box(B, Z.FIX, C.maderaC, [0, h / 2, 0], [w, h, d], {noTop: nivel === 2 ? false : false, bottom: false}); return g; }
+
+/* ---------- camilla con herido (rig apo_camilla; varas a lo largo de z, pies del herido hacia +z) ---------- */
+function camilla(g, o) {
+  const K = PC.camilla, H = PC.herido, F = Z.FIX, L = CAM.L, X = CAM.X;
+  [1, -1].forEach(s => { g.cyl(K, F, C.maderaC, [s * X, 0, 0], 0.022, 0.022, L, 5, {rot: [90, 0, 0]});                                       // varas
+    [0.82, -0.82].forEach(z => g.box(K, F, C.hierro, [s * X, -0.09, z], [0.025, 0.16, 0.03], {})); });                                           // patas (estribos)
+  [0.85, -0.85].forEach(z => g.box(K, F, C.hierro, [0, 0, z], [2 * X, 0.02, 0.02], {}));                                                       // travesaños
+  g.quad([X, 0.0, -0.92], [-X, 0.0, -0.92], [-X, -0.03, 0.92], [X, -0.03, 0.92], K, F, C.lonaO); g.quad([X, -0.03, 0.92], [-X, -0.03, 0.92], [-X, 0.0, -0.92], [X, 0.0, -0.92], K, F, C.lonaO);   // lona
+  // herido tendido boca arriba (cabeza atrás, en −z): capote, manta en las piernas, vendaje en la cabeza
+  g.loft(H, Z.MAIN, 0, [[-0.62, 0.15, 0.08, 0, 0.07], [-0.4, 0.18, 0.1, 0, 0.08], [-0.15, 0.17, 0.095, 0, 0.075], [0.0, 0.16, 0.09, 0, 0.07]], 7, {axis: 'z', capA: true});   // torso
+  g.loft(H, Z.FIX, C.piel, [[-0.74, 0.05, 0.05, 0, 0.06], [-0.7, 0.07, 0.07, 0, 0.08]], 6, {axis: 'z', vr: V.SKIN});                         // cuello
+  g.loft(H, Z.FIX, C.piel, [[-0.92, 0.07, 0.07, 0, 0.1], [-0.84, 0.095, 0.095, 0, 0.11], [-0.74, 0.08, 0.08, 0, 0.1]], 6, {axis: 'z', capA: true, capB: true, vr: V.SKIN});   // cabeza
+  g.loft(H, Z.FIX, C.venda, [[-0.88, 0.1, 0.1, 0, 0.115], [-0.8, 0.1, 0.1, 0, 0.115]], 6, {axis: 'z'});                                      // vendaje
+  g.loft(H, Z.FIX, o.manta || C.manta, [[-0.05, 0.2, 0.07, 0, 0.05], [0.4, 0.21, 0.08, 0, 0.06], [0.88, 0.16, 0.06, 0, 0.05]], 7, {axis: 'z', capB: true, p: 2.6});   // manta sobre las piernas
+  [1, -1].forEach(s => { g.tube(H, Z.MAIN, 0, [s * 0.19, 0.07, -0.55], [s * 0.21, 0.05, -0.12], [[0, 0.05], [1, 0.042]], 5);                 // brazos a lo largo del cuerpo
+    g.octa(H, Z.FIX, C.piel, [s * 0.21, 0.05, -0.06], 0.035, {vr: V.SKIN}); g.box(H, Z.FIX, C.negro, [s * 0.08, 0.08, 0.95], [0.09, 0.12, 0.1], {}); });   // manos y botas
+  g.box(H, Z.FIX, C.sangre, [0.06, 0.166, -0.32], [0.12, 0.01, 0.1], {});                                                                      // sangre en el pecho
+}
+function camillaLod(o, nivel) { const g = new GB(), K = PC.camilla, H = PC.herido, F = Z.FIX;
+  if (nivel === 2) { g.box(K, F, C.lonaO, [0, 0.05, 0], [0.6, 0.16, 2.3], {noTop: false}); return g; }
+  g.box(K, F, C.lonaO, [0, -0.02, 0], [0.6, 0.04, 2.3], {}); g.box(H, Z.MAIN, 0, [0, 0.08, -0.3], [0.34, 0.16, 0.7], {}); g.box(H, F, C.manta, [0, 0.06, 0.45], [0.38, 0.12, 0.9], {}); g.octa(H, F, C.venda, [0, 0.1, -0.82], 0.1, {}); return g; }
+
+/* ---------- asta clavada (rig apo_asta) ---------- */
+function asta(g, estilo, o) { const B = PT.base, F = Z.FIX;
+  [[0.12, 0.05], [-0.1, 0.1], [0.04, -0.13], [-0.08, -0.08], [0.13, -0.06]].forEach(([x, z]) => g.octa(B, F, C.piedra, [x, 0.04, z], 0.07, {ry: 0.05}));   // piedras al pie
+  estandarte(g, PT.asta, estilo, o); }
+function astaLod(estilo, o, nivel) { const g = new GB(), E = ESTANDARTES[estilo], F = Z.FIX;
+  g.cyl(PT.asta, F, C.maderaO, [0, E.L / 2, 0], 0.03, 0.03, E.L, 3);
+  if (nivel === 1) { const z = estilo === 'hospital' ? F : Z.F1, c = estilo === 'hospital' ? (o.era >= 'B' ? C.blanco : C.amarillo) : 0, a = [0.02, E.L - 0.04, 0], b = [0.02 + E.w, E.L - 0.04, 0], cc = [0.02 + E.w, E.L - 0.04 - E.h, 0], d = [0.02, E.L - 0.04 - E.h, 0];
+    g.quad(a, b, cc, d, PT.asta, z, c); }
+  return g; }
+
+/* ---------- figuras a pie (rig soldado; prefijo inf_ → variación de infanteria3d) ----------
+   Se parte de las opciones de infanteria3d (uniforme por nación y era) y se quita o se añade: mochila, armas, brazalete, mandil, herramientas. */
+const FIG = {
+  cirujano: {nombre: 'Cirujano militar (mandil y sierra)', base: 'teniente', pal: 'estado_mayor', herr: 'sierra', mandil: true, brazalete: true},
+  practicante: {nombre: 'Practicante / enfermero (bolsa de curas)', base: 'soldado', herr: null, brazalete: true, bolsa: true},
+  camillero: {nombre: 'Camillero', base: 'soldado', herr: null, brazalete: true},
+  herrero: {nombre: 'Herrero / herrador (mandil de cuero, martillo y tenazas)', base: 'soldado', pal: 'artilleria', herr: 'martillo', mandilCuero: true, tenazas: true},
+  herrador: {nombre: 'Herrador (mandil de cuero y martillo de herrar)', base: 'soldado', pal: 'artilleria', herr: 'martillo', mandilCuero: true},
+  herido: {nombre: 'Herido (sin armas ni mochila, brazo vendado)', base: 'soldado', herr: null, vendaje: true},
+  ayudante_herrero: {nombre: 'Ayudante del herrero (fuelle)', base: 'soldado', pal: 'artilleria', herr: null, mandilCuero: true},
+  pagador: {nombre: 'Pagador / comisario de guerra', base: 'teniente', pal: 'estado_mayor', herr: 'pluma', cartera: true},
+  arriero: {nombre: 'Arriero (lleva la recua del ronzal)', base: 'soldado', pal: 'artilleria', herr: 'latigo'},
+  conductor: {nombre: 'Conductor de carro (en el pescante, riendas y látigo)', base: 'soldado', pal: 'artilleria', herr: 'latigo'},
+  prisionero: {nombre: 'Prisionero (sin armas ni mochila)', base: 'soldado', herr: null},
+  tambor_mayor: {nombre: 'Tambor mayor (maza)', base: 'sargento', herr: 'maza', tocadoAlto: true},
+  bombo: {nombre: 'Bombo', base: 'soldado', herr: 'mazo_bombo', bombo: true, musico: 'bombo'},
+  estandarte_aguila: {nombre: 'Portaestandarte con águila (Francia, aprox. 1804–1815 y 1852–1870)', base: 'abanderado', estandarte: 'aguila', galones: 2},
+  estandarte_colores: {nombre: 'Portaestandarte con los colores del regimiento (corona y león, cordones)', base: 'abanderado', estandarte: 'colores', galones: 3},
+  estandarte_fahne: {nombre: 'Portaestandarte con «Fahne» (moharra y cintas)', base: 'abanderado', estandarte: 'fahne', galones: 3},
+  estandarte_generico: {nombre: 'Portaestandarte (moharra, cordones y borlas, flecos)', base: 'abanderado', estandarte: 'generico', galones: 3}
+};
+const HERR = {
+  sierra: (g, a) => { g.box(a, Z.FIX, C.madera, [0, 0.05, 0], [0.03, 0.12, 0.055], {bottom: true}); g.box(a, Z.FIX, C.acero, [0, 0.32, 0.015], [0.004, 0.42, 0.075], {taperZ: 0.3}); g.box(a, Z.FIX, C.hierro, [0, 0.32, -0.03], [0.01, 0.42, 0.012], {}); },
+  martillo: (g, a) => { g.cyl(a, Z.FIX, C.madera, [0, 0.14, 0], 0.014, 0.014, 0.34, 4); g.box(a, Z.FIX, C.hierro, [0, 0.32, 0.02], [0.035, 0.04, 0.15], {taperZ: -0.2}); },
+  pluma: (g, a) => { g.cyl(a, Z.FIX, C.blanco, [0, 0.07, 0], 0.004, 0.012, 0.16, 3); },
+  latigo: (g, a) => ART.latigo(g, a),
+  maza: (g, a) => { g.cyl(a, Z.FIX, C.maderaO, [0, 0.35, 0], 0.016, 0.016, 1.4, 5); g.octa(a, Z.FIX, C.oro, [0, 1.1, 0], 0.06, {}); g.cyl(a, Z.FIX, C.oro, [0, -0.36, 0], 0.02, 0.012, 0.05, 5, {bottom: true});
+    g.strap(a, Z.FIX, C.oro, [[0.02, 1.0, 0], [0.03, 0.7, 0.02], [0.02, 0.4, 0]], 0.012, [0, 0, 1]); g.cyl(a, Z.FIX, C.oro, [0.02, 0.36, 0], 0.024, 0.012, 0.08, 5, {top: true}); },
+  mazo_bombo: (g, a) => { g.cyl(a, Z.FIX, C.madera, [0, 0.15, 0], 0.01, 0.01, 0.3, 3); g.octa(a, Z.FIX, C.blanco, [0, 0.32, 0], 0.04, {}); }
+};
+function figura(clave, era, nat) {
+  const F = FIG[clave], base = INF.opciones(F.base, era, nat), M = Object.assign({}, base.mod, {mochila: 'no', rollo: 'ninguno'});
+  const o = Object.assign(base, {rango: 'apo_' + clave, mod: M, arma: 'ninguna', bayoneta: false, herr: F.herr, modelo: `apo_${clave}_${nat}_${era}`, clave});
+  if (F.tocadoAlto && era <= 'B' && /FRA|GBR|RUS|ESP|GEN|AUT/.test(nat)) o.toc = 'osos';
+  if (F.musico) { o.musico = F.musico; o.nidos = true; }
+  if (F.estandarte) { o.abanderado = true; o.musico = 'bandera'; o.estandarte = F.estandarte; o.galones = F.galones || 0; if (F.oficial) o.oficial = true; o.modelo += '_' + (o.flagLayout || ''); }
+  if (F.mandil) o.mandil = true;
+  return o;
+}
+// brazalete blanco con la cruz roja en el brazo izquierdo (desde 1864)
+function brazalete(g) { const a = PS.brazoIz, F = Z.FIX; g.loft(a, F, C.blanco, [[-0.13, 0.066, 0.071], [-0.07, 0.066, 0.071]], 6, {});
+  const Q = (y0, y1, z0, z1) => { const p = [[0.068, y0, z0], [0.068, y0, z1], [0.068, y1, z1], [0.068, y1, z0]]; g.quad(p[0], p[1], p[2], p[3], a, F, C.rojo); g.quad(p[0], p[3], p[2], p[1], a, F, C.rojo); };
+  Q(-0.124, -0.076, -0.01, 0.01); Q(-0.11, -0.09, -0.026, 0.026); }
+function soldadoApo(o) {
+  const F = FIG[o.clave], g = INF.soldado(o);
+  if (F.brazalete && cruzRoja(o.era)) brazalete(g);
+  if (F.bolsa) { g.box(PS.torso, Z.FIX, C.cuero, [0.2, -0.04, 0.06], [0.06, 0.16, 0.2], {bottom: true}); g.strap(PS.torso, Z.FIX, C.cuero, [[-0.16, 0.44, 0.06], [0.0, 0.25, 0.135], [0.18, 0.05, 0.13]], 0.035, [0, 0, 1]); }
+  if (F.mandilCuero) { g.quad([-0.16, 0.42, 0.15], [0.16, 0.42, 0.15], [0.18, -0.06, 0.17], [-0.18, -0.06, 0.17], PS.torso, Z.FIX, C.cuero); g.quad([-0.18, 0.0, 0.175], [0.18, 0.0, 0.175], [0.19, -0.48, 0.18], [-0.19, -0.48, 0.18], PS.pelvis, Z.FIX, C.cuero); }
+  if (F.tenazas) { [1, -1].forEach(s => g.box(PS.antebrazoIz, Z.FIX, C.hierro, [0.008 * s, -0.5, 0.03], [0.012, 0.42, 0.014], {rot: [0, 0, -2 * s]})); g.box(PS.antebrazoIz, Z.FIX, C.brasa, [0, -0.73, 0.04], [0.025, 0.03, 0.12], {}); }
+  if (F.vendaje) { g.loft(PS.antebrazoIz, Z.FIX, C.venda, [[-0.22, 0.05, 0.055], [-0.08, 0.056, 0.062]], 6, {}); g.strap(PS.torso, Z.FIX, C.venda, [[0.15, 0.44, 0.05], [0.0, 0.3, 0.14], [-0.14, 0.1, 0.13]], 0.06, [0, 0, 1]); }   // brazo vendado y cabestrillo
+  if (F.cartera) g.box(PS.torso, Z.FIX, C.cueroN, [-0.2, -0.02, 0.05], [0.05, 0.2, 0.26], {bottom: true});
+  if (F.bombo) { g.cyl(PS.torso, Z.FIX, C.laton, [0, 0.16, 0.34], 0.31, 0.31, 0.26, 10, {rot: [0, 0, 90], top: true, bottom: true, topColor: 0xe8e0c8});   // bombo (parches a los lados)
+    [0.13, -0.13].forEach(x => g.cyl(PS.torso, Z.TRIM, 0, [x, 0.16, 0.34], 0.325, 0.325, 0.03, 10, {rot: [0, 0, 90]})); }
+  if (o.herr) HERR[o.herr](g, PS.arma, o);
+  if (o.estandarte) estandarte(g, PS.arma, o.estandarte, o);
+  return g;
+}
+function soldadoApoLod(o, l) { const g = INF.lod(o, l);
+  if (l === 1 && FIG[o.clave].bombo) g.cyl(PS.torso, Z.FIX, C.laton, [0, 0.16, 0.34], 0.3, 0.3, 0.26, 3, {rot: [0, 0, 90]});
+  return g; }
+
+/* ---------- mulas (rig jinete; prefijo cab_ → marcas de caballeria3d) ----------
+   Cuerpo «mula» de caballeria3d (8 % más baja si se pone escala 0,92 en add, más estrecha), orejas largas; albarda (basto) con carga. */
+function orejasMula(g) { const T = PJ.testa, F = Z.FIX, H = (x, y, z) => xf([[x, y, z]], [0, 0, 0], [50, 0, 0])[0];
+  [1, -1].forEach(s => { const b = H(0.05 * s, 0.11, -0.04), a = [b[0] - 0.03 * s, b[1] - 0.01, b[2] + 0.025], c = [b[0] + 0.03 * s, b[1], b[2] - 0.03], p = [b[0] + 0.07 * s, b[1] + 0.27, b[2] - 0.1];
+    g.tri(a, c, p, T, F, 0xffffff, 2); g.tri(c, a, p, T, F, 0xffffff, 2); }); }
+function albarda(g, o) { const B = PJ.caballo, F = Z.FIX;
+  g.loft(B, F, C.lonaO, [[-0.34, 0.26, 0.07, 0, 0.32], [-0.2, 0.28, 0.08, 0, 0.33], [0.2, 0.28, 0.08, 0, 0.33], [0.32, 0.25, 0.07, 0, 0.32]], 8, {axis: 'z', capA: true, capB: true});   // basto
+  [0.2, -0.2].forEach(z => [1, -1].forEach(s => g.box(B, F, C.madera, [0.09 * s, 0.47, z], [0.035, 0.26, 0.04], {rot: [0, 0, -32 * s]})));   // aspas (crucetas)
+  [1, -1].forEach(s => { g.strap(B, F, C.cueroN, [[0.24 * s, 0.3, 0.0], [0.27 * s, 0.0, 0.05], [0.12 * s, -0.27, 0.06]], 0.06, [s, 0, 0]);   // cincha
+    g.strap(B, F, C.cueroN, [[0.22 * s, 0.3, 0.3], [0.21 * s, 0.1, 0.62], [0.1 * s, -0.03, 0.74], [0, -0.05, 0.77]], 0.04, [s, 0, 0.6]);      // pretal
+    g.strap(B, F, C.cueroN, [[0.22 * s, 0.3, -0.3], [0.21 * s, 0.12, -0.62], [0.17 * s, 0.0, -0.74]], 0.04, [s, 0, -0.4]); });                 // retranca
+  const H = (x, y, z) => xf([[x, y, z]], [0, 0, 0], [50, 0, 0])[0], T = PJ.testa;                                                            // cabezada y ronzal
+  [1, -1].forEach(s => g.strap(T, F, C.cuerda, [H(0.08 * s, 0.11, -0.03), H(0.1 * s, 0.02, 0.15), H(0.07 * s, -0.04, 0.38)], 0.02, [s, 0, 0]));
+  g.loft(T, F, C.cuerda, [[0.36, 0.07, 0.085], [0.39, 0.07, 0.085]], 6, {axis: 'z', rot: [50, 0, 0], p: 2.2}); }
+// figura sentada (cacolet) o tendida (litera), sencilla (≈ 60 triángulos), en el marco del caballo
+function heridoSentado(g, at, s) { const B = PJ.caballo, F = Z.FIX, P = (x, y, z) => [at[0] + x * s, at[1] + y, at[2] + z];
+  g.box(B, Z.MAIN, 0, P(0, 0.28, 0), [0.3, 0.48, 0.2], {taper: 0.1}); g.octa(B, F, C.piel, P(0, 0.62, 0.01), 0.1, {ry: 0.12, vr: V.SKIN}); g.box(B, Z.HAT, 0, P(0, 0.73, 0), [0.2, 0.06, 0.22], {});
+  g.box(B, Z.ACC, 0, P(0, 0.05, 0.18), [0.28, 0.13, 0.4], {}); g.box(B, Z.ACC, 0, P(0, -0.18, 0.38), [0.24, 0.42, 0.11], {}); g.box(B, Z.MAIN, 0, P(0.18, 0.2, 0.08), [0.08, 0.36, 0.1], {rot: [-30, 0, 0]}); g.box(B, F, C.venda, P(-0.18, 0.3, 0.05), [0.09, 0.3, 0.11], {rot: [-60, 0, 0]}); }
+function heridoTendido(g, at) { const B = PJ.caballo, F = Z.FIX, P = (x, y, z) => [at[0] + x, at[1] + y, at[2] + z];
+  g.box(B, Z.MAIN, 0, P(0, 0.08, 0.35), [0.32, 0.16, 0.7], {}); g.octa(B, F, C.piel, P(0, 0.12, 0.82), 0.1, {vr: V.SKIN}); g.box(B, F, C.manta, P(0, 0.07, -0.45), [0.36, 0.14, 0.9], {}); }
+const CARGAS = {
+  municion: (g, o) => [1, -1].forEach(s => { [0.15, -0.15].forEach(z => g.box(PJ.caballo, Z.FIX, o.era >= 'C' ? C.verdeO : C.madera, [0.39 * s, 0.2, z], [0.17, 0.32, 0.28], {bottom: true}));
+    g.strap(PJ.caballo, Z.FIX, C.cuerda, [[0.3 * s, 0.4, 0.0], [0.48 * s, 0.34, 0.0], [0.48 * s, 0.04, 0.0]], 0.03, [s, 0, 0]); }),
+  viveres: (g, o) => { [1, -1].forEach(s => g.loft(PJ.caballo, Z.FIX, C.saco, [[-0.3, 0.13, 0.15], [0, 0.17, 0.19], [0.3, 0.12, 0.14]], 6, {axis: 'z', at: [0.42 * s, 0.18, 0], capA: true, capB: true}));
+    g.cyl(PJ.caballo, Z.FIX, C.madera, [0, 0.55, 0], 0.13, 0.13, 0.42, 7, {rot: [90, 0, 0], top: true, bottom: true}); },
+  montana_tubo: (g, o) => { const b = o.era <= 'B' ? C.bronce : C.acero; g.loft(PJ.caballo, Z.FIX, b, [[-0.5, 0.1, 0.1], [-0.35, 0.095, 0.095], [0.35, 0.075, 0.075], [0.45, 0.085, 0.085]], 8, {axis: 'z', at: [0, 0.55, 0], capA: true, capB: true});
+    g.disc(PJ.caballo, Z.FIX, C.negro, [0, 0.55, 0.452], 0.04, 6, {rot: [0, 90, 0]}); [1, -1].forEach(s => g.box(PJ.caballo, Z.FIX, C.madera, [0.36 * s, 0.25, 0], [0.12, 0.26, 0.4], {bottom: true})); },
+  montana_ruedas: (g, o) => { [1, -1].forEach(s => fundir(g, con(q => rueda(q, 0, 0.45, {n: 10, radios: 8})), PJ.caballo, [0.4 * s, 0.25, 0], s < 0 ? [0, 180, 0] : null));
+    g.loft(PJ.caballo, Z.FIX, C.hierro, [[-0.45, 0.04, 0.04], [0.45, 0.04, 0.04]], 6, {axis: 'x', at: [0, 0.52, 0]}); },
+  cacolet: (g, o) => [1, -1].forEach(s => { const x = 0.5 * s; g.box(PJ.caballo, Z.FIX, C.hierro, [x, -0.08, 0.06], [0.34, 0.03, 0.34], {}); g.box(PJ.caballo, Z.FIX, C.hierro, [0.33 * s, 0.2, 0.06], [0.02, 0.6, 0.3], {});   // silla de hierro y respaldo
+    g.box(PJ.caballo, Z.FIX, C.hierro, [x, -0.5, 0.3], [0.3, 0.02, 0.14], {}); heridoSentado(g, [x, -0.06, -0.02], s); }),
+  litera: (g, o) => [1, -1].forEach(s => { const x = 0.52 * s; g.box(PJ.caballo, Z.FIX, C.lonaO, [x, 0.06, 0], [0.5, 0.04, 1.9], {}); [1, -1].forEach(t => g.box(PJ.caballo, Z.FIX, C.madera, [x + t * 0.25, 0.1, 0], [0.04, 0.05, 2.1], {}));
+    g.box(PJ.caballo, Z.FIX, C.hierro, [0.36 * s, 0.25, 0.5], [0.03, 0.4, 0.03], {}); g.box(PJ.caballo, Z.FIX, C.hierro, [0.36 * s, 0.25, -0.5], [0.03, 0.4, 0.03], {}); heridoTendido(g, [x, 0.08, 0]); })
+};
+function mulaLod(o, nivel, carga) { const g = new GB(), F = Z.FIX, hc = 0xffffff, hv = 2;
+  if (nivel === 2) { g.box(PJ.caballo, F, hc, [0, -0.38, 0.05], [0.38, 1.5, 1.5], {noTop: true, vr: hv}); g.box(PJ.cuello, F, hc, [0, 0.38, 0.24], [0.18, 0.86, 0.34], {rot: [36, 0, 0], taper: 0.2, noTop: true, vr: hv});
+    g.box(PJ.caballo, F, carga ? C.lonaO : C.cueroN, [0, 0.3, 0], [carga && /cacolet|litera/.test(carga) ? 1.3 : 0.9, 0.42, 0.7], {noTop: true, noBottom: true}); return g; }
+  const g1 = CAB.lod(Object.assign({}, o, {tipo: null}), 1); orejasMula(g1);
+  if (carga === 'cacolet' || carga === 'litera') [1, -1].forEach(s => g1.box(PJ.caballo, Z.MAIN, 0, [0.52 * s, 0.25, carga === 'litera' ? 0 : 0.05], carga === 'litera' ? [0.4, 0.2, 1.8] : [0.32, 0.55, 0.36], {noTop: false}));
+  else if (carga) [1, -1].forEach(s => g1.box(PJ.caballo, F, carga === 'viveres' ? C.saco : carga === 'municion' ? C.verdeO : C.acero, [0.4 * s, 0.22, 0], [0.2, 0.34, 0.6], {}));
+  return g1; }
+
+/* ---------- perros (rig perro): terrier, mastín y perro sanitario (alforjas con la cruz, era D); pelaje con la paleta de capas de troops3d ---------- */
+function perro(g, o) {
+  const F = Z.FIX, raza = o.raza, mas = raza !== 'terrier', k = mas ? 1.0 : 0.95, capa = raza === 'terrier' ? C.perroB : 0xffffff, vr = raza === 'terrier' ? 0 : V.PELAJE;
+  g.loft(PP.cuerpo, F, capa, [[-0.3, 0.05, 0.06, 0, 0.03], [-0.25, 0.09 * k, 0.11, 0, 0.02], [-0.05, 0.1 * k, 0.12, 0, 0.0], [0.12, 0.11 * k, 0.14, 0, -0.01], [0.24, 0.1 * k, 0.12, 0, 0.02], [0.31, 0.06, 0.08, 0, 0.04]], 8, {axis: 'z', capA: true, capB: true, vr});
+  if (raza === 'terrier') { g.loft(PP.cuerpo, F, C.perroN, [[-0.18, 0.094, 0.115, 0, 0.025], [0.02, 0.104, 0.125, 0, 0.02]], 8, {axis: 'z', a0: 0.3}); }   // mancha del lomo
+  g.loft(PP.cuello, F, capa, [[0, 0.07, 0.075], [0.08, 0.06, 0.065], [0.17, 0.05, 0.055]], 6, {rot: [42, 0, 0], vr});                         // cuello
+  g.loft(PP.cuello, F, mas ? C.cueroN : C.rojo, [[0.02, 0.075, 0.08], [0.05, 0.075, 0.08]], 6, {rot: [42, 0, 0]});                             // collar
+  const mz = mas ? 0.042 : 0.032;
+  g.loft(PP.cabeza, F, capa, [[-0.07, 0.05, 0.05, 0, 0.0], [-0.02, 0.07, 0.07, 0, 0.01], [0.05, 0.06, 0.055, 0, 0.0], [0.08, mz, mz, 0, -0.015], [0.17, mz * 0.85, mz * 0.8, 0, -0.02]], 7, {axis: 'z', capA: true, capB: true, vr});
+  g.octa(PP.cabeza, F, C.negro, [0, -0.012, 0.175], 0.018, {});                                                                             // trufa
+  [1, -1].forEach(s => { g.tri([0.045 * s, 0.035, 0.05], [0.035 * s, 0.02, 0.07], [0.05 * s, 0.015, 0.05], PP.cabeza, F, C.negro); g.tri([0.045 * s, 0.035, 0.05], [0.05 * s, 0.015, 0.05], [0.035 * s, 0.02, 0.07], PP.cabeza, F, C.negro);   // ojos
+    const e = mas ? [[0.04 * s, 0.06, -0.03], [0.08 * s, 0.05, 0.0], [0.09 * s, -0.04, -0.01]] : [[0.035 * s, 0.065, -0.02], [0.06 * s, 0.06, 0.02], [0.07 * s, 0.11, 0.0]];   // orejas (caídas / dobladas)
+    g.tri(e[0], e[1], e[2], PP.cabeza, F, raza === 'terrier' ? C.perroN : capa, raza === 'terrier' ? 0 : vr); g.tri(e[0], e[2], e[1], PP.cabeza, F, raza === 'terrier' ? C.perroN : capa, raza === 'terrier' ? 0 : vr); });
+  g.box(PP.mandibula, F, capa, [0, -0.01, 0.06], [0.045, 0.02, 0.11], {vr});                                                                   // mandíbula
+  g.box(PP.mandibula, F, C.rojo, [0, 0.002, 0.07], [0.03, 0.005, 0.07], {});                                                                    // lengua
+  if (raza === 'terrier') g.loft(PP.cola, F, capa, [[0, 0.018, 0.018], [0.1, 0.012, 0.012]], 4, {rot: [-25, 0, 0], capB: true});             // cola corta, alta
+  else g.loft(PP.cola, F, capa, [[0, 0.025, 0.025], [0.15, 0.02, 0.02], [0.3, 0.012, 0.012]], 5, {rot: [-135, 0, 0], capB: true, vr});           // cola larga, caída
+  [['manoIz', 'canaIz', false], ['manoDe', 'canaDe', false], ['pataIz', 'corvIz', true], ['pataDe', 'corvDe', true]].forEach(([u, l, tr]) => {
+    const r = tr ? [0.03, 0.06] : [0.028, 0.045], b = tr ? 0.22 : 0.2;
+    g.loft(PP[u], F, capa, [[-0.2, r[0] * k, r[0] * k + 0.005], [-0.08, r[1] * 0.8 * k, r[1] * k], [0.03, r[1] * k, r[1] * k + 0.01]], 5, {vr});
+    g.loft(PP[l], F, capa, [[-b + 0.02, 0.018 * k, 0.02], [-0.05, 0.022 * k, 0.026], [0.02, 0.026 * k, 0.03]], 5, {vr});
+    g.box(PP[l], F, raza === 'terrier' ? C.perroB : capa, [0, -b + 0.015, 0.02], [0.045 * k, 0.03, 0.065], {bottom: true, vr}); });
+  if (raza === 'sanitario') [1, -1].forEach(s => { g.box(PP.cuerpo, F, C.blanco, [0.13 * s, 0.0, 0.05], [0.04, 0.13, 0.2], {}); const x = 0.152 * s;   // alforjas con la cruz
+    const Q = (y0, y1, z0, z1) => { const p = [[x, y0, z0], [x, y0, z1], [x, y1, z1], [x, y1, z0]]; g.quad(p[0], p[1], p[2], p[3], PP.cuerpo, F, C.rojo); g.quad(p[0], p[3], p[2], p[1], PP.cuerpo, F, C.rojo); };
+    Q(-0.05, 0.05, 0.035, 0.065); Q(-0.015, 0.015, 0.0, 0.1); g.strap(PP.cuerpo, F, C.cuero, [[0.1 * s, 0.12, 0.05], [0.0, 0.14, 0.05]], 0.03, [0, 1, 0]); });
+}
+function perroLod(o, nivel) { const g = new GB(), F = Z.FIX, capa = o.raza === 'terrier' ? C.perroB : 0xffffff, vr = o.raza === 'terrier' ? 0 : V.PELAJE;
+  if (nivel === 2) { g.box(PP.cuerpo, F, capa, [0, -0.1, 0.05], [0.18, 0.42, 0.7], {noBottom: true, vr}); return g; }
+  g.box(PP.cuerpo, F, capa, [0, 0, 0], [0.2, 0.24, 0.62], {vr}); g.box(PP.cabeza, F, capa, [0, 0, 0.05], [0.12, 0.12, 0.24], {taperZ: 0.3, vr});
+  [['manoIz', 'canaIz'], ['manoDe', 'canaDe'], ['pataIz', 'corvIz'], ['pataDe', 'corvDe']].forEach(([u, l]) => { g.cyl(PP[u], F, capa, [0, -0.1, 0], 0.03, 0.045, 0.22, 3, {vr}); g.cyl(PP[l], F, capa, [0, -0.11, 0], 0.0, 0.025, 0.22, 3, {vr}); });
+  g.cyl(PP.cola, F, capa, [0, 0.08, 0], 0.02, 0.0, 0.16, 3, {rot: [o.raza === 'terrier' ? -25 : -135, 0, 0], vr}); return g; }
+
+/* ---------- catálogo ---------- */
+const TIPOS = {};
+const vehiculo = (nombre, rig, build, lod, eras, extra) => Object.assign({rig, clase: 'apo', pal: 'linea', nombre, eras: eras || ERAS.slice(), o: (era, nat) => ({era, nat: nat || 'GEN', modelo: `${nombre.slice(0, 12)}_${era}`, flagLayout: (T3.NACIONES[nat] || T3.NACIONES.GEN).bandera}), build, lod}, extra || {});
+TIPOS.apo_ambulancia = vehiculo('Ambulancia de tracción animal (toldo; cruz roja desde 1864)', 'armon', o => { const g = new GB(); ambulancia(g, o); return g; }, (o, l) => carroLod(o, l, true), null, {modeloK: 'ambu'});
+TIPOS.apo_carro_suministro = vehiculo('Carro de suministro con toldo de arcos', 'armon', o => { const g = new GB(); carroSuministro(g, o); return g; }, (o, l) => carroLod(o, l, true));
+TIPOS.apo_carro_bagaje = vehiculo('Carro de bagajes (baúles, sacos, barriles)', 'armon', o => { const g = new GB(); carroBagaje(g, o); return g; }, (o, l) => carroLod(o, l, false));
+TIPOS.apo_fragua = vehiculo('Fragua de campaña (fuelle de palanca, yunque)', 'apo_fragua', o => { const g = new GB(); fragua(g, o); return g; }, (o, l) => fraguaLod(o, l));
+TIPOS.apo_mesa_cirujano = vehiculo('Mesa de operaciones del puesto de socorro', 'apo_mesa', o => { const g = new GB(); mesaCirujano(g, o); return g; }, (o, l) => mesaLod(o, l, 2.0, 0.75, 0.8));
+TIPOS.apo_mesa_pagador = vehiculo('Mesa del pagador (cofre, libro, monedas)', 'apo_mesa', o => { const g = new GB(); mesaPagador(g, o); return g; }, (o, l) => mesaLod(o, l, 1.4, 0.7, 0.76));
+TIPOS.apo_camilla = vehiculo('Camilla con herido (la llevan dos camilleros)', 'apo_camilla', o => { const g = new GB(); camilla(g, o); return g; }, (o, l) => camillaLod(o, l));
+[['nacional', 'Bandera nacional clavada'], ['regimiento', 'Bandera de regimiento clavada (flecos, cordones y borlas)'], ['banderin', 'Banderín de señalización / de compañía'], ['hospital', 'Bandera de hospital (amarilla en A; blanca con cruz roja desde 1864)']].forEach(([k, n]) => {
+  TIPOS['apo_bandera_' + k] = Object.assign(vehiculo(n, 'apo_asta', o => { const g = new GB(); asta(g, k, o); return g; }, (o, l) => astaLod(k, o, l)), {bandera: true, dobleCara: true,
+    o: (era, nat) => ({era, nat: nat || 'GEN', flagLayout: (T3.NACIONES[nat] || T3.NACIONES.GEN).bandera, modelo: `apoband_${k}_${era}_${k === 'hospital' ? '' : (T3.NACIONES[nat] || T3.NACIONES.GEN).bandera}`})}); });
+Object.keys(FIG).forEach(k => { TIPOS['inf_apo_' + k] = {rig: 'soldado', clase: 'inf', pal: FIG[k].pal || 'linea', nombre: FIG[k].nombre, eras: k === 'estandarte_aguila' ? ['A', 'B'] : ERAS.slice(), bandera: !!FIG[k].estandarte, dobleCara: !!FIG[k].estandarte,
+  o: (era, nat) => figura(k, era, nat || 'GEN'), build: o => soldadoApo(o), lod: (o, l) => soldadoApoLod(o, l)}; });
+// mulas
+const MULA = (era, nat, carga) => ({era, nat: nat || 'GEN', cuerpo: 'mula', silla: null, carga, modelo: `mula_${carga || 'sola'}_${era}`});
+[['carga', 'municion', 'Mula de carga (cajas de munición)'], ['viveres', 'viveres', 'Mula de víveres (sacos y barril)'], ['montana_tubo', 'montana_tubo', 'Mula con el tubo del cañón de montaña'],
+  ['montana_ruedas', 'montana_ruedas', 'Mula con las ruedas y el eje del cañón de montaña'], ['cacolet', 'cacolet', 'Mula con cacolets (dos heridos sentados)'], ['litera', 'litera', 'Mula con literas (dos heridos tendidos)']].forEach(([k, carga, n]) => {
+  TIPOS['cab_apo_mula_' + k] = {rig: 'jinete', clase: 'cav', pal: 'linea', nombre: n, eras: ERAS.slice(), escala: 0.92, o: (era, nat) => MULA(era, nat, carga),
+    build: o => { const g = new GB(); CAB.caballo(g, o); orejasMula(g); albarda(g, o); CARGAS[carga](g, o); return g; }, lod: (o, l) => mulaLod(o, l, carga)}; });
+TIPOS.cab_apo_mula = {rig: 'jinete', clase: 'cav', pal: 'linea', nombre: 'Mula de reata (albarda sin carga)', eras: ERAS.slice(), escala: 0.92, o: (era, nat) => MULA(era, nat, null),
+  build: o => { const g = new GB(); CAB.caballo(g, o); orejasMula(g); albarda(g, o); return g; }, lod: (o, l) => mulaLod(o, l, null)};
+TIPOS.cab_apo_mula_tiro = {rig: 'jinete', clase: 'cav', pal: 'artilleria', nombre: 'Mula de tiro (arneses, sin conductor)', eras: ERAS.slice(), escala: 0.92, o: (era, nat) => Object.assign(MULA(era, nat, null), {modelo: `mulat_${era}`}),
+  build: o => { const g = new GB(); CAB.caballo(g, o); ART.arneses(g, o, false); orejasMula(g); return g; }, lod: (o, l) => mulaLod(o, l, null)};
+TIPOS.cab_apo_mula_tiro_conductor = {rig: 'jinete', clase: 'cav', pal: 'artilleria', nombre: 'Mula de tiro con el conductor montado (mula de varas de la izquierda)', eras: ERAS.slice(), escala: 0.92,
+  o: (era, nat) => Object.assign(CAB.opciones('conductor', era, nat || 'GEN'), {cuerpo: 'mula', modelo: `mulatc_${nat}_${era}`}),
+  build: o => { const g = new GB(); CAB.caballo(g, o); ART.sillaTiro(g); ART.arneses(g, o, true); orejasMula(g); CAB.jinete(g, o); ART.latigo(g, PJ.arma); return g; }, lod: (o, l) => CAB.lod(o, l)};
+// jinetes de apoyo: portaestandarte (guion en el asta de jinete; clips «_lanza») y trompeta
+TIPOS.cab_apo_portaestandarte = {rig: 'jinete', clase: 'cav', pal: 'caballeria', nombre: 'Portaestandarte de caballería (guion con flecos y borlas)', eras: ERAS.slice(0, 4), bandera: true, dobleCara: true,
+  o: (era, nat) => Object.assign(CAB.opciones('portaestandarte', era, nat || 'GEN'), {modelo: `cabpe_${nat}_${era}`}),
+  build: o => { const g = new GB(); CAB.caballo(g, o); CAB.arreos(g, o); CAB.jinete(g, o); estandarte(g, PJ.arma, 'guion', o); return g; },
+  lod: (o, l) => { const g = CAB.lod(o, l); if (l === 1) { g.cyl(PJ.arma, Z.FIX, C.maderaO, [0, 0.5, 0], 0.02, 0.02, 2.85, 2); g.quad([0.02, 1.9, 0], [0.6, 1.9, 0], [0.6, 1.38, 0], [0.02, 1.38, 0], PJ.arma, Z.F1, 0); } return g; }};
+TIPOS.cab_apo_trompeta = {rig: 'jinete', clase: 'cav', pal: 'caballeria', nombre: 'Trompeta de caballería', eras: ERAS.slice(), o: (era, nat) => Object.assign(CAB.opciones('trompeta', era, nat || 'GEN'), {modelo: `cabtr_${nat}_${era}`}),
+  build: o => { const g = new GB(); CAB.caballo(g, o); CAB.arreos(g, o); CAB.jinete(g, o); const a = PJ.arma, F = Z.FIX;
+    g.cyl(a, F, C.laton, [0, 0.14, 0], 0.008, 0.008, 0.3, 4); g.cyl(a, F, C.laton, [0.0, 0.16, 0.05], 0.009, 0.009, 0.26, 4); g.cyl(a, F, C.laton, [0, 0.33, 0.0], 0.012, 0.06, 0.12, 6); g.octa(a, F, C.laton, [0, -0.02, 0], 0.012);
+    g.strap(a, F, C.rojo, [[0, 0.1, 0.03], [0.02, 0.0, 0.1], [0, -0.1, 0.06]], 0.02, [1, 0, 0]); return g; }, lod: (o, l) => CAB.lod(o, l)};
+// perros
+[['terrier', 'Perro (terrier, mascota del regimiento)', 0.62, ERAS], ['mastin', 'Perro (mastín / perro de guarda)', 1.05, ERAS], ['sanitario', 'Perro sanitario con alforjas (1914–1918)', 1.0, ['D', 'E']]].forEach(([r, n, esc, eras]) => {
+  TIPOS['apo_perro_' + r] = {rig: 'perro', clase: 'apo', pal: 'linea', nombre: n, eras: eras.slice(), escala: esc, o: (era, nat) => ({era, nat: nat || 'GEN', raza: r, modelo: `perro_${r}`}),
+    build: o => { const g = new GB(); perro(g, o); return g; }, lod: (o, l) => perroLod(o, l)}; });
+
+return {TIPOS, FIG, ESTANDARTES, estandarte, bandera, fundir, IDX};
+}
+
+/* ===================================================================================== */
+/* ANIMACIONES DE PIEZAS, VEHÍCULOS Y PERROS (datos puros; se copian en registrar). CLIPS[rig][nombre] */
+const CLIPS = {}, META = {};
+function defC(rig, n, c, m) { (CLIPS[rig] = CLIPS[rig] || {})[n] = c; c.ev = (c.ev || []).sort((a, b) => a[0] - b[0]);
+  META[n] = Object.assign({rig, suelo: 'pie', avance: 0, desplazamiento: [0, 0, 0], armaCompatible: ERAS.slice(), transiciones: []}, m || {}); META[n].eventos = c.ev.map(e => e[1]); }
+const quieto = () => ({dur: 4, loop: true, still: true, tracks: {}, ev: []});
+// banderas clavadas: quieta (el viento lo pone el sombreador) y el asta que cae al suelo (impacto en el asta)
+defC('apo_asta', 'apo_asta_quieta', quieto(), {transiciones: ['apo_asta_cae']});
+{ const c = {dur: 1.8, loop: false, tracks: {}, ev: [[0, 'impacto'], [0.52, 'golpe_suelo']]};
+  c.tracks.asta = curva(60, t => [lerpK([[0, 0], [0.06, -5], [0.52, 86], [0.62, 80], [0.74, 85], [1, 84]], t)[0], 0, 6 * sstep(0.05, 0.5, t)]);
+  defC('apo_asta', 'apo_asta_cae', c, {suelo: 'libre', dano: 'asta', transiciones: []}); }
+// mesas y fragua
+defC('apo_mesa', 'apo_mesa_quieta', quieto());
+defC('apo_fragua', 'apo_fragua_reposo', {dur: 4, loop: true, tracks: {palanca: [[0, 8, 0, 0]], fuelle: [[0, -2, 0, 0]]}, ev: []}, {transiciones: ['apo_fragua_trabajo']});
+// fuelle: dos golpes de palanca por ciclo (2,4 s); al bajar la palanca por el mango se cierra la tapa y sopla (eventos «soplo» con chispas)
+const FUELLE = {dur: 2.4, th: t => 11 * Math.sin(2 * Math.PI * 2 * t)};
+{ const c = {dur: FUELLE.dur, loop: true, tracks: {}, ev: [[0.125, 'soplo'], [0.625, 'soplo']]};
+  c.tracks.palanca = curva(48, t => [FUELLE.th(t), 0, 0]); c.tracks.fuelle = curva(48, t => [-5 + 0.45 * FUELLE.th(t), 0, 0]);
+  defC('apo_fragua', 'apo_fragua_trabajo', c, {sincronizar: true, escena: 'fragua', transiciones: ['apo_fragua_reposo']}); }
+// camilla: en marcha (los camilleros rompen el paso: la camilla cabecea un poco), en el suelo, recoger y posar
+const CAMILLA = {dur: 1.5, yDel: t => CAM.Y + 0.012 * Math.cos(4 * Math.PI * t), yTras: t => CAM.Y + 0.012 * Math.cos(4 * Math.PI * t + Math.PI), suelo: 0.25};
+{ const c = {dur: CAMILLA.dur, loop: true, tracks: {}, ev: []}, N = 48;
+  c.root = curva(N, t => [0, (CAMILLA.yDel(t) + CAMILLA.yTras(t)) / 2, 0]); c.tracks.camilla = curva(N, t => [-Math.atan2(CAMILLA.yDel(t) - CAMILLA.yTras(t), CAM.L) / D2R, 0, 0]);
+  c.tracks.herido = curva(N, t => [0, 0, 1.2 * Math.sin(2 * Math.PI * t)]);
+  defC('apo_camilla', 'apo_camilla_marcha', c, {suelo: 'libre', avance: 1.0, escena: 'camilla', sincronizar: true, transiciones: ['apo_camilla_posar']}); }
+defC('apo_camilla', 'apo_camilla_suelo', {dur: 4, loop: true, root: [[0, 0, CAMILLA.suelo, 0]], tracks: {herido: [[0, 0, 0, 0], [0.5, 0, 0, 2], [1, 0, 0, 0]]}, ev: []}, {suelo: 'libre', escena: 'camilla', transiciones: ['apo_camilla_recoger']});
+// recoger (4 s): agarrar a 0,35, levantar entre 0,4 y 0,72 (los pies, delante, suben un poco antes); posar: lo mismo al revés
+const RECOGER = {agarra: 0.35, sube: [0.4, 0.72], y: u => CAMILLA.suelo + (CAM.Y - CAMILLA.suelo) * sstep(0.4, 0.72, u), pitch: u => -3 * Math.sin(Math.PI * sstep(0.4, 0.72, u))};
+const yHandle = (u, del) => RECOGER.y(u) + (del ? 1 : -1) * Math.sin(-RECOGER.pitch(u) * D2R) * CAM.L / 2;
+[['recoger', u => u], ['posar', u => 1 - u]].forEach(([n, pr]) => { const c = {dur: 4, loop: false, tracks: {}, ev: n === 'recoger' ? [[0.35, 'agarrar'], [0.4, 'levantar'], [0.72, 'arriba']] : [[0.28, 'bajar'], [0.6, 'en_suelo'], [0.65, 'soltar']]};
+  c.root = curva(80, t => [0, RECOGER.y(pr(t)), 0]); c.tracks.camilla = curva(80, t => [RECOGER.pitch(pr(t)), 0, 0]);
+  defC('apo_camilla', 'apo_camilla_' + n, c, {suelo: 'libre', escena: 'camilla', sincronizar: true, transiciones: n === 'recoger' ? ['apo_camilla_marcha'] : ['apo_camilla_suelo']}); });
+
+/* ---------- perros: patas por cinemática inversa de dos segmentos (como el caballo) ---------- */
+const rotX = (p, deg) => { const c = Math.cos(deg * D2R), s = Math.sin(deg * D2R); return [p[0], p[1] * c - p[2] * s, p[1] * s + p[2] * c]; };
+function ik2p(dz, dy, a, b, del) { let d = Math.hypot(dz, dy); d = Math.min(a + b - 1e-4, Math.max(Math.abs(a - b) + 1e-3, d));
+  const phi = Math.atan2(dz, -dy), al = Math.acos(Math.min(1, Math.max(-1, (a * a + d * d - b * b) / (2 * a * d)))), be = Math.acos(Math.min(1, Math.max(-1, (a * a + b * b - d * d) / (2 * a * b))));
+  return del ? [-(phi + al) / D2R, (Math.PI - be) / D2R] : [-(phi - al) / D2R, -(Math.PI - be) / D2R]; }
+// cuerpo(t) → {y (sobre PERRO_Y; null = la más alta que deja llegar a las patas de apoyo), pitch, apoyo}; pata(k, t) → [z, y] de la almohadilla
+function patasPerro(c, N, cuerpo, pata) {
+  const tr = {}; Object.values(PATAS_P).forEach(L => { tr[L.up] = []; tr[L.low] = []; }); const root = [], body = [];
+  for (let i = 0; i <= N; i++) { const t = i / N, B = cuerpo(t); let y = B.y;
+    if (y == null) { y = B.base || 0; Object.entries(PATAS_P).forEach(([k, L]) => { if (!B.apoyo[k]) return; const p = pata(k, t), pv = rotX(L.piv, B.pitch || 0), dz = pv[2] - p[0], R = (L.a + L.b) * 0.97;
+      y = Math.min(y, p[1] + Math.sqrt(Math.max(0, R * R - dz * dz)) - (PERRO_Y + pv[1])); }); if (B.vuelo != null) y = Math.max(y, B.vuelo); }
+    root.push([+t.toFixed(5), 0, y, 0]); body.push([+t.toFixed(5), B.pitch || 0, B.yaw || 0, B.roll || 0]);
+    Object.entries(PATAS_P).forEach(([k, L]) => { const p = pata(k, t), pv = rotX(L.piv, B.pitch || 0), w = rotX([0, p[1] - (PERRO_Y + y + pv[1]), p[0] - pv[2]], -(B.pitch || 0)), a = ik2p(w[2], w[1], L.a, L.b, L.del);
+      tr[L.up].push([+t.toFixed(5), a[0], 0, 0]); tr[L.low].push([+t.toFixed(5), a[1], 0, 0]); }); }
+  Object.assign(c.tracks, tr); c.tracks.cuerpo = body; c.root = root; return c;
+}
+const AIRES_P = {paso: {T: 0.6, v: 0.9, d: 0.62, f: {PI: 0, MI: 0.25, PD: 0.5, MD: 0.75}, ag: 1.0, h: 0.06, sus: 0, pitch: 1},
+  trote: {T: 0.42, v: 2.0, d: 0.45, f: {MI: 0, PD: 0, MD: 0.5, PI: 0.5}, ag: 0.85, h: 0.08, sus: 0.012, pitch: 1.5},
+  galope: {T: 0.32, v: 6.0, d: 0.3, f: {PI: 0, PD: 0.1, MD: 0.42, MI: 0.52}, ag: 0.6, h: 0.1, sus: 0.035, pitch: 6}};
+function pataAire(A, k, t) { const L = PATAS_P[k], s = (((t - A.f[k]) % 1) + 1) % 1, st = A.v * A.T * A.d * A.ag, z0 = L.piv[2];
+  if (s < A.d) return [z0 + st / 2 - st * s / A.d, 0]; const u = (s - A.d) / (1 - A.d), e = u * u * (3 - 2 * u); return [z0 - st / 2 + st * e, A.h * Math.sin(Math.PI * u)]; }
+function perroAire(n, ciclos) { const A = AIRES_P[n], N = 40 * ciclos, c = {dur: A.T * ciclos, loop: true, tracks: {}, ev: []}, ap = (k, t) => (((t * ciclos - A.f[k]) % 1) + 1) % 1 < A.d;
+  const pf = t => A.pitch * Math.sin(2 * Math.PI * t * ciclos * (n === 'galope' ? 1 : 2));
+  patasPerro(c, N, t => ({y: null, base: -0.005, pitch: pf(t), apoyo: {MI: ap('MI', t), MD: ap('MD', t), PI: ap('PI', t), PD: ap('PD', t)}}), (k, t) => pataAire(A, k, t * ciclos));
+  // en la suspensión (galope) la raíz sigue un arco entre el despegue y la recepción
+  const R = c.root, air = R.map(r => !['MI', 'MD', 'PI', 'PD'].some(k => ap(k, r[0]))); for (let i = 0; i < R.length; i++) if (air[i]) { let a = i, b = i; while (a > 0 && air[a]) a--; while (b < R.length - 1 && air[b]) b++; const u = (i - a) / Math.max(1, b - a); R[i][2] = R[a][2] + (R[b][2] - R[a][2]) * u + A.sus * 4 * u * (1 - u); }
+  if (air.some(Boolean)) { const yA = t => R[Math.min(R.length - 1, Math.round(t * N))][2]; patasPerro(c, N, t => ({y: yA(t), pitch: pf(t)}), (k, t) => pataAire(A, k, t * ciclos)); }
+  c.tracks.cuello = curva(N, t => [3 * Math.sin(2 * Math.PI * t * ciclos * 2), 0, 0]); c.tracks.cabeza = curva(N, t => [-2 * Math.sin(2 * Math.PI * t * ciclos * 2 + 0.5), 0, 0]);
+  c.tracks.cola = curva(N, t => [n === 'galope' ? 30 : 0, 25 * Math.sin(2 * Math.PI * t * ciclos * 3), 0]); c.tracks.mandibula = [[0, n === 'galope' ? 12 : 3, 0, 0]];
+  Object.keys(PATAS_P).forEach(k => { for (let i = 0; i < ciclos; i++) c.ev.push([((A.f[k] + i) / ciclos) % 1, 'pisada']); });
+  defC('perro', 'perro_' + n, c, {suelo: n === 'galope' ? 'carrera' : 'pie', avance: A.v, aire: n, transiciones: ['perro_parado'].concat(Object.keys(AIRES_P).filter(x => x !== n).map(x => 'perro_' + x))}); }
+Object.keys(AIRES_P).forEach(n => perroAire(n, n === 'galope' ? 2 : 2));
+const fijas = {MI: [0.18, 0], MD: [0.18, 0], PI: [-0.2, 0], PD: [-0.2, 0]}, todas = {MI: true, MD: true, PI: true, PD: true};
+// parado: respira, mueve la cola y mira alrededor
+{ const c = {dur: 4, loop: true, tracks: {}, ev: [[0.5, 'mira']]}, N = 60; patasPerro(c, N, t => ({y: null, base: -0.01, pitch: 0.6 * Math.sin(2 * Math.PI * t * 3), apoyo: todas}), k => fijas[k]);
+  c.tracks.cuello = curva(N, t => [-6 + 4 * sstep(0.4, 0.5, t) * (1 - sstep(0.7, 0.8, t)), 25 * Math.sin(2 * Math.PI * t), 0]); c.tracks.cabeza = curva(N, t => [4, 0, 8 * Math.sin(2 * Math.PI * t * 2)]);
+  c.tracks.cola = curva(N, t => [10, 30 * Math.sin(2 * Math.PI * t * 8), 0]); c.tracks.mandibula = curva(N, t => [6 + 4 * Math.sin(2 * Math.PI * t * 6), 0, 0]);
+  defC('perro', 'perro_parado', c, {transiciones: ['perro_paso', 'perro_trote', 'perro_sentado', 'perro_ladrar', 'perro_tumbado']}); }
+// ladrar: patas abiertas, la cabeza da un golpe y la mandíbula se abre en cada ladrido
+{ const c = {dur: 1.6, loop: true, tracks: {}, ev: [[0.1, 'ladrido'], [0.35, 'ladrido'], [0.62, 'ladrido']]}, N = 64, lad = t => [0.1, 0.35, 0.62].reduce((a, t0) => a + Math.max(0, Math.sin(Math.PI * (t - t0 + 0.02) / 0.12)) * (t > t0 - 0.02 && t < t0 + 0.1 ? 1 : 0), 0);
+  patasPerro(c, N, t => ({y: null, base: -0.03, pitch: -3 + 2 * lad(t), apoyo: todas}), k => k[0] === 'M' ? [0.24, 0] : [-0.22, 0]);
+  c.tracks.cuello = curva(N, t => [-14 + 10 * lad(t), 0, 0]); c.tracks.cabeza = curva(N, t => [-6 + 8 * lad(t), 0, 0]); c.tracks.mandibula = curva(N, t => [4 + 30 * lad(t), 0, 0]); c.tracks.cola = curva(N, t => [35, 10 * Math.sin(2 * Math.PI * t * 4), 0]);
+  defC('perro', 'perro_ladrar', c, {transiciones: ['perro_parado']}); }
+// sentado (el cuerpo se levanta 38°; los cuartos traseros doblados) y tumbado (manos adelante)
+{ const c = {dur: 5, loop: true, tracks: {}, ev: []}, N = 50, pitch = -38;
+  patasPerro(c, N, t => ({y: null, base: -0.11, pitch, apoyo: {MI: true, MD: true, PI: false, PD: false}}), k => k[0] === 'M' ? [0.16, 0] : [-0.06, 0]);
+  c.tracks.cuello = curva(N, t => [30 + 3 * Math.sin(2 * Math.PI * t), 20 * Math.sin(2 * Math.PI * t), 0]); c.tracks.cabeza = curva(N, () => [10, 0, 0]); c.tracks.cola = curva(N, t => [80, 15 * Math.sin(2 * Math.PI * t * 4), 0]); c.tracks.mandibula = curva(N, t => [8 + 3 * Math.sin(2 * Math.PI * t * 5), 0, 0]);
+  defC('perro', 'perro_sentado', c, {suelo: 'sentado', transiciones: ['perro_parado', 'perro_tumbado']}); }
+{ const c = {dur: 6, loop: true, tracks: {}, ev: []}, N = 40;
+  patasPerro(c, N, t => ({y: -0.25, pitch: 0, apoyo: {}}), k => k[0] === 'M' ? [0.42, 0] : [-0.04, 0]);
+  c.tracks.cuello = curva(N, t => [-30, 10 * Math.sin(2 * Math.PI * t), 0]); c.tracks.cabeza = curva(N, () => [30, 0, 0]); c.tracks.cola = curva(N, t => [100, 10 * Math.sin(2 * Math.PI * t * 2), 0]);
+  defC('perro', 'perro_tumbado', c, {suelo: 'tendido', transiciones: ['perro_sentado', 'perro_parado']}); }
+
+/* ===================================================================================== */
+/* CLIPS DEL JINETE (caballo y mula) Y DEL SOLDADO: se construyen en registrar, con la cinemática de troops3d y las herramientas de infanteria3d
+   y caballeria3d. Escenas: las figuras de una escena comparten origen y rumbo (el de la pieza: mesa, fragua, camilla, caballo herrado). */
+const CLIPS_J = {}, META_J = {}, CLIPS_S = {}, META_S = {}, ESCENAS = {};
+function clipsJinete(CABm) {
+  const X = CABm._aux, PATAS = X.PATAS, cv = X.curva;
+  // herrar: el caballo descansa la mano izquierda doblada (casco atrás y arriba, a 0,5 m) sobre los muslos del herrador
+  { const N = 80, c = {dur: 4, loop: true, tracks: {}, ev: [[0.2, 'clavo'], [0.28, 'clavo'], [0.36, 'clavo'], [0.6, 'clavo'], [0.68, 'clavo'], [0.76, 'clavo'], [0.92, 'resopla']]};
+    X.resolverPatas(c, N, t => ({z: 0, pitch: 0.4 * Math.sin(2 * Math.PI * t), roll: -1.5, apoyo: {MI: false, MD: true, PI: true, PD: true}}), (k, t) => k === 'MI' ? [-0.02, 0.56] : [PATAS[k].piv[2] + (PATAS[k].del ? 0.03 : -0.02), 0]);
+    c.tracks.cuello = cv(N, t => [6 + 3 * Math.sin(2 * Math.PI * t), 10 * Math.sin(2 * Math.PI * t), 0]); c.tracks.testa = cv(N, t => [4, -8, 0]); c.tracks.cola = cv(N, t => [8, 0, 20 * Math.sin(2 * Math.PI * (t - 0.8) * 5) * sstep(0.78, 0.8, t) * (1 - sstep(0.9, 0.98, t))]);
+    X.jineteTracks(c, N, 'nada', {}); CLIPS_J.cab_herrar = c; META_J.cab_herrar = {suelo: 'pie', avance: 0, desplazamiento: [0, 0, 0], armaCompatible: ERAS.slice(), transiciones: ['cab_parado'], escena: 'herrar', pareja: {clip: 'apo_herrar_casco', desfase: [0, 0, 0]}}; }
+  // trompeta a caballo: toque de 3 s (el caballo parado) con la trompeta a la boca
+  CABm.PORTE.trompeta = [[-72, 0, -14], [-112, 0, 0], 92];
+  { const N = 60, c = {dur: 3, loop: true, tracks: {}, ev: [[0.15, 'nota'], [0.25, 'nota'], [0.35, 'nota'], [0.5, 'nota'], [0.6, 'nota'], [0.7, 'respira']]};
+    X.resolverPatas(c, N, () => ({z: 0, pitch: 0, apoyo: {MI: true, MD: true, PI: true, PD: true}}), k => [PATAS[k].piv[2] + (PATAS[k].del ? 0.02 : -0.02), 0]);
+    c.tracks.cuello = cv(N, t => [-2 + 2 * Math.sin(2 * Math.PI * t), 4 * Math.sin(2 * Math.PI * t), 0]); c.tracks.cola = cv(N, t => [8, 0, 6 * Math.sin(2 * Math.PI * t)]);
+    X.jineteTracks(c, N, X.porteKeys([[0, 'nada'], [0.1, 'trompeta'], [0.8, 'trompeta'], [0.95, 'nada'], [1, 'nada']]), {inc: -3, cabeza: () => [-6, 0, 0]});
+    CLIPS_J.cab_apo_trompeta_tocar = c; META_J.cab_apo_trompeta_tocar = {suelo: 'pie', avance: 0, desplazamiento: [0, 0, 0], armaCompatible: ERAS.slice(), transiciones: ['cab_parado'], tipo: 'cab_apo_trompeta'}; }
+  // paso de escolta: 1,15 m/s (como la columna de prisioneros y «escoltar_prisionero»), cadencia de 1,3 s
+  { CABm.AIRES.paso_escolta = Object.assign({}, CABm.AIRES.paso, {T: 1.3, v: 1.15}); const c = X.cicloAire('paso_escolta', 2); X.jineteTracks(c, 80, 'sable_hombro', {inc: 2, amortigua: 0.01, ciclos: 2, frec: 2});
+    const m = c.meta; delete c.meta; delete m.apoyo; CLIPS_J.cab_apo_paso_escolta = c; META_J.cab_apo_paso_escolta = Object.assign({suelo: 'pie', desplazamiento: [0, 0, 0], armaCompatible: ERAS.slice(), transiciones: ['cab_parado', 'cab_paso'], velocidad: 1.15}, m); }
+  Object.values(CLIPS_J).forEach(c => { c.ev.sort((a, b) => a[0] - b[0]); }); Object.entries(META_J).forEach(([n, m]) => { m.eventos = CLIPS_J[n].ev.map(e => e[1]); });
+}
+
+function clipsSoldado(T3, INFm) {
+  const H = INFm._herramientas, PS = INFm.POSES, W = PS.W, con = H.con, mas = H.mas;
+  const IXS = {}; T3.RIGS.soldado.forEach((p, i) => { IXS[p[0]] = i; });
+  const eul = new THREE.Euler(), q1 = new THREE.Quaternion(), q2 = new THREE.Quaternion(), Y = new THREE.Vector3(0, 1, 0);
+  // orientar: la pelvis lleva el rumbo y la postura propia de la pelvis se compone después (rama de Euler que conserva el rumbo)
+  const orientar = (pose, yaw) => { const p = pose.pelvis || [0, 0, 0]; if (!p[0] && !p[1] && !p[2]) return Object.assign({}, pose, {pelvis: [0, yaw, 0]});
+    q1.setFromEuler(eul.set(p[0] * D2R, p[1] * D2R, p[2] * D2R, 'XYZ')); q2.setFromAxisAngle(Y, yaw * D2R).multiply(q1); eul.setFromQuaternion(q2, 'XYZ');
+    const a = [eul.x / D2R, eul.y / D2R, eul.z / D2R], b = [a[0] + 180, 180 - a[1], a[2] + 180], dist = v => Math.abs((((v - yaw) % 360) + 540) % 360 - 180);
+    const sel = dist(b[1]) < dist(a[1]) ? b : a; sel[1] = yaw + ((((sel[1] - yaw) % 360) + 540) % 360 - 180); return Object.assign({}, pose, {pelvis: sel}); };
+  // posturas base (sin inclinación de la pelvis: la inclinación va en el torso)
+  const PIE = con(PS.FIRME, {brazoIz: [-6, 0, 8], antebrazoIz: [-14, 0, 0], brazoDe: [-6, 0, -8], antebrazoDe: [-14, 0, 0]});
+  const INCL = (a, b) => con(PIE, Object.assign({torso: [a, 0, 0], cabeza: [-a * 0.5, 0, 0]}, b || {}));
+  const AGACH = (b) => con(PIE, Object.assign({musloIz: [-72, 0, 10], piernaIz: [108, 0, 0], pieIz: [-30, 0, 0], musloDe: [-58, 0, -10], piernaDe: [100, 0, 0], pieDe: [-36, 0, 0], torso: [30, 0, 0], cabeza: [-20, 0, 0]}, b || {}));
+  const CUCLI = (tor, b) => con(PIE, Object.assign({musloIz: [-108, 0, 16], piernaIz: [142, 0, 0], pieIz: [-34, 0, 0], musloDe: [-102, 0, -16], piernaDe: [138, 0, 0], pieDe: [-34, 0, 0], torso: [tor, 0, 0], cabeza: [-tor * 0.6, 0, 0]}, b || {}));
+  const RODI = (b) => con(PS.RODILLA, Object.assign({brazoIz: [-20, 0, 10], antebrazoIz: [-40, 0, 0], brazoDe: [-20, 0, -10], antebrazoDe: [-40, 0, 0]}, b || {}));
+  const SENT = (b) => con(PIE, Object.assign({pelvis: [-70, 0, 0], torso: [52, 0, 0], musloIz: [-20, 0, 10], musloDe: [-20, 0, -10], piernaIz: [20, 0, 0], piernaDe: [20, 0, 0], pieIz: [-30, 0, 0], pieDe: [-30, 0, 0]}, b || {}));
+  const TEND = (b) => con(PS.TUMBADO_ESP, Object.assign({brazoIz: [-8, 0, 16], antebrazoIz: [-12, 0, 0], brazoDe: [-8, 0, -16], antebrazoDe: [-12, 0, 0]}, b || {}));
+  const nrm = v => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; }, add = (a, b, k) => a.map((v, i) => v + b[i] * (k == null ? 1 : k)), sub = (a, b) => a.map((v, i) => v - b[i]);
+  const giraY = (p, yaw) => { const c = Math.cos(yaw * D2R), s = Math.sin(yaw * D2R); return [p[0] * c + p[2] * s, p[1], -p[0] * s + p[2] * c]; };
+  // desfase de medio ciclo de un bucle (camilleros que rompen el paso)
+  const desfasar = (c, d) => Object.keys(c.tracks).forEach(k => { const u = []; c.tracks[k].map(q => [+((((q[0] + d) % 1) + 1) % 1).toFixed(6)].concat(q.slice(1))).sort((a, b) => a[0] - b[0])
+    .forEach(q => { if (u.length && Math.abs(u[u.length - 1][0] - q[0]) < 1e-6) u[u.length - 1] = q; else u.push(q); }); if (u[0][0] > 1e-6) u.unshift([0].concat(u[u.length - 1].slice(1))); u.push([1].concat(u[0].slice(1))); c.tracks[k] = u; });
+  // punto de una parte de un clip ya construido (CLIPS_S o del jinete) en el instante t
+  const punto = (rig, set, clip, parte, local, t) => { const S = T3.CLIPS[rig], tmp = '__apo_pt', had = S[clip]; S[tmp] = had || set[clip]; const M = T3.poseTroop(rig, tmp, t), o = T3.RIGS[rig].findIndex(p => p[0] === parte) * 16; delete S[tmp];
+    return [0, 1, 2].map(j => M[o + j] * local[0] + M[o + 4 + j] * local[1] + M[o + 8 + j] * local[2] + M[o + 12 + j]); };
+
+  /* ---------- Serv: clip del soldado en el marco de la escena (raíz = posición, pelvis = rumbo); herramientas en el mundo → espacio del torso ---------- */
+  function Serv(dur, loop) { this.C = new H.Clip(dur, loop !== false); this.herr = []; this.vis = []; this.dur = dur; }
+  Serv.prototype.en = function (t, x, z, yaw, pose) { if (this.yaw0 != null) { while (yaw - this.yaw0 > 180) yaw -= 360; while (yaw - this.yaw0 < -180) yaw += 360; } this.yaw0 = yaw;
+    const o = orientar(pose, yaw); if (this.pv) o.pelvis = o.pelvis.map((v, i) => { while (v - this.pv[i] > 180) v -= 360; while (v - this.pv[i] < -180) v += 360; return v; }); this.pv = o.pelvis;
+    this.C.k(t, o); this.C.r(t, x, 0, z); return this; };
+  Serv.prototype.h = function (t, p, dir, g) { this.herr.push([t, p, dir, g]); return this; };
+  Serv.prototype.manos = function (t, pR, pL) { const d = sub(pL, pR); return this.h(t, pR, d, [0, Math.hypot(...d)]); };            // herramienta invisible entre las dos manos
+  Serv.prototype.mano = function (t, p) { return this.h(t, p, [0, 1, 0], [0, -1]); };
+  Serv.prototype.ver = function (t, v) { this.vis.push([t, v ? 1 : 0]); return this; };
+  Serv.prototype.e = function (t, n) { this.C.e(t, n); return this; };
+  Serv.prototype.fin = function (nombre, meta) {
+    meta = meta || {}; const c = this.C.fin(), NA = Math.max(120, Math.round(this.dur * 40)), sobre = meta.sobre || 0, libre = meta.suelo === 'libre' && !sobre;
+    const asent = () => { if (libre) return; H.asentar(T3, nombre, c, {suelo: 'pie'}, NA); if (sobre) c.root.forEach(k => { k[2] = +(k[2] + sobre).toFixed(4); }); };
+    if (!c.root) c.root = [[0, 0, 0, 0]]; asent(); const S = T3.CLIPS.soldado, tmp = '__apo3d_tmp';
+    if (this.herr.length && !meta.sinAcercar) {   // si las manos no llegan, la figura se acerca (se desplaza la raíz), no la herramienta
+      S[tmp] = c; const Mt = new THREE.Matrix4(), sh = new THREE.Vector3(), adds = [];
+      this.herr.forEach(([t, p, dir, g]) => { Mt.fromArray(T3.poseTroop('soldado', tmp, t), IXS.torso * 16); let dx = 0, dz = 0, peor = 0;
+        [[g[0], -0.205], [g[1], 0.205]].forEach(([y, sx]) => { if (y < 0) return; sh.set(sx, 0.435, 0).applyMatrix4(Mt); const G = add(p, nrm(dir), y), d = [G[0] - sh.x, G[1] - sh.y, G[2] - sh.z], ex = Math.hypot(...d) - 0.52;
+          if (ex > peor) { const h = Math.hypot(d[0], d[2]) || 1; peor = ex; dx = d[0] / h * ex; dz = d[2] / h * ex; } });
+        if (peor > 0.005) adds.push([t, dx, dz]); });
+      delete S[tmp];
+      if (adds.length) { const off = t => { let w = 0, x = 0, z = 0; adds.forEach(([ta, ax, az]) => { const k = Math.max(0, 1 - Math.abs(t - ta) * this.dur / 0.6); if (k > 0) { w += k; x += ax * k; z += az * k; } }); return w > 0 ? [x / Math.max(1, w), z / Math.max(1, w)] : [0, 0]; };
+        const base = c.root.slice(); c.root = base.map(([t, x, y, z]) => { const o = off(t); return [t, x + o[0], y, z + o[1]]; }); asent(); }
+    }
+    if (this.herr.length) {   // herramienta al espacio del torso (FK de troops3d con la raíz ya asentada)
+      S[tmp] = c; const M = new THREE.Matrix4(), Tw = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), sc = new THREE.Vector3(1, 1, 1), P = [], R = [], G = []; let prev = null;
+      this.herr.sort((a, b) => a[0] - b[0]).forEach(([t, p, dir, g]) => { M.fromArray(T3.poseTroop('soldado', tmp, t), IXS.torso * 16).invert();
+        q.setFromUnitVectors(Y, new THREE.Vector3(...nrm(dir))); Tw.compose(new THREE.Vector3(...p), q, sc).premultiply(M);
+        const pos = new THREE.Vector3(), qq = new THREE.Quaternion(); Tw.decompose(pos, qq, new THREE.Vector3()); e.setFromQuaternion(qq, 'XYZ'); let r = [e.x / D2R, e.y / D2R, e.z / D2R];
+        if (prev) r = r.map((v, i) => { while (v - prev[i] > 180) v -= 360; while (v - prev[i] < -180) v += 360; return v; }); prev = r;
+        P.push([t, +pos.x.toFixed(4), +pos.y.toFixed(4), +pos.z.toFixed(4)]); R.push([t].concat(r.map(v => +v.toFixed(3)))); G.push([t].concat(g)); });
+      delete S[tmp]; c.tracks.armaP = P; c.tracks.armaR = R; c.tracks.agarre = G; H.alcanzar(T3, c, 0.56);
+      if (meta.objetivo !== false) meta.objetivos = this.herr.map(([t, p, dir, g]) => [t, g[0] >= 0 ? add(p, nrm(dir), g[0]) : null, g[1] >= 0 ? add(p, nrm(dir), g[1]) : null]);   // para las pruebas: dónde deben estar las manos
+    }
+    if (this.vis.length) c.hide = Object.assign(c.hide || {}, {arma: this.vis.sort((a, b) => a[0] - b[0])});
+    c.ev.sort((a, b) => a[0] - b[0]); CLIPS_S[nombre] = c;
+    META_S[nombre] = Object.assign({suelo: 'pie', avance: 0, desplazamiento: [0, 0, 0], armaCompatible: ERAS.slice(), transiciones: []}, meta); META_S[nombre].eventos = c.ev.map(x => x[1]);
+    return c; };
+  // clip sencillo sin herramientas en el mundo (Clip de infanteria3d) con asentado
+  const simple = (nombre, C, meta) => { const c = C.fin(); H.alcanzar(T3, c, 0.56); if (!meta || meta.suelo !== 'libre') H.asentar(T3, nombre, c, {suelo: 'pie'}, Math.max(96, Math.round(c.dur * 40)));
+    CLIPS_S[nombre] = c; META_S[nombre] = Object.assign({suelo: 'pie', avance: 0, desplazamiento: [0, 0, 0], armaCompatible: ERAS.slice(), transiciones: []}, meta || {}); META_S[nombre].eventos = c.ev.map(x => x[1]); return c; };
+  const t24 = (n, f) => { for (let i = 0; i <= n; i++) f(i / n, i); };
+
+  /* ---------- 1. mesa de operaciones (marco de la mesa: largo en x, 0,8 m de alto; el herido boca arriba con la cabeza hacia −x) ---------- */
+  { const s = new Serv(6), B = TEND(), K = [[0, {}], [0.3, {torso: [-4, 0, 6], cabeza: [30, 30, 0], musloIz: [-35, 0, 8], piernaIz: [60, 0, 0], brazoIz: [-30, 0, 34]}], [0.42, {cabeza: [22, -18, 0], musloIz: [-22, 0, 8], piernaIz: [40, 0, 0]}],
+      [0.7, {}], [0.82, {cabeza: [30, 26, 0], brazoIz: [-26, 0, 28]}], [1, {}]];
+    K.forEach(([t, p]) => s.en(t, 0.05, 0, 90, con(B, p))); s.e(0.3, 'queja').e(0.82, 'queja'); s.ver(0, false);
+    s.fin('apo_herido_en_mesa', {suelo: 'libre', sobre: 0.8, escena: 'mesa', tipo: 'inf_apo_herido', transiciones: []}); }
+  { const T = punto('soldado', CLIPS_S, 'apo_herido_en_mesa', 'musloDe', [0, -0.24, 0.02], 0), d = nrm([0, -0.12, -1]), s = new Serv(6), X0 = [T[0], T[1], T[2] + 0.62];
+    const P0 = INCL(34, {cabeza: [22, 0, 0], brazoIz: [-62, 0, 12], antebrazoIz: [-30, 0, 0]}), reposo = add(T, [0.05, 0.28, 0.32]);
+    [0, 0.3, 0.55, 0.62, 0.75, 1].forEach(t => s.en(t, X0[0] + 0.1, X0[2], 180, t === 0.75 ? con(P0, {cabeza: [10, -40, 0], torso: [24, -12, 0]}) : P0));
+    s.h(0, reposo, [0, 0.35, -1], [0.04, -1]).h(0.08, reposo, [0, 0.35, -1], [0.04, -1]);
+    for (let t = 0.12; t <= 0.581; t += 0.02) { const k = 0.07 * Math.sin(2 * Math.PI * (t - 0.12) / 0.1); s.h(+t.toFixed(3), add(add(T, d, -0.3), [0, 0.03, 0], 1).map((v, i) => v + d[i] * k), d, [0.04, -1]); }
+    [0.145, 0.245, 0.345, 0.445, 0.545].forEach(t => s.e(t, 'corte')); s.h(0.66, reposo, [0, 0.35, -1], [0.04, -1]).h(1, reposo, [0, 0.35, -1], [0.04, -1]); s.e(0.75, 'pide');
+    s.fin('apo_cirujano_operar', {escena: 'mesa', tipo: 'inf_apo_cirujano', pareja: {clip: 'apo_herido_en_mesa', desfase: [0, 0, 0]}, transiciones: ['apo_cirujano_examinar']}); }
+  { const s = new Serv(6), P0 = INCL(42, {cabeza: [30, 0, 0]}), ts = [0, 0.15, 0.3, 0.42, 0.55, 0.7, 0.82, 0.92, 1];
+    ts.forEach(t => s.en(t, -1.32, 0, 90, t === 0.3 || t === 0.82 ? INCL(50, {cabeza: [34, 0, 0]}) : P0));
+    ts.forEach(t => { const R = add(punto('soldado', CLIPS_S, 'apo_herido_en_mesa', 'brazoDe', [0, 0, 0], t), [0, 0.07, 0]), L = add(punto('soldado', CLIPS_S, 'apo_herido_en_mesa', 'brazoIz', [0, 0, 0], t), [0, 0.07, 0]); s.manos(t, R, L); });
+    s.e(0.3, 'sujetar').e(0.82, 'sujetar'); s.ver(0, false);
+    s.fin('apo_ayudante_sujetar', {escena: 'mesa', tipo: 'inf_apo_practicante', pareja: {clip: 'apo_herido_en_mesa', desfase: [0, 0, 0]}, transiciones: []}); }
+  // examinar a un herido tendido en el suelo (5 s): el cirujano de rodillas a su derecha, las manos en el pecho
+  { const s = new Serv(5); [0, 0.25, 0.5, 0.75, 1].forEach((t, i) => s.en(t, 0.05, 0, 90, TEND({torso: [i % 2 ? -3 : 0, 0, 0], cabeza: [30, i === 2 ? 25 : 10, 0]}))); s.e(0.5, 'queja'); s.ver(0, false);
+    s.fin('apo_herido_tendido', {escena: 'herido', tipo: 'inf_apo_herido', transiciones: []}); }
+  { const s = new Serv(5), ts = [0, 0.25, 0.5, 0.75, 1]; ts.forEach((t, i) => s.en(t, -0.3, 0.6, 180, con(PIE, {musloIz: [-78, 0, 10], piernaIz: [150, 0, 0], pieIz: [-40, 0, 0], musloDe: [-78, 0, -10], piernaDe: [150, 0, 0], pieDe: [-40, 0, 0], torso: [40 + (i % 2) * 6, 0, 0], cabeza: [26, 0, 0]})));   // de rodillas, sentado sobre los talones
+    ts.forEach(t => { const a = punto('soldado', CLIPS_S, 'apo_herido_tendido', 'torso', [0.09, 0.3, 0.14], t), b = punto('soldado', CLIPS_S, 'apo_herido_tendido', 'torso', [-0.09, 0.3, 0.14], t); const [R, L] = a[0] > b[0] ? [a, b] : [b, a]; s.manos(t, R, L); });
+    s.ver(0, false); s.e(0.3, 'examina'); s.fin('apo_cirujano_examinar', {escena: 'herido', tipo: 'inf_apo_cirujano', pareja: {clip: 'apo_herido_tendido', desfase: [0, 0, 0]}, transiciones: ['apo_cirujano_operar']}); }
+
+  /* ---------- 2. camilleros (marco de la camilla; los pies del herido delante, +z) ---------- */
+  [['del', CAM.delZ, CAMILLA.yDel, CAM.L / 2, 2], ['tras', CAM.trasZ, CAMILLA.yTras, -CAM.L / 2, 8]].forEach(([n, z, yh, zh, inc]) => {
+    const s = new Serv(CAMILLA.dur); H.zancada(s.C, 19, 22, inc, 'ninguno', {}); if (n === 'tras') desfasar(s.C.c, 0.5);
+    s.C.r(0, 0, 0, z).r(1, 0, 0, z); t24(24, t => s.h(t, [-CAM.X, yh(t), zh], [1, 0, 0], [0, 2 * CAM.X])); s.ver(0, false);
+    s.fin('apo_camilla_' + n + '_marcha', {avance: 1.0, escena: 'camilla', tipo: 'inf_apo_camillero', sincronizar: true, pareja: {clip: 'apo_camilla_' + (n === 'del' ? 'tras' : 'del') + '_marcha', desfase: [0, 0, 0]}, transiciones: ['apo_camilla_' + n + '_posar']}); });
+  // recoger y posar: cada extremo de la camilla sube al ritmo del hombro de su camillero (medido con la cinemática), no con una curva fija
+  const poseRec = (del, u) => H.mezcla(PIE, del ? CUCLI(14) : CUCLI(42), sstep(0.15, 0.33, u) * (1 - sstep(0.4, 0.72, u))), alt = {};
+  [['del', CAM.delZ, true], ['tras', CAM.trasZ, false]].forEach(([n, z, del]) => { const C = new H.Clip(4, false); t24(40, u => { C.k(u, poseRec(del, u)); C.r(u, 0, 0, z); }); const c = C.fin(); H.asentar(T3, '__apo_h', c, {suelo: 'pie'}, 160);
+    T3.CLIPS.soldado.__apo_h = c; const ys = []; t24(80, u => { const M = T3.poseTroop('soldado', '__apo_h', u), o = IXS.torso * 16; ys.push(M[o + 5] * 0.435 + M[o + 13]); }); delete T3.CLIPS.soldado.__apo_h;
+    const lin = u => { const f = u * 80, i = Math.min(79, Math.floor(f)); return ys[i] + (ys[i + 1] - ys[i]) * (f - i); }, a = lin(RECOGER.agarra), b = lin(0.72);
+    alt[n] = u => u <= RECOGER.agarra ? CAMILLA.suelo : CAMILLA.suelo + (CAM.Y - CAMILLA.suelo) * Math.min(1, Math.max(0, (lin(u) - a) / (b - a))); });
+  [['recoger', u => u], ['posar', u => 1 - u]].forEach(([acc, pr]) => { const c = T3.CLIPS.apo_camilla['apo_camilla_' + acc];
+    c.root = curva(80, t => [0, (alt.del(pr(t)) + alt.tras(pr(t))) / 2, 0]); c.tracks.camilla = curva(80, t => [-Math.atan2(alt.del(pr(t)) - alt.tras(pr(t)), CAM.L) / D2R, 0, 0]); CLIPS.apo_camilla['apo_camilla_' + acc] = c;
+    [['del', CAM.delZ, true], ['tras', CAM.trasZ, false]].forEach(([n, z, del]) => { const s = new Serv(4, false), zh = (del ? 1 : -1) * CAM.L / 2;
+      t24(40, t => { const u = pr(t); s.en(t, 0, z, 0, poseRec(del, u)); s.h(t, [-CAM.X, alt[n](u), zh], [1, 0, 0], u >= RECOGER.agarra - 0.02 ? [0, 2 * CAM.X] : [-1, -1]); });
+      if (acc === 'recoger') s.e(0.35, 'agarrar').e(0.4, 'levantar').e(0.72, 'arriba'); else s.e(0.28, 'bajar').e(0.6, 'en_suelo').e(0.65, 'soltar'); s.ver(0, false);
+      s.fin(`apo_camilla_${n}_${acc}`, {escena: 'camilla', tipo: 'inf_apo_camillero', sincronizar: true, transiciones: acc === 'recoger' ? [`apo_camilla_${n}_marcha`] : []}); }); });
+
+  /* ---------- 3. fragua: ayudante al fuelle y herrero en el yunque (marco de la fragua) ---------- */
+  { const s = new Serv(FUELLE.dur); t24(24, t => { const th = FUELLE.th(t), y = FRA.palanca[1] - FRA.mango * Math.sin(th * D2R), z = FRA.palanca[2] + FRA.mango * Math.cos(th * D2R);
+      s.en(t, 0, -1.84, 0, INCL(12 - 0.7 * th, {cabeza: [-4, 0, 0], musloIz: [-14, 0, 4], piernaIz: [12, 0, 0]})); s.h(t, [-0.2, y, z], [1, 0, 0], [0, 0.4]); });
+    s.ver(0, false); s.e(0.125, 'soplo').e(0.625, 'soplo');
+    s.fin('apo_ayudante_fuelle', {escena: 'fragua', tipo: 'inf_apo_ayudante_herrero', sincronizar: true, pareja: {clip: 'apo_fragua_trabajo', desfase: [0, 0, 0]}, transiciones: []}); }
+  { const s = new Serv(FUELLE.dur), Yq = [FRA.yunque[0], FRA.yunque[1] + 0.03, FRA.yunque[2]], gs = add(Yq, nrm([0.62, 0.35, -0.3]), 0.32), golpes = [0.1, 0.35, 0.6, 0.85];
+    const P0 = INCL(24, {brazoIz: [-48, 0, 14], antebrazoIz: [-38, 0, 0], musloDe: [8, 0, -4], musloIz: [-14, 0, 6]});
+    t24(24, t => s.en(t, 1.64, 0.2, -90, con(P0, {torso: [24 + 6 * Math.max(...golpes.map(g => Math.exp(-Math.pow((t - g) * 30, 2)))), 0, 0]})));
+    golpes.forEach(g => { const alto = add(Yq, [0.42, 0.62, -0.3]); s.h(g - 0.12, alto, [-0.25, 0.92, 0.1], [0.03, -1]).h(g - 0.03, add(Yq, [0.5, 0.42, -0.32]), [-0.6, 0.5, 0.15], [0.03, -1]).h(g, gs, sub(Yq, gs), [0.03, -1]).h(g + 0.04, add(gs, [0.03, 0.06, 0]), sub(Yq, gs), [0.03, -1]);
+      s.e(g, 'golpe').e(g + 0.005, 'chispas'); });
+    s.h(0, add(Yq, [0.42, 0.62, -0.3]), [-0.25, 0.92, 0.1], [0.03, -1]).h(1, add(Yq, [0.42, 0.62, -0.3]), [-0.25, 0.92, 0.1], [0.03, -1]);
+    s.fin('apo_herrero_martillar', {escena: 'fragua', tipo: 'inf_apo_herrero', sincronizar: true, transiciones: []}); }
+
+  /* ---------- 4. herrar: el herrador sujeta la mano izquierda del caballo entre las rodillas (marco del caballo) ---------- */
+  { const cas = punto('jinete', CLIPS_J, 'cab_herrar', 'canaIz', [0, -0.56, 0.04], 0), pz = add(cas, [0.02, 0.02, -0.03]), gs = add(pz, nrm([0.2, 0.42, 0.3]), 0.32), s = new Serv(4);
+    const P0 = con(PIE, {musloIz: [-50, 0, 12], piernaIz: [62, 0, 0], pieIz: [-14, 0, 0], musloDe: [-44, 0, -12], piernaDe: [56, 0, 0], pieDe: [-14, 0, 0], torso: [52, 0, 0], cabeza: [18, 0, 0], brazoIz: [-55, 0, 6], antebrazoIz: [-50, 0, 0]});
+    const golpes = [0.2, 0.28, 0.36, 0.6, 0.68, 0.76];
+    t24(40, t => s.en(t, cas[0] + 0.3, cas[2] + 0.3, 200, con(P0, {torso: [52 + 3 * Math.max(...golpes.map(g => Math.exp(-Math.pow((t - g) * 40, 2)))), 0, 0]})));
+    const alto = add(pz, [0.12, 0.36, 0.32]); s.h(0, alto, [0, 1, 0.2], [0.03, -1]).h(0.12, alto, [0, 1, 0.2], [0.03, -1]);
+    golpes.forEach(g => { s.h(g - 0.035, add(gs, [0.04, 0.12, 0.06]), sub(pz, gs), [0.03, -1]).h(g, gs, sub(pz, gs), [0.03, -1]); s.e(g, 'clavo'); });
+    s.h(0.45, alto, [0, 1, 0.2], [0.03, -1]).h(0.5, alto, [0, 1, 0.2], [0.03, -1]).h(0.85, alto, [0, 1, 0.2], [0.03, -1]).h(1, alto, [0, 1, 0.2], [0.03, -1]);
+    s.fin('apo_herrar_casco', {escena: 'herrar', tipo: 'inf_apo_herrador', sincronizar: true, pareja: {clip: 'cab_herrar', desfase: [0, 0, 0], rig: 'jinete'}, casco: cas.map(v => +v.toFixed(3)), transiciones: []}); }
+
+  /* ---------- 5. pagaduría (marco de la mesa del pagador: el pagador detrás, el soldado delante; entrega a 0,5) ---------- */
+  { const PE = [0.05, 0.9, 0.12], s = new Serv(5), libro = [0.16, 0.78, -0.04], mon = [-0.02, 0.79, 0.04];
+    const SILLA = (a, b) => con(PIE, Object.assign({musloIz: [-86, 0, 8], piernaIz: [86, 0, 0], pieIz: [0, 0, 0], musloDe: [-86, 0, -8], piernaDe: [86, 0, 0], pieDe: [0, 0, 0], torso: [a, 0, 0], cabeza: [-a * 0.3, 0, 0]}, b || {}));   // sentado en el taburete
+    const P0 = SILLA(26, {brazoIz: [-40, 0, 18], antebrazoIz: [-62, 0, 0], cabeza: [18, 0, 0]});
+    [0, 0.3, 0.45, 0.55, 0.7, 1].forEach(t => s.en(t, 0.02, -0.56, 0, t === 0.45 || t === 0.55 ? SILLA(20, {cabeza: [-4, 0, 0]}) : P0));
+    [[0, libro], [0.1, add(libro, [0.04, 0, 0.03])], [0.2, libro], [0.28, add(libro, [0.03, 0, 0.02])], [0.33, add(mon, [0, 0.06, 0])], [0.38, mon], [0.5, PE], [0.55, PE], [0.64, add(libro, [0, 0.06, 0])], [0.72, libro], [0.85, add(libro, [0.05, 0, 0.02])], [1, libro]]
+      .forEach(([t, p]) => s.h(t, p, [0.1, 0.4, 1], [0.02, -1])); s.ver(0, true).ver(0.31, false).ver(0.66, true); s.e(0.38, 'coge_monedas').e(0.5, 'entrega').e(0.8, 'anota');
+    s.fin('apo_pagador_pagar', {escena: 'pagaduria', tipo: 'inf_apo_pagador', sincronizar: true, pareja: {clip: 'apo_soldado_cobrar', desfase: [0, 0, 0]}, transiciones: []});
+    const r = new Serv(5), Q = PIE, SAL = con(PS.FIRME, {brazoDe: [-110, 0, -70], antebrazoDe: [-125, 0, 0], cabeza: [-4, 0, 0]});
+    [[0, Q], [0.1, SAL], [0.22, SAL], [0.3, Q], [0.45, INCL(30)], [0.56, INCL(30)], [0.66, con(Q, {brazoDe: [-20, 0, -12], antebrazoDe: [-80, 0, 0]})], [0.76, SAL], [0.88, SAL], [1, Q]].forEach(([t, p]) => r.en(t, 0.08, 0.72, 180, p));
+    r.h(0.38, add(PE, [0, -0.25, 0.25]), [0, 0, 1], [-1, -1]).h(0.42, add(PE, [0, -0.1, 0.12]), [0, 0, 1], [0, -1]).h(0.5, PE, [0, 0, 1], [0, -1]).h(0.56, PE, [0, 0, 1], [0, -1]).h(0.6, add(PE, [0, -0.1, 0.12]), [0, 0, 1], [-1, -1]);
+    r.ver(0, false); r.e(0.1, 'saludo').e(0.5, 'entrega').e(0.76, 'saludo');
+    r.fin('apo_soldado_cobrar', {escena: 'pagaduria', tipo: 'inf_soldado', sincronizar: true, pareja: {clip: 'apo_pagador_pagar', desfase: [0, 0, 0]}, transiciones: ['idle']}); }
+
+  /* ---------- 6. arriero (al paso de la mula: 2,2 s y 1,7 m/s como «cab_paso»), conductor en el pescante ---------- */
+  { const C = new H.Clip(2.2, true); H.zancada(C, 25, 24, 4, 'iz', {braceo: 16});
+    // dos pasos por pierna en 2,2 s: se rehace con las claves comprimidas a dos ciclos
+    const c0 = C.c; Object.keys(c0.tracks).forEach(k => { const tr = c0.tracks[k].slice(0, 17); c0.tracks[k] = tr.map(q => [q[0] / 2].concat(q.slice(1))).concat(tr.slice(1).map(q => [0.5 + q[0] / 2].concat(q.slice(1)))); });
+    c0.ev = [[0, 'pisada_iz'], [0.25, 'pisada_de'], [0.5, 'pisada_iz'], [0.75, 'pisada_de']];
+    [0, 0.5, 1].forEach(t => C.k(t, {brazoDe: [-38, 0, -30], antebrazoDe: [-46, 0, 0], arma: [150, 0, 0]}));
+    simple('apo_arriero_guiar', C, {avance: 1.7, velocidad: 1.7, tipo: 'inf_apo_arriero', pareja: {clip: 'cab_paso', desfase: [-0.75, -0.9, 0], rig: 'jinete', tipo: 'cab_apo_mula'}, transiciones: ['idle']}); }
+  { const s = new Serv(1.2), base = SENT({pelvis: [-78, 0, 0], torso: [64, 0, 0], brazoIz: [-42, 0, 14], antebrazoIz: [-58, 0, 0], brazoDe: [-46, 0, -14], antebrazoDe: [-62, 0, 0], piernaIz: [78, 0, 0], piernaDe: [72, 0, 0], musloIz: [-6, 0, 8], musloDe: [-10, 0, -8], pieIz: [-10, 0, 0], pieDe: [-10, 0, 0], arma: [120, 0, 0]});
+    [0, 0.25, 0.5, 0.75, 1].forEach((t, i) => { s.C.k(t, orientar(Object.assign({}, base, {torso: [64 + (i % 2) * 2, 0, i % 2 ? 1.5 : -1.5]}), 0)); s.C.r(t, 0, (i % 2) * 0.01, 0); });
+    const c = s.C.fin(), Sx = T3.CLIPS.soldado; Sx.__apo_s = c; const Mz = T3.poseTroop('soldado', '__apo_s', 0), o = IXS.pelvis * 16; delete Sx.__apo_s;
+    let low = Infinity; [[0.12, -0.1, -0.1], [-0.12, -0.1, -0.1], [0, -0.12, 0.05]].forEach(v => { low = Math.min(low, Mz[o + 1] * v[0] + Mz[o + 5] * v[1] + Mz[o + 9] * v[2] + Mz[o + 13]); });
+    c.root = c.root.map(k => [k[0], k[1], +(k[2] - low).toFixed(4), k[3]]); c.ev = [];
+    CLIPS_S.apo_conductor_pescante = c; META_S.apo_conductor_pescante = {suelo: 'libre', avance: 0, desplazamiento: [0, 0, 0], armaCompatible: ERAS.slice(), transiciones: [], tipo: 'inf_apo_conductor', marcoArmon: true,
+      asientos: {apo_ambulancia: [0, 1.59, -0.17], apo_carro_bagaje: [0, 1.67, -0.07]}, nota: 'las nalgas quedan en y = 0: se coloca en META.asientos del vehículo y se mueve con él', eventos: []}; }
+
+  /* ---------- 7. prisioneros (1,6 s y 1,15 m/s, como «escoltar_prisionero» de infanteria3d) ---------- */
+  const presos = (n, C, meta) => simple(n, C, Object.assign({avance: 1.15, tipo: 'inf_apo_prisionero', pareja: {clip: 'escoltar_prisionero', desfase: [1.4, -0.6, 0], nota: 'escolta a la derecha, un poco atrás'}, transiciones: ['apo_pris_atado', 'apo_pris_manos_cabeza', 'idle']}, meta));
+  { const C = new H.Clip(1.6, true); H.zancada(C, 16, 18, 6, 'ninguno'); [0, 1].forEach(t => C.k(t, {cabeza: [16, 0, 0]})); C.a(0, {P: [-0.05, -0.02, -0.21], R: [0, 0, -90], g: [0, 0.1]}).a(1, {P: [-0.05, -0.02, -0.21], R: [0, 0, -90], g: [0, 0.1]});
+    C.oculta('arma', [[0, 0]]); presos('apo_pris_atado', C, {nota: 'manos atadas a la espalda'}); }
+  { const C = new H.Clip(1.6, true); H.zancada(C, 15, 18, 3, 'ninguno'); [0, 1].forEach(t => C.k(t, {cabeza: [10, 0, 0]})); C.a(0, {P: [-0.075, 0.69, 0.0], R: [0, 0, -90], g: [0, 0.15]}).a(1, {P: [-0.075, 0.69, 0.0], R: [0, 0, -90], g: [0, 0.15]});
+    C.oculta('arma', [[0, 0]]); presos('apo_pris_manos_cabeza', C, {}); }
+  const cojear = (C, k) => { const T = C.c.tracks; T.musloDe = T.musloDe.map(q => [q[0], q[1] * 0.55, q[2], q[3]]); T.piernaDe = T.piernaDe.map(q => [q[0], 8 + (q[1] - 8) * 0.25, q[2], q[3]]);
+    T.pelvis = T.pelvis.map(q => [q[0], q[1], q[2], q[3] - k * 5 * Math.max(0, Math.cos(2 * Math.PI * (q[0] + 0.5)))]); T.torso = T.torso.map(q => [q[0], q[1] + 6, q[2], q[3] + k * 7 * Math.max(0, Math.cos(2 * Math.PI * (q[0] + 0.5)))]); };
+  { const C = new H.Clip(1.6, true); H.zancada(C, 15, 16, 8, 'ambos', {braceo: 8}); cojear(C, 1); [0, 1].forEach(t => C.k(t, {cabeza: [18, 0, 0]})); C.a(0, W.SUELO).a(1, W.SUELO); C.g(0, -1, -1); C.oculta('arma', [[0, 0]]); presos('apo_pris_cojo', C, {}); }
+  // el que sostiene (a la izquierda) y el herido sostenido (0,48 m a su derecha, el brazo izquierdo por encima de los hombros del compañero)
+  { const s = new Serv(1.6); H.zancada(s.C, 15, 16, 6, 'iz', {braceo: 10}); [0, 1].forEach(t => s.C.k(t, {brazoDe: [-20, 0, -48], antebrazoDe: [-40, 0, 0], torso: [6, 0, -4], cabeza: [10, -10, 0]})); s.C.r(0, 0, 0, 0).r(1, 0, 0, 0);
+    s.fin('apo_pris_sostiene', {avance: 1.15, tipo: 'inf_apo_prisionero', pareja: {clip: 'apo_pris_sostenido', desfase: [-0.48, 0, 0]}, transiciones: []}); }
+  { const s = new Serv(1.6); H.zancada(s.C, 14, 14, 10, 'de', {braceo: 6}); cojear(s.C, 1); [0, 1].forEach(t => s.C.k(t, {cabeza: [20, 12, 0], torso: [16, 0, 8]})); s.C.r(0, -0.48, 0, 0).r(1, -0.48, 0, 0);
+    t24(16, t => s.h(t, add(punto('soldado', CLIPS_S, 'apo_pris_sostiene', 'brazoIz', [0, 0, 0], t), [0.02, 0.07, -0.02]), [0, 1, 0], [-1, 0])); s.ver(0, false);
+    s.fin('apo_pris_sostenido', {avance: 1.15, tipo: 'inf_apo_prisionero', pareja: {clip: 'apo_pris_sostiene', desfase: [0.48, 0, 0]}, transiciones: []}); }
+
+  /* ---------- 8. estandartes: marcha, firme, caído, tendido sin bandera y recoger la bandera caída ---------- */
+  { const C = new H.Clip(1.58, true); H.zancada(C, 20, 20, -2, 'ninguno'); [0, 0.25, 0.5, 0.75, 1].forEach((t, i) => C.a(t, i % 2 ? AW_(W.BANDERA_ALTA, [0, 0.02, 0], [0, 0, i === 1 ? 4 : -4]) : W.BANDERA_ALTA)); C.k(0, {cabeza: [-10, 0, 0]}).k(1, {cabeza: [-10, 0, 0]});
+    simple('apo_estandarte_marcha', C, {avance: 1.3, abanderado: true, tipo: 'inf_apo_estandarte_generico', transiciones: ['apo_estandarte_firme', 'ondear', 'apo_estandarte_caido']}); }
+  { const s = new Serv(4), p = [-0.21, 0.03, 0.12], d = [0, 1, 0.04]; [0, 0.5, 1].forEach((t, i) => s.en(t, 0, 0, 0, con(PIE, {brazoIz: [-2, 0, 6], antebrazoIz: [-6, 0, 0], cabeza: [i === 1 ? 2 : 0, 0, 0]})));
+    s.h(0, p, d, [1.12, -1]).h(0.5, add(p, [0, 0, 0.005]), d, [1.12, -1]).h(1, p, d, [1.12, -1]); s.fin('apo_estandarte_firme', {abanderado: true, tipo: 'inf_apo_estandarte_generico', transiciones: ['apo_estandarte_marcha', 'abanderado_alzar', 'apo_estandarte_caido']}); }
+  // caído: impacto, se tambalea, cae de espaldas; el asta cae a su derecha y queda en el suelo (pie del asta en PF, dirección DF)
+  const PF = [-0.62, 0.03, -0.45], DF = nrm([-0.72, 0.03, 0.69]);
+  { const s = new Serv(2.6, false), K = [[0, PIE], [0.1, INCL(-14, {brazoIz: [-40, 0, 40], cabeza: [-20, 0, 0]})], [0.3, AGACH({torso: [-10, 0, -10], cabeza: [10, 0, 0]})], [0.48, con(PS.RODILLA, {torso: [-30, 0, 0], brazoIz: [-20, 0, 40]})], [0.66, TEND({cabeza: [20, 20, 0], brazoDe: [-20, 0, -40]})], [1, TEND({cabeza: [24, 25, 0], brazoDe: [-24, 0, -44]})]];
+    K.forEach(([t, p], i) => s.en(t, 0, i < 2 ? 0 : -0.15 - 0.35 * Math.min(1, t / 0.66), 0, p));
+    const p0 = [-0.14, 0.86, 0.26], d0 = [0.04, 1, -0.06]; s.h(0, p0, d0, [0.95, 0.55]).h(0.1, add(p0, [0, -0.02, -0.06]), [-0.1, 1, -0.1], [0.95, 0.55]).h(0.2, add(p0, [-0.06, -0.14, -0.1]), [-0.3, 1, 0.0], [-1, -1]).h(0.28, add(p0, [-0.1, -0.25, -0.15]), [-0.4, 1, 0.05], [-1, -1]);
+    s.h(0.32, add(p0, [-0.12, -0.28, -0.17]), [-0.45, 1, 0.08], [-1, -1]); for (let t = 0.36; t <= 0.661; t += 0.06) { const u = sstep(0.32, 0.66, t); s.h(+t.toFixed(2), add(add(p0, [-0.12, -0.28, -0.17]), sub(PF, add(p0, [-0.12, -0.28, -0.17])), u), nrm(add([-0.45, 1, 0.08], sub(DF, [-0.45, 1, 0.08]), u)), [-1, -1]); }
+    s.h(1, PF, DF, [-1, -1]); s.e(0, 'impacto').e(0.2, 'suelta_bandera').e(0.6, 'cae').e(0.66, 'cae_bandera');
+    s.fin('apo_estandarte_caido', {abanderado: true, sinAcercar: true, tipo: 'inf_apo_estandarte_generico', bandera: {pie: PF, dir: DF, nota: 'el asta queda en el suelo en META.bandera (marco del caído)'}, relevo: {clip: 'apo_estandarte_tendido', recoger: 'apo_estandarte_recoger'}, transiciones: ['apo_estandarte_tendido']}); }
+  { const s = new Serv(4); [0, 0.5, 1].forEach((t, i) => s.en(t, 0, -0.5, 0, TEND({cabeza: [24, 25, 0], brazoDe: [-24, 0, -44], torso: [i === 1 ? 1 : 0, 0, 0]}))); s.ver(0, false);
+    s.fin('apo_estandarte_tendido', {tipo: 'inf_apo_estandarte_generico', nota: 'el caído sin la bandera: se cambia a este clip cuando otro la recoge', transiciones: []}); }
+  // recoger (3,2 s, en el marco del caído): llega, se agacha junto al asta, la empuña por el medio y la alza
+  { const s = new Serv(3.2, false), n = nrm([DF[2], 0, -DF[0]]), mid = add(PF, DF, 0.85), A = add(mid, n, -0.4), yaw = Math.atan2(n[0], n[2]) / D2R;   // de cara al asta, con la punta a su derecha
+    const hold = add([A[0], 0, A[2]], giraY([-0.14, 0.86, 0.26], yaw)), dU = giraY([0.04, 1, -0.06], yaw);
+    s.en(0, A[0], A[2], yaw, PIE).en(0.16, A[0], A[2], yaw, PIE).en(0.34, A[0], A[2], yaw, CUCLI(68)).en(0.42, A[0], A[2], yaw, CUCLI(68)).en(0.72, A[0], A[2], yaw, INCL(4)).en(0.86, A[0], A[2], yaw, con(PIE, {cabeza: [-14, 0, 0]})).en(1, A[0], A[2], yaw, con(PIE, {cabeza: [-10, 0, 0]}));
+    s.h(0, PF, DF, [-1, -1]).h(0.34, PF, DF, [-1, -1]).h(0.36, PF, DF, [1.05, 0.65]).h(0.42, PF, DF, [1.05, 0.65]);
+    for (let t = 0.48; t <= 0.721; t += 0.06) { const u = sstep(0.42, 0.72, t); s.h(+t.toFixed(2), add(PF, sub(hold, PF), u), nrm(add(DF, sub(dU, DF), u)), u > 0.9 ? [0.95, 0.55] : [1.05, 0.65]); }
+    s.h(0.8, hold, dU, [0.95, 0.55]).h(1, hold, dU, [0.95, 0.55]); s.e(0.36, 'agarra').e(0.72, 'alza').e(0.82, 'viva');
+    s.fin('apo_estandarte_recoger', {abanderado: true, marcoDe: 'apo_estandarte_caido', tipo: 'inf_apo_estandarte_generico', transiciones: ['apo_estandarte_marcha', 'abanderado_alzar']}); }
+
+  /* ---------- 9. banda: tambor mayor, bombo y cornetas en marcha (1,58 s y 1,3 m/s, como «tambor_marcha») ---------- */
+  { const s = new Serv(1.58); H.zancada(s.C, 22, 22, -3, 'iz', {braceo: 14}); s.C.r(0, 0, 0, 0).r(1, 0, 0, 0);
+    t24(16, t => { const a = 14 * Math.sin(2 * Math.PI * t); s.h(t, [-0.3, 1.18, 0.3], [Math.sin(a * D2R) * 0.5, 1, 0.1], [0.0, -1]); }); s.e(0, 'pisada_iz');
+    s.fin('apo_tambor_mayor_marcha', {avance: 1.3, tipo: 'inf_apo_tambor_mayor', transiciones: ['apo_tambor_mayor_senal']}); }
+  { const s = new Serv(3, false); [0, 0.25, 0.6, 0.85, 1].forEach(t => s.en(t, 0, 0, 0, con(PIE, {cabeza: [t > 0.2 && t < 0.7 ? -16 : -6, 0, 0], brazoIz: [-4, 0, 10]})));
+    s.h(0, [-0.3, 1.18, 0.3], [0, 1, 0.1], [0, -1]).h(0.25, [-0.26, 1.72, 0.22], [0.05, 1, 0.05], [0, -1]).h(0.6, [-0.26, 1.72, 0.22], [0.05, 1, 0.05], [0, -1]).h(0.85, [-0.3, 1.18, 0.3], [0, 1, 0.1], [0, -1]).h(1, [-0.3, 1.18, 0.3], [0, 1, 0.1], [0, -1]);
+    s.e(0.25, 'senal').e(0.85, 'baja'); s.fin('apo_tambor_mayor_senal', {tipo: 'inf_apo_tambor_mayor', transiciones: ['apo_tambor_mayor_marcha']}); }
+  // bombo: dos golpes por ciclo en el parche derecho (en el tiempo fuerte de cada paso)
+  const bombo = (s, golpes) => { const P = [-0.16, 1.12, 0.34], gS = add(P, nrm([-1, -0.2, 0]), 0.32), gA = [-0.55, 1.28, 0.24];
+    s.h(0, gA, [0.6, 0.8, 0], [0, -1]); golpes.forEach(g => { s.h(g - 0.12, gA, [0.6, 0.8, 0], [0, -1]).h(g, gS, sub(P, gS), [0, -1]).h(g + 0.06, add(gS, [-0.05, 0.03, 0]), sub(P, gS), [0, -1]); s.e(g, 'golpe'); }); s.h(1, gA, [0.6, 0.8, 0], [0, -1]); };
+  { const s = new Serv(1.6); [0, 0.5, 1].forEach(t => s.en(t, 0, 0, 0, con(PIE, {cabeza: [6, 0, 0], brazoIz: [-30, 0, 30], antebrazoIz: [-80, 0, 0]}))); bombo(s, [0.14, 0.64]);
+    s.fin('apo_bombo_tocar', {musico: 'bombo', tipo: 'inf_apo_bombo', transiciones: ['apo_bombo_marcha']}); }
+  { const s = new Serv(1.58); H.zancada(s.C, 20, 22, -2, 'ninguno'); [0, 1].forEach(t => s.C.k(t, {brazoIz: [-30, 0, 30], antebrazoIz: [-80, 0, 0], cabeza: [4, 0, 0]})); s.C.r(0, 0, 0, 0).r(1, 0, 0, 0); bombo(s, [0.14, 0.64]);
+    s.fin('apo_bombo_marcha', {avance: 1.3, musico: 'bombo', tipo: 'inf_apo_bombo', transiciones: ['apo_bombo_tocar']}); }
+  { const C = new H.Clip(1.58, true); H.zancada(C, 20, 22, -2, 'ninguno'); [0, 1].forEach(t => C.k(t, {cabeza: [-10, 0, 0], torso: [-3, 0, 0], brazoIz: [-10, 0, 25], antebrazoIz: [-100, 0, 0]})); C.a(0, W.CORNETA).a(1, W.CORNETA);
+    [0.05, 0.2, 0.35, 0.55, 0.7, 0.85].forEach(t => C.e(t, 'nota')); simple('apo_corneta_marcha', C, {avance: 1.3, musico: 'corneta', tipo: 'inf_corneta', transiciones: ['corneta_tocar']}); }
+}
+const AW_ = (a, dP, dR) => ({P: a.P.map((v, i) => v + dP[i]), R: a.R.map((v, i) => v + dR[i]), g: a.g});
+
+/* ===================================================================================== */
+/* BANDERAS CON VIENTO Y DAÑO (sombreador por lote). Sin atributo nuevo: el lote ya está al límite de 16 atributos (instanceMatrix, iVar…), así que
+   fuerza local del viento (0–1,5), fase y daño (0–1) van empaquetados en iLook.w, que troops3d solo lee para las orugas (aFx.y ≠ 0, nunca en un paño).
+   · La dirección y la fuerza del viento son del mundo: apoyo3d.viento.value = (x, y, z, fuerza 0–1). En cada vértice del paño se pasa el viento
+     al marco de la parte (instancia · hueso) y el paño se gira alrededor del asta (+y local) hacia sotavento; con poco viento cuelga junto al asta.
+   · El daño perfora agujeros (más hacia el batiente), deshilacha el batiente y chamusca el paño (descartes en el fragmento; sin texturas).
+   · Solo afecta a los paños que salen del asta hacia +x local (los de troops3d, infanteria3d y este módulo). La banderola de la lanza de
+     caballeria3d (hacia +z) queda con la ondulación de siempre. */
+const viento = {value: new THREE.Vector4(0.8, 0, 0.6, 0.6)};
+const OLA = /if \(aFx\.x > 0\.0\) \{ float ph = iAnimA\.w \* 6\.2831;[^\n]*/;
+const VS_BANDERA = `vBnd = vec4(0.0, 0.0, 0.0, -1.0);
+if (aFx.x > 0.0) {                                                              // apoyo3d: paño con viento del mundo
+  float bw = iLook.w, bDan = mod(bw, 64.0) / 63.0, bVie = mod(floor(bw / 64.0), 32.0) / 31.0 * 1.5, bFas = floor(bw / 2048.0) / 63.0;
+  float fv = clamp(uViento.w * bVie, 0.0, 1.5), ph = bFas * 6.2831 + iAnimA.w * 6.2831;
+  float racha = fv * (0.8 + 0.2 * sin(uTime * 0.7 + ph) * sin(uTime * 1.9 + ph * 0.5));
+  float k = aFx.x, x = pos0.x, lacio = clamp(1.0 - racha, 0.0, 1.0);
+  vBnd = vec4(pos0.x, pos0.y, k, bDan);
+  float ca = mix(0.1, 1.35, lacio * lacio), amp = 0.025 + 0.11 * racha;            // caída hacia el asta y amplitud de la onda
+  float px = x * cos(ca), py = pos0.y - x * sin(ca);
+  float pz = sin(k * 7.0 - uTime * (2.5 + 5.0 * racha) + ph) * amp * k + sin(k * 3.0 - uTime * 2.3 + pos0.y * 3.0) * 0.4 * amp * k + lacio * 0.04 * sin(x * 9.0 + pos0.y * 6.0);
+  py += sin(k * 5.0 - uTime * 4.0 + ph) * 0.025 * k * racha;
+  mat3 mi = mat3(instanceMatrix) * mat3(bm);
+  vec3 wl = vec3(dot(mi[0], uViento.xyz), dot(mi[1], uViento.xyz), dot(mi[2], uViento.xyz));
+  vec3 gl = -vec3(mi[0].y, mi[1].y, mi[2].y);                                         // la gravedad en el marco de la parte: si el asta cae, el paño cuelga
+  vec2 wv = (length(wl.xz) > 1e-3 ? normalize(wl.xz) : vec2(0.0)) * (0.15 + racha) + (length(gl.xz) > 1e-3 ? normalize(gl.xz) * length(gl.xz) : vec2(0.0)) * 1.2;
+  vec2 wd = length(wv) > 1e-3 ? normalize(wv) : vec2(1.0, 0.0);
+  pos0 = vec3(px * wd.x - pz * wd.y, py, px * wd.y + pz * wd.x);
+}`;
+const FS_BANDERA = `if (vBnd.w > 0.001) { vec2 cb = floor(vBnd.xy * 9.0); float hb = hBnd(cb), dn = vBnd.w;   // apoyo3d: agujeros, batiente deshilachado, chamuscado
+  if (hb < dn * 0.42 * (0.4 + vBnd.z)) discard;
+  if (vBnd.z > 1.0 - dn * 0.3 * (0.4 + 0.6 * hBnd(vec2(cb.y, 7.0)))) discard;
+  diffuseColor.rgb *= 1.0 - dn * 0.6 * smoothstep(0.5, 1.0, hBnd(floor(vBnd.xy * 4.0) + 3.0)); }`;
+function prepararBandera(lote) {
+  if (!lote || lote._iBand) return lote; const cap = lote.cap || lote.mesh.instanceMatrix.count;
+  lote._iBand = new Float32Array(cap * 3);                                                     // copia en JS (fuerza, fase, daño); se empaqueta en iLook.w
+  const mat = lote.mesh.material, prev = mat.onBeforeCompile, key = mat.customProgramCacheKey ? mat.customProgramCacheKey() : '';
+  mat.onBeforeCompile = function (sh, r) {
+    if (prev) prev.call(this, sh, r); sh.uniforms.uViento = viento;
+    sh.vertexShader = sh.vertexShader.replace('attribute vec4 iLook;', 'attribute vec4 iLook; uniform vec4 uViento; varying vec4 vBnd;');
+    sh.vertexShader = OLA.test(sh.vertexShader) ? sh.vertexShader.replace(OLA, VS_BANDERA) : sh.vertexShader.replace('vec3 transformed = (bm', VS_BANDERA + '\nvec3 transformed = (bm');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec4 vBnd; float hBnd(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }')
+      .replace('#include <color_fragment>', '#include <color_fragment>\n' + FS_BANDERA);
+  };
+  mat.customProgramCacheKey = () => key + '|band3d'; mat.needsUpdate = true; return lote;
+}
+function empaquetar(lote, i) { const b = lote._iBand, d = Math.round(Math.max(0, Math.min(1, b[i * 3 + 2])) * 63), v = Math.round(Math.max(0, Math.min(1.5, b[i * 3])) / 1.5 * 31), f = Math.round((((b[i * 3 + 1] % 1) + 1) % 1) * 63);
+  lote.iLook.setW(i, d + 64 * v + 2048 * f); lote.iLook.needsUpdate = true; }
+function esBandera(lote) { if (/lancero/.test(lote.kind)) return false; const fx = lote.mesh.geometry.attributes.aFx; if (!fx) return false; for (let i = 0; i < fx.count; i++) if (fx.getX(i) > 0) return true; return false; }
+// daño de una bandera (0 = intacta … 1 = hecha jirones); impactoBandera(lote, i, k) lo aumenta; vientoLocal(lote, i, f) cambia la fuerza local (abrigo, 0–1,5)
+function danarBandera(lote, i, d) { if (!lote._iBand) prepararBandera(lote); lote._iBand[i * 3 + 2] = Math.max(0, Math.min(1, d)); empaquetar(lote, i); }
+function impactoBandera(lote, i, k) { if (!lote._iBand) prepararBandera(lote); danarBandera(lote, i, lote._iBand[i * 3 + 2] + (k == null ? 0.12 : k)); }
+function vientoLocal(lote, i, f) { if (!lote._iBand) prepararBandera(lote); lote._iBand[i * 3] = f; empaquetar(lote, i); }
+
+/* ===================================================================================== */
+/* GRUPOS Y ESCENAS
+   ESCENAS: figuras que comparten origen y rumbo (los clips ya llevan cada posición); se arrancan con la misma fase / el mismo instante. */
+Object.assign(ESCENAS, {
+  mesa: [{tipo: 'apo_mesa_cirujano', clip: 'apo_mesa_quieta'}, {tipo: 'inf_apo_herido', clip: 'apo_herido_en_mesa'}, {tipo: 'inf_apo_cirujano', clip: 'apo_cirujano_operar'}, {tipo: 'inf_apo_practicante', clip: 'apo_ayudante_sujetar'}],
+  herido: [{tipo: 'inf_apo_herido', clip: 'apo_herido_tendido'}, {tipo: 'inf_apo_cirujano', clip: 'apo_cirujano_examinar'}],
+  camilla: [{tipo: 'apo_camilla', clip: 'apo_camilla_marcha'}, {tipo: 'inf_apo_camillero', clip: 'apo_camilla_del_marcha'}, {tipo: 'inf_apo_camillero', clip: 'apo_camilla_tras_marcha'}],
+  camilla_recoger: [{tipo: 'apo_camilla', clip: 'apo_camilla_recoger'}, {tipo: 'inf_apo_camillero', clip: 'apo_camilla_del_recoger'}, {tipo: 'inf_apo_camillero', clip: 'apo_camilla_tras_recoger'}],
+  camilla_posar: [{tipo: 'apo_camilla', clip: 'apo_camilla_posar'}, {tipo: 'inf_apo_camillero', clip: 'apo_camilla_del_posar'}, {tipo: 'inf_apo_camillero', clip: 'apo_camilla_tras_posar'}],
+  fragua: [{tipo: 'apo_fragua', clip: 'apo_fragua_trabajo'}, {tipo: 'inf_apo_ayudante_herrero', clip: 'apo_ayudante_fuelle'}, {tipo: 'inf_apo_herrero', clip: 'apo_herrero_martillar'}],
+  herrar: [{tipo: 'cab_caballo_medio', clip: 'cab_herrar'}, {tipo: 'inf_apo_herrador', clip: 'apo_herrar_casco'}],
+  pagaduria: [{tipo: 'apo_mesa_pagador', clip: 'apo_mesa_quieta'}, {tipo: 'inf_apo_pagador', clip: 'apo_pagador_pagar'}, {tipo: 'inf_soldado', clip: 'apo_soldado_cobrar'}],
+  bandera_caida: [{tipo: 'inf_apo_estandarte_generico', clip: 'apo_estandarte_caido'}],
+  // al acabar «apo_estandarte_caido», el caído pasa a «apo_estandarte_tendido» (sin la bandera) y otro la recoge en su mismo marco
+  bandera_recoger: [{tipo: 'inf_apo_estandarte_generico', clip: 'apo_estandarte_tendido', fondo: true}, {tipo: 'inf_apo_estandarte_generico', clip: 'apo_estandarte_recoger'}]
+});
+const GRUPOS = {
+  // columna de prisioneros de a dos (1,3 m entre filas), escoltas a pie en los flancos cada 3 filas y a caballo en cabeza y cola, todo a 1,15 m/s
+  columna_prisioneros: (n, op) => { op = op || {}; n = n || 24; const filas = Math.ceil(n / 2), dz = op.distancia || 1.3, out = [], cl = ['apo_pris_atado', 'apo_pris_manos_cabeza', 'apo_pris_atado', 'apo_pris_cojo', 'apo_pris_manos_cabeza'];
+    for (let f = 0; f < filas; f++) { if (f % 5 === 3 && out.length + 2 <= n) { out.push({x: 0.5, z: -f * dz, tipo: 'inf_apo_prisionero', clip: 'apo_pris_sostiene', papel: 'prisionero', fila: f + 1}, {x: 0.02, z: -f * dz, tipo: 'inf_apo_prisionero', clip: 'apo_pris_sostenido', papel: 'herido', fila: f + 1}); continue; }
+      for (let c = 0; c < 2 && out.length < n; c++) out.push({x: c ? -0.5 : 0.5, z: -f * dz, tipo: 'inf_apo_prisionero', clip: cl[(f * 2 + c) % cl.length], papel: 'prisionero', fila: f + 1}); }
+    const esc = [];
+    for (let f = 0; f < filas; f += 3) esc.push({x: (f / 3) % 2 ? -1.6 : 1.6, z: -f * dz - 0.4, tipo: op.escolta || 'inf_soldado', clip: 'escoltar_prisionero', papel: 'escolta'});
+    esc.push({x: 0, z: 4.0, tipo: op.montada || 'cab_dragon', clip: 'cab_apo_paso_escolta', papel: 'escolta_montada'}, {x: 0, z: -(filas - 1) * dz - 4.2, tipo: op.montada || 'cab_dragon', clip: 'cab_apo_paso_escolta', papel: 'escolta_montada'});
+    return out.concat(esc); },
+  // banda en marcha: tambor mayor delante, filas de 4 (tambores, cornetas; gaiteros si op.gaiteros) y el bombo en el centro, todo a 1,3 m/s
+  banda: (n, op) => { op = op || {}; n = n || 16; const out = [{x: 0, z: 3.2, tipo: 'inf_apo_tambor_mayor', clip: 'apo_tambor_mayor_marcha', papel: 'tambor_mayor'}], filas = Math.ceil(n / 4), mitad = Math.ceil(filas / 2);
+    for (let i = 0; i < n; i++) { const f = Math.floor(i / 4), c = i % 4, gai = op.gaiteros && f >= filas - 1, tam = f < mitad;
+      out.push({x: (c - 1.5) * 1.0, z: -f * 1.3, tipo: gai ? 'inf_gaitero' : tam ? 'inf_tambor' : 'inf_corneta', clip: gai ? 'gaita_marcha' : tam ? 'tambor_marcha' : 'apo_corneta_marcha', papel: gai ? 'gaitero' : tam ? 'tambor' : 'corneta'}); }
+    out.push({x: 0, z: -filas * 1.3, tipo: 'inf_apo_bombo', clip: 'apo_bombo_marcha', papel: 'bombo'}); return out; },
+  // tren de carros: carros a 16 m con tiro de 4 mulas (o caballos con op.caballos) al paso; conductor en el pescante si el carro lo tiene
+  tren: (n, op) => { op = op || {}; n = n || 4; const tipos = op.tipos || ['apo_carro_suministro', 'apo_carro_bagaje', 'apo_ambulancia', 'apo_carro_suministro'], out = [], A = root.artilleria3d;
+    for (let i = 0; i < n; i++) { const z0 = -i * 16, tv = tipos[i % tipos.length]; out.push({x: 0, z: z0, tipo: tv, clip: 'art_rodar_paso', papel: 'carro', n: i + 1});
+      A.formacion('tiro', op.tiro || 4).forEach(p => out.push({x: p.x, z: z0 + p.z, tipo: op.caballos ? p.tipo : p.tipo === 'cab_tiro_conductor' ? 'cab_apo_mula_tiro_conductor' : 'cab_apo_mula_tiro', clip: 'cab_paso', papel: p.papel, n: i + 1, escala: op.caballos ? 1 : 0.92}));
+      const as = META_S.apo_conductor_pescante && META_S.apo_conductor_pescante.asientos[tv]; if (as) out.push({x: as[0], y: as[1], z: z0 + as[2], tipo: 'inf_apo_conductor', clip: 'apo_conductor_pescante', papel: 'conductor', n: i + 1}); }
+    return out; },
+  // recua: mulas en fila a 2,4 m con el arriero junto a la cabeza de la primera, al paso (1,7 m/s)
+  recua: (n, op) => { op = op || {}; n = n || 6; const cargas = op.cargas || ['carga', 'viveres', 'carga', 'montana_tubo', 'montana_ruedas', 'viveres'], out = [];
+    for (let i = 0; i < n; i++) out.push({x: 0, z: -i * 2.4, tipo: 'cab_apo_mula_' + cargas[i % cargas.length], clip: 'cab_paso', papel: 'mula', escala: 0.92});
+    out.push({x: 0.75, z: 0.9, tipo: 'inf_apo_arriero', clip: 'apo_arriero_guiar', papel: 'arriero'}); return out; },
+  // puesto de socorro: mesa de operaciones, heridos esperando, bandera de hospital, ambulancia y camillas
+  puesto_socorro: (n, op) => { op = op || {}; const out = ESCENAS.mesa.map(e => Object.assign({x: 0, z: 0, escena: 'mesa'}, e));
+    ESCENAS.herido.forEach(e => out.push(Object.assign({x: 3.5, z: 1.0, escena: 'herido'}, e)));
+    for (let i = 0; i < (n || 3); i++) out.push({x: -3.0 + i * 1.0, z: 3.0, rumbo: 90, tipo: 'apo_camilla', clip: 'apo_camilla_suelo', papel: 'camilla_en_espera'});
+    out.push({x: -2.4, z: -2.2, tipo: 'apo_bandera_hospital', clip: 'apo_asta_quieta', papel: 'bandera'}, {x: 6, z: -4, rumbo: 90, tipo: 'apo_ambulancia', clip: 'art_rodar_parado', papel: 'ambulancia'}); return out; }
+};
+function formacion(tipo, n, op) { const f = GRUPOS[tipo]; if (!f) throw new Error('formación desconocida: ' + tipo); return f(n, op); }
+const TRANSICIONES = {};
+function grafo() { [META, META_J, META_S].forEach(M => Object.entries(M).forEach(([n, m]) => { TRANSICIONES[n] = TRANSICIONES[n] || {}; (m.transiciones || []).forEach(t => { TRANSICIONES[n][t] = /galope|cae/.test(n + t) ? 0.15 : 0.3; }); })); }
+function rutaTransicion(desde, hasta) { const cola = [[desde]], vis = new Set([desde]); while (cola.length) { const r = cola.shift(), u = r[r.length - 1]; if (u === hasta) return r.slice(1).map((c, i) => ({clip: c, mezcla: (TRANSICIONES[r[i]] || {})[c]}));
+  Object.keys(TRANSICIONES[u] || {}).forEach(v => { if (!vis.has(v)) { vis.add(v); cola.push(r.concat([v])); } }); } return null; }
+
+/* ===================================================================================== */
+/* REGISTRO */
+let _I = null, _reg = null;
+function registrar(T3, op) {
+  op = op || {}; const ARTm = root.artilleria3d, CABm = root.caballeria3d, INFm = root.infanteria3d;
+  if (!ARTm || !CABm || !INFm) throw new Error('apoyo3d necesita infanteria3d.js, caballeria3d.js y artilleria3d.js cargados antes');
+  ARTm.registrar(T3, op);
+  // cuerpo de mula (más estrecha y de patas más finas) y jinetes de apoyo en las tablas de caballeria3d
+  if (!CABm.CUERPO.mula) CABm.CUERPO.mula = {k: 0.88, kz: 0.92, pata: 0.88, crin: 'corta'};
+  const J = CABm.JINETES, ERA_T = ERAS.slice();
+  if (!J.portaestandarte) J.portaestandarte = {nombre: 'Portaestandarte de caballería', cuerpo: 'medio', silla: 'dragon', arma: 'ninguna', pal: 'caballeria', eras: ['A', 'B', 'C', 'D'], carabina: () => false, toc: (e, n) => J.dragon.toc(e, n)};
+  if (!J.trompeta) J.trompeta = {nombre: 'Trompeta de caballería', cuerpo: 'ligero', silla: 'hungara', arma: 'ninguna', pal: 'caballeria', eras: ERA_T, carabina: () => false, toc: (e, n) => J.cazador.toc(e, n)};
+  Object.entries(RIGS_APO).forEach(([r, R]) => { if (!T3.RIGS[r]) T3.RIGS[r] = R; T3.CLIPS[r] = T3.CLIPS[r] || {}; });
+  const ART = Object.assign({}, ARTm.instancia(), {ARMON: ARTm.ARMON});
+  _I = _I || crear(T3, INFm.instancia(T3), CABm._crear(T3, INFm.instancia(T3)), ART);
+  const tipos = [], clips = [], saltados = [];
+  Object.entries(_I.TIPOS).forEach(([k, K]) => { if (T3.KINDS[k] && !op.reemplazar) return; T3.KINDS[k] = K; if (!T3.TROOP_KINDS.includes(k)) T3.TROOP_KINDS.push(k); tipos.push(k); });
+  Object.entries(CLIPS).forEach(([rig, set]) => Object.entries(set).forEach(([n, c]) => { if (T3.CLIPS[rig][n] && !op.reemplazar) { saltados.push(n); return; } T3.CLIPS[rig][n] = JSON.parse(JSON.stringify(c)); clips.push(n); }));
+  if (!Object.keys(CLIPS_J).length) clipsJinete(CABm);
+  Object.entries(CLIPS_J).forEach(([n, c]) => { if (T3.CLIPS.jinete[n] === c) return; if (T3.CLIPS.jinete[n] && !op.reemplazar) { saltados.push(n); return; } T3.CLIPS.jinete[n] = c; clips.push(n); });
+  if (!Object.keys(CLIPS_S).length) { clipsSoldado(T3, INFm); grafo(); }
+  Object.entries(CLIPS_S).forEach(([n, c]) => { if (T3.CLIPS.soldado[n] === c) return; if (T3.CLIPS.soldado[n] && !op.reemplazar) { saltados.push(n); return; } T3.CLIPS.soldado[n] = c; clips.push(n); });
+  // lotes con bandera: se preparan solos (viento y daño); add() acepta o.viento (0–1,5), o.fase y o.dano
+  const TB = T3.TroopBatch.prototype;
+  if (!TB._apo3d && op.viento !== false) { const add0 = TB.add;
+    TB.add = function (x, y, z, yaw, scale, nation, clip, o) { if (this._esBandera == null) this._esBandera = esBandera(this); if (this._esBandera && !this._iBand) prepararBandera(this);
+      const i = add0.call(this, x, y, z, yaw, scale, nation, clip, o); if (this._esBandera && i >= 0) { const b = this._iBand; b[i * 3] = o && o.viento != null ? o.viento : 1; b[i * 3 + 1] = o && o.fase != null ? o.fase : Math.random(); b[i * 3 + 2] = o && o.dano || 0; empaquetar(this, i); } return i; };
+    TB._apo3d = true; }
+  _reg = {tipos, clips, saltados}; return _reg;
+}
+
+/* ===================================================================================== */
+/* DEMOSTRACIÓN: demoApoyo(contenedor, {vista, era, nat, viento, dir, dano, t})
+   vistas: socorro · camilla · fragua · herrar · pagaduria · bandera_caida (escenas con figuras sincronizadas) · prisioneros · banda · recua · tren
+   (columnas en marcha) · banderas (viento y daño con deslizadores) · perros · catalogo (todos los tipos) */
+function demoApoyo(cont, op) {
+  op = op || {}; const T3 = root.Troops3D; if (!T3) throw new Error('demoApoyo necesita Troops3D (troops3d.js)');
+  registrar(T3); const q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new Map(), arg = k => op[k] != null ? op[k] : q.get(k);
+  const NAT = ['PRU', 'AUT', 'FRA', 'GBR', 'RUS', 'USA', 'CSA', 'ESP', 'ITA', 'JPN'], VISTAS = ['socorro', 'camilla', 'fragua', 'herrar', 'pagaduria', 'bandera_caida', 'bandera_recoger', 'prisioneros', 'banda', 'recua', 'tren', 'banderas', 'perros', 'catalogo'];
+  const R = new THREE.WebGLRenderer({antialias: true}); R.setPixelRatio(Math.min(2, root.devicePixelRatio || 1)); R.domElement.style.cssText = 'display:block;width:100%;height:100%'; cont.appendChild(R.domElement);
+  const S = new THREE.Scene(); S.background = new THREE.Color(0xc9d2d4); S.fog = new THREE.Fog(0xc9d2d4, 40, 160);
+  S.add(new THREE.HemisphereLight(0xffffff, 0x5d6b48, 0.85)); const L = new THREE.DirectionalLight(0xfff1dc, 1.25); L.position.set(-4, 8, 6); S.add(L);
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64; const cx = cv.getContext('2d'); cx.fillStyle = '#86965f'; cx.fillRect(0, 0, 64, 64); cx.fillStyle = '#7a8a55'; cx.fillRect(0, 0, 64, 3); cx.fillRect(0, 0, 3, 64);
+  const tx = new THREE.CanvasTexture(cv); tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.repeat.set(200, 200); tx.colorSpace = THREE.SRGBColorSpace;
+  const suelo = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshLambertMaterial({map: tx})); suelo.rotation.x = -Math.PI / 2; S.add(suelo);
+  const cam = new THREE.PerspectiveCamera(32, 1, 0.1, 400); let az = 0.8, el = 0.3, dist = 9, mira = new THREE.Vector3(0, 0.8, 0);
+  const sh = new T3.TroopShared(NAT.concat(['TUR', 'GEN'])); let lotes = {}, figs = [];
+  const panel = document.createElement('div'); panel.style.cssText = 'position:absolute;right:8px;top:8px;z-index:6;background:#2a1d12e8;color:#f0dfb4;padding:8px 10px;font:13px Georgia,serif;border:1px solid #b08a3e;max-width:340px';
+  if (getComputedStyle(cont).position === 'static') cont.style.position = 'relative'; cont.appendChild(panel);
+  const sel = (id, ops, v) => `<label style="display:block;margin:3px 0">${id} <select id="p3d_${id}" style="max-width:220px">${ops.map(o => `<option ${o === v ? 'selected' : ''}>${o}</option>`).join('')}</select></label>`;
+  const rango = (id, min, max, st, v) => `<label style="display:block;margin:3px 0">${id} <input id="p3d_${id}" type="range" min="${min}" max="${max}" step="${st}" value="${v}" style="width:150px"></label>`;
+  const est = {vista: arg('vista') || 'socorro', era: arg('era') || 'B', nat: arg('nat') || 'FRA', viento: arg('viento') != null ? +arg('viento') : 0.6, dir: arg('dir') != null ? +arg('dir') : 70, dano: arg('dano') != null ? +arg('dano') : 0, t: arg('t') != null ? +arg('t') : null};
+  panel.innerHTML = sel('vista', VISTAS, est.vista) + sel('era', ERAS, est.era) + sel('nat', NAT, est.nat) + rango('viento', 0, 1, 0.05, est.viento) + rango('dir', 0, 360, 5, est.dir) + rango('dano', 0, 1, 0.05, est.dano)
+    + `<label style="display:block;margin:3px 0">t <input id="p3d_t" type="range" min="0" max="1" step="0.002" value="${est.t == null ? 0 : est.t}" style="width:160px"> <input id="p3d_play" type="checkbox" ${est.t == null ? 'checked' : ''}> en marcha</label><div id="p3d_info" style="font-size:12px;opacity:.85;margin-top:4px"></div>`;
+  const $ = id => panel.querySelector('#p3d_' + id);
+  const viento3 = () => { const a = est.dir * D2R; viento.value.set(Math.sin(a), 0, Math.cos(a), est.viento); };
+  const lote = (k, n) => { const e = T3.KINDS[k].eras.includes(est.era) ? est.era : T3.KINDS[k].eras[T3.KINDS[k].eras.length - 1], key = k + e + n; if (!lotes[key]) { lotes[key] = new T3.TroopBatch(sh, k, e, n, 48, {lod: 0}); S.add(lotes[key].mesh); } return lotes[key]; };
+  // fig: {tipo, clip, x, y, z, rumbo (°), escala, nat, v (m/s, en marcha)}
+  const pon = f => { const n = f.nat || (/^inf_apo_estandarte_colores/.test(f.tipo) ? 'GBR' : f.tipo === 'inf_gaitero' ? 'GBR' : est.nat), b = lote(f.tipo, n), i = b.add(f.x || 0, f.y || 0, f.z || 0, (f.rumbo || 0) * D2R, f.escala || T3.KINDS[f.tipo].escala || 1, n, f.clip, {phase: 0, start: 0, dano: est.dano, viento: 1});
+    figs.push(Object.assign({b, i}, f)); };
+  let reloj = 0, actual = null, mov = 0;
+  function montar() {
+    Object.values(lotes).forEach(b => { S.remove(b.mesh); b.mesh.geometry.dispose(); }); lotes = {}; figs = []; reloj = 0; actual = null; mov = 0; const info = []; viento3();
+    const v = est.vista;
+    if (ESCENAS[v === 'socorro' ? 'mesa' : v]) { const E = v === 'socorro' ? 'mesa' : v; ESCENAS[E].forEach(f => pon(f)); const pr = ESCENAS[E].find(f => !/^apo_(mesa|asta)/.test(f.clip) && !f.fondo) || ESCENAS[E][0]; actual = T3.CLIPS[T3.KINDS[pr.tipo].rig][pr.clip];
+      if (v === 'socorro') { ESCENAS.herido.forEach(f => pon(Object.assign({x: 3.4, z: 1.2}, f))); pon({tipo: 'apo_bandera_hospital', clip: 'apo_asta_quieta', x: -2.6, z: -2.0}); pon({tipo: 'apo_ambulancia', clip: 'art_rodar_parado', x: 5.5, z: -4.5, rumbo: 90});
+        for (let i = 0; i < 2; i++) pon({tipo: 'apo_camilla', clip: 'apo_camilla_suelo', x: -3.2 + i * 0.9, z: 2.6, rumbo: 90}); dist = 13; mira.set(1, 0.6, 0); }
+      else { dist = {fragua: 8, herrar: 6.5, camilla: 8, camilla_recoger: 8, bandera_caida: 6, bandera_recoger: 6}[v] || 7; mira.set(v === 'fragua' ? 0.4 : 0, 0.7, v === 'herrar' ? 0.3 : 0); }
+      info.push(`<b>escena ${E}</b> (mismo origen y rumbo, misma fase): ${ESCENAS[E].map(f => f.clip).join(' · ')}`, `eventos: ${(actual.ev || []).map(e => e[1] + '@' + e[0].toFixed(2)).join(', ')}`); }
+    else if (['prisioneros', 'banda', 'recua', 'tren'].includes(v)) { const F = {prisioneros: ['columna_prisioneros', 20, 1.15], banda: ['banda', 16, 1.3], recua: ['recua', 6, 1.7], tren: ['tren', 3, 1.7]}[v]; mov = F[2];
+      formacion(F[0], F[1]).forEach(p => pon(Object.assign({}, p, {y: p.y || 0}))); info.push(`formacion('${F[0]}', ${F[1]}) a ${F[2]} m/s`); dist = v === 'tren' ? 34 : v === 'prisioneros' ? 22 : 16; az = 1.1; el = 0.22; }
+    else if (v === 'banderas') { ['nacional', 'regimiento', 'banderin', 'hospital'].forEach((k, i) => pon({tipo: 'apo_bandera_' + k, clip: 'apo_asta_quieta', x: -6.5 + i * 3.2, z: 1.5}));
+      ['aguila', 'colores', 'fahne', 'generico'].forEach((k, i) => pon({tipo: 'inf_apo_estandarte_' + k, clip: i % 2 ? 'apo_estandarte_firme' : 'ondear', x: -6.5 + i * 3.2, z: -4.5, nat: k === 'aguila' ? 'FRA' : k === 'colores' ? 'GBR' : k === 'fahne' ? 'PRU' : null}));
+      pon({tipo: 'cab_apo_portaestandarte', clip: 'cab_parado_lanza', x: 6.5, z: -4.5}); pon({tipo: 'inf_abanderado', clip: 'ondear', x: 6.5, z: 1.5}); info.push('el viento y el daño se aplican en el sombreador: apoyo3d.viento y apoyo3d.danarBandera(lote, i, d)'); dist = 20; mira.set(0, 1.6, -1.5); az = 0.2; el = 0.14; }
+    else if (v === 'perros') { [['terrier', 'perro_parado'], ['terrier', 'perro_trote'], ['mastin', 'perro_ladrar'], ['mastin', 'perro_galope'], ['sanitario', 'perro_sentado'], ['mastin', 'perro_tumbado'], ['terrier', 'perro_paso']].forEach(([r, c], i) => pon({tipo: 'apo_perro_' + r, clip: c, x: -4.5 + i * 1.5, z: 0, rumbo: 90}));
+      info.push('perros: parado, trote, ladrar, galope, sentado (sanitario, era D), tumbado, paso'); dist = 9; mira.set(0, 0.35, 0); az = 0; el = 0.18; }
+    else { const L2 = Object.keys(_I.TIPOS); L2.forEach((k, i) => { const K = T3.KINDS[k], rig = K.rig, cl = rig === 'soldado' ? (/estandarte/.test(k) ? 'apo_estandarte_firme' : 'idle') : rig === 'jinete' ? 'cab_parado' + (k === 'cab_apo_portaestandarte' ? '_lanza' : '') : rig === 'armon' ? 'art_rodar_parado' : rig === 'perro' ? 'perro_parado' : Object.keys(CLIPS[rig])[0];
+        pon({tipo: k, clip: cl, x: (i % 8 - 3.5) * (rig === 'armon' ? 3.2 : 2.6), z: -Math.floor(i / 8) * 5, rumbo: rig === 'armon' ? 90 : 0}); }); info.push(`${L2.length} tipos`); dist = 40; mira.set(0, 0.8, -10); az = 0.3; el = 0.4; }
+    $('info').innerHTML = info.join('<br>');
+  }
+  ['vista', 'era', 'nat'].forEach(k => $(k).onchange = () => { est[k] = $(k).value; montar(); });
+  ['viento', 'dir'].forEach(k => $(k).oninput = () => { est[k] = +$(k).value; viento3(); });
+  $('dano').oninput = () => { est.dano = +$('dano').value; figs.forEach(f => { if (f.b._iBand) danarBandera(f.b, f.i, est.dano); }); };
+  let arr = null; R.domElement.onpointerdown = e => { arr = [e.clientX, e.clientY]; }; root.addEventListener('pointerup', () => { arr = null; });
+  R.domElement.onpointermove = e => { if (!arr) return; az -= (e.clientX - arr[0]) * 0.008; el = Math.max(0.02, Math.min(1.4, el + (e.clientY - arr[1]) * 0.006)); arr = [e.clientX, e.clientY]; };
+  R.domElement.onwheel = e => { dist = Math.max(2, Math.min(120, dist * (1 + Math.sign(e.deltaY) * 0.1))); e.preventDefault(); };
+  montar(); let prev = performance.now(), vivo = true; const m4 = new THREE.Matrix4(), qq = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), pp = new THREE.Vector3(), ss = new THREE.Vector3();
+  (function paso() { if (!vivo) return; const now = performance.now(), dt = Math.min(0.1, (now - prev) / 1000); prev = now; const w = cont.clientWidth || innerWidth, h = cont.clientHeight || innerHeight;
+    if (R.domElement.width !== Math.round(w * R.getPixelRatio()) || R.domElement.height !== Math.round(h * R.getPixelRatio())) R.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix();
+    reloj += dt; const C = actual;
+    if (C) { let tt; if ($('play').checked) { tt = C.loop !== false ? (reloj / C.dur) % 1 : Math.min(1, (reloj % (C.dur + 1.5)) / C.dur); $('t').value = tt; } else tt = +$('t').value; sh.timeU.value = tt * C.dur; }
+    else sh.timeU.value = $('play').checked ? reloj : +$('t').value * 10;
+    if (mov) { const z = mov * sh.timeU.value; figs.forEach(f => { qq.setFromAxisAngle(up, (f.rumbo || 0) * D2R); const k = f.escala || T3.KINDS[f.tipo].escala || 1; m4.compose(pp.set(f.x || 0, f.y || 0, (f.z || 0) + z), qq, ss.set(k, k, k)); f.b.mesh.setMatrixAt(f.i, m4); f.b.mesh.instanceMatrix.needsUpdate = true; }); mira.set(0, 1.0, z - 4); }
+    cam.position.set(mira.x + Math.sin(az) * Math.cos(el) * dist, mira.y + Math.sin(el) * dist, mira.z + Math.cos(az) * Math.cos(el) * dist); cam.lookAt(mira); R.render(S, cam); requestAnimationFrame(paso); })();
+  return {renderer: R, escena: S, camara: cam, montar, estado: est, parar() { vivo = false; R.dispose(); }};
+}
+
+const API = {RIGS: RIGS_APO, CLIPS, META, CLIPS_J, META_J, CLIPS_S, META_S, ESCENAS, GRUPOS, formacion, TRANSICIONES, rutaTransicion,
+  viento, danarBandera, impactoBandera, vientoLocal, prepararBandera, registrar, demoApoyo, CAM, FRA, PATAS_P, _crear: crear};
+Object.defineProperty(API, 'TIPOS', {get: () => _I ? _I.TIPOS : null, enumerable: true});
+root.apoyo3d = API;
+})(typeof window !== 'undefined' ? window : globalThis);
+
 /* ===== naves3d.js — buques, aviones y defensa antiaérea 3D para Victoria (three.js r152, sin archivos externos) =====
    Misma técnica que troops3d.js, adaptada a máquinas:
    · Esqueleto pequeño (≤ 8 partes) cuyas matrices se hornean por clip en una textura (balanceo, cabeceo, hundimiento, partirse en dos,
@@ -27606,7 +31348,7 @@ function b3Set(S, kind, era, tag, role) {
   const T = Troops3D, sh = R.t3.shared, key = kind + '|' + era + '|' + T.troopGeoKey(kind, era, tag) + '|' + (role || '');
   let set = S.sets[key];
   if (!set) {
-    const cls = /^(husar|lancero|dragon|coracero)$/.test(kind) ? 'cav' : /canon|obus|ametralladora|avantren|carro|carreta|artillero|tanque|mark1|camion|semioruga|cazacarros/.test(kind) ? 'art' : 'inf';
+    const cls = /^(husar|lancero|dragon|coracero|cab_)/.test(kind) ? 'cav' : /canon|obus|ametralladora|avantren|carro|carreta|artillero|tanque|mark1|camion|semioruga|cazacarros/.test(kind) ? 'art' : 'inf';
     set = S.sets[key] = new T.TroopLodSet(sh, kind, era, tag, B3_CAP[cls].map(n => R.lowEnd ? n >> 1 : n), {role, dist: [45, 220]}); set.meshes.forEach(m => S.scene.add(m)); set.kind = kind;
   }
   return set;
@@ -27663,6 +31405,7 @@ function b3Fig(S, V, blk, f, era, tU, cp, ca) {
     if (dyingK) { clip = tank ? 'destruido' : _b3Cl[(h2 * 4) | 0]; _b3o.start = tU - (0.8 - f.dying) * 1.5; }
     else { if (f.flee > 0) yaw = Math.atan2(f.vx, f.vy); clip = b3Clip(blk, f, era, cav); }
     let st2 = set;
+    if (!tank && !cav && typeof b3V3InfKind === 'function') { const k2 = b3V3InfKind(blk, f, j, era, h1, h2); if (k2) { st2 = b3Set(S, k2, era, tag, null); } }
     if (E && !dyingK) { const mv = (blk.sp || 0) > 8, fr = blk.mode === 'fire' || blk.mode === 'artfire' || blk.mode === 'fixing' || blk.mode === 'skirmish';
       if (tank) { clip = mv ? 'avanzar' : fr ? 'disparar_canon' : 'ralenti'; _b3o.tread = mv ? 1.6 : 0; } else { _b3o.tread = 0; if (vset && j === 0) { st2 = vset; clip = mv ? 'avanzar' : 'ralenti'; _b3o.tread = vk === 'semioruga' && mv ? 1.6 : 0; } else if (mgset && j === 1) { st2 = mgset; clip = fr && !mv ? 'disparar_rafaga' : mv ? 'marcha' : 'idle'; } else if (!cav && clip === 'disparar_D') clip = h2 < 0.35 ? 'disparar_tumbado' : 'disparar'; } }
     else if (E) _b3o.tread = 0;
@@ -29235,6 +32978,8 @@ b3Frame = function (V, b, g, lines, all) {
    · Animaciones de cobertura (animaciones_cobertura.js): se registran en Troops3D al cargar (antes de crear el TroopShared). */
 const B3V3 = {bioma: {1: 'centroeuropeo', 2: 'ingles', 3: 'mediterraneo', 4: 'mediterraneo', 5: 'norte', 6: 'ruso', 7: 'centroeuropeo', 8: 'norte'}, on: true};
 try { if (window.animacionesCobertura && window.Troops3D) animacionesCobertura.registrar(Troops3D); } catch (e) { console.warn('animaciones de cobertura', e); }
+// modelos y animaciones de Claude Design (infantería, caballería, artillería y apoyo): se registran antes de crear ningún TroopShared (la textura de huesos se hornea una vez)
+const B3_REG = (() => { const t0 = performance.now(); try { if (window.apoyo3d && window.Troops3D) { const r = apoyo3d.registrar(Troops3D); return {ok: true, ms: Math.round(performance.now() - t0), r}; } } catch (e) { console.warn('registro de tropas 3D', e); return {ok: false, err: String(e)}; } return {ok: false}; })();
 
 function b3V3Obs(S, c) {          // colisor de pueblos3d → obstáculo de S.cov
   const base = {yaw: 0, gy: 0, cs: 1, sn: 0, occ: 0, pass: false, soft: 0, nocov: false, vil: true};
@@ -30787,11 +34532,11 @@ root.efectos_batalla3d = {crearEfectos, crearCielo, TIPOS_HUMO, PALETA_SOL, prue
    El sol y el cielo siguen siendo los de batalla3d.js (B3V4.cielo = false); efectos ilumina su humo con ese sol. */
 const B3V4 = {efectos: true, escenario: true, cielo: false};
 function b3V4Init(S, b) {
-  if (!B3V4.efectos || !window.efectos_batalla3d || S.fx) return;
+  if (!B3V4.efectos || !window.efectos_batalla3d || S.fx4) return;
   const era = typeof t3Era === 'function' ? t3Era() : 'B', H = (x, z) => b3H(S.tf, x, z);
-  S.fx = efectos_batalla3d.crearEfectos(S.scene, {alturaFn: H, terreno: null, cielo: B3V4.cielo, gestionarNiebla: false, sol: S.sun, hemi: S.hemi, ambiente: S.amb, era, semilla: (S.seed || 1) & 1023,
+  S.fx4 = efectos_batalla3d.crearEfectos(S.scene, {alturaFn: H, terreno: null, cielo: B3V4.cielo, gestionarNiebla: false, sol: S.sun, hemi: S.hemi, ambiente: S.amb, era, semilla: (S.seed || 1) & 1023,
     calidad: R.lowEnd ? 'baja' : 'alta', viento: [0.6 / 0.6, 0.2 / 0.6], superficieFn: S.bio === 5 || S.bio === 8 ? () => 'nieve' : null});
-  (S.vill && S.vill.groups || []).forEach(P => { try { S.fx.fuego.desdePueblo(P); S.fx.chimeneas(P); } catch (e) { } });
+  (S.vill && S.vill.groups || []).forEach(P => { try { S.fx4.fuego.desdePueblo(P); S.fx4.chimeneas(P); } catch (e) { } });
   S.fxT = performance.now(); S.fxFog = S.scene.fog ? [S.scene.fog.near, S.scene.fog.far] : null;
   [S.smoke, S.dust, S.boom].forEach(m => { if (m) m.visible = false; });
 }
@@ -30808,7 +34553,7 @@ function b3V4Escenario(S) {
   S.scene.add(S.esc.grupo); S.esc.colliders.forEach(c => { try { const o = b3V3Obs(S, c); if (o) S.vill.obs.push(o); } catch (e) { } }); if (S.cov) S.cov.vilSync = 0;
 }
 function b3V4Step(V, S) {
-  if (!S || !S.fx) return; const fx = S.fx, now = performance.now(), dt = Math.min(0.1, (now - (S.fxT || now)) / 1000) * (R.bviz && R.bviz.ts !== undefined ? R.bviz.ts : 1); S.fxT = now;
+  if (!S || !S.fx4) return; const fx = S.fx4, now = performance.now(), dt = Math.min(0.1, (now - (S.fxT || now)) / 1000) * (R.bviz && R.bviz.ts !== undefined ? R.bviz.ts : 1); S.fxT = now;
   const MU = 1 / 0.6;
   for (let i = 0; i < V.parts.length; i++) { const p = V.parts[i]; if (p._fx) continue; p._fx = 1; const y0 = b3H(S.tf, p.x, p.y);
     if (p.k === 'smoke') fx.humo.emitir('polvora', p.x, y0 + 2.2, p.y, 0, 0.3 * MU, 0, 1.6);
@@ -30824,7 +34569,7 @@ b3Build = function (V, b) { const S = _b3BuildV4(V, b); try { b3V4Escenario(S); 
 const _b3FrameV4 = b3Frame;
 b3Frame = function (V, b, g, lines, all) { const r = _b3FrameV4(V, b, g, lines, all); try { b3V4Step(V, B3.S); } catch (e) { if (!B3V4.err) { B3V4.err = 1; console.warn('b3V4', e); } } return r; };
 const _b3DisposeV4 = b3Dispose;
-b3Dispose = function (S) { try { if (S && S.fx) { S.scene.remove(S.fx.grupo); S.fx.grupo.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); S.fx = null; } if (S && S.esc) { S.scene.remove(S.esc.grupo); S.esc = null; } } catch (e) { } return _b3DisposeV4(S); };
+b3Dispose = function (S) { try { if (S && S.fx4) { S.scene.remove(S.fx4.grupo); S.fx4.grupo.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); S.fx4 = null; } if (S && S.esc) { S.scene.remove(S.esc.grupo); S.esc = null; } } catch (e) { } return _b3DisposeV4(S); };
 
 /* ===== SOLDADOS CON FICHA PROPIA (N1) =====
    Cada soldado que se dibuja en 3D tiene una ficha persistente durante la batalla (V.roster): nombre, empleo (teniente, sargento, cabo, soldado),
@@ -30910,6 +34655,18 @@ function b3V3HudN1(g, V) {
 }
 const _b3FrameN1 = b3Frame;
 b3Frame = function (V, b, g, lines, all) { const r = _b3FrameN1(V, b, g, lines, all); try { b3V3HudN1(g, V); } catch (e) { if (!B3N.err) { B3N.err = 1; console.warn('hud n1', e); } } return r; };
+
+/* ===== modelos de infantería de Claude Design (infanteria3d.js): cada soldado se dibuja según su empleo y su variación personal ===== */
+const B3VAR = {complexion: 1, barba: 0, pelo: 0, desgaste: 0};
+function b3V3InfKind(blk, f, j, era, h1, h2) {
+  if (!window.infanteria3d || blk.type !== 'inf') return null; const emp = B3N.empleo(f.i, j);
+  let k = emp === 'Teniente' ? 'inf_teniente' : emp === 'Sargento' ? 'inf_sargento' : emp === 'Cabo' ? 'inf_cabo' : 'inf_soldado';
+  if (emp === 'Soldado') { if (f.i === 1 && j === 1 && era < 'D') k = 'inf_tambor'; else if (f.i === 2 && j === 1 && era < 'D') k = 'inf_corneta'; else if (f.i === 4 && j === 3 && blk.tag === 'GBR' && era < 'C') k = 'inf_gaitero'; else if (blk.mode === 'skirmish' && j % 3 === 1) k = 'inf_jager'; else if (f.i === 5 && j === 2) k = 'inf_zapador'; }
+  B3VAR.complexion = Math.floor(h1 * 3); B3VAR.barba = Math.floor(h2 * 5); B3VAR.pelo = Math.floor(hash2(blk.id * 7 + f.i, j, 21) * 6); B3VAR.desgaste = 0; _b3o.variacion = B3VAR;
+  return k;
+}
+// el desgaste del uniforme (barro, polvo, sangre) crece con el tiempo y con las bajas del campo
+setInterval(() => { try { const V = R.bviz; if (V && window.infanteria3d && infanteria3d.desgaste) infanteria3d.desgaste.value = Math.min(0.9, (V.t || 0) / 700 + (SR2.kills || 0) / 260); } catch (e) { } }, 1500);
 
 /* ===== BATALLA NAVAL EN 3D =====
    Misma batalla que el visor 2D (navalviz.js: posiciones, daños, disparos y hundimientos), pero con el mar en 3D y buques modelados:

@@ -4,6 +4,8 @@
    · Animaciones de cobertura (animaciones_cobertura.js): se registran en Troops3D al cargar (antes de crear el TroopShared). */
 const B3V3 = {bioma: {1: 'centroeuropeo', 2: 'ingles', 3: 'mediterraneo', 4: 'mediterraneo', 5: 'norte', 6: 'ruso', 7: 'centroeuropeo', 8: 'norte'}, on: true};
 try { if (window.animacionesCobertura && window.Troops3D) animacionesCobertura.registrar(Troops3D); } catch (e) { console.warn('animaciones de cobertura', e); }
+// modelos y animaciones de Claude Design (infantería, caballería, artillería y apoyo): se registran antes de crear ningún TroopShared (la textura de huesos se hornea una vez)
+const B3_REG = (() => { const t0 = performance.now(); try { if (window.apoyo3d && window.Troops3D) { const r = apoyo3d.registrar(Troops3D); return {ok: true, ms: Math.round(performance.now() - t0), r}; } } catch (e) { console.warn('registro de tropas 3D', e); return {ok: false, err: String(e)}; } return {ok: false}; })();
 
 function b3V3Obs(S, c) {          // colisor de pueblos3d → obstáculo de S.cov
   const base = {yaw: 0, gy: 0, cs: 1, sn: 0, occ: 0, pass: false, soft: 0, nocov: false, vil: true};

@@ -11,11 +11,11 @@
    El sol y el cielo siguen siendo los de batalla3d.js (B3V4.cielo = false); efectos ilumina su humo con ese sol. */
 const B3V4 = {efectos: true, escenario: true, cielo: false};
 function b3V4Init(S, b) {
-  if (!B3V4.efectos || !window.efectos_batalla3d || S.fx) return;
+  if (!B3V4.efectos || !window.efectos_batalla3d || S.fx4) return;
   const era = typeof t3Era === 'function' ? t3Era() : 'B', H = (x, z) => b3H(S.tf, x, z);
-  S.fx = efectos_batalla3d.crearEfectos(S.scene, {alturaFn: H, terreno: null, cielo: B3V4.cielo, gestionarNiebla: false, sol: S.sun, hemi: S.hemi, ambiente: S.amb, era, semilla: (S.seed || 1) & 1023,
+  S.fx4 = efectos_batalla3d.crearEfectos(S.scene, {alturaFn: H, terreno: null, cielo: B3V4.cielo, gestionarNiebla: false, sol: S.sun, hemi: S.hemi, ambiente: S.amb, era, semilla: (S.seed || 1) & 1023,
     calidad: R.lowEnd ? 'baja' : 'alta', viento: [0.6 / 0.6, 0.2 / 0.6], superficieFn: S.bio === 5 || S.bio === 8 ? () => 'nieve' : null});
-  (S.vill && S.vill.groups || []).forEach(P => { try { S.fx.fuego.desdePueblo(P); S.fx.chimeneas(P); } catch (e) { } });
+  (S.vill && S.vill.groups || []).forEach(P => { try { S.fx4.fuego.desdePueblo(P); S.fx4.chimeneas(P); } catch (e) { } });
   S.fxT = performance.now(); S.fxFog = S.scene.fog ? [S.scene.fog.near, S.scene.fog.far] : null;
   [S.smoke, S.dust, S.boom].forEach(m => { if (m) m.visible = false; });
 }
@@ -32,7 +32,7 @@ function b3V4Escenario(S) {
   S.scene.add(S.esc.grupo); S.esc.colliders.forEach(c => { try { const o = b3V3Obs(S, c); if (o) S.vill.obs.push(o); } catch (e) { } }); if (S.cov) S.cov.vilSync = 0;
 }
 function b3V4Step(V, S) {
-  if (!S || !S.fx) return; const fx = S.fx, now = performance.now(), dt = Math.min(0.1, (now - (S.fxT || now)) / 1000) * (R.bviz && R.bviz.ts !== undefined ? R.bviz.ts : 1); S.fxT = now;
+  if (!S || !S.fx4) return; const fx = S.fx4, now = performance.now(), dt = Math.min(0.1, (now - (S.fxT || now)) / 1000) * (R.bviz && R.bviz.ts !== undefined ? R.bviz.ts : 1); S.fxT = now;
   const MU = 1 / 0.6;
   for (let i = 0; i < V.parts.length; i++) { const p = V.parts[i]; if (p._fx) continue; p._fx = 1; const y0 = b3H(S.tf, p.x, p.y);
     if (p.k === 'smoke') fx.humo.emitir('polvora', p.x, y0 + 2.2, p.y, 0, 0.3 * MU, 0, 1.6);
@@ -48,4 +48,4 @@ b3Build = function (V, b) { const S = _b3BuildV4(V, b); try { b3V4Escenario(S); 
 const _b3FrameV4 = b3Frame;
 b3Frame = function (V, b, g, lines, all) { const r = _b3FrameV4(V, b, g, lines, all); try { b3V4Step(V, B3.S); } catch (e) { if (!B3V4.err) { B3V4.err = 1; console.warn('b3V4', e); } } return r; };
 const _b3DisposeV4 = b3Dispose;
-b3Dispose = function (S) { try { if (S && S.fx) { S.scene.remove(S.fx.grupo); S.fx.grupo.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); S.fx = null; } if (S && S.esc) { S.scene.remove(S.esc.grupo); S.esc = null; } } catch (e) { } return _b3DisposeV4(S); };
+b3Dispose = function (S) { try { if (S && S.fx4) { S.scene.remove(S.fx4.grupo); S.fx4.grupo.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); S.fx4 = null; } if (S && S.esc) { S.scene.remove(S.esc.grupo); S.esc = null; } } catch (e) { } return _b3DisposeV4(S); };

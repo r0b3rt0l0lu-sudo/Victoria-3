@@ -161,7 +161,7 @@ function b3Set(S, kind, era, tag, role) {
   const T = Troops3D, sh = R.t3.shared, key = kind + '|' + era + '|' + T.troopGeoKey(kind, era, tag) + '|' + (role || '');
   let set = S.sets[key];
   if (!set) {
-    const cls = /^(husar|lancero|dragon|coracero)$/.test(kind) ? 'cav' : /canon|obus|ametralladora|avantren|carro|carreta|artillero|tanque|mark1|camion|semioruga|cazacarros/.test(kind) ? 'art' : 'inf';
+    const cls = /^(husar|lancero|dragon|coracero|cab_)/.test(kind) ? 'cav' : /canon|obus|ametralladora|avantren|carro|carreta|artillero|tanque|mark1|camion|semioruga|cazacarros/.test(kind) ? 'art' : 'inf';
     set = S.sets[key] = new T.TroopLodSet(sh, kind, era, tag, B3_CAP[cls].map(n => R.lowEnd ? n >> 1 : n), {role, dist: [45, 220]}); set.meshes.forEach(m => S.scene.add(m)); set.kind = kind;
   }
   return set;
@@ -218,6 +218,7 @@ function b3Fig(S, V, blk, f, era, tU, cp, ca) {
     if (dyingK) { clip = tank ? 'destruido' : _b3Cl[(h2 * 4) | 0]; _b3o.start = tU - (0.8 - f.dying) * 1.5; }
     else { if (f.flee > 0) yaw = Math.atan2(f.vx, f.vy); clip = b3Clip(blk, f, era, cav); }
     let st2 = set;
+    if (!tank && !cav && typeof b3V3InfKind === 'function') { const k2 = b3V3InfKind(blk, f, j, era, h1, h2); if (k2) { st2 = b3Set(S, k2, era, tag, null); } }
     if (E && !dyingK) { const mv = (blk.sp || 0) > 8, fr = blk.mode === 'fire' || blk.mode === 'artfire' || blk.mode === 'fixing' || blk.mode === 'skirmish';
       if (tank) { clip = mv ? 'avanzar' : fr ? 'disparar_canon' : 'ralenti'; _b3o.tread = mv ? 1.6 : 0; } else { _b3o.tread = 0; if (vset && j === 0) { st2 = vset; clip = mv ? 'avanzar' : 'ralenti'; _b3o.tread = vk === 'semioruga' && mv ? 1.6 : 0; } else if (mgset && j === 1) { st2 = mgset; clip = fr && !mv ? 'disparar_rafaga' : mv ? 'marcha' : 'idle'; } else if (!cav && clip === 'disparar_D') clip = h2 < 0.35 ? 'disparar_tumbado' : 'disparar'; } }
     else if (E) _b3o.tread = 0;

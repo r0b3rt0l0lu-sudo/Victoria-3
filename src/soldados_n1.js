@@ -86,7 +86,9 @@ b3Frame = function (V, b, g, lines, all) { const r = _b3FrameN1(V, b, g, lines, 
 /* ===== modelos de infantería de Claude Design (infanteria3d.js): cada soldado se dibuja según su empleo y su variación personal ===== */
 const B3VAR = {complexion: 1, barba: 0, pelo: 0, desgaste: 0};
 function b3V3InfKind(blk, f, j, era, h1, h2) {
-  if (!window.infanteria3d || blk.type !== 'inf') return null; const emp = B3N.empleo(f.i, j);
+  if (!window.infanteria3d || blk.type !== 'inf') return null;
+  if (b3V3IsBearer(blk, f, j)) { const r = b3V3Roster(blk, f, j); if (r) r.rank = 'Abanderado'; B3N.clipOv = (blk.sp || 0) > 8 ? 'apo_estandarte_marcha' : blk.mode === 'victory' ? 'abanderado_alzar' : 'apo_estandarte_firme'; B3VAR.complexion = 1; B3VAR.barba = 1; B3VAR.pelo = 1; B3VAR.desgaste = 0; _b3o.variacion = B3VAR; return b3V3Estandarte(blk, era); }
+  const emp = B3N.empleo(f.i, j);
   let k = emp === 'Teniente' ? 'inf_teniente' : emp === 'Sargento' ? 'inf_sargento' : emp === 'Cabo' ? 'inf_cabo' : 'inf_soldado';
   if (emp === 'Soldado') { if (f.i === 1 && j === 1 && era < 'D') k = 'inf_tambor'; else if (f.i === 2 && j === 1 && era < 'D') k = 'inf_corneta'; else if (f.i === 4 && j === 3 && blk.tag === 'GBR' && era < 'C') k = 'inf_gaitero'; else if (blk.mode === 'skirmish' && j % 3 === 1) k = 'inf_jager'; else if (f.i === 5 && j === 2) k = 'inf_zapador'; }
   B3VAR.complexion = Math.floor(h1 * 3); B3VAR.barba = Math.floor(h2 * 5); B3VAR.pelo = Math.floor(hash2(blk.id * 7 + f.i, j, 21) * 6); B3VAR.desgaste = 0; _b3o.variacion = B3VAR;
@@ -94,3 +96,16 @@ function b3V3InfKind(blk, f, j, era, h1, h2) {
 }
 // el desgaste del uniforme (barro, polvo, sangre) crece con el tiempo y con las bajas del campo
 setInterval(() => { try { const V = R.bviz; if (V && window.infanteria3d && infanteria3d.desgaste) infanteria3d.desgaste.value = Math.min(0.9, (V.t || 0) / 700 + (SR2.kills || 0) / 260); } catch (e) { } }, 1500);
+
+/* ===== abanderados: la bandera del regimiento la lleva un soldado (apoyo3d), nunca clavada en el suelo =====
+   El abanderado es el soldado nº 5 de la primera figura viva del regimiento; si cae, la lleva el siguiente («caer_con_estandarte»).
+   En caballería es un portaestandarte a caballo y en artillería, un abanderado junto a la batería. */
+B3N.clipOv = null;
+function b3V3Estandarte(blk, era) {
+  const t = blk.tag, k = ['GER', 'PRU', 'AUS', 'AUT', 'BAV', 'SAX'].includes(t) ? 'fahne' : t === 'FRA' ? (era < 'C' ? 'aguila' : 'colores') : ['GBR', 'UK', 'ENG', 'CAN', 'USA', 'CSA'].includes(t) ? 'colores' : 'generico';
+  const K = Troops3D.KINDS || {}; return K['inf_apo_estandarte_' + k] ? 'inf_apo_estandarte_' + k : 'inf_abanderado';
+}
+function b3V3BearerFig(blk) { return blk.figs.find(q => q.alive && q.kind !== 'gun' && q.kind !== 'crew'); }
+function b3V3IsBearer(blk, f, j) { if (blk.type !== 'inf' || !window.apoyo3d || j !== (R.lowEnd ? 1 : 5)) return false; const b = b3V3BearerFig(blk); return !!b && b.i === f.i; }
+function b3V3CavBearer(blk, f, j) { if (blk.type !== 'cav' || !window.apoyo3d || j !== 0) return false; const b = b3V3BearerFig(blk); return !!b && b.i === f.i && !!(Troops3D.KINDS || {}).cab_apo_portaestandarte; }
+function b3V3Bearer(blk) { if (!window.apoyo3d) return false; if (blk.type === 'inf' || blk.type === 'cav') return !!b3V3BearerFig(blk); if (blk.type === 'art') return !!window.artilleria3d && B3T5 && B3T5.on && blk.figs.some(q => q.kind === 'gun' && q.alive); return false; }

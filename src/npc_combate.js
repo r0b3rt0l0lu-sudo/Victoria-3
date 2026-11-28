@@ -21,6 +21,7 @@ function npcAim(era, pitch, post, fire) { const T = window.Troops3D; return T &&
 function npcRelease(S, s, key) { if (s.cov >= 0 && S.cov) { const o = S.cov.list[s.cov]; if (o && o.users) { o.users.delete(key); o.occ = o.users.size; } } s.cov = -1; }
 function npcClaim(S, s, key, c) { npcRelease(S, s, key); const o = S.cov.list[c.i]; o.users = o.users || new Set(); o.users.add(key); o.occ = o.users.size; s.cov = c.i; s.ctx = c.x; s.ctz = c.z; }
 function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
+  if (typeof b3V3IsBearer === 'function' && b3V3IsBearer(blk, f, j)) return null;                  // el abanderado no combate: lleva la bandera con la formación
   if (!SOLD.on) return null; const V = R.bviz, S = B3.S; if (!V || !S) return null; if (Math.hypot(x - ca.x, z - ca.z) > 260) return null;
   const me = SOLD._meT === tU ? SOLD._me : (SOLD._meT = tU, SOLD._me = soldBlock(V)); if (!me) return null;
   const enemy = blk.side !== me.side, key = blk.id + ':' + f.i + ':' + j, sp = blk.sp || 0, mode = blk.mode, era = t3Era(), gy0 = b3H(S.tf, x, z);

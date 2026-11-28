@@ -19,7 +19,7 @@ const { chromium } = require('playwright');
   console.log('flags', await page.evaluate(() => JSON.stringify({bv3d: R.bv3d, dead: R.b3Dead, q: R.quality, usable: b3Usable()})));
   for (const t of [4000, 12000, 25000]) { await page.waitForTimeout(t === 4000 ? 4000 : 8000 + (t - 12000) * 0.3);
     console.log(t, await page.evaluate(() => { const S = B3.S; if (!S) return 'sin B3.S (activo ' + B3.active + ')'; const V = R.bviz;
-      return JSON.stringify({fx: !!S.fx, esc: !!S.esc, stats: S.fx && S.fx.stats(), escStats: S.esc && S.esc.stats.triangulos, partes: V && V.parts.length, pueblos: S.vill && S.vill.groups.length, proj: !!S.proj, err: B3V4.err || 0}); })); }
+      return JSON.stringify({fx: !!S.fx4, esc: !!S.esc, stats: S.fx4 && S.fx4.stats(), escStats: S.esc && S.esc.stats.triangulos, partes: V && V.parts.length, pueblos: S.vill && S.vill.groups.length, proj: !!S.proj, err: B3V4.err || 0}); })); }
   await page.keyboard.press('Escape'); await page.evaluate(() => { [...document.querySelectorAll('body *')].filter(x => /Acepta una campaña/.test(x.textContent) && ['fixed', 'absolute'].includes(getComputedStyle(x).position)).forEach(x => x.remove()); });
   for (const [k, vista] of [['a', 0], ['b', 1]]) {
     await page.evaluate(v => { const S = B3.S, tf = S.tf, vil = tf.villages; const V = R.bviz; const blk = (V.parts.find(p => p.k === 'smoke') || {x: S.tf.villages[0].x, y: S.tf.villages[0].y});

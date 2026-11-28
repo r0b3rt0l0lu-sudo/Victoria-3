@@ -28361,6 +28361,10 @@ MANUAL.push({id: 'lote31', title: '★ Soldados con ficha propia', html: `
 <h3>Ficha de cada soldado</h3><p>Cada soldado que se dibuja tiene nombre (según su nación), empleo (teniente, sargento, cabo o soldado), cartuchos, moral propia y estado, que se conservan durante toda la batalla. Los regimientos se dibujan con 72 soldados.</p>
 <h3>Qué cambia en el combate</h3><p>Cada disparo gasta un cartucho: sin munición el soldado deja de disparar. La moral baja con el fuego que lo clava al suelo y con cada compañero que cae cerca; si muere el oficial, todo el pelotón pierde moral. Con la moral rota y bajo fuego, el soldado abandona su puesto.</p>
 <h3>Interfaz</h3><p>Brújula con marcas (▼ enemigo próximo, ◆ objetivo de tu unidad, ★ oficial), tu ficha y el estado del pelotón abajo a la izquierda, y la ficha del soldado al que miras (amigo o enemigo).</p>`});
+MANUAL.push({id: 'lote32', title: '★ Tropas de Claude Design en la batalla 3D', html: `
+<h3>Qué se ve ahora</h3><p>Pueblos con calles, plaza e iglesia (entramado, ladrillo, madera según el bioma), campos y setos, humo de pólvora con persistencia, fuego en edificios arruinados y lluvia. Infantería con empleos distintos (teniente, sargento, cabo, tambor, corneta, gaitero, zapador), jinetes nuevos con aires reales, piezas de artillería por época con dotación y tiro de caballos.</p>
+<h3>Banderas</h3><p>La bandera de cada regimiento la lleva un soldado (abanderado) que marcha con la formación; si cae, la recoge el siguiente. En caballería, un portaestandarte a caballo; en artillería, un abanderado junto a la batería. Ya no hay banderas clavadas en el suelo.</p>
+<h3>Artillería</h3><p>En fuego, cada pieza repite el servicio completo con su dotación; al marchar va enganchada con el avantrén y cuatro caballos.</p>`});
 
 /* ===== REALISMO 3: pendiente, barro, incendios de bosque, hora del día, heridos y enfermedad =====
    BATALLA (visor táctico, 2D y 3D):
@@ -31348,7 +31352,7 @@ function b3Set(S, kind, era, tag, role) {
   const T = Troops3D, sh = R.t3.shared, key = kind + '|' + era + '|' + T.troopGeoKey(kind, era, tag) + '|' + (role || '');
   let set = S.sets[key];
   if (!set) {
-    const cls = /^(husar|lancero|dragon|coracero|cab_)/.test(kind) ? 'cav' : /canon|obus|ametralladora|avantren|carro|carreta|artillero|tanque|mark1|camion|semioruga|cazacarros/.test(kind) ? 'art' : 'inf';
+    const cls = /^(husar|lancero|dragon|coracero|cab_)/.test(kind) ? 'cav' : /canon|obus|ametralladora|avantren|carro|carreta|artillero|tanque|mark1|camion|semioruga|cazacarros|^art_|^cab_tiro/.test(kind) ? 'art' : 'inf';
     set = S.sets[key] = new T.TroopLodSet(sh, kind, era, tag, B3_CAP[cls].map(n => R.lowEnd ? n >> 1 : n), {role, dist: [45, 220]}); set.meshes.forEach(m => S.scene.add(m)); set.kind = kind;
   }
   return set;
@@ -31380,11 +31384,12 @@ function b3Clip(blk, f, era, cav) {
   if (m === 'fire' || m === 'fixing' || m === 'skirmish') return moving ? 'marcha' : fire;
   return moving ? 'marcha' : 'idle';
 }
-const B3_PER = 12, b3LayX = (j, sp) => (Math.floor(j / 4) - 1) * sp * 0.95, b3LayY = (j, sp) => ((j % 4) - 1.5) * sp * 0.9;       // 12 soldados por figura: 3 filas de 4
+const B3_M0 = new THREE.Matrix4().makeScale(0, 0, 0), B3_PER = 12, b3LayX = (j, sp) => (Math.floor(j / 4) - 1) * sp * 0.95, b3LayY = (j, sp) => ((j % 4) - 1.5) * sp * 0.9;       // 12 soldados por figura: 3 filas de 4
 function b3Fig(S, V, blk, f, era, tU, cp, ca) {
   const c = Math.cos(blk.hd), s = Math.sin(blk.hd), tag = blk.tag, tf = S.tf, cx = ca.x, cy = ca.y, cz = ca.z;
   const d3 = (x, y, z) => Math.hypot(x - cx, y - cy, z - cz);
   if (blk.type === 'art') {
+    if (typeof b3V3Art === 'function' && b3V3Art(S, V, blk, f, era, tU, ca, d3)) return;
     if (f.kind !== 'gun' || (!f.alive && f.dying <= 0)) return;
     const st = (blk.mode === 'artfire' || blk.mode === 'fire' || f.flash > 0) ? 'fuego' : (blk.sp || 0) > 8 ? 'marcha' : 'reposo', y = b3H(tf, f.x, f.y), yaw = Math.PI / 2 - blk.hd, c2 = Math.cos(yaw), s2 = Math.sin(yaw), h1 = hash2(blk.id, f.i, 11);
     Troops3D.troopGroup('bateria', era, st).forEach(m => { const set = b3Set(S, m.kind, era, tag, m.role), lx = m.at[0] * B3_S, lz = m.at[1] * B3_S, x = f.x + lx * c2 + lz * s2, z = f.y - lx * s2 + lz * c2;
@@ -31392,7 +31397,7 @@ function b3Fig(S, V, blk, f, era, tU, cp, ca) {
     return;
   }
   const cav = blk.type === 'cav', tank = blk.type === 'tank', E = era === 'E', comp = E && typeof t3Comp === 'function' && blk.d ? t3Comp(blk.d, tag) : null;
-  const kind = tank ? (E ? (comp && comp.spg > comp.tank ? 'cazacarros' : 'tanque_medio') : 'tanque') : cav ? (E ? 'dragon' : B3_CAV[blk.id % B3_CAV.length]) : 'fusilero', set = b3Set(S, kind, era, tag, null);
+  const kind = tank ? (E ? (comp && comp.spg > comp.tank ? 'cazacarros' : 'tanque_medio') : 'tanque') : cav ? (typeof b3V3CavKind === 'function' ? b3V3CavKind(E ? 'dragon' : B3_CAV[blk.id % B3_CAV.length]) : (E ? 'dragon' : B3_CAV[blk.id % B3_CAV.length])) : 'fusilero', set = b3Set(S, kind, era, tag, null);
   const vk = E && !tank && !cav && comp ? (comp.mech > 3 ? 'semioruga' : comp.mot > 3 ? 'camion' : null) : null, vset = vk ? b3Set(S, vk, era, tag, null) : null, mgset = E && !tank && !cav && comp && comp.mg ? b3Set(S, 'ametrallador', era, tag, null) : null;
   const m = tank ? 1 : cav ? 2 : (R.lowEnd ? 2 : B3_PER), sp = cav ? 2.9 : tank ? 0 : 1.65 * (blk.comp || 1);
   const dyingK = !f.alive && f.dying > 0;
@@ -31405,7 +31410,8 @@ function b3Fig(S, V, blk, f, era, tU, cp, ca) {
     if (dyingK) { clip = tank ? 'destruido' : _b3Cl[(h2 * 4) | 0]; _b3o.start = tU - (0.8 - f.dying) * 1.5; }
     else { if (f.flee > 0) yaw = Math.atan2(f.vx, f.vy); clip = b3Clip(blk, f, era, cav); }
     let st2 = set;
-    if (!tank && !cav && typeof b3V3InfKind === 'function') { const k2 = b3V3InfKind(blk, f, j, era, h1, h2); if (k2) { st2 = b3Set(S, k2, era, tag, null); } }
+    if (!tank && !cav && typeof b3V3InfKind === 'function') { const k2 = b3V3InfKind(blk, f, j, era, h1, h2); if (k2) { st2 = b3Set(S, k2, era, tag, null); if (B3N.clipOv) { clip = dyingK ? 'caer_con_estandarte' : B3N.clipOv; B3N.clipOv = null; } } }
+    if (cav && typeof b3V3CavBearer === 'function' && b3V3CavBearer(blk, f, j)) { st2 = b3Set(S, 'cab_apo_portaestandarte', era, tag, null); }
     if (E && !dyingK) { const mv = (blk.sp || 0) > 8, fr = blk.mode === 'fire' || blk.mode === 'artfire' || blk.mode === 'fixing' || blk.mode === 'skirmish';
       if (tank) { clip = mv ? 'avanzar' : fr ? 'disparar_canon' : 'ralenti'; _b3o.tread = mv ? 1.6 : 0; } else { _b3o.tread = 0; if (vset && j === 0) { st2 = vset; clip = mv ? 'avanzar' : 'ralenti'; _b3o.tread = vk === 'semioruga' && mv ? 1.6 : 0; } else if (mgset && j === 1) { st2 = mgset; clip = fr && !mv ? 'disparar_rafaga' : mv ? 'marcha' : 'idle'; } else if (!cav && clip === 'disparar_D') clip = h2 < 0.35 ? 'disparar_tumbado' : 'disparar'; } }
     else if (E) _b3o.tread = 0;
@@ -31473,7 +31479,7 @@ function b3Frame(V, b, g, lines, all) {
   // estandartes y placas
   let n = 0; const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p3 = new THREE.Vector3(), s3 = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
   vis.forEach(blk => { if (n >= 220) return; const y = b3H(S.tf, blk.x, blk.y), yaw = Math.PI / 2 - blk.hd;
-    q.setFromAxisAngle(up, yaw + Math.PI / 2); p3.set(blk.x, y, blk.y); s3.set(1, 1, 1); m4.compose(p3, q, s3); S.poles.setMatrixAt(n, m4); S.flags2.setMatrixAt(n, m4); S.flags2.setColorAt(n, blk.side === 'A' ? S.mats.A : S.mats.B); { const fm = b3FlagMesh(S, blk.tag); if (fm.n < 160) fm.mesh.setMatrixAt(fm.n++, m4); }
+    q.setFromAxisAngle(up, yaw + Math.PI / 2); p3.set(blk.x, y, blk.y); s3.set(1, 1, 1); m4.compose(p3, q, s3); const hb = typeof b3V3Bearer === 'function' && b3V3Bearer(blk); S.poles.setMatrixAt(n, hb ? B3_M0 : m4); S.flags2.setMatrixAt(n, hb ? B3_M0 : m4); S.flags2.setColorAt(n, blk.side === 'A' ? S.mats.A : S.mats.B); if (!hb) { const fm = b3FlagMesh(S, blk.tag); if (fm.n < 160) fm.mesh.setMatrixAt(fm.n++, m4); }
     q.setFromAxisAngle(up, yaw); p3.set(blk.x, y + 0.25, blk.y); s3.set(blk.wid + 2, 1, blk.dep + 2); m4.compose(p3, q, s3); S.plates.setMatrixAt(n, m4); S.plates.setColorAt(n, blk.side === 'A' ? S.mats.A : S.mats.B); n++; });
   S.sh.count = S.shN; S.sh.instanceMatrix.needsUpdate = true;
   Object.values(S.fm).forEach(f => { f.mesh.count = f.n; f.mesh.instanceMatrix.needsUpdate = true; f.n = 0; });
@@ -32276,6 +32282,7 @@ function npcAim(era, pitch, post, fire) { const T = window.Troops3D; return T &&
 function npcRelease(S, s, key) { if (s.cov >= 0 && S.cov) { const o = S.cov.list[s.cov]; if (o && o.users) { o.users.delete(key); o.occ = o.users.size; } } s.cov = -1; }
 function npcClaim(S, s, key, c) { npcRelease(S, s, key); const o = S.cov.list[c.i]; o.users = o.users || new Set(); o.users.add(key); o.occ = o.users.size; s.cov = c.i; s.ctx = c.x; s.ctz = c.z; }
 function b3Free(blk, f, j, x, z, yaw, clip, tU, ca, h1, h2) {
+  if (typeof b3V3IsBearer === 'function' && b3V3IsBearer(blk, f, j)) return null;                  // el abanderado no combate: lleva la bandera con la formación
   if (!SOLD.on) return null; const V = R.bviz, S = B3.S; if (!V || !S) return null; if (Math.hypot(x - ca.x, z - ca.z) > 260) return null;
   const me = SOLD._meT === tU ? SOLD._me : (SOLD._meT = tU, SOLD._me = soldBlock(V)); if (!me) return null;
   const enemy = blk.side !== me.side, key = blk.id + ':' + f.i + ':' + j, sp = blk.sp || 0, mode = blk.mode, era = t3Era(), gy0 = b3H(S.tf, x, z);
@@ -34659,7 +34666,9 @@ b3Frame = function (V, b, g, lines, all) { const r = _b3FrameN1(V, b, g, lines, 
 /* ===== modelos de infantería de Claude Design (infanteria3d.js): cada soldado se dibuja según su empleo y su variación personal ===== */
 const B3VAR = {complexion: 1, barba: 0, pelo: 0, desgaste: 0};
 function b3V3InfKind(blk, f, j, era, h1, h2) {
-  if (!window.infanteria3d || blk.type !== 'inf') return null; const emp = B3N.empleo(f.i, j);
+  if (!window.infanteria3d || blk.type !== 'inf') return null;
+  if (b3V3IsBearer(blk, f, j)) { const r = b3V3Roster(blk, f, j); if (r) r.rank = 'Abanderado'; B3N.clipOv = (blk.sp || 0) > 8 ? 'apo_estandarte_marcha' : blk.mode === 'victory' ? 'abanderado_alzar' : 'apo_estandarte_firme'; B3VAR.complexion = 1; B3VAR.barba = 1; B3VAR.pelo = 1; B3VAR.desgaste = 0; _b3o.variacion = B3VAR; return b3V3Estandarte(blk, era); }
+  const emp = B3N.empleo(f.i, j);
   let k = emp === 'Teniente' ? 'inf_teniente' : emp === 'Sargento' ? 'inf_sargento' : emp === 'Cabo' ? 'inf_cabo' : 'inf_soldado';
   if (emp === 'Soldado') { if (f.i === 1 && j === 1 && era < 'D') k = 'inf_tambor'; else if (f.i === 2 && j === 1 && era < 'D') k = 'inf_corneta'; else if (f.i === 4 && j === 3 && blk.tag === 'GBR' && era < 'C') k = 'inf_gaitero'; else if (blk.mode === 'skirmish' && j % 3 === 1) k = 'inf_jager'; else if (f.i === 5 && j === 2) k = 'inf_zapador'; }
   B3VAR.complexion = Math.floor(h1 * 3); B3VAR.barba = Math.floor(h2 * 5); B3VAR.pelo = Math.floor(hash2(blk.id * 7 + f.i, j, 21) * 6); B3VAR.desgaste = 0; _b3o.variacion = B3VAR;
@@ -34667,6 +34676,67 @@ function b3V3InfKind(blk, f, j, era, h1, h2) {
 }
 // el desgaste del uniforme (barro, polvo, sangre) crece con el tiempo y con las bajas del campo
 setInterval(() => { try { const V = R.bviz; if (V && window.infanteria3d && infanteria3d.desgaste) infanteria3d.desgaste.value = Math.min(0.9, (V.t || 0) / 700 + (SR2.kills || 0) / 260); } catch (e) { } }, 1500);
+
+/* ===== abanderados: la bandera del regimiento la lleva un soldado (apoyo3d), nunca clavada en el suelo =====
+   El abanderado es el soldado nº 5 de la primera figura viva del regimiento; si cae, la lleva el siguiente («caer_con_estandarte»).
+   En caballería es un portaestandarte a caballo y en artillería, un abanderado junto a la batería. */
+B3N.clipOv = null;
+function b3V3Estandarte(blk, era) {
+  const t = blk.tag, k = ['GER', 'PRU', 'AUS', 'AUT', 'BAV', 'SAX'].includes(t) ? 'fahne' : t === 'FRA' ? (era < 'C' ? 'aguila' : 'colores') : ['GBR', 'UK', 'ENG', 'CAN', 'USA', 'CSA'].includes(t) ? 'colores' : 'generico';
+  const K = Troops3D.KINDS || {}; return K['inf_apo_estandarte_' + k] ? 'inf_apo_estandarte_' + k : 'inf_abanderado';
+}
+function b3V3BearerFig(blk) { return blk.figs.find(q => q.alive && q.kind !== 'gun' && q.kind !== 'crew'); }
+function b3V3IsBearer(blk, f, j) { if (blk.type !== 'inf' || !window.apoyo3d || j !== (R.lowEnd ? 1 : 5)) return false; const b = b3V3BearerFig(blk); return !!b && b.i === f.i; }
+function b3V3CavBearer(blk, f, j) { if (blk.type !== 'cav' || !window.apoyo3d || j !== 0) return false; const b = b3V3BearerFig(blk); return !!b && b.i === f.i && !!(Troops3D.KINDS || {}).cab_apo_portaestandarte; }
+function b3V3Bearer(blk) { if (!window.apoyo3d) return false; if (blk.type === 'inf' || blk.type === 'cav') return !!b3V3BearerFig(blk); if (blk.type === 'art') return !!window.artilleria3d && B3T5 && B3T5.on && blk.figs.some(q => q.kind === 'gun' && q.alive); return false; }
+
+/* ===== tropas_v5.js — caballería y artillería de Claude Design (caballeria3d.js, artilleria3d.js) en la batalla 3D =====
+   · Caballería: cada figura de caballería usa los jinetes nuevos (cab_husar, cab_lancero, cab_dragon, cab_coracero) con sus aires reales
+     (paso, trote, galope, carga, parado) y el sable o la lanza en el cuerpo a cuerpo.
+   · Artillería: cada pieza se dibuja con su modelo de época, su dotación completa (jefe y servidores con sus clips sincronizados),
+     el avantrén y el tiro de caballos al marchar. La pieza en fuego repite el servicio real (avancarga ≈ 24 s por ciclo), así que los
+     servidores trabajan a ritmo real aunque la simulación del campo dispare más deprisa. */
+const B3T5 = {on: true, pieza: null};
+const B3CAB = {husar: 'cab_husar', lancero: 'cab_lancero', dragon: 'cab_dragon', coracero: 'cab_coracero'};
+function b3V3CavKind(k) { return B3T5.on && window.caballeria3d && B3CAB[k] && Troops3D.KINDS && Troops3D.KINDS[B3CAB[k]] ? B3CAB[k] : k; }
+const _b3ClipT5 = b3Clip;
+b3Clip = function (blk, f, era, cav) {
+  const c = _b3ClipT5(blk, f, era, cav); if (!cav || !B3T5.on || !window.caballeria3d) return c;
+  const m = blk.mode, sp = blk.sp || 0, lanza = (blk.id % B3_CAV.length) === 2 && era < 'D' ? '_lanza' : '', fl = f.flee > 0;
+  if (fl) return 'cab_galope'; if (m === 'charge' || m === 'gallop') return 'cab_galope_carga' + lanza; if (m === 'melee') return lanza ? 'cab_lanza_ataque' : 'cab_sable_ataque';
+  if (sp > 55) return 'cab_galope' + lanza; if (sp > 24) return 'cab_trote' + lanza; if (sp > 8) return 'cab_paso' + lanza; return 'cab_parado' + lanza;
+};
+// pieza de época y número de servidores
+function b3V3Pieza(blk, era) { const L = {A: ['canon_12', 'canon_6', 'obus_campana'], B: ['canon_12', 'rayado_rc', 'obus_campana'], C: ['rayado_rc', 'rayado_rc', 'obus_campana'], D: ['canon_75', 'obus_pesado', 'canon_75'], E: ['canon_75', 'campana_E', 'antitanque']}[era] || ['canon_12']; return L[blk.id % L.length]; }
+const B3_ARTCAP = {};
+function b3V3Art(S, V, blk, f, era, tU, ca, d3) {
+  if (!B3T5.on || !window.artilleria3d || blk.type !== 'art') return false; const A = artilleria3d, p = b3V3Pieza(blk, era), D = A.DOTACIONES[p], K = Troops3D.KINDS || {}; if (!D || !K['art_' + p]) return false;
+  if (f.kind !== 'gun') return true;                                            // los servidores se dibujan junto a su pieza
+  if (!f.alive && f.dying <= 0) return true;
+  const firstGun = blk.figs.find(q => q.kind === 'gun' && q.alive);
+  const tag = blk.tag, y = b3H(S.tf, f.x, f.y), yaw = Math.PI / 2 - blk.hd, c2 = Math.cos(yaw), s2 = Math.sin(yaw), h = hash2(blk.id, f.i, 11), M = B3_S, mv = (blk.sp || 0) > 8;
+  const fire = blk.mode === 'artfire' || blk.mode === 'fire' || f.flash > 0, o = _b3o;
+  const put = (kind, clip, lx, lz, dyaw, ph, noPh) => { if (!K[kind]) return; const set = b3Set(S, kind, era, tag, null), x = f.x + (lx * c2 + lz * s2) * M, z = f.y + (-lx * s2 + lz * c2) * M;
+    o.phase = ph; o.h = 0; o.bright = (ph * 7.3) % 1; o.skin = (h * 4) | 0; o.horse = (h * 4) | 0; o.start = null; o.variacion = null; set.add(d3(x, y, z), x, y, z, yaw + (dyaw || 0) * Math.PI / 180, M, tag, clip, o); };
+  const bandera = () => { if (firstGun && firstGun.i === f.i && window.apoyo3d && K.inf_apo_estandarte_generico) put('inf_apo_estandarte_generico', mv ? 'apo_estandarte_marcha' : 'apo_estandarte_firme', -3.4, -1.2, 0, hash2(blk.id, 9, 3)); };
+  const nSrv = (() => { const crew = blk.figs.filter(q => q.kind === 'crew' && q.alive).length; return Math.max(2, Math.min(D.servidores.length, Math.round(D.servidores.length * (crew + 1) / 7))); })();
+  if (mv && K['art_' + p + '_enganchado']) {
+    const sp = blk.sp || 0, rod = sp > 40 ? 'art_rodar_galope' : sp > 24 ? 'art_rodar_trote' : 'art_rodar_paso', cab = sp > 40 ? 'cab_galope' : sp > 24 ? 'cab_trote' : 'cab_paso';
+    bandera(); put('art_' + p + '_enganchado', rod, 0, 0, 0, h); try { A.formacion('tiro', 4).forEach((t, i) => put(t.tipo, cab, t.x, t.z, 0, hash2(blk.id, f.i * 7 + i, 5))); } catch (e) { }
+    return true;
+  }
+  bandera();
+  if (fire) {
+    put('art_' + p, D.clipPieza, 0, 0, 0, h);
+    D.servidores.slice(0, nSrv).forEach(s => put(s.tipo, s.clip, 0, 0, 0, h));
+    if (D.avantren && K[D.avantren.tipo]) put(D.avantren.tipo, 'art_rodar_parado', D.avantren.desfase[0], D.avantren.desfase[1], D.avantren.desfase[2], h);
+    return true;
+  }
+  put('art_' + p, 'art_' + p + '_reposo', 0, 0, 0, h);                                // en reposo: la pieza quieta y los servidores de pie alrededor
+  D.servidores.slice(0, nSrv).forEach((s, i) => { const a = i * 6.283 / nSrv + h * 6.283, r = 2.3; put('inf_art_jefe', 'idle', Math.cos(a) * r, Math.sin(a) * r, (a * 57.3 + 180) % 360, hash2(blk.id * 3 + i, f.i, 17)); });
+  if (D.avantren && K[D.avantren.tipo]) put(D.avantren.tipo, 'art_rodar_parado', D.avantren.desfase[0], D.avantren.desfase[1], D.avantren.desfase[2], h);
+  return true;
+}
 
 /* ===== BATALLA NAVAL EN 3D =====
    Misma batalla que el visor 2D (navalviz.js: posiciones, daños, disparos y hundimientos), pero con el mar en 3D y buques modelados:

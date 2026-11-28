@@ -161,7 +161,7 @@ function b3Set(S, kind, era, tag, role) {
   const T = Troops3D, sh = R.t3.shared, key = kind + '|' + era + '|' + T.troopGeoKey(kind, era, tag) + '|' + (role || '');
   let set = S.sets[key];
   if (!set) {
-    const cls = /^(husar|lancero|dragon|coracero|cab_)/.test(kind) ? 'cav' : /canon|obus|ametralladora|avantren|carro|carreta|artillero|tanque|mark1|camion|semioruga|cazacarros/.test(kind) ? 'art' : 'inf';
+    const cls = /^(husar|lancero|dragon|coracero|cab_)/.test(kind) ? 'cav' : /canon|obus|ametralladora|avantren|carro|carreta|artillero|tanque|mark1|camion|semioruga|cazacarros|^art_|^cab_tiro/.test(kind) ? 'art' : 'inf';
     set = S.sets[key] = new T.TroopLodSet(sh, kind, era, tag, B3_CAP[cls].map(n => R.lowEnd ? n >> 1 : n), {role, dist: [45, 220]}); set.meshes.forEach(m => S.scene.add(m)); set.kind = kind;
   }
   return set;
@@ -193,11 +193,12 @@ function b3Clip(blk, f, era, cav) {
   if (m === 'fire' || m === 'fixing' || m === 'skirmish') return moving ? 'marcha' : fire;
   return moving ? 'marcha' : 'idle';
 }
-const B3_PER = 12, b3LayX = (j, sp) => (Math.floor(j / 4) - 1) * sp * 0.95, b3LayY = (j, sp) => ((j % 4) - 1.5) * sp * 0.9;       // 12 soldados por figura: 3 filas de 4
+const B3_M0 = new THREE.Matrix4().makeScale(0, 0, 0), B3_PER = 12, b3LayX = (j, sp) => (Math.floor(j / 4) - 1) * sp * 0.95, b3LayY = (j, sp) => ((j % 4) - 1.5) * sp * 0.9;       // 12 soldados por figura: 3 filas de 4
 function b3Fig(S, V, blk, f, era, tU, cp, ca) {
   const c = Math.cos(blk.hd), s = Math.sin(blk.hd), tag = blk.tag, tf = S.tf, cx = ca.x, cy = ca.y, cz = ca.z;
   const d3 = (x, y, z) => Math.hypot(x - cx, y - cy, z - cz);
   if (blk.type === 'art') {
+    if (typeof b3V3Art === 'function' && b3V3Art(S, V, blk, f, era, tU, ca, d3)) return;
     if (f.kind !== 'gun' || (!f.alive && f.dying <= 0)) return;
     const st = (blk.mode === 'artfire' || blk.mode === 'fire' || f.flash > 0) ? 'fuego' : (blk.sp || 0) > 8 ? 'marcha' : 'reposo', y = b3H(tf, f.x, f.y), yaw = Math.PI / 2 - blk.hd, c2 = Math.cos(yaw), s2 = Math.sin(yaw), h1 = hash2(blk.id, f.i, 11);
     Troops3D.troopGroup('bateria', era, st).forEach(m => { const set = b3Set(S, m.kind, era, tag, m.role), lx = m.at[0] * B3_S, lz = m.at[1] * B3_S, x = f.x + lx * c2 + lz * s2, z = f.y - lx * s2 + lz * c2;
@@ -205,7 +206,7 @@ function b3Fig(S, V, blk, f, era, tU, cp, ca) {
     return;
   }
   const cav = blk.type === 'cav', tank = blk.type === 'tank', E = era === 'E', comp = E && typeof t3Comp === 'function' && blk.d ? t3Comp(blk.d, tag) : null;
-  const kind = tank ? (E ? (comp && comp.spg > comp.tank ? 'cazacarros' : 'tanque_medio') : 'tanque') : cav ? (E ? 'dragon' : B3_CAV[blk.id % B3_CAV.length]) : 'fusilero', set = b3Set(S, kind, era, tag, null);
+  const kind = tank ? (E ? (comp && comp.spg > comp.tank ? 'cazacarros' : 'tanque_medio') : 'tanque') : cav ? (typeof b3V3CavKind === 'function' ? b3V3CavKind(E ? 'dragon' : B3_CAV[blk.id % B3_CAV.length]) : (E ? 'dragon' : B3_CAV[blk.id % B3_CAV.length])) : 'fusilero', set = b3Set(S, kind, era, tag, null);
   const vk = E && !tank && !cav && comp ? (comp.mech > 3 ? 'semioruga' : comp.mot > 3 ? 'camion' : null) : null, vset = vk ? b3Set(S, vk, era, tag, null) : null, mgset = E && !tank && !cav && comp && comp.mg ? b3Set(S, 'ametrallador', era, tag, null) : null;
   const m = tank ? 1 : cav ? 2 : (R.lowEnd ? 2 : B3_PER), sp = cav ? 2.9 : tank ? 0 : 1.65 * (blk.comp || 1);
   const dyingK = !f.alive && f.dying > 0;
@@ -218,7 +219,8 @@ function b3Fig(S, V, blk, f, era, tU, cp, ca) {
     if (dyingK) { clip = tank ? 'destruido' : _b3Cl[(h2 * 4) | 0]; _b3o.start = tU - (0.8 - f.dying) * 1.5; }
     else { if (f.flee > 0) yaw = Math.atan2(f.vx, f.vy); clip = b3Clip(blk, f, era, cav); }
     let st2 = set;
-    if (!tank && !cav && typeof b3V3InfKind === 'function') { const k2 = b3V3InfKind(blk, f, j, era, h1, h2); if (k2) { st2 = b3Set(S, k2, era, tag, null); } }
+    if (!tank && !cav && typeof b3V3InfKind === 'function') { const k2 = b3V3InfKind(blk, f, j, era, h1, h2); if (k2) { st2 = b3Set(S, k2, era, tag, null); if (B3N.clipOv) { clip = dyingK ? 'caer_con_estandarte' : B3N.clipOv; B3N.clipOv = null; } } }
+    if (cav && typeof b3V3CavBearer === 'function' && b3V3CavBearer(blk, f, j)) { st2 = b3Set(S, 'cab_apo_portaestandarte', era, tag, null); }
     if (E && !dyingK) { const mv = (blk.sp || 0) > 8, fr = blk.mode === 'fire' || blk.mode === 'artfire' || blk.mode === 'fixing' || blk.mode === 'skirmish';
       if (tank) { clip = mv ? 'avanzar' : fr ? 'disparar_canon' : 'ralenti'; _b3o.tread = mv ? 1.6 : 0; } else { _b3o.tread = 0; if (vset && j === 0) { st2 = vset; clip = mv ? 'avanzar' : 'ralenti'; _b3o.tread = vk === 'semioruga' && mv ? 1.6 : 0; } else if (mgset && j === 1) { st2 = mgset; clip = fr && !mv ? 'disparar_rafaga' : mv ? 'marcha' : 'idle'; } else if (!cav && clip === 'disparar_D') clip = h2 < 0.35 ? 'disparar_tumbado' : 'disparar'; } }
     else if (E) _b3o.tread = 0;
@@ -286,7 +288,7 @@ function b3Frame(V, b, g, lines, all) {
   // estandartes y placas
   let n = 0; const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p3 = new THREE.Vector3(), s3 = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
   vis.forEach(blk => { if (n >= 220) return; const y = b3H(S.tf, blk.x, blk.y), yaw = Math.PI / 2 - blk.hd;
-    q.setFromAxisAngle(up, yaw + Math.PI / 2); p3.set(blk.x, y, blk.y); s3.set(1, 1, 1); m4.compose(p3, q, s3); S.poles.setMatrixAt(n, m4); S.flags2.setMatrixAt(n, m4); S.flags2.setColorAt(n, blk.side === 'A' ? S.mats.A : S.mats.B); { const fm = b3FlagMesh(S, blk.tag); if (fm.n < 160) fm.mesh.setMatrixAt(fm.n++, m4); }
+    q.setFromAxisAngle(up, yaw + Math.PI / 2); p3.set(blk.x, y, blk.y); s3.set(1, 1, 1); m4.compose(p3, q, s3); const hb = typeof b3V3Bearer === 'function' && b3V3Bearer(blk); S.poles.setMatrixAt(n, hb ? B3_M0 : m4); S.flags2.setMatrixAt(n, hb ? B3_M0 : m4); S.flags2.setColorAt(n, blk.side === 'A' ? S.mats.A : S.mats.B); if (!hb) { const fm = b3FlagMesh(S, blk.tag); if (fm.n < 160) fm.mesh.setMatrixAt(fm.n++, m4); }
     q.setFromAxisAngle(up, yaw); p3.set(blk.x, y + 0.25, blk.y); s3.set(blk.wid + 2, 1, blk.dep + 2); m4.compose(p3, q, s3); S.plates.setMatrixAt(n, m4); S.plates.setColorAt(n, blk.side === 'A' ? S.mats.A : S.mats.B); n++; });
   S.sh.count = S.shN; S.sh.instanceMatrix.needsUpdate = true;
   Object.values(S.fm).forEach(f => { f.mesh.count = f.n; f.mesh.instanceMatrix.needsUpdate = true; f.n = 0; });
